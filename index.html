@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <title>Factupapa</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./src/styles/tokens.css">
+  <link rel="stylesheet" href="./src/styles/base.css">
+  <link rel="stylesheet" href="./src/styles/layout.css">
+  <link rel="stylesheet" href="./src/styles/components.css">
+  <link rel="stylesheet" href="./src/styles/print.css">
+  <link rel="stylesheet" href="./src/styles/themes.css">
+</head>
+<body>
+  <div class="app">
+    <header class="hero panel">
+      <div class="hero-top">
+        <div class="brand">
+          <h1>Factupapa</h1>
+          <p>Operativa diaria, facturación, stock y gestión del negocio</p>
+        </div>
+        <button class="icon ghost" id="installBtn">Ia</button>
+      </div>
+    </header>
+    <nav class="tabs panel" id="tabs"></nav>
+    <main id="views"></main>
+  </div>
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="sheet">
+      <div class="panel-h">
+        <div>
+          <h2 id="modalTitle">Formulario</h2>
+          <div class="sub" id="modalSub"></div>
+        </div>
+        <button class="icon ghost" id="closeModal">x</button>
+      </div>
+      <div class="panel-b" id="modalBody"></div>
+      <div class="sheet-actions" id="modalActions"></div>
+    </div>
+  </div>
+  <div id="printRoot" class="hidden"></div>
+  <div class="toast-wrap" id="toasts"></div>
+  <script src="./src/state/initial-state.js"></script>
+  <script src="./src/state/migrations.js"></script>
+  <script src="./src/services/storage-local.js"></script>
+  <script src="./src/state/store.js"></script>
+  <script src="./src/state/ui-state.js"></script>
+  <script src="./src/state/selectors.js"></script>
+  <script src="./src/utils/numbers.js"></script>
+  <script src="./src/utils/strings.js"></script>
+  <script src="./src/utils/ids.js"></script>
+  <script src="./src/utils/dates.js"></script>
+  <script src="./src/utils/format.js"></script>
+  <script src="./src/domain/products.js"></script>
+  <script src="./src/domain/stock.js"></script>
+  <script src="./src/domain/invoices.js"></script>
+  <script src="./src/domain/purchases.js"></script>
+  <script src="./src/domain/expenses.js"></script>
+  <script src="./src/domain/fiscal.js"></script>
+  <script src="./src/domain/documents.js"></script>
+  <script src="./src/domain/scanner/scan-page.js"></script>
+  <script src="./src/domain/scanner/scan-session.js"></script>
+  <script src="./src/state/scanner-store.js"></script>
+  <script src="./src/services/camera/camera-service.js"></script>
+  <script src="./src/services/vision/document-detector.js"></script>
+  <script src="./src/services/vision/perspective-service.js"></script>
+  <script src="./src/services/vision/enhance-service.js"></script>
+  <script src="./src/services/vision/scan-processing-service.js"></script>
+  <script src="./src/services/ocr/ocr-service.js"></script>
+  <script src="./src/services/pdf/pdf-export-service.js"></script>
+  <script src="./src/ui/cards/invoice-card.js"></script>
+  <script src="./src/ui/cards/client-card.js"></script>
+  <script src="./src/ui/cards/product-card.js"></script>
+  <script src="./src/ui/cards/document-card.js"></script>
+  <script src="./src/ui/components/modal.js"></script>
+  <script src="./src/ui/components/line-editor.js"></script>
+  <script src="./src/ui/forms/client-form.js"></script>
+  <script src="./src/ui/forms/supplier-form.js"></script>
+  <script src="./src/ui/forms/product-form.js"></script>
+  <script src="./src/ui/forms/purchase-form.js"></script>
+  <script src="./src/ui/forms/expense-form.js"></script>
+  <script src="./src/ui/forms/invoice-form.js"></script>
+  <script src="./src/ui/forms/document-form.js"></script>
+  <script src="./src/ui/forms/delivery-note-form.js"></script>
+  <script src="./src/ui/views/dashboard-view.js"></script>
+  <script src="./src/ui/views/billing-view.js"></script>
+  <script src="./src/ui/views/catalog-view.js"></script>
+  <script src="./src/ui/views/operations-view.js"></script>
+  <script src="./src/ui/views/exports-view.js"></script>
+  <script src="./src/ui/views/settings-view.js"></script>
+  <script src="./src/ui/views/scanner-workspace-view.js"></script>
+  <script src="./src/ui/scanner/scanner-camera.js"></script>
+  <script src="./src/ui/scanner/scanner-crop-editor.js"></script>
+  <script src="./src/ui/scanner/scanner-preview.js"></script>
+  <script src="./src/ui/scanner/scanner-view.js"></script>
+  <script src="./src/ui/render-nav.js"></script>
+  <script src="./src/ui/render-views.js"></script>
+  <script src="./src/app/bootstrap.js"></script>
+</body>
+</html>

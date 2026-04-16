@@ -1,0 +1,29 @@
+.panel,
+.card,
+.stat,
+.sheet,
+.tabs{
+  backdrop-filter:blur(18px);
+}
+
+.hero::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:-6px;
+  height:18px;
+  background:linear-gradient(180deg,rgba(9,11,16,.46),transparent);
+  pointer-events:none;
+}
+
+.panel-h .actions .primary,
+.quick .primary{
+  box-shadow:0 10px 24px rgba(246,165,26,.18);
+}
+
+.card:hover,
+.list-row:hover,
+.kpi-card:hover{
+  border-color:rgba(255,255,255,.1);
+}
