@@ -2049,21 +2049,25 @@
         }
 
         function startAutoSync(){
+          const refreshFromCloud = () => pullRemoteState(true).catch(() => {});
           document.addEventListener("visibilitychange", () => {
             if(document.visibilityState === "visible"){
-              pullRemoteState(true).catch(() => {});
+              refreshFromCloud();
             }
           });
+          window.addEventListener("focus", refreshFromCloud);
+          window.addEventListener("pageshow", refreshFromCloud);
           window.addEventListener("online", () => {
             setStatus("syncing");
-            pullRemoteState(true).finally(() => queuePush());
+            refreshFromCloud().finally(() => queuePush());
           });
           if(runtime.pollTimer) clearInterval(runtime.pollTimer);
           runtime.pollTimer = setInterval(() => {
             if(document.visibilityState === "visible"){
-              pullRemoteState(true).catch(() => {});
+              refreshFromCloud();
             }
-          }, 45000);
+          }, 12000);
+          setTimeout(refreshFromCloud, 1200);
         }
 
         return {
