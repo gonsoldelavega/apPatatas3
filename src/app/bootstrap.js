@@ -1,5 +1,5 @@
-  (async () => {
-      const { getSupabaseClient } = await import("./src/services/supabase-client.js");
+﻿  (async () => {
+      const { getSupabaseClient } = await import("../services/supabase-client.js");
       const KEY = window.AppInitialState.STORAGE_KEY;
       const APP_VERSION = "2026.04.16-vercel-sync";
       const SYNC_TOKEN_KEY = "factupapa-sync-token";
