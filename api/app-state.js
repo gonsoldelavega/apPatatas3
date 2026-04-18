@@ -2,7 +2,7 @@ import { get, put } from "@vercel/blob";
 
 const PATHNAME = "shared-state/app-state.json";
 const SYNC_VERSION = 1;
-const COLLECTION_KEYS = ["templates","clients","suppliers","products","purchases","expenses","deliveryNotes","invoices","documents"];
+const COLLECTION_KEYS = ["templates","clients","suppliers","products","purchases","expenses","walletMovements","deliveryNotes","invoices","documents"];
 
 function setCors(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");

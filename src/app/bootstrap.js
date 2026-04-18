@@ -43,6 +43,7 @@
       const productFormUI = window.AppUIFormProduct;
       const purchaseFormUI = window.AppUIFormPurchase;
       const expenseFormUI = window.AppUIFormExpense;
+      const walletFormUI = window.AppUIFormWallet;
       const invoiceFormUI = window.AppUIFormInvoice;
       const documentFormUI = window.AppUIFormDocument;
       const ocrService = window.AppOcrService;
@@ -104,6 +105,21 @@
       function purchaseBase(x){ return purchasesDomain.purchaseBase(x, n); }
       function purchaseTotal(x){ return purchasesDomain.purchaseTotal(x, n); }
       function expenseTotal(x){ return expensesDomain.expenseTotal(x, n); }
+      function walletMovementDelta(item){
+        if(!item) return 0;
+        if(item.kind === "in") return Math.max(n(item.amount), 0);
+        if(item.kind === "out") return -Math.max(n(item.amount), 0);
+        return n(item.delta);
+      }
+      function walletBalance(list = state.walletMovements || []){
+        return (list || []).reduce((sum, item) => sum + walletMovementDelta(item), 0);
+      }
+      function walletKindLabel(kind){
+        return kind === "in" ? "Entrada" : kind === "out" ? "Salida" : "Ajuste";
+      }
+      function walletScopeLabel(scope){
+        return scope === "business" ? "Negocio" : scope === "personal" ? "Personal" : "General";
+      }
       function period(start,end){ return invoicesDomain.period(start, end, date); }
       function parseInvoiceNumber(value){ return invoicesDomain.parseInvoiceNumber(value); }
       function composeInvoiceNumber(seq){ return invoicesDomain.composeInvoiceNumber(state.settings, seq); }
@@ -122,11 +138,113 @@
         syncState();
         renderAll();
       }
+      function createWalletMovement(payload){
+        const mode = payload?.mode || "out";
+        const amount = Math.max(n(payload?.amount), 0);
+        const targetBalance = n(payload?.targetBalance);
+        const currentBalance = walletBalance();
+        const delta = mode === "adjust" ? targetBalance - currentBalance : mode === "in" ? amount : -amount;
+        if(mode !== "adjust" && amount <= 0){
+          toast("Indica una cantidad valida");
+          return false;
+        }
+        if(mode === "adjust" && Math.abs(delta) < 0.0001){
+          toast("El saldo ya coincide con esa cantidad");
+          return false;
+        }
+        const dateValue = payload?.date || today();
+        const notes = String(payload?.notes || "").trim();
+        const scope = payload?.scope || (mode === "out" ? "business" : "neutral");
+        const registerAs = scope === "business" ? (payload?.registerAs || "none") : "none";
+        const supplierId = payload?.supplierId || "";
+        const expenseCategory = payload?.expenseCategory || "";
+        const productId = payload?.productId || "";
+        const quantity = Math.max(n(payload?.quantity), 0);
+
+        store.updateState(current => {
+          let linkedType = "";
+          let linkedId = "";
+          if(mode === "out" && scope === "business" && registerAs === "expense"){
+            const expense = {
+              id:uid("exp"),
+              date:dateValue,
+              supplierId,
+              category:expenseCategory,
+              concept:notes || "Salida de monedero",
+              base:amount,
+              iva:0,
+              notes:["Pagado desde monedero", notes].filter(Boolean).join(" · ")
+            };
+            current.expenses.unshift(expense);
+            linkedType = "expense";
+            linkedId = expense.id;
+          }
+          if(mode === "out" && scope === "business" && registerAs === "purchase"){
+            const affectsStock = !!productId && quantity > 0;
+            const safeQuantity = affectsStock ? quantity : 1;
+            const purchase = {
+              id:uid("buy"),
+              date:dateValue,
+              supplierId,
+              productId:affectsStock ? productId : "",
+              quantity:safeQuantity,
+              unitCost:safeQuantity > 0 ? amount / safeQuantity : amount,
+              iva:0,
+              notes:["Pagado desde monedero", notes].filter(Boolean).join(" · "),
+              attachment:null
+            };
+            current.purchases.unshift(purchase);
+            linkedType = "purchase";
+            linkedId = purchase.id;
+          }
+          current.walletMovements.unshift({
+            id:uid("wal"),
+            date:dateValue,
+            kind:mode === "adjust" ? "adjust" : mode,
+            amount:mode === "adjust" ? Math.abs(delta) : amount,
+            delta,
+            targetBalance:mode === "adjust" ? targetBalance : null,
+            scope:mode === "adjust" ? "neutral" : scope,
+            registerAs,
+            supplierId,
+            expenseCategory,
+            productId,
+            quantity,
+            linkedType,
+            linkedId,
+            notes
+          });
+        }, { persist:true, reason:`wallet:${mode}` });
+        syncState();
+        renderAll();
+        toast(mode === "adjust" ? "Saldo del monedero ajustado" : "Movimiento de monedero guardado");
+        return true;
+      }
       function removeEntity(collection, id, message){
         if(!confirm(message)) return;
         store.removeEntity(collection, id);
         syncState();
         renderAll();
+      }
+      function deleteWalletMovement(id){
+        const item = state.walletMovements.find(x => x.id === id);
+        if(!item) return;
+        const linkedText = item.linkedType === "expense" ? " y tambien se eliminara el gasto vinculado" : item.linkedType === "purchase" ? " y tambien se eliminara la compra vinculada" : "";
+        if(!confirm(`¿Eliminar este movimiento del monedero?${linkedText}`)) return;
+        store.updateState(current => {
+          const target = current.walletMovements.find(x => x.id === id);
+          if(!target) return;
+          if(target.linkedType === "expense" && target.linkedId){
+            current.expenses = current.expenses.filter(x => x.id !== target.linkedId);
+          }
+          if(target.linkedType === "purchase" && target.linkedId){
+            current.purchases = current.purchases.filter(x => x.id !== target.linkedId);
+          }
+          current.walletMovements = current.walletMovements.filter(x => x.id !== id);
+        }, { persist:true, reason:"wallet:delete" });
+        syncState();
+        renderAll();
+        toast("Movimiento del monedero eliminado");
       }
       function toast(message){
         const wrap = document.getElementById("toasts");
@@ -251,8 +369,12 @@
           stock,
           lineTotal,
           purchaseTotal,
-          expenseTotal,
-          invoiceTotals,
+           expenseTotal,
+           walletBalance,
+           walletMovementDelta,
+           walletKindLabel,
+           walletScopeLabel,
+           invoiceTotals,
           invoicePaymentStatus,
           invoiceIsOverdue,
           period,
@@ -288,14 +410,20 @@
           templateName,
           inferStockGroup,
           blankLine,
-          purchaseTotal,
-          expenseTotal,
-          lineTotal,
+           purchaseTotal,
+           expenseTotal,
+           walletBalance,
+           walletMovementDelta,
+           walletKindLabel,
+           walletScopeLabel,
+           lineTotal,
           invoiceTotals,
           composeInvoiceNumber,
-          parseInvoiceNumber,
-          saveEntity,
-          toast,
+           parseInvoiceNumber,
+           saveEntity,
+           createWalletMovement,
+           deleteWalletMovement,
+           toast,
           getAnthropicKey: () => readDeviceLocal("anthropic-api-key") || "",
           relatedOptions,
             parseRelatedValue,
@@ -452,7 +580,13 @@
           if (data.anthropicApiKey && data.anthropicApiKey.trim()) {
             writeDeviceLocal("anthropic-api-key", data.anthropicApiKey.trim());
           }
+          if (Object.prototype.hasOwnProperty.call(data, "syncToken")) {
+            const syncToken = String(data.syncToken || "").trim();
+            writeDeviceLocal(SYNC_TOKEN_KEY, syncToken);
+            window.__SYNC_TOKEN__ = syncToken;
+          }
           delete data.anthropicApiKey;
+          delete data.syncToken;
           store.updateState(current => {
             current.settings = { ...current.settings, ...data, invoiceYear:n(data.invoiceYear), nextInvoiceNumber:n(data.nextInvoiceNumber) };
           }, { persist:true });
@@ -495,6 +629,7 @@
       }
       function openPurchaseForm(id){ return purchaseFormUI.openPurchaseForm(formContext(), id); }
       function openExpenseForm(id){ return expenseFormUI.openExpenseForm(formContext(), id); }
+      function openWalletMovementForm(mode){ return walletFormUI.openWalletMovementForm(formContext(), mode); }
       function relatedOptions(selectedType, selectedId){
         const groups = [
           { id:"purchase", label:"Compra", items:state.purchases.map(x => ({ id:x.id, label:`${date(x.date)} · ${getProduct(x.productId)?.name || "Compra"}` })) },
@@ -980,6 +1115,7 @@
               <button data-action="new-delivery-note">Crear albarán</button>
               <button data-action="new-purchase">Registrar compra</button>
               <button data-action="new-expense">Registrar gasto</button>
+              <button data-action="new-wallet-out">Salida de monedero</button>
               <button class="ghost" data-action="new-document">Nuevo documento</button>
               <button class="ghost disabled-action" data-action="new-quote">Crear presupuesto</button>
               <p class="sheet-note">Presupuestos queda señalado aquí como siguiente paso de producto, sin alterar todavía la lógica actual.</p>
@@ -1096,6 +1232,8 @@
             const anchor = settingsForm.lastElementChild;
             anchor.insertAdjacentHTML("beforebegin", `<div class="field"><label>API Key Anthropic (escáner IA)</label><input name="anthropicApiKey" type="password" value="${esc(readDeviceLocal('anthropic-api-key') || '')}" placeholder="sk-ant-..."></div><div class="field"><label>Backend URL</label><input name="backendUrl" value="${esc(state.settings.backendUrl || "/api/app-state")}" placeholder="/api/app-state"></div><div class="field"><label>Sincronizacion automatica nube</label><select name="backendAutoSync"><option value="false" ${state.settings.backendAutoSync ? "" : "selected"}>No</option><option value="true" ${state.settings.backendAutoSync ? "selected" : ""}>Si</option></select></div><div class="field"><label>ID dispositivo</label><input name="deviceId" value="${esc(state.settings.deviceId || "")}"></div><div class="field"><label>Google OAuth Client ID</label><input name="driveClientId" value="${esc(state.settings.driveClientId || "")}" placeholder="Pega tu Client ID web para Drive"></div><div class="field"><label>Carpeta raiz Drive</label><input name="driveRootFolderName" value="${esc(state.settings.driveRootFolderName || "apPatatas")}"></div><div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${state.settings.driveAutoUpload ? "selected" : ""}>Si</option></select></div><div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${esc(state.settings.driveStateFileName || "apPatatas-state.json")}"></div><div class="field"><label>Sincronizacion automatica datos Drive</label><select name="driveStateAutoSync"><option value="false" ${state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${state.settings.driveStateAutoSync ? "selected" : ""}>Si</option></select></div>`);
           }
+          const syncTokenField = settingsForm?.querySelector('[name="syncToken"]');
+          if(syncTokenField && !syncTokenField.value) syncTokenField.value = readDeviceLocal(SYNC_TOKEN_KEY) || "";
           renderSyncStatusPanel(settingsForm);
           settingsForm?.querySelectorAll('#syncStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
             e.preventDefault();
@@ -1440,11 +1578,11 @@
         return !!snapshot
           && typeof snapshot === "object"
           && snapshot.settings && typeof snapshot.settings === "object"
-          && ["templates","clients","suppliers","products","purchases","expenses","deliveryNotes","invoices","documents"].every(key => Array.isArray(snapshot[key]));
+          && ["templates","clients","suppliers","products","purchases","expenses","walletMovements","deliveryNotes","invoices","documents"].every(key => Array.isArray(snapshot[key]));
       }
       function isMeaningfulState(snapshot){
         return isStructurallyValidState(snapshot)
-          && ["templates","clients","suppliers","products","purchases","expenses","deliveryNotes","invoices","documents"].some(key => (snapshot[key] || []).length > 0);
+          && ["templates","clients","suppliers","products","purchases","expenses","walletMovements","deliveryNotes","invoices","documents"].some(key => (snapshot[key] || []).length > 0);
       }
       function hasSavedLocalState(){
         return !!window.localStorage.getItem(KEY);
@@ -1472,11 +1610,11 @@
           ? window.__SYNC_TOKEN__.trim()
           : "";
       }
-      function getSyncStatusSummary(){
-        const tokenPresent = !!readDeviceLocal(SYNC_TOKEN_KEY).trim();
-        const meta = readSyncMeta();
-        const syncEnabled = (state.settings.backendAutoSync === true || state.settings.backendAutoSync === "true") && tokenPresent;
-        const liveStatus = syncManager?.getStatus?.() || (navigator.onLine ? "synced" : "offline");
+        function getSyncStatusSummary(){
+          const tokenPresent = !!readDeviceLocal(SYNC_TOKEN_KEY).trim();
+          const meta = readSyncMeta();
+          const syncEnabled = (state.settings.backendAutoSync === true || state.settings.backendAutoSync === "true") && tokenPresent;
+          const liveStatus = syncManager?.getStatus?.() || (navigator.onLine ? "synced" : "offline");
         return {
           syncEnabled,
           tokenPresent,
@@ -1486,14 +1624,42 @@
           lastSuccessAt:meta.lastSuccessAt || "",
           lastPullResult:meta.lastPullResult || "",
           lastPushResult:meta.lastPushResult || "",
-          lastError:meta.lastError || "",
-          backendUrl:state.settings.backendUrl || "/api/app-state"
-        };
-      }
-      function renderSyncStatusPanel(settingsForm){
-        if(!settingsForm) return;
-        const summary = getSyncStatusSummary();
-        let panel = settingsForm.querySelector("#syncStatusPanel");
+            lastError:meta.lastError || "",
+            backendUrl:state.settings.backendUrl || "/api/app-state"
+          };
+        }
+        function describeSyncStatus(summary){
+          const lastError = String(summary.lastError || "").trim();
+          if(!summary.tokenPresent) return { tone:"Pendiente", detail:"Falta poner el token compartido en este dispositivo." };
+          if(lastError === "backend-token-missing" || lastError === "missing_sync_token" || lastError === "backend-500") return { tone:"Servidor incompleto", detail:"En Vercel falta APP_SYNC_TOKEN o la API no esta bien configurada." };
+          if(lastError === "backend-auth" || lastError === "unauthorized") return { tone:"Token incorrecto", detail:"La clave guardada aqui no coincide con la que tiene Vercel." };
+          if(lastError.startsWith("backend-")) return { tone:"Error del servidor", detail:"La app llega a la nube, pero el servidor ha respondido con error." };
+          if(summary.liveStatus === "offline") return { tone:"Sin internet", detail:"Este dispositivo esta ahora mismo sin conexion." };
+          if(summary.lastSuccessAt) return { tone:"Conectada", detail:"La nube esta respondiendo correctamente." };
+          return { tone:"Preparada", detail:"La configuracion parece correcta, pero aun no hay confirmacion de nube." };
+        }
+        function syncResultLabel(value, fallback = "Sin dato"){
+          const text = String(value || "").trim();
+          if(!text) return fallback;
+          const map = {
+            "omitted:sync-disabled":"Desactivada",
+            "omitted:missing-token":"Falta token",
+            "omitted:offline":"Sin internet",
+            "omitted:already-pushed":"Ya estaba al dia",
+            "omitted:in-flight":"En proceso",
+            "304:not-modified":"Sin cambios",
+            "bootstrap:seed-local":"Subio tus datos a la nube",
+            "bootstrap:seed-local-empty-remote":"Creo la nube con tus datos",
+            "200:applied":"Datos recibidos",
+            "200:saved":"Datos subidos"
+          };
+          return map[text] || text;
+        }
+        function renderSyncStatusPanel(settingsForm){
+          if(!settingsForm) return;
+          const summary = getSyncStatusSummary();
+          const diagnosis = describeSyncStatus(summary);
+          let panel = settingsForm.querySelector("#syncStatusPanel");
         if(!panel){
           panel = document.createElement("div");
           panel.id = "syncStatusPanel";
@@ -1918,6 +2084,10 @@
       };
       const previousHandleActionWithDrive = handleAction;
       handleAction = function(action, id, kind){
+        if(action === "new-wallet-in") return openWalletMovementForm("in");
+        if(action === "new-wallet-out") return openWalletMovementForm("out");
+        if(action === "new-wallet-adjust") return openWalletMovementForm("adjust");
+        if(action === "delete-wallet-movement") return deleteWalletMovement(id);
         if(action === "sync-backend-push") return syncManager.pushNow(false).catch(() => toast("No se pudo subir a la nube"));
         if(action === "sync-backend-pull") return syncManager.pullNow(false).catch(() => toast("No se pudo traer la copia de la nube"));
         if(action === "sync-debug-force") return syncManager.forceNow().then(summary => {

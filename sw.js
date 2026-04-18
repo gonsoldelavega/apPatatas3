@@ -1,4 +1,4 @@
-const CACHE = "factupapa-v2026-04-12-uxfix";
+const CACHE = "factupapa-v2026-04-18-syncfix";
 const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", event => {
@@ -46,6 +46,7 @@ self.addEventListener("fetch", event => {
   if(event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   const isLocal = url.origin === self.location.origin;
+  const isApiRequest = isLocal && url.pathname.startsWith("/api/");
   const isDocument = event.request.mode === "navigate" || event.request.destination === "document";
   const isStaticAsset = isLocal && /(\.js|\.css|\.json|\.svg|\.webmanifest)$/i.test(url.pathname);
   const isCriticalShell = isLocal && (
@@ -53,6 +54,10 @@ self.addEventListener("fetch", event => {
     url.pathname.endsWith("/manifest.json") ||
     url.pathname.endsWith("/sw.js")
   );
+  if(isApiRequest){
+    event.respondWith(fetch(event.request, { cache:"no-store" }));
+    return;
+  }
   if(isDocument || isCriticalShell || isStaticAsset){
     event.respondWith(networkFirst(event.request));
     return;

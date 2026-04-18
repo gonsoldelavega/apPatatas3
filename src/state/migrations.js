@@ -81,7 +81,7 @@
         next.settings[key] = savedSettings[key];
       }
     });
-    ["templates","clients","suppliers","products","purchases","expenses","deliveryNotes","invoices","documents"].forEach(key => {
+    ["templates","clients","suppliers","products","purchases","expenses","walletMovements","deliveryNotes","invoices","documents"].forEach(key => {
       next[key] = Array.isArray(saved[key]) ? saved[key] : next[key];
     });
     next._sync = {

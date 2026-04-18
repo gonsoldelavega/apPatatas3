@@ -14,6 +14,8 @@
         deliveryNotesClient:"",
         purchasesSupplier:"",
         expensesCategory:"",
+        walletScope:"",
+        walletKind:"",
         documents:"",
         documentsType:""
       }

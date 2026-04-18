@@ -18,6 +18,7 @@
       viewWrap(ctx.ui.activeView, "dashboard", global.AppUIViewDashboard.renderDashboardView(ctx)),
       viewWrap(ctx.ui.activeView, "billing", global.AppUIViewBilling.renderBillingView(ctx)),
       viewWrap(ctx.ui.activeView, "operations", global.AppUIViewOperations.renderOperationsView(ctx)),
+      viewWrap(ctx.ui.activeView, "wallet", global.AppUIViewWallet.renderWalletView(ctx)),
       viewWrap(ctx.ui.activeView, "scanner", global.AppUIViewScannerWorkspace.renderScannerWorkspaceView(ctx)),
       viewWrap(ctx.ui.activeView, "catalog", global.AppUIViewCatalog.renderCatalogView(ctx)),
       viewWrap(ctx.ui.activeView, "settings", global.AppUIViewSettings.renderSettingsView(ctx)),

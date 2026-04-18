@@ -644,6 +644,18 @@
   font-weight:750;
   letter-spacing:-.03em;
 }
+.wallet-positive{
+  color:#1d7f48;
+}
+.wallet-negative{
+  color:#b4542d;
+}
+.wallet-quick-actions{
+  margin-top:4px;
+}
+.wallet-quick-actions button{
+  min-height:48px;
+}
 .inline-summary{
   display:flex;
   gap:8px;

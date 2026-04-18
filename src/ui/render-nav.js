@@ -4,6 +4,7 @@
       dashboard: new Set(["dashboard"]),
       billing: new Set(["billing"]),
       operations: new Set(["operations"]),
+      wallet: new Set(["wallet"]),
       scanner: new Set(["scanner"]),
       catalog: new Set(["catalog"]),
       settings: new Set(["settings","clients","exports","about"])
@@ -13,6 +14,7 @@
       { id:"dashboard", label:"INICIO" },
       { id:"billing", label:"FACTURAS" },
       { id:"operations", label:"GASTOS" },
+      { id:"wallet", label:"MONEDERO" },
       { id:"scanner", label:"ESCANER" },
       { id:"catalog", label:"PRODUCTOS" },
       { id:"settings", label:"OTROS" }

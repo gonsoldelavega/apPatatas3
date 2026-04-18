@@ -35,6 +35,7 @@
       products:[],
       purchases:[],
       expenses:[],
+      walletMovements:[],
       deliveryNotes:[],
       invoices:[],
       documents:[],
