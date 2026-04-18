@@ -1,8 +1,10 @@
-(() => {
+  (async () => {
+      const { getSupabaseClient } = await import("./src/services/supabase-client.js");
       const KEY = window.AppInitialState.STORAGE_KEY;
       const APP_VERSION = "2026.04.16-vercel-sync";
       const SYNC_TOKEN_KEY = "factupapa-sync-token";
       const SYNC_META_KEY = "factupapa-sync-meta-v1";
+      const PRIMARY_REMOTE_COLLECTIONS = ["clients","products","invoices","expenses","purchases","walletMovements"];
       const YEAR = new Date().getFullYear();
       const LEGAL_PAYMENT_TEXT = {
         payment: "Forma de pago: El importe de la presente factura deberá ser abonado en un plazo máximo de 72 horas desde su fecha de emisión.",
@@ -53,9 +55,10 @@
       let syncManager = null;
 
       function uid(prefix){ return ids.uid(prefix); }
+      const storageService = window.AppStorageLocal.createLocalStorageService(window.localStorage);
       const store = window.AppStore.createStore({
         key: KEY,
-        storage: window.AppStorageLocal.createLocalStorageService(window.localStorage),
+        storage: storageService,
         createDefaultState: window.AppInitialState.createDefaultState,
         applySeed: window.AppMigrations.applySeed,
         migrate: window.AppMigrations.migrateState,
@@ -133,7 +136,281 @@
       function applySeed(base){ return window.AppMigrations.applySeed(base, window.AppInitialState.getSeedData(), uid); }
       function migrate(saved){ return store.migrate(saved); }
       function persist(){ store.persist(); syncState(); }
-      function saveEntity(collection, entity, id){
+      function ensureDataNotice(){
+        let node = document.getElementById("dataSourceNotice");
+        if(node) return node;
+        node = document.createElement("div");
+        node.id = "dataSourceNotice";
+        node.style.display = "none";
+        node.style.margin = "10px 0 0";
+        node.style.padding = "12px 14px";
+        node.style.borderRadius = "16px";
+        node.style.border = "1px solid rgba(180,84,45,.18)";
+        node.style.background = "rgba(255,244,237,.92)";
+        node.style.color = "#7a3d1d";
+        node.style.fontWeight = "600";
+        document.querySelector(".app")?.insertBefore(node, document.getElementById("tabs"));
+        return node;
+      }
+      function showDataNotice(message, tone = "warn"){
+        const node = ensureDataNotice();
+        if(!node) return;
+        node.textContent = message;
+        node.style.display = "block";
+        if(tone === "ok"){
+          node.style.borderColor = "rgba(29,127,72,.18)";
+          node.style.background = "rgba(238,250,242,.92)";
+          node.style.color = "#1d7f48";
+        }else{
+          node.style.borderColor = "rgba(180,84,45,.18)";
+          node.style.background = "rgba(255,244,237,.92)";
+          node.style.color = "#7a3d1d";
+        }
+      }
+      function hideDataNotice(){
+        const node = document.getElementById("dataSourceNotice");
+        if(node) node.style.display = "none";
+      }
+      function encodePackedText(value){
+        return `__APP_JSON__${JSON.stringify(value || {})}`;
+      }
+      function decodePackedText(value){
+        const text = String(value || "");
+        if(!text.startsWith("__APP_JSON__")) return null;
+        try{
+          return JSON.parse(text.slice("__APP_JSON__".length));
+        }catch{
+          return null;
+        }
+      }
+      function mapClientToSupabase(item){
+        return {
+          id:item.id,
+          nombre:item.name || "",
+          nif:item.taxId || "",
+          email:item.email || "",
+          telefono:item.phone || "",
+          direccion:item.address || "",
+          created_at:item.created_at || item.createdAt || undefined
+        };
+      }
+      function mapClientFromSupabase(row){
+        return {
+          id:row.id,
+          name:row.nombre || "",
+          phone:row.telefono || "",
+          email:row.email || "",
+          address:row.direccion || "",
+          taxId:row.nif || "",
+          contactPerson:"",
+          shippingAddress:"",
+          debtManual:0,
+          notes:"",
+          templateId:"base",
+          paymentTermsDefault:false
+        };
+      }
+      function mapProductToSupabase(item){
+        return {
+          id:item.id,
+          nombre:item.name || "",
+          precio:n(item.price),
+          iva:n(item.iva),
+          descripcion:item.observations || item.description || "",
+          created_at:item.created_at || item.createdAt || undefined
+        };
+      }
+      function mapProductFromSupabase(row){
+        return {
+          id:row.id,
+          name:row.nombre || "",
+          price:n(row.precio),
+          iva:n(row.iva),
+          observations:row.descripcion || "",
+          category:"",
+          supplierId:"",
+          unit:"kg",
+          cost:0,
+          stockBase:0,
+          stockMin:0
+        };
+      }
+      function mapInvoiceToSupabase(item){
+        return {
+          id:item.id,
+          numero:item.number || "",
+          fecha:item.issueDate || today(),
+          cliente_id:item.clientId || null,
+          items:{ raw:item },
+          total:invoiceTotals(item).total,
+          estado:invoicePaymentStatus(item),
+          created_at:item.created_at || item.createdAt || undefined
+        };
+      }
+      function mapInvoiceFromSupabase(row){
+        const packed = row?.items?.raw || row?.items || {};
+        return migrate({
+          ...window.AppInitialState.createDefaultState(),
+          invoices:[{
+            id:row.id,
+            clientId:row.cliente_id || "",
+            number:row.numero || "",
+            issueDate:row.fecha || today(),
+            dueDate:packed.dueDate || "",
+            periodStart:packed.periodStart || row.fecha || today(),
+            periodEnd:packed.periodEnd || row.fecha || today(),
+            templateId:packed.templateId || "base",
+            internalNote:packed.internalNote || "",
+            sendStatus:packed.sendStatus || "",
+            amountPaid:n(packed.amountPaid),
+            showPaymentTerms:packed.showPaymentTerms === true,
+            paidDate:packed.paidDate || "",
+            paymentMethod:packed.paymentMethod || "",
+            paymentNote:packed.paymentNote || "",
+            lines:Array.isArray(packed.lines) ? packed.lines : []
+          }]
+        }).invoices[0];
+      }
+      function mapExpenseToSupabase(item){
+        return {
+          id:item.id,
+          fecha:item.date || today(),
+          concepto:encodePackedText(item),
+          importe:expenseTotal(item),
+          categoria:item.category || "",
+          created_at:item.created_at || item.createdAt || undefined
+        };
+      }
+      function mapExpenseFromSupabase(row){
+        const packed = decodePackedText(row.concepto);
+        if(packed) return { ...packed, id:row.id };
+        return {
+          id:row.id,
+          date:row.fecha || today(),
+          supplierId:"",
+          category:row.categoria || "",
+          concept:row.concepto || "",
+          base:n(row.importe),
+          iva:0,
+          notes:""
+        };
+      }
+      function mapPurchaseToSupabase(item){
+        return {
+          id:item.id,
+          fecha:item.date || today(),
+          proveedor:item.supplierId || "",
+          concepto:encodePackedText(item),
+          importe:purchaseTotal(item),
+          created_at:item.created_at || item.createdAt || undefined
+        };
+      }
+      function mapPurchaseFromSupabase(row){
+        const packed = decodePackedText(row.concepto);
+        if(packed) return { ...packed, id:row.id };
+        return {
+          id:row.id,
+          date:row.fecha || today(),
+          supplierId:row.proveedor || "",
+          productId:"",
+          quantity:1,
+          unitCost:n(row.importe),
+          iva:0,
+          notes:"",
+          attachment:null
+        };
+      }
+      function mapWalletToSupabase(item){
+        return {
+          id:item.id,
+          fecha:item.date || today(),
+          concepto:encodePackedText(item),
+          importe:Math.abs(walletMovementDelta(item)),
+          tipo:item.kind || item.type || "",
+          created_at:item.created_at || item.createdAt || undefined
+        };
+      }
+      function mapWalletFromSupabase(row){
+        const packed = decodePackedText(row.concepto);
+        if(packed) return { ...packed, id:row.id };
+        return {
+          id:row.id,
+          date:row.fecha || today(),
+          kind:row.tipo || "out",
+          amount:n(row.importe),
+          delta:row.tipo === "in" ? n(row.importe) : -n(row.importe),
+          targetBalance:null,
+          scope:"neutral",
+          registerAs:"none",
+          supplierId:"",
+          expenseCategory:"",
+          productId:"",
+          quantity:0,
+          linkedType:"",
+          linkedId:"",
+          notes:""
+        };
+      }
+      async function hydratePrimaryEntitiesFromSupabase(){
+        try{
+          const [clientsRows, productsRows, invoicesRows, expensesRows, purchasesRows, walletRows] = await Promise.all([
+            storageService.getClientes(),
+            storageService.getProductos(),
+            storageService.getFacturas(),
+            storageService.getGastos(),
+            storageService.getCompras(),
+            storageService.getWalletMovements()
+          ]);
+          store.updateState(current => {
+            current.clients = (clientsRows || []).map(mapClientFromSupabase);
+            current.products = (productsRows || []).map(mapProductFromSupabase);
+            current.invoices = (invoicesRows || []).map(mapInvoiceFromSupabase);
+            current.expenses = (expensesRows || []).map(mapExpenseFromSupabase);
+            current.purchases = (purchasesRows || []).map(mapPurchaseFromSupabase);
+            current.walletMovements = (walletRows || []).map(mapWalletFromSupabase);
+          }, { persist:true, reason:"supabase:hydrate-primary" });
+          syncState();
+          hideDataNotice();
+          return true;
+        }catch(error){
+          console.error("[supabase] No se pudieron cargar los datos principales. Se usara la copia local temporal.", error);
+          showDataNotice("Trabajando con copia temporal local. La nube principal no ha respondido.", "warn");
+          return false;
+        }
+      }
+      async function savePrimaryCollectionToSupabase(collection, entity){
+        if(collection === "clients") return storageService.saveCliente(mapClientToSupabase(entity));
+        if(collection === "products") return storageService.saveProducto(mapProductToSupabase(entity));
+        if(collection === "invoices") return storageService.saveFactura(mapInvoiceToSupabase(entity));
+        if(collection === "expenses") return storageService.saveGasto(mapExpenseToSupabase(entity));
+        if(collection === "purchases") return storageService.saveCompra(mapPurchaseToSupabase(entity));
+        if(collection === "walletMovements") return storageService.saveWalletMovement(mapWalletToSupabase(entity));
+        return null;
+      }
+      async function deletePrimaryCollectionFromSupabase(collection, id){
+        if(collection === "clients") return storageService.deleteCliente(id);
+        if(collection === "products") return storageService.deleteProducto(id);
+        if(collection === "invoices") return storageService.deleteFactura(id);
+        if(collection === "expenses") return storageService.deleteGasto(id);
+        if(collection === "purchases") return storageService.deleteCompra(id);
+        if(collection === "walletMovements") return storageService.deleteWalletMovement(id);
+        return false;
+      }
+      async function saveEntity(collection, entity, id){
+        const isPrimaryRemote = PRIMARY_REMOTE_COLLECTIONS.includes(collection);
+        if(!isPrimaryRemote){
+          store.saveEntity(collection, entity, id);
+          syncState();
+          renderAll();
+          return;
+        }
+        try{
+          await savePrimaryCollectionToSupabase(collection, entity);
+          hideDataNotice();
+        }catch(error){
+          console.error(`[supabase] No se pudo guardar ${collection}. Se mantiene copia local temporal.`, error);
+          showDataNotice("No se pudo guardar en Supabase. Se ha conservado una copia local temporal.", "warn");
+        }
         store.saveEntity(collection, entity, id);
         syncState();
         renderAll();
@@ -160,6 +437,9 @@
         const expenseCategory = payload?.expenseCategory || "";
         const productId = payload?.productId || "";
         const quantity = Math.max(n(payload?.quantity), 0);
+        let createdExpense = null;
+        let createdPurchase = null;
+        let createdWalletMovement = null;
 
         store.updateState(current => {
           let linkedType = "";
@@ -176,6 +456,7 @@
               notes:["Pagado desde monedero", notes].filter(Boolean).join(" · ")
             };
             current.expenses.unshift(expense);
+            createdExpense = expense;
             linkedType = "expense";
             linkedId = expense.id;
           }
@@ -194,10 +475,11 @@
               attachment:null
             };
             current.purchases.unshift(purchase);
+            createdPurchase = purchase;
             linkedType = "purchase";
             linkedId = purchase.id;
           }
-          current.walletMovements.unshift({
+          createdWalletMovement = {
             id:uid("wal"),
             date:dateValue,
             kind:mode === "adjust" ? "adjust" : mode,
@@ -213,15 +495,38 @@
             linkedType,
             linkedId,
             notes
-          });
+          };
+          current.walletMovements.unshift(createdWalletMovement);
         }, { persist:true, reason:`wallet:${mode}` });
         syncState();
         renderAll();
+        if(createdExpense) savePrimaryCollectionToSupabase("expenses", createdExpense).catch(error => {
+          console.error("[supabase] No se pudo guardar el gasto generado desde monedero", error);
+          showDataNotice("El movimiento se guardo en local, pero el gasto vinculado no llego a Supabase.", "warn");
+        });
+        if(createdPurchase) savePrimaryCollectionToSupabase("purchases", createdPurchase).catch(error => {
+          console.error("[supabase] No se pudo guardar la compra generada desde monedero", error);
+          showDataNotice("El movimiento se guardo en local, pero la compra vinculada no llego a Supabase.", "warn");
+        });
+        if(createdWalletMovement) savePrimaryCollectionToSupabase("walletMovements", createdWalletMovement).catch(error => {
+          console.error("[supabase] No se pudo guardar el movimiento de monedero", error);
+          showDataNotice("El movimiento de monedero se ha quedado en local temporalmente.", "warn");
+        });
         toast(mode === "adjust" ? "Saldo del monedero ajustado" : "Movimiento de monedero guardado");
         return true;
       }
-      function removeEntity(collection, id, message){
+      async function removeEntity(collection, id, message){
         if(!confirm(message)) return;
+        const isPrimaryRemote = PRIMARY_REMOTE_COLLECTIONS.includes(collection);
+        if(isPrimaryRemote){
+          try{
+            await deletePrimaryCollectionFromSupabase(collection, id);
+            hideDataNotice();
+          }catch(error){
+            console.error(`[supabase] No se pudo eliminar ${collection}. Se usara borrado local temporal.`, error);
+            showDataNotice("No se pudo borrar en Supabase. Se ha aplicado un borrado local temporal.", "warn");
+          }
+        }
         store.removeEntity(collection, id);
         syncState();
         renderAll();
@@ -244,6 +549,22 @@
         }, { persist:true, reason:"wallet:delete" });
         syncState();
         renderAll();
+        deletePrimaryCollectionFromSupabase("walletMovements", id).catch(error => {
+          console.error("[supabase] No se pudo borrar el movimiento de monedero", error);
+          showDataNotice("El movimiento se borro en local, pero no en Supabase.", "warn");
+        });
+        if(item.linkedType === "expense" && item.linkedId){
+          deletePrimaryCollectionFromSupabase("expenses", item.linkedId).catch(error => {
+            console.error("[supabase] No se pudo borrar el gasto vinculado", error);
+            showDataNotice("El gasto vinculado no se pudo borrar en Supabase.", "warn");
+          });
+        }
+        if(item.linkedType === "purchase" && item.linkedId){
+          deletePrimaryCollectionFromSupabase("purchases", item.linkedId).catch(error => {
+            console.error("[supabase] No se pudo borrar la compra vinculada", error);
+            showDataNotice("La compra vinculada no se pudo borrar en Supabase.", "warn");
+          });
+        }
         toast("Movimiento del monedero eliminado");
       }
       function toast(message){
@@ -1750,15 +2071,23 @@
           mergeSyncMeta({ lastError:message || "" });
         }
 
-        async function applyRemoteState(nextState){
-          if(!isStructurallyValidState(nextState)) return false;
-          syncLog("remote-apply", { remoteTimestamp:syncStamp(nextState) });
-          suppressSyncPersistence = true;
-          try{
-            store.replaceState(nextState);
-            syncState();
-            store.persist();
-            syncState();
+          async function applyRemoteState(nextState){
+            if(!isStructurallyValidState(nextState)) return false;
+            syncLog("remote-apply", { remoteTimestamp:syncStamp(nextState) });
+            const preserved = {
+              clients:state.clients,
+              products:state.products,
+              invoices:state.invoices,
+              expenses:state.expenses,
+              purchases:state.purchases,
+              walletMovements:state.walletMovements
+            };
+            suppressSyncPersistence = true;
+            try{
+              store.replaceState({ ...nextState, ...preserved });
+              syncState();
+              store.persist();
+              syncState();
           } finally {
             suppressSyncPersistence = false;
           }
@@ -2113,10 +2442,20 @@
       });
       syncState();
       modalUI.bindModalChrome();
+      showDataNotice("Cargando datos principales desde Supabase...", "ok");
+      try{
+        await getSupabaseClient();
+      }catch(error){
+        console.error("[supabase] No se pudo inicializar el cliente", error);
+        showDataNotice("No se pudo cargar configuración de Supabase. Se usará la copia local temporal.", "warn");
+      }
       requestRuntimeSyncToken();
-      syncManager.bootstrap().finally(() => {
+      try{
+        await syncManager.bootstrap();
+      }finally{
+        await hydratePrimaryEntitiesFromSupabase();
         syncManager.startAutoSync();
-      });
+      }
       renderAll();
       registerGlobalButtons();
       registerPwa();
