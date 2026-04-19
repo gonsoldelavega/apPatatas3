@@ -196,18 +196,37 @@
       }
       function mapClientFromSupabase(row){
         return {
-          id:row.cliente_id || row.id || "",
+          id:row.cliente_id || "",
           name:row.nombre || "",
+          taxId:row.nif || "",
           phone:row.telefono || "",
           email:row.email || "",
           address:row.direccion || "",
-          taxId:row.nif || "",
+          cp:row.cp || "",
+          city:row.ciudad || "",
+          province:row.provincia || "",
+          country:row.pais || "",
+          notes:row.notas || "",
           contactPerson:"",
           shippingAddress:"",
           debtManual:0,
-          notes:"",
           templateId:"base",
           paymentTermsDefault:false
+        };
+      }
+      function mapSupplierFromSupabase(row){
+        return {
+          id:row.proveedor_id || "",
+          name:row.nombre || "",
+          taxId:row.nif || "",
+          phone:row.telefono || "",
+          email:row.email || "",
+          address:row.direccion || "",
+          cp:row.cp || "",
+          city:row.ciudad || "",
+          province:row.provincia || "",
+          country:row.pais || "",
+          notes:row.notas || ""
         };
       }
       function mapProductToSupabase(item){
@@ -222,14 +241,18 @@
       }
       function mapProductFromSupabase(row){
         return {
-          id:row.producto_id || row.id || "",
+          id:row.producto_id || "",
           name:row.nombre || "",
-          price:n(row.precio),
-          iva:n(row.iva),
-          observations:row.descripcion || "",
+          aliases:row.aliases || "",
+          type:row.tipo || "",
+          unit:row.unidad || "",
+          ivaPct:n(row.iva_pct),
+          notes:row.notas || "",
+          price:0,
+          iva:n(row.iva_pct),
+          observations:row.notas || "",
           category:"",
           supplierId:"",
-          unit:"kg",
           cost:0,
           stockBase:0,
           stockMin:0
@@ -248,28 +271,47 @@
         };
       }
       function mapInvoiceFromSupabase(row){
-        const packed = row?.items?.raw || row?.items || {};
-        return migrate({
-          ...window.AppInitialState.createDefaultState(),
-          invoices:[{
-            id:row.registro_id || row.id || "",
-            clientId:row.cliente_id || "",
-            number:row.numero || "",
-            issueDate:row.fecha || today(),
-            dueDate:packed.dueDate || "",
-            periodStart:packed.periodStart || row.fecha || today(),
-            periodEnd:packed.periodEnd || row.fecha || today(),
-            templateId:packed.templateId || "base",
-            internalNote:packed.internalNote || "",
-            sendStatus:packed.sendStatus || "",
-            amountPaid:n(packed.amountPaid),
-            showPaymentTerms:packed.showPaymentTerms === true,
-            paidDate:packed.paidDate || "",
-            paymentMethod:packed.paymentMethod || "",
-            paymentNote:packed.paymentNote || "",
-            lines:Array.isArray(packed.lines) ? packed.lines : []
-          }]
-        }).invoices[0];
+        const item = {
+          productId:row.producto_id || "",
+          description:row.descripcion_linea || "",
+          quantity:n(row.cantidad),
+          unit:row.unidad || "",
+          price:n(row.precio_unitario_base),
+          base:n(row.base_linea),
+          ivaPct:n(row.iva_pct),
+          ivaAmount:n(row.iva_linea),
+          total:n(row.total_linea),
+          iva:n(row.iva_pct),
+          deliveryDate:row.fecha_factura || today()
+        };
+        return {
+          id:row.registro_id || "",
+          invoiceId:row.factura_id || "",
+          number:row.numero_factura || "",
+          date:row.fecha_factura || today(),
+          issueDate:row.fecha_factura || today(),
+          dueDate:row.fecha_vencimiento || "",
+          clientId:row.cliente_id || "",
+          clientName:row.cliente_nombre || "",
+          status:row.estado_cobro || "",
+          paymentDate:row.fecha_cobro || "",
+          total:n(row.total_factura),
+          base:n(row.base_factura),
+          iva:n(row.iva_factura),
+          amountPaid:String(row.estado_cobro || "").toLowerCase() === "cobrada" || String(row.estado_cobro || "").toLowerCase() === "paid" ? n(row.total_factura) : 0,
+          paidDate:row.fecha_cobro || "",
+          periodStart:row.servicio_desde || row.fecha_factura || today(),
+          periodEnd:row.servicio_hasta || row.fecha_factura || today(),
+          templateId:"base",
+          internalNote:row.notas || "",
+          sendStatus:"",
+          showPaymentTerms:false,
+          paymentMethod:"",
+          paymentNote:"",
+          sourcePdf:row.fuente_pdf || "",
+          lines:[item],
+          items:[item]
+        };
       }
       function mapExpenseToSupabase(item){
         return {
@@ -282,17 +324,15 @@
         };
       }
       function mapExpenseFromSupabase(row){
-        const packed = decodePackedText(row.concepto);
-        if(packed) return { ...packed, id:row.id };
         return {
           id:row.id,
           date:row.fecha || today(),
-          supplierId:"",
+          supplierId:row.supplier_id || "",
           category:row.categoria || "",
           concept:row.concepto || "",
-          base:n(row.importe),
-          iva:0,
-          notes:""
+          base:n(row.base),
+          iva:n(row.iva),
+          notes:row.notas || ""
         };
       }
       function mapPurchaseToSupabase(item){
@@ -306,16 +346,34 @@
         };
       }
       function mapPurchaseFromSupabase(row){
-        const packed = decodePackedText(row.concepto);
-        if(packed) return { ...packed, id:row.registro_id || row.id || "" };
+        const item = {
+          productId:row.producto_id || "",
+          description:row.descripcion_linea || "",
+          quantity:n(row.cantidad),
+          unit:row.unidad || "",
+          price:n(row.precio_unitario_base),
+          base:n(row.base_linea),
+          ivaPct:n(row.iva_pct),
+          ivaAmount:n(row.iva_linea),
+          total:n(row.total_linea),
+          iva:n(row.iva_pct)
+        };
         return {
-          id:row.registro_id || row.id || "",
-          date:row.fecha || today(),
-          supplierId:row.proveedor || "",
-          productId:"",
-          quantity:1,
-          unitCost:n(row.importe),
-          iva:0,
+          id:row.registro_id || "",
+          invoiceId:row.factura_id || "",
+          number:row.numero_factura || "",
+          date:row.fecha_factura || today(),
+          supplierId:row.proveedor_id || "",
+          supplierName:row.proveedor_nombre || "",
+          status:row.estado_pago || "",
+          paymentDate:row.fecha_pago || "",
+          total:n(row.total_factura),
+          base:n(row.base_factura),
+          iva:n(row.iva_factura),
+          items:[item],
+          productId:row.producto_id || "",
+          quantity:n(row.cantidad),
+          unitCost:n(row.precio_unitario_base),
           notes:"",
           attachment:null
         };
@@ -331,24 +389,22 @@
         };
       }
       function mapWalletFromSupabase(row){
-        const packed = decodePackedText(row.concepto);
-        if(packed) return { ...packed, id:row.id };
         return {
           id:row.id,
           date:row.fecha || today(),
           kind:row.tipo || "out",
           amount:n(row.importe),
-          delta:row.tipo === "in" ? n(row.importe) : -n(row.importe),
-          targetBalance:null,
-          scope:"neutral",
-          registerAs:"none",
-          supplierId:"",
-          expenseCategory:"",
-          productId:"",
-          quantity:0,
-          linkedType:"",
-          linkedId:"",
-          notes:""
+          delta:n(row.delta),
+          targetBalance:n(row.saldo_objetivo),
+          scope:row.ambito || "neutral",
+          registerAs:row.registrar_como || "none",
+          supplierId:row.supplier_id || "",
+          expenseCategory:row.expense_category || "",
+          productId:row.product_id || "",
+          quantity:n(row.quantity),
+          linkedType:row.linked_type || "",
+          linkedId:row.linked_id || "",
+          notes:row.notas || ""
         };
       }
       async function loadSupabaseTableWithLogs(label, loader){
@@ -2471,5 +2527,3 @@
       registerGlobalButtons();
       registerPwa();
     })();
-
-
