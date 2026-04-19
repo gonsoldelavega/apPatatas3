@@ -32,7 +32,7 @@
   background:transparent;
   color:var(--muted);
   padding:8px 12px 10px;
-  font-size:.8rem;
+  font-size:13px;
   display:flex;
   justify-content:center;
   align-items:center;
@@ -163,9 +163,9 @@
   color:var(--accent);
 }
 .chip.warn{
-  background:rgba(232,168,56,.14);
-  border-color:rgba(232,168,56,.22);
-  color:#9b6a06;
+  background:#FFF8EC;
+  border-color:#E8A838;
+  color:#B8860B;
 }
 .chip.danger{
   background:rgba(192,57,43,.12);
@@ -462,7 +462,7 @@
   box-shadow:var(--shadow-soft);
 }
 .accent-stat{
-  background:rgba(61,122,90,.08);
+  background:#FFFFFF;
 }
 .hero-stat span,
 .mini-stat span{
@@ -669,6 +669,10 @@
   color:var(--accent);
   font-weight:600;
   letter-spacing:-.03em;
+}
+.invoice-list-card .price,
+.invoice-card-top .price{
+  color:#3D7A5A;
 }
 .wallet-positive{
   color:var(--accent);
