@@ -53,6 +53,7 @@
       let deferredPrompt = null;
       let suppressSyncPersistence = false;
       let syncManager = null;
+      let supabaseHydrated = false;
 
       function uid(prefix){ return ids.uid(prefix); }
       const storageService = window.AppStorageLocal.createLocalStorageService(window.localStorage);
@@ -439,6 +440,7 @@
             current.walletMovements = (walletRows || []).map(mapWalletFromSupabase);
           }, { persist:true, reason:"supabase:hydrate-primary" });
           syncState();
+          supabaseHydrated = true;
           hideDataNotice();
           return true;
         }catch(error){
@@ -2143,17 +2145,22 @@
           async function applyRemoteState(nextState){
             if(!isStructurallyValidState(nextState)) return false;
             syncLog("remote-apply", { remoteTimestamp:syncStamp(nextState) });
-            const preserved = {
-              clients:state.clients,
-              products:state.products,
-              invoices:state.invoices,
-              expenses:state.expenses,
-              purchases:state.purchases,
-              walletMovements:state.walletMovements
-            };
             suppressSyncPersistence = true;
             try{
-              store.replaceState({ ...nextState, ...preserved });
+              if(supabaseHydrated){
+                const preserved = {
+                  clients:state.clients,
+                  products:state.products,
+                  invoices:state.invoices,
+                  expenses:state.expenses,
+                  purchases:state.purchases,
+                  walletMovements:state.walletMovements,
+                  suppliers:state.suppliers
+                };
+                store.replaceState({ ...nextState, ...preserved });
+              }else{
+                store.replaceState(nextState);
+              }
               syncState();
               store.persist();
               syncState();
