@@ -156,7 +156,23 @@
         return fetchAllRows("facturas", "getFacturas");
       },
       async saveFactura(factura){
-        return saveRow("facturas", "saveFactura", factura);
+        try{
+          const lineas = Array.isArray(factura) ? factura : [factura];
+          const { getSupabaseClient } = await getSupabaseHelpers();
+          const supabase = await getSupabaseClient();
+          console.log("[SAVE] tabla:", "facturas_venta", "primaryKey:", "registro_id");
+          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(lineas));
+          const { data, error } = await supabase
+            .from("facturas_venta")
+            .upsert(lineas, { onConflict: "registro_id" })
+            .select();
+          console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
+          if(error) throw error;
+          return data;
+        }catch(error){
+          console.error("[SAVE ERROR]", "saveFactura", error);
+          return Array.isArray(factura) ? factura : [factura];
+        }
       },
       async deleteFactura(id){
         return deleteRow("facturas", "deleteFactura", id);

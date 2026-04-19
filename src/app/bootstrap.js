@@ -260,16 +260,39 @@
         };
       }
       function mapInvoiceToSupabase(item){
-        return {
-          id:item.id,
-          numero:item.number || "",
-          fecha:item.issueDate || today(),
-          cliente_id:item.clientId || null,
-          items:{ raw:item },
-          total:invoiceTotals(item).total,
-          estado:invoicePaymentStatus(item),
-          created_at:item.created_at || item.createdAt || undefined
-        };
+        const lines = Array.isArray(item?.lines) && item.lines.length
+          ? item.lines
+          : Array.isArray(item?.items) && item.items.length
+            ? item.items
+            : [];
+        const totals = invoiceTotals(item);
+        return lines.map((linea, index) => ({
+          registro_id:`${item.id || uid("fac")}-${index}`,
+          factura_id:item.id || "",
+          numero_factura:item.number || "",
+          fecha_factura:item.issueDate || item.date || today(),
+          fecha_vencimiento:item.dueDate || null,
+          cliente_id:item.clientId || "",
+          cliente_nombre:item.clientName || getClient(item.clientId)?.name || "",
+          estado_cobro:item.status || "pending",
+          fecha_cobro:item.paymentDate || item.paidDate || null,
+          producto_id:linea?.productId || "",
+          descripcion_linea:linea?.description || "",
+          cantidad:n(linea?.quantity),
+          unidad:linea?.unit || "",
+          precio_unitario_base:n(linea?.price),
+          base_linea:n(linea?.base || (n(linea?.quantity) * n(linea?.price)) || 0),
+          iva_pct:n(linea?.iva || linea?.ivaPct),
+          iva_linea:n(linea?.ivaAmount),
+          total_linea:n(linea?.total),
+          base_factura:n(item.base ?? totals.base),
+          iva_factura:n(item.iva ?? totals.vat),
+          total_factura:n(item.total ?? totals.total),
+          servicio_desde:item.periodStart || null,
+          servicio_hasta:item.periodEnd || null,
+          fuente_pdf:item.sourcePdf || "",
+          notas:item.internalNote || ""
+        }));
       }
       function mapInvoiceFromSupabase(row){
         const item = {
@@ -450,6 +473,7 @@
         }
       }
       async function savePrimaryCollectionToSupabase(collection, entity){
+        console.log("[SAVE-COLLECTION]", collection, JSON.stringify(entity).substring(0, 300));
         if(collection === "clients") return storageService.saveCliente(mapClientToSupabase(entity));
         if(collection === "products") return storageService.saveProducto(mapProductToSupabase(entity));
         if(collection === "invoices") return storageService.saveFactura(mapInvoiceToSupabase(entity));
