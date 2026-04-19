@@ -4,8 +4,8 @@
   padding:16px 16px 124px;
 }
 .panel{
-  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.94));
-  border:1px solid rgba(220,232,220,.55);
+  background:#FFFFFF;
+  border:1px solid rgba(220,232,220,.82);
   border-radius:var(--r);
   box-shadow:var(--shadow);
 }
@@ -15,7 +15,7 @@
   z-index:24;
   margin:0 0 16px;
   padding:16px 18px;
-  background:rgba(247,249,245,.88);
+  background:rgba(247,249,245,.96);
   backdrop-filter:blur(16px);
 }
 .hero.panel{
@@ -87,9 +87,9 @@
   gap:8px;
   padding:8px 10px;
   overflow-x:auto;
-  background:rgba(247,249,245,.94);
-  border:1px solid rgba(220,232,220,.75);
-  border-radius:18px;
+  background:rgba(255,255,255,.94);
+  border:1px solid rgba(220,232,220,.9);
+  border-radius:14px;
   backdrop-filter:blur(16px);
   box-shadow:var(--shadow-soft);
 }
@@ -109,7 +109,7 @@
   max-height:94vh;
   overflow:auto;
   border-radius:20px 20px 14px 14px;
-  background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  background:#FFFFFF;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow);
 }

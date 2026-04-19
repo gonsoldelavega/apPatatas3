@@ -24,15 +24,35 @@
   border-radius:12px;
   font-size:.84rem;
 }
+.card-actions{
+  gap:8px;
+  margin-top:2px;
+}
+.card-actions button{
+  min-height:36px;
+  padding:0 11px;
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(220,232,220,.92);
+  box-shadow:none;
+  color:var(--muted);
+  font-size:.79rem;
+  font-weight:500;
+}
+.card-actions button:hover,
+.card-actions button:focus-visible{
+  border-color:rgba(61,122,90,.18);
+  color:var(--text);
+  transform:translateY(-1px);
+}
 .sheet-actions button{min-width:132px}
 .tabs button{
   min-width:110px;
   min-height:48px;
   border-radius:0;
   background:transparent;
-  color:var(--muted);
+  color:#1A2E1F;
   padding:8px 12px 10px;
-  font-size:13px;
+  font-size:14px;
   display:flex;
   justify-content:center;
   align-items:center;
@@ -42,23 +62,24 @@
   flex:1 0 auto;
 }
 .tabs .nav-label{
-  font-weight:300;
-  letter-spacing:.08em;
+  font-weight:600;
+  letter-spacing:.05em;
   text-transform:uppercase;
   white-space:nowrap;
 }
 .tabs button.active{
   background:transparent;
-  color:var(--accent);
-  border-bottom-color:var(--accent);
+  color:#3D7A5A;
+  border-bottom-color:#3D7A5A;
 }
 .card{
   padding:22px;
-  border:0;
+  border:1px solid rgba(220,232,220,.85);
   border-radius:12px;
-  background:rgba(255,255,255,.96);
+  background:#FFFFFF;
   box-shadow:var(--shadow-soft);
 }
+.card.card-tight{padding:18px}
 .head{
   display:flex;
   justify-content:space-between;
@@ -83,11 +104,12 @@
 }
 .chip{
   border-radius:999px;
-  padding:7px 10px;
-  background:rgba(61,122,90,.08);
-  border:1px solid rgba(61,122,90,.10);
-  color:var(--accent);
-  font-size:.8rem;
+  padding:6px 10px;
+  background:#F7FAF7;
+  border:1px solid rgba(220,232,220,.95);
+  color:var(--text);
+  font-size:.75rem;
+  font-weight:500;
 }
 .payment-chip{
   appearance:none;
@@ -95,6 +117,7 @@
   cursor:pointer;
   min-height:40px;
   font:inherit;
+  font-weight:600;
 }
 .invoice-payment-strip{
   margin:10px 0 8px;
@@ -108,35 +131,36 @@
 }
 .invoice-card-strong,
 .invoice-list-card{
-  gap:12px;
+  gap:14px;
 }
 .invoice-card-top{
   display:flex;
   justify-content:space-between;
-  gap:14px;
+  gap:18px;
   align-items:flex-start;
 }
 .invoice-copy{
   display:grid;
-  gap:6px;
+  gap:7px;
   min-width:0;
 }
 .invoice-card-number{
   margin:0;
   color:var(--accent);
-  font-size:.82rem;
+  font-size:.76rem;
   font-weight:600;
-  letter-spacing:.04em;
+  letter-spacing:.12em;
   text-transform:uppercase;
 }
 .invoice-card-dates{
   margin:0;
   color:var(--muted);
-  font-size:.88rem;
-  line-height:1.45;
+  font-size:.83rem;
+  line-height:1.5;
 }
 .invoice-meta-row{
   align-items:center;
+  gap:8px;
 }
 .filter-chip-row{
   display:flex;
@@ -147,23 +171,23 @@
   min-height:40px;
   padding:0 14px;
   border-radius:999px;
-  border:1px solid var(--line);
-  background:rgba(255,255,255,.92);
-  color:var(--muted);
+  border:1px solid rgba(220,232,220,.95);
+  background:#FFFFFF;
+  color:var(--text);
   font:inherit;
 }
 .filter-chip.active{
-  background:rgba(61,122,90,.12);
-  border-color:rgba(61,122,90,.22);
-  color:var(--accent);
+  background:#F2F8F4;
+  border-color:rgba(61,122,90,.24);
+  color:#3D7A5A;
 }
 .chip.good{
-  background:rgba(61,122,90,.12);
-  border-color:rgba(61,122,90,.18);
-  color:var(--accent);
+  background:#E8F5E9;
+  border-color:#81C784;
+  color:#2E7D32;
 }
 .chip.warn{
-  background:#FFF8EC;
+  background:#FFF3E0;
   border-color:#E8A838;
   color:#B8860B;
 }
@@ -173,11 +197,11 @@
   color:#a03326;
 }
 .stat{
-  padding:22px 20px;
+  padding:24px 22px;
   min-height:126px;
-  background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  background:#FFFFFF;
   border-radius:12px;
-  border:0;
+  border:1px solid rgba(220,232,220,.82);
   box-shadow:var(--shadow-soft);
 }
 .stat small{
@@ -210,9 +234,9 @@
 }
 .summary{
   border-radius:12px;
-  background:rgba(255,255,255,.96);
-  border:0;
-  padding:18px;
+  background:#FFFFFF;
+  border:1px solid rgba(220,232,220,.78);
+  padding:18px 19px;
   display:grid;
   gap:10px;
   box-shadow:var(--shadow-soft);
@@ -316,14 +340,15 @@
 }
 .section-title h2,.section-title h3{
   margin:0;
-  font-size:1.2rem;
+  font-size:1.14rem;
   font-weight:600;
-  letter-spacing:-.03em;
+  letter-spacing:-.025em;
 }
 .section-title p{
-  margin:4px 0 0;
+  margin:6px 0 0;
   color:var(--muted);
-  font-size:.9rem;
+  font-size:.86rem;
+  line-height:1.45;
 }
 .workspace-stack{
   display:grid;
@@ -338,62 +363,60 @@
 }
 .hero-primary{
   display:grid;
-  gap:14px;
-  padding:24px;
+  gap:16px;
+  padding:26px;
   border-radius:12px;
-  border:0;
-  background:
-    radial-gradient(circle at top right,rgba(106,175,133,.14),transparent 30%),
-    linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,252,247,.98));
+  border:1px solid rgba(220,232,220,.9);
+  background:#FFFFFF;
   box-shadow:var(--shadow-soft);
 }
 .hero-primary-compact h2{
   margin:0;
   font-size:clamp(2.4rem,6vw,4.2rem);
-  line-height:.95;
-  letter-spacing:-.08em;
+  line-height:.93;
+  letter-spacing:-.085em;
   color:var(--text);
   font-weight:600;
 }
 .hero-primary-compact p{
   margin:0;
   color:var(--muted);
-  font-size:.92rem;
-  font-weight:300;
-  letter-spacing:.12em;
+  font-size:.82rem;
+  font-weight:500;
+  letter-spacing:.1em;
   text-transform:uppercase;
 }
 .primary-xl{
   min-height:64px;
-  font-size:1rem;
+  font-size:.95rem;
   font-weight:600;
-  letter-spacing:.08em;
+  letter-spacing:.1em;
   text-transform:uppercase;
 }
 .hero-inline-stats{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:12px;
+  gap:10px;
 }
 .hero-inline-stat{
-  padding:16px 18px;
+  padding:18px 18px;
   border-radius:12px;
-  border:0;
-  background:rgba(255,255,255,.94);
+  border:1px solid rgba(220,232,220,.84);
+  background:#FCFDFC;
   display:grid;
   gap:8px;
-  box-shadow:var(--shadow-soft);
+  box-shadow:none;
 }
 .hero-inline-stat span{
   color:var(--muted);
-  font-size:.75rem;
-  font-weight:300;
-  letter-spacing:.12em;
+  font-size:.72rem;
+  font-weight:500;
+  letter-spacing:.08em;
 }
 .hero-inline-stat strong{
-  font-size:1.2rem;
-  line-height:1.1;
-  color:var(--text);
+  font-size:1.22rem;
+  line-height:1.05;
+  color:#1A2E1F;
   font-weight:600;
 }
 .workspace-hero{
@@ -401,21 +424,15 @@
   gap:18px;
   padding:24px;
   border-radius:12px;
-  border:0;
-  background:
-    radial-gradient(circle at top right,rgba(106,175,133,.12),transparent 28%),
-    linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,252,247,.98));
+  border:1px solid rgba(220,232,220,.86);
+  background:#FFFFFF;
   box-shadow:var(--shadow-soft);
 }
 .scanner-hero{
-  background:
-    radial-gradient(circle at top right,rgba(106,175,133,.12),transparent 28%),
-    linear-gradient(180deg,rgba(255,255,255,.98),rgba(246,251,246,.98));
+  background:#FFFFFF;
 }
 .settings-hero{
-  background:
-    radial-gradient(circle at top right,rgba(61,122,90,.10),transparent 28%),
-    linear-gradient(180deg,rgba(255,255,255,.98),rgba(247,250,246,.98));
+  background:#FFFFFF;
 }
 .workspace-hero-copy{
   display:grid;
@@ -453,16 +470,17 @@
 }
 .hero-stat,
 .mini-stat{
-  padding:16px 18px;
+  padding:18px 18px;
   border-radius:12px;
-  border:0;
-  background:rgba(255,255,255,.94);
+  border:1px solid rgba(220,232,220,.84);
+  background:#FFFFFF;
   display:grid;
-  gap:8px;
-  box-shadow:var(--shadow-soft);
+  gap:10px;
+  box-shadow:none;
 }
 .accent-stat{
-  background:#FFFFFF;
+  border-color:rgba(61,122,90,.18);
+  background:#F7FBF8;
 }
 .hero-stat span,
 .mini-stat span{
@@ -472,14 +490,14 @@
 }
 .hero-stat strong,
 .mini-stat strong{
-  font-size:1.35rem;
+  font-size:1.42rem;
   line-height:1.1;
   letter-spacing:-.04em;
   color:var(--text);
   font-weight:600;
 }
 .soft-block{
-  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(247,250,246,.94));
+  background:#FFFFFF;
 }
 .balance-focus-grid{
   display:grid;
@@ -521,8 +539,8 @@
   gap:12px;
   padding:16px;
   border-radius:12px;
-  border:0;
-  background:rgba(255,255,255,.96);
+  border:1px solid rgba(220,232,220,.84);
+  background:#FFFFFF;
   box-shadow:var(--shadow-soft);
 }
 .balance-bar-row{
@@ -578,8 +596,8 @@
   min-height:120px;
   padding:18px;
   border-radius:12px;
-  border:0;
-  background:rgba(255,255,255,.96);
+  border:1px solid rgba(220,232,220,.82);
+  background:#FFFFFF;
   display:grid;
   gap:12px;
   box-shadow:var(--shadow-soft);
@@ -628,10 +646,10 @@
   transform:translateY(-1px);
 }
 .dashboard-block{
-  padding:16px;
+  padding:18px;
   border-radius:12px;
-  border:0;
-  background:rgba(255,255,255,.96);
+  border:1px solid rgba(220,232,220,.82);
+  background:#FFFFFF;
   box-shadow:var(--shadow-soft);
 }
 .dashboard-list{
@@ -640,11 +658,18 @@
 }
 .list-row{
   display:grid;
-  gap:10px;
-  padding:16px;
+  gap:12px;
+  padding:18px;
   border-radius:12px;
-  border:1px solid rgba(220,232,220,.6);
-  background:rgba(255,255,255,.94);
+  border:1px solid rgba(220,232,220,.82);
+  background:#FFFFFF;
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.list-row-interactive:hover,
+.list-row-interactive:focus-within{
+  border-color:rgba(61,122,90,.24);
+  box-shadow:0 8px 18px rgba(23,45,31,.04);
+  transform:translateY(-1px);
 }
 .list-row-top{
   display:flex;
@@ -654,25 +679,31 @@
 }
 .list-row-title{
   margin:0;
-  font-size:1rem;
+  font-size:1.02rem;
   font-weight:700;
+  letter-spacing:-.02em;
 }
 .list-row-sub{
-  margin:4px 0 0;
+  margin:5px 0 0;
   color:var(--muted);
-  font-size:.88rem;
+  font-size:.84rem;
+  line-height:1.45;
 }
 .list-row-interactive{
   cursor:pointer;
 }
 .price{
-  color:var(--accent);
+  color:#1A2E1F;
   font-weight:600;
-  letter-spacing:-.03em;
+  letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums;
 }
 .invoice-list-card .price,
 .invoice-card-top .price{
   color:#3D7A5A;
+  font-size:1.34rem;
+  line-height:1;
+  white-space:nowrap;
 }
 .wallet-positive{
   color:var(--accent);
@@ -690,8 +721,8 @@
   display:flex;
   gap:8px;
   flex-wrap:wrap;
+  align-items:center;
 }
-.card.card-tight{padding:14px}
 .entity-stack{display:grid;gap:12px}
 .search-shell{
   display:grid;
@@ -1078,6 +1109,9 @@
   .hub-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .scanner-entry-grid{
     grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .invoice-list-card{
+    padding:20px 20px 18px;
   }
   .scanner-editor,
   .scanner-preview{

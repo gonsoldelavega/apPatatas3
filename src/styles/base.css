@@ -4,9 +4,7 @@ html,body{
   min-height:100%;
   font-family:"Inter","Segoe UI","Helvetica Neue",Arial,sans-serif;
   background:
-    radial-gradient(circle at top center,rgba(106,175,133,.10),transparent 22%),
-    radial-gradient(circle at 88% 0%,rgba(61,122,90,.08),transparent 24%),
-    linear-gradient(180deg,var(--bg) 0%,var(--bg-2) 48%,var(--bg-3) 100%);
+    linear-gradient(180deg,var(--bg) 0%,var(--bg-2) 58%,var(--bg-3) 100%);
   color:var(--text);
 }
 body{
@@ -27,14 +25,14 @@ button{
   transition:background-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease;
 }
 button.primary{
-  background:linear-gradient(180deg,var(--accent),var(--accent-2));
+  background:var(--accent);
   color:#ffffff;
   font-weight:600;
 }
 button.primary:hover,
 button.primary:focus-visible{
-  background:linear-gradient(180deg,#34674d,#28533d);
-  box-shadow:0 8px 20px rgba(61,122,90,.18);
+  background:#2F6248;
+  box-shadow:0 8px 20px rgba(61,122,90,.14);
 }
 button.ghost{
   background:rgba(255,255,255,.88);
