@@ -298,7 +298,15 @@
         };
       }
       function mapInvoiceFromSupabase(row){
-        const lines = parseJsonLines(row.lines);
+        const lines = parseJsonLines(row.lines).map(line => ({
+          ...line,
+          iva: line.iva ?? line.ivaPct ?? 0,
+          ivaPct: line.ivaPct ?? line.iva ?? 0,
+          ivaAmount: line.ivaAmount ?? line.ivaLinea ?? 0,
+          total: line.total ?? line.totalLinea ?? 0,
+          base: line.base ?? line.baseLinea ?? 0,
+          price: line.price ?? line.precioUnitarioBase ?? 0
+        }));
         return {
           id:row.id || "",
           number:row.numero_factura || "",
@@ -366,7 +374,15 @@
         };
       }
       function mapPurchaseFromSupabase(row){
-        const lines = parseJsonLines(row.lines);
+        const lines = parseJsonLines(row.lines).map(line => ({
+          ...line,
+          iva: line.iva ?? line.ivaPct ?? 0,
+          ivaPct: line.ivaPct ?? line.iva ?? 0,
+          ivaAmount: line.ivaAmount ?? line.ivaLinea ?? 0,
+          total: line.total ?? line.totalLinea ?? 0,
+          base: line.base ?? line.baseLinea ?? 0,
+          price: line.price ?? line.precioUnitarioBase ?? 0
+        }));
         const firstLine = lines[0] || {};
         return {
           id:row.id || "",
