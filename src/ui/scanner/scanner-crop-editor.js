@@ -8,14 +8,14 @@
             <h2>Ajustar bordes</h2>
             <p>${detectionFailed
               ? "No se ha detectado el documento con seguridad. Ajusta las cuatro esquinas manualmente o usa la imagen completa."
-              : "Arrastra las cuatro esquinas si la detección automática no ha quedado bien."}</p>
+              : "Arrastra las cuatro esquinas para afinar el recorte antes de confirmar."}</p>
           </div>
           <div class="scanner-top-actions">
             <span class="chip">${detectionFailed ? "Ajuste requerido" : "Recorte manual"}</span>
             <button type="button" class="ghost" data-scanner-action="close">Salir</button>
           </div>
         </div>
-        ${detectionFailed ? '<div class="scanner-warning">La detección automática no encontró un contorno válido de 4 puntos. No se aplicará corrección automática salvo que confirmes un recorte manual.</div>' : ""}
+        ${detectionFailed ? '<div class="scanner-warning">La deteccion automatica no encontro un contorno valido de 4 puntos. Puedes recolocar las esquinas a mano o usar la imagen completa.</div>' : ""}
         <div class="scanner-editor-canvas-wrap">
           <canvas id="scannerCropCanvas" class="scanner-crop-canvas"></canvas>
         </div>
@@ -23,7 +23,7 @@
           <button type="button" class="ghost" data-scanner-action="retake">Repetir</button>
           <button type="button" class="ghost" data-scanner-action="back-preview">Volver</button>
           ${detectionFailed ? '<button type="button" class="ghost" data-scanner-action="use-full-image">Usar imagen completa</button>' : ""}
-          <button type="button" class="primary" data-scanner-action="apply-crop"${detectionFailed ? " disabled" : ""}>Usar recorte</button>
+          <button type="button" class="primary" data-scanner-action="apply-crop"${detectionFailed ? " disabled" : ""}>Confirmar recorte</button>
         </div>
       </div>
     </section>`;

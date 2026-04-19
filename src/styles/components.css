@@ -856,7 +856,7 @@
   position:absolute;
   left:0;
   right:0;
-  z-index:2;
+  z-index:12;
   padding:18px;
 }
 .scanner-stage-top{
@@ -872,6 +872,11 @@
   display:grid;
   gap:14px;
   background:linear-gradient(180deg,rgba(26,46,31,0),rgba(26,46,31,.72));
+}
+.scanner-stage-top > div:first-child,
+.scanner-stage-bottom > *{
+  position:relative;
+  z-index:13;
 }
 .scanner-stage-top h2,
 .scanner-editor-top h2{
@@ -898,6 +903,10 @@
   margin:0;
   color:#fff9f1;
   font-size:.9rem;
+  padding:12px 14px;
+  border-radius:16px;
+  background:rgba(12, 18, 14, .52);
+  backdrop-filter:blur(12px);
 }
 .scanner-camera-actions,
 .scanner-editor-actions,
@@ -906,6 +915,16 @@
   display:flex;
   gap:10px;
   flex-wrap:wrap;
+}
+.scanner-camera-actions,
+.scanner-editor-actions{
+  position:relative;
+  z-index:14;
+  padding:12px;
+  border-radius:18px;
+  background:rgba(12, 18, 14, .58);
+  backdrop-filter:blur(14px);
+  box-shadow:0 8px 24px rgba(0,0,0,.24);
 }
 .scanner-capture-btn{min-width:140px}
 .scanner-editor,
@@ -925,6 +944,7 @@
   border-radius:22px;
   overflow:hidden;
   background:#f4f8f2;
+  box-shadow:var(--shadow-soft);
 }
 .scanner-warning{
   padding:12px 14px;
@@ -939,6 +959,10 @@
 .scanner-preview-image{
   width:100%;
   display:block;
+}
+.scanner-crop-canvas{
+  touch-action:none;
+  background:#edf4ed;
 }
 .scanner-preview-main{
   display:grid;
@@ -1056,7 +1080,7 @@
   left:0;
   right:0;
   bottom:0;
-  z-index:8;
+  z-index:24;
   padding:12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   background:linear-gradient(180deg,rgba(247,249,245,0),rgba(247,249,245,.88) 22%,rgba(247,249,245,.98) 100%);
 }
@@ -1068,15 +1092,24 @@
   max-width:980px;
   padding:14px;
   border-radius:12px;
-  border:1px solid var(--line);
-  background:rgba(255,255,255,.96);
-  box-shadow:var(--shadow-soft);
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(16,24,19,.78);
+  backdrop-filter:blur(16px);
+  box-shadow:0 18px 34px rgba(8,12,10,.28);
 }
 .scanner-preview-footer-inner button{
   min-height:54px;
   border-radius:16px;
   font-size:.95rem;
   font-weight:700;
+}
+.scanner-preview-footer-inner .ghost{
+  color:#f7faf6;
+  border-color:rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+}
+.scanner-preview-footer-inner .primary{
+  box-shadow:none;
 }
 .toolbar .search-row input,
 .toolbar .search-row select{

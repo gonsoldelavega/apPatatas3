@@ -7,12 +7,12 @@
         <div class="scanner-stage-top">
           <div>
             <h2>Escanear documento</h2>
-            <p>Apunta al documento completo. La detección intenta capturarlo sola cuando esté estable.</p>
+            <p>Apunta al documento completo. Veras la deteccion en vivo y despues podras ajustar las esquinas antes de confirmar.</p>
           </div>
           <span class="chip">${state.options.autoCapture ? "Auto" : "Manual"}</span>
         </div>
         <div class="scanner-stage-bottom">
-          <p class="scanner-hint" id="scannerHint">Buscando bordes del documento…</p>
+          <p class="scanner-hint" id="scannerHint">Buscando bordes del documento...</p>
           <div class="scanner-camera-actions">
             <button type="button" class="ghost" data-scanner-action="close">Cerrar</button>
             <button type="button" class="ghost" data-scanner-action="toggle-auto">${state.options.autoCapture ? "Auto ON" : "Auto OFF"}</button>
@@ -122,7 +122,7 @@
       if(!manual && Date.now() - lastAutoCaptureAt < autoCaptureCooldownMs) return false;
       capturing = true;
       try{
-        const sourceCanvas = deps.camera.captureFrame(video, { maxWidth: 1800 });
+        const sourceCanvas = deps.camera.captureFrame(video);
         const detection = await deps.detector.detectDocument(sourceCanvas);
         if(!manual) lastAutoCaptureAt = Date.now();
         deps.onCapture({
@@ -211,12 +211,15 @@
     root.querySelector('[data-scanner-action="close"]').addEventListener("click", () => deps.onClose());
     root.querySelector('[data-scanner-action="toggle-auto"]').addEventListener("click", () => deps.onToggleAuto());
 
-    deps.camera.startCamera(video, {}).then(currentStream => {
+    deps.camera.startCamera(video, {
+      previewWidth: 3840,
+      previewHeight: 2160
+    }).then(currentStream => {
       stream = currentStream;
       fitOverlayToVideo(video, overlay);
       scanFrame();
     }).catch(error => {
-      hint.textContent = "La cámara no está disponible en este dispositivo o navegador.";
+      hint.textContent = "La camara no esta disponible en este dispositivo o navegador.";
       deps.onError?.(error);
     });
 
