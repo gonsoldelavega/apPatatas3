@@ -64,18 +64,9 @@
       const spec = REMOTE_SPECS[tableKey];
       const supabase = await getSupabaseClient();
       const rowPayload = withPrimaryKey(tableKey, payload);
-      if(payload?.id){
-        const { data, error } = await supabase
-          .from(spec.table)
-          .update(rowPayload)
-          .eq(spec.primaryKey, payload.id)
-          .select();
-        if(error) throw error;
-        return normalizeRow(tableKey, data?.[0]) || payload;
-      }
       const { data, error } = await supabase
         .from(spec.table)
-        .insert(rowPayload)
+        .upsert(rowPayload, { onConflict: spec.primaryKey })
         .select();
       if(error) throw error;
       return normalizeRow(tableKey, data?.[0]) || payload;
