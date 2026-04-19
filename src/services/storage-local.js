@@ -65,6 +65,10 @@
       console.log("[SAVE] tabla:", spec.table, "primaryKey:", spec.primaryKey);
       const supabase = await getSupabaseClient();
       const rowPayload = withPrimaryKey(tableKey, payload);
+      const spec2 = REMOTE_SPECS[tableKey];
+      if(spec2.primaryKey !== "id"){
+        delete rowPayload.id;
+      }
       console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(rowPayload));
       const { data, error } = await supabase
         .from(spec.table)
