@@ -493,16 +493,17 @@
           renderAll();
           return;
         }
-        try{
-          await savePrimaryCollectionToSupabase(collection, entity);
-          hideDataNotice();
-        }catch(error){
-          console.error(`[supabase] No se pudo guardar ${collection}. Se mantiene copia local temporal.`, error);
-          showDataNotice("No se pudo guardar en Supabase. Se ha conservado una copia local temporal.", "warn");
-        }
         store.saveEntity(collection, entity, id);
         syncState();
         renderAll();
+        savePrimaryCollectionToSupabase(collection, entity)
+          .then(() => {
+            hideDataNotice();
+          })
+          .catch(error => {
+            console.error(`[supabase] No se pudo guardar ${collection}. Se mantiene copia local temporal.`, error);
+            showDataNotice("No se pudo guardar en Supabase. Se ha conservado una copia local temporal.", "warn");
+          });
       }
       function createWalletMovement(payload){
         const mode = payload?.mode || "out";
