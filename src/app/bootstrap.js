@@ -351,15 +351,26 @@
           notes:""
         };
       }
+      async function loadSupabaseTableWithLogs(label, loader){
+        console.log(`[SUPABASE] cargando ${label}...`);
+        try{
+          const rows = await loader();
+          console.log(`[SUPABASE] ${label} → ${(rows || []).length} registros`);
+          return rows || [];
+        }catch(error){
+          console.error(`[SUPABASE ERROR] ${label} → ${error?.message || String(error)}`);
+          throw error;
+        }
+      }
       async function hydratePrimaryEntitiesFromSupabase(){
         try{
           const [clientsRows, productsRows, invoicesRows, expensesRows, purchasesRows, walletRows] = await Promise.all([
-            storageService.getClientes(),
-            storageService.getProductos(),
-            storageService.getFacturas(),
-            storageService.getGastos(),
-            storageService.getCompras(),
-            storageService.getWalletMovements()
+            loadSupabaseTableWithLogs("clientes", () => storageService.getClientes()),
+            loadSupabaseTableWithLogs("productos", () => storageService.getProductos()),
+            loadSupabaseTableWithLogs("facturas", () => storageService.getFacturas()),
+            loadSupabaseTableWithLogs("gastos", () => storageService.getGastos()),
+            loadSupabaseTableWithLogs("compras", () => storageService.getCompras()),
+            loadSupabaseTableWithLogs("monedero", () => storageService.getWalletMovements())
           ]);
           store.updateState(current => {
             current.clients = (clientsRows || []).map(mapClientFromSupabase);
@@ -2460,7 +2471,6 @@
       registerGlobalButtons();
       registerPwa();
     })();
-
 
 
 
