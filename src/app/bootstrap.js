@@ -279,9 +279,7 @@
           fecha_vencimiento:item.dueDate || null,
           cliente_id:item.clientId || "",
           cliente_nombre:item.clientName || "",
-          estado_cobro:item.status ||
-            (n(item.amountPaid) >= n(item.total) && n(item.total) > 0 ? "pagada" :
-            n(item.amountPaid) > 0 ? "parcial" : "pending"),
+          estado_cobro:item.status || "pending",
           fecha_cobro:item.paidDate || item.paymentDate || null,
           producto_id:linea?.productId || "",
           descripcion_linea:linea?.description || "",
@@ -323,7 +321,7 @@
           dueDate:row.fecha_vencimiento || "",
           clientId:row.cliente_id || "",
           clientName:row.cliente_nombre || "",
-          status:row.estado_cobro || "",
+          status:row.estado_cobro || "pending",
           paymentDate:row.fecha_cobro || "",
           total:n(row.total_factura),
           base:n(row.base_factura),
@@ -1374,6 +1372,7 @@
                 store.updateState(current => {
                   const target = current.invoices.find(x => x.id === id);
                   if(!target) return;
+                  target.status = "paid";
                   target.amountPaid = totals.total;
                   target.paidDate = form.elements.paidDate.value || today();
                   target.paymentMethod = form.elements.paymentMethod.value || "";
@@ -1392,6 +1391,8 @@
                 const target = current.invoices.find(x => x.id === id);
                 if(!target) return;
                 target.amountPaid = nextPaid;
+                target.status = nextPaid >= totals.total - 0.009 ? "paid" :
+                  nextPaid > 0.009 ? "partial" : "pending";
                 target.paidDate = addedPaid > 0 ? (form.elements.paidDate.value || today()) : (target.paidDate || "");
                 target.paymentMethod = form.elements.paymentMethod.value || "";
                 target.paymentNote = form.elements.paymentNote.value || "";
