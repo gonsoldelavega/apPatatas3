@@ -499,7 +499,22 @@
         const current = today();
         return `${String(current || "").slice(0, 7)}-01`;
       }
-      function ensureMonthlyRecurringExpenses(){
+      function normalizeRecurringConcept(value){
+        return String(value || "").trim().toLowerCase();
+      }
+      function sameRecurringExpenseConcept(item, concept, currentMonth){
+        return monthKey(item?.date) === currentMonth && normalizeRecurringConcept(item?.concept) === normalizeRecurringConcept(concept);
+      }
+      async function persistRecurringExpense(canonicalExpense, previousId){
+        store.saveEntity("expenses", canonicalExpense, previousId || canonicalExpense.id);
+        syncState();
+        renderAll();
+        await savePrimaryCollectionToSupabase("expenses", canonicalExpense);
+        if(previousId && previousId !== canonicalExpense.id){
+          await deletePrimaryCollectionFromSupabase("expenses", previousId);
+        }
+      }
+      async function ensureMonthlyRecurringExpenses(){
         const currentMonth = String(today() || "").slice(0, 7);
         if(!currentMonth) return;
         const recurringExpenses = [
@@ -526,16 +541,9 @@
             notes:"Gasto recurrente mensual automático"
           }
         ];
-        const existing = new Set(
-          (state.expenses || [])
-            .filter(item => monthKey(item.date) === currentMonth)
-            .map(item => String(item.concept || "").trim().toLowerCase())
-        );
-        recurringExpenses.forEach(item => {
-          const key = String(item.concept || "").trim().toLowerCase();
-          const alreadyExists = existing.has(key) || (state.expenses || []).some(exp => exp.id === item.id);
-          if(alreadyExists) return;
-          saveEntity("expenses", {
+        for(const item of recurringExpenses){
+          const matches = (state.expenses || []).filter(exp => sameRecurringExpenseConcept(exp, item.concept, currentMonth));
+          const canonicalExpense = {
             id:item.id,
             date:firstDayOfCurrentMonth(),
             supplierId:"",
@@ -547,8 +555,33 @@
             ivaAmount:item.ivaAmount,
             total:item.total,
             notes:item.notes
-          }, item.id);
-        });
+          };
+          if(!matches.length){
+            await persistRecurringExpense(canonicalExpense, item.id);
+            return;
+          }
+          const primary = matches.find(exp => exp.id === item.id) || matches[0];
+          if(
+            primary.id !== canonicalExpense.id ||
+            n(primary.base) !== n(canonicalExpense.base) ||
+            n(primary.iva) !== n(canonicalExpense.iva) ||
+            String(primary.category || "") !== canonicalExpense.category ||
+            String(primary.notes || "") !== canonicalExpense.notes
+          ){
+            await persistRecurringExpense(canonicalExpense, primary.id);
+          }
+          const duplicates = matches.filter(exp => exp.id !== primary.id && exp.id !== canonicalExpense.id);
+          if(duplicates.length){
+            store.updateState(current => {
+              current.expenses = current.expenses.filter(exp => !duplicates.some(dup => dup.id === exp.id));
+            }, { persist:true, reason:"expenses:dedupe-recurring" });
+            syncState();
+            renderAll();
+            for(const dup of duplicates){
+              await deletePrimaryCollectionFromSupabase("expenses", dup.id);
+            }
+          }
+        }
       }
       async function savePrimaryCollectionToSupabase(collection, entity){
         console.log("[SAVE-COLLECTION]", collection, JSON.stringify(entity).substring(0, 300));
@@ -2640,7 +2673,7 @@
         await syncManager.bootstrap();
       }finally{
         await hydratePrimaryEntitiesFromSupabase();
-        ensureMonthlyRecurringExpenses();
+        await ensureMonthlyRecurringExpenses();
         syncManager.startAutoSync();
       }
       renderAll();
