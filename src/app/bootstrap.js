@@ -495,6 +495,58 @@
           return false;
         }
       }
+      function firstDayOfCurrentMonth(){
+        const current = today();
+        return `${String(current || "").slice(0, 7)}-01`;
+      }
+      function ensureMonthlyRecurringExpenses(){
+        const currentMonth = String(today() || "").slice(0, 7);
+        if(!currentMonth) return;
+        const recurringExpenses = [
+          {
+            concept:"Gestoría mensual",
+            category:"gestoria",
+            base:24.00,
+            iva:21,
+            ivaPct:21,
+            ivaAmount:5.04,
+            total:29.04,
+            notes:"Gasto recurrente mensual automático"
+          },
+          {
+            concept:"Cuota autónomos",
+            category:"seguridad_social",
+            base:88.56,
+            iva:0,
+            ivaPct:0,
+            ivaAmount:0,
+            total:88.56,
+            notes:"Gasto recurrente mensual automático"
+          }
+        ];
+        const existing = new Set(
+          (state.expenses || [])
+            .filter(item => monthKey(item.date) === currentMonth)
+            .map(item => String(item.concept || "").trim().toLowerCase())
+        );
+        recurringExpenses.forEach(item => {
+          const key = String(item.concept || "").trim().toLowerCase();
+          if(existing.has(key)) return;
+          saveEntity("expenses", {
+            id:uid("exp"),
+            date:firstDayOfCurrentMonth(),
+            supplierId:"",
+            category:item.category,
+            concept:item.concept,
+            base:item.base,
+            iva:item.iva,
+            ivaPct:item.ivaPct,
+            ivaAmount:item.ivaAmount,
+            total:item.total,
+            notes:item.notes
+          });
+        });
+      }
       async function savePrimaryCollectionToSupabase(collection, entity){
         console.log("[SAVE-COLLECTION]", collection, JSON.stringify(entity).substring(0, 300));
         if(collection === "clients") return storageService.saveCliente(mapClientToSupabase(entity));
@@ -2585,6 +2637,7 @@
         await syncManager.bootstrap();
       }finally{
         await hydratePrimaryEntitiesFromSupabase();
+        ensureMonthlyRecurringExpenses();
         syncManager.startAutoSync();
       }
       renderAll();
