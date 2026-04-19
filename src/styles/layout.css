@@ -4,8 +4,8 @@
   padding:16px 16px 124px;
 }
 .panel{
-  background:linear-gradient(180deg,rgba(255,253,249,.96),rgba(255,247,238,.94));
-  border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.94));
+  border:1px solid rgba(220,232,220,.55);
   border-radius:var(--r);
   box-shadow:var(--shadow);
 }
@@ -14,12 +14,12 @@
   top:0;
   z-index:24;
   margin:0 0 16px;
-  padding:18px 20px;
-  background:linear-gradient(180deg,rgba(248,241,232,.92),rgba(248,241,232,.74));
-  backdrop-filter:blur(18px);
+  padding:12px 18px;
+  background:rgba(247,249,245,.88);
+  backdrop-filter:blur(16px);
 }
 .hero.panel{
-  border-color:rgba(213,138,31,.1);
+  border-color:rgba(220,232,220,.72);
 }
 .hero-top{
   display:flex;
@@ -29,8 +29,8 @@
 }
 .brand h1{
   margin:0;
-  font-size:1.55rem;
-  font-weight:800;
+  font-size:1.45rem;
+  font-weight:600;
   letter-spacing:-.04em;
 }
 .brand p{
@@ -85,13 +85,13 @@
   z-index:30;
   display:flex;
   gap:8px;
-  padding:10px;
+  padding:8px 10px;
   overflow-x:auto;
-  background:rgba(255,248,240,.92);
-  border:1px solid var(--line-strong);
-  border-radius:26px;
-  backdrop-filter:blur(18px);
-  box-shadow:0 18px 42px rgba(135,98,44,.12);
+  background:rgba(247,249,245,.94);
+  border:1px solid rgba(220,232,220,.75);
+  border-radius:18px;
+  backdrop-filter:blur(16px);
+  box-shadow:var(--shadow-soft);
 }
 .modal{
   position:fixed;
@@ -99,7 +99,7 @@
   display:none;
   place-items:end center;
   z-index:40;
-  background:rgba(60,42,17,.22);
+  background:rgba(26,46,31,.22);
   padding:10px;
 }
 .modal.show{display:grid}
@@ -108,7 +108,7 @@
   max-width:920px;
   max-height:94vh;
   overflow:auto;
-  border-radius:28px 28px 18px 18px;
+  border-radius:20px 20px 14px 14px;
   background:linear-gradient(180deg,var(--panel-2),var(--panel));
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow);
@@ -120,7 +120,7 @@
   padding:0 18px 18px;
   position:sticky;
   bottom:0;
-  background:linear-gradient(180deg,rgba(255,248,240,.18),rgba(255,248,240,.96));
+  background:linear-gradient(180deg,rgba(247,249,245,.22),rgba(247,249,245,.96));
   backdrop-filter:blur(12px);
 }
 @media(min-width:760px){

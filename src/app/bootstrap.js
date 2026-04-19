@@ -248,7 +248,7 @@
           unit:row.unidad || "",
           ivaPct:n(row.iva_pct),
           notes:row.notas || "",
-          price:0,
+          price:n(row.precio),
           iva:n(row.iva_pct),
           observations:row.notas || "",
           category:"",
@@ -420,8 +420,9 @@
       }
       async function hydratePrimaryEntitiesFromSupabase(){
         try{
-          const [clientsRows, productsRows, invoicesRows, expensesRows, purchasesRows, walletRows] = await Promise.all([
+          const [clientsRows, suppliersRows, productsRows, invoicesRows, expensesRows, purchasesRows, walletRows] = await Promise.all([
             loadSupabaseTableWithLogs("clientes", () => storageService.getClientes()),
+            loadSupabaseTableWithLogs("proveedores", () => storageService.getProveedores()),
             loadSupabaseTableWithLogs("productos", () => storageService.getProductos()),
             loadSupabaseTableWithLogs("facturas", () => storageService.getFacturas()),
             loadSupabaseTableWithLogs("gastos", () => storageService.getGastos()),
@@ -430,6 +431,7 @@
           ]);
           store.updateState(current => {
             current.clients = (clientsRows || []).map(mapClientFromSupabase);
+            current.suppliers = (suppliersRows || []).map(mapSupplierFromSupabase);
             current.products = (productsRows || []).map(mapProductFromSupabase);
             current.invoices = (invoicesRows || []).map(mapInvoiceFromSupabase);
             current.expenses = (expensesRows || []).map(mapExpenseFromSupabase);

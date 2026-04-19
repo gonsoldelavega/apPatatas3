@@ -25,6 +25,9 @@
     if(Object.prototype.hasOwnProperty.call(next, "id") && next.id){
       next[spec.primaryKey] = next.id;
     }
+    if(tableKey === "productos"){
+      next.precio = next.price;
+    }
     return next;
   }
 
@@ -132,6 +135,15 @@
       },
       async deleteCliente(id){
         return deleteRow("clientes", "deleteCliente", id);
+      },
+      async getProveedores(){
+        return fetchAllRows("proveedores", "getProveedores");
+      },
+      async saveProveedor(proveedor){
+        return saveRow("proveedores", "saveProveedor", proveedor);
+      },
+      async deleteProveedor(id){
+        return deleteRow("proveedores", "deleteProveedor", id);
       },
       async getProductos(){
         return fetchAllRows("productos", "getProductos");
