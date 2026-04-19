@@ -1,11 +1,12 @@
 (function(global){
-  const REMOTE_TABLES = {
-    clientes: "clientes",
-    productos: "productos",
-    facturas: "facturas",
-    gastos: "gastos",
-    compras: "compras",
-    monedero: "monedero"
+  const REMOTE_SPECS = {
+    clientes: { table: "clientes", primaryKey: "cliente_id" },
+    proveedores: { table: "proveedores", primaryKey: "proveedor_id" },
+    productos: { table: "productos", primaryKey: "producto_id" },
+    facturas: { table: "facturas_venta", primaryKey: "registro_id" },
+    gastos: { table: "gastos", primaryKey: "id" },
+    compras: { table: "facturas_compra", primaryKey: "registro_id" },
+    monedero: { table: "monedero", primaryKey: "id" }
   };
 
   async function getSupabaseHelpers(){
@@ -16,10 +17,25 @@
     console.error(`[storage-local:${scope}] Error al usar Supabase`, error);
   }
 
+  function withPrimaryKey(tableKey, payload){
+    const spec = REMOTE_SPECS[tableKey];
+    if(!spec) return payload;
+    if(!payload || typeof payload !== "object") return payload;
+    const next = { ...payload };
+    if(Object.prototype.hasOwnProperty.call(next, "id") && next.id){
+      next[spec.primaryKey] = next.id;
+    }
+    return next;
+  }
+
   async function fetchAllRows(tableKey, scope){
     try{
-      const { getAll } = await getSupabaseHelpers();
-      return await getAll(REMOTE_TABLES[tableKey]);
+      const { getSupabaseClient } = await getSupabaseHelpers();
+      const spec = REMOTE_SPECS[tableKey];
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase.from(spec.table).select("*");
+      if(error) throw error;
+      return data || [];
     }catch(error){
       logSupabaseError(scope, error);
       return [];
@@ -28,13 +44,25 @@
 
   async function saveRow(tableKey, scope, payload){
     try{
-      const { insert, update } = await getSupabaseHelpers();
+      const { getSupabaseClient } = await getSupabaseHelpers();
+      const spec = REMOTE_SPECS[tableKey];
+      const supabase = await getSupabaseClient();
+      const rowPayload = withPrimaryKey(tableKey, payload);
       if(payload?.id){
-        const rows = await update(REMOTE_TABLES[tableKey], payload.id, payload);
-        return rows?.[0] || payload;
+        const { data, error } = await supabase
+          .from(spec.table)
+          .update(rowPayload)
+          .eq(spec.primaryKey, payload.id)
+          .select();
+        if(error) throw error;
+        return data?.[0] || payload;
       }
-      const rows = await insert(REMOTE_TABLES[tableKey], payload);
-      return rows?.[0] || payload;
+      const { data, error } = await supabase
+        .from(spec.table)
+        .insert(rowPayload)
+        .select();
+      if(error) throw error;
+      return data?.[0] || payload;
     }catch(error){
       logSupabaseError(scope, error);
       return payload || null;
@@ -43,8 +71,15 @@
 
   async function deleteRow(tableKey, scope, id){
     try{
-      const { remove } = await getSupabaseHelpers();
-      return await remove(REMOTE_TABLES[tableKey], id);
+      const { getSupabaseClient } = await getSupabaseHelpers();
+      const spec = REMOTE_SPECS[tableKey];
+      const supabase = await getSupabaseClient();
+      const { error } = await supabase
+        .from(spec.table)
+        .delete()
+        .eq(spec.primaryKey, id);
+      if(error) throw error;
+      return true;
     }catch(error){
       logSupabaseError(scope, error);
       return false;
