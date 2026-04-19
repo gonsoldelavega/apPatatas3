@@ -190,7 +190,23 @@
         return fetchAllRows("compras", "getCompras");
       },
       async saveCompra(compra){
-        return saveRow("compras", "saveCompra", compra);
+        try{
+          const rows = Array.isArray(compra) ? compra : [compra];
+          const { getSupabaseClient } = await getSupabaseHelpers();
+          const supabase = await getSupabaseClient();
+          console.log("[SAVE] tabla:", "facturas_compra", "primaryKey:", "registro_id");
+          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(rows));
+          const { data, error } = await supabase
+            .from("facturas_compra")
+            .upsert(rows, { onConflict: "registro_id" })
+            .select();
+          console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
+          if(error) throw error;
+          return data;
+        }catch(error){
+          console.error("[SAVE ERROR]", "saveCompra", error);
+          return Array.isArray(compra) ? compra : [compra];
+        }
       },
       async deleteCompra(id){
         return deleteRow("compras", "deleteCompra", id);

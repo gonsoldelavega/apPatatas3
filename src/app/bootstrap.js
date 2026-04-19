@@ -186,13 +186,17 @@
       }
       function mapClientToSupabase(item){
         return {
-          id:item.id,
+          cliente_id:item.id,
           nombre:item.name || "",
           nif:item.taxId || "",
-          email:item.email || "",
           telefono:item.phone || "",
+          email:item.email || "",
           direccion:item.address || "",
-          created_at:item.created_at || item.createdAt || undefined
+          cp:item.cp || "",
+          ciudad:item.city || "",
+          provincia:item.province || "",
+          pais:item.country || "",
+          notas:item.notes || ""
         };
       }
       function mapClientFromSupabase(row){
@@ -232,12 +236,14 @@
       }
       function mapProductToSupabase(item){
         return {
-          id:item.id,
+          producto_id:item.id,
           nombre:item.name || "",
+          aliases:item.aliases || "",
+          tipo:item.type || "",
+          unidad:item.unit || "",
+          iva_pct:n(item.ivaPct),
           precio:n(item.price),
-          iva:n(item.iva),
-          descripcion:item.observations || item.description || "",
-          created_at:item.created_at || item.createdAt || undefined
+          notas:item.notes || ""
         };
       }
       function mapProductFromSupabase(row){
@@ -265,15 +271,14 @@
           : Array.isArray(item?.items) && item.items.length
             ? item.items
             : [];
-        const totals = invoiceTotals(item);
         return lines.map((linea, index) => ({
-          registro_id:`${item.id || uid("fac")}-${index}`,
+          registro_id:`${item.id || uid("fac")}-L${index}`,
           factura_id:item.id || "",
           numero_factura:item.number || "",
           fecha_factura:item.issueDate || item.date || today(),
           fecha_vencimiento:item.dueDate || null,
           cliente_id:item.clientId || "",
-          cliente_nombre:item.clientName || getClient(item.clientId)?.name || "",
+          cliente_nombre:item.clientName || "",
           estado_cobro:item.status || "pending",
           fecha_cobro:item.paymentDate || item.paidDate || null,
           producto_id:linea?.productId || "",
@@ -281,16 +286,15 @@
           cantidad:n(linea?.quantity),
           unidad:linea?.unit || "",
           precio_unitario_base:n(linea?.price),
-          base_linea:n(linea?.base || (n(linea?.quantity) * n(linea?.price)) || 0),
+          base_linea:n(linea?.base),
           iva_pct:n(linea?.iva || linea?.ivaPct),
           iva_linea:n(linea?.ivaAmount),
           total_linea:n(linea?.total),
-          base_factura:n(item.base ?? totals.base),
-          iva_factura:n(item.iva ?? totals.vat),
-          total_factura:n(item.total ?? totals.total),
+          base_factura:n(item.base),
+          iva_factura:n(item.iva),
+          total_factura:n(item.total),
           servicio_desde:item.periodStart || null,
           servicio_hasta:item.periodEnd || null,
-          fuente_pdf:item.sourcePdf || "",
           notas:item.internalNote || ""
         }));
       }
@@ -341,10 +345,12 @@
         return {
           id:item.id,
           fecha:item.date || today(),
-          concepto:encodePackedText(item),
-          importe:expenseTotal(item),
+          supplier_id:item.supplierId || "",
           categoria:item.category || "",
-          created_at:item.created_at || item.createdAt || undefined
+          concepto:item.concept || "",
+          base:n(item.base),
+          iva:n(item.iva),
+          notas:item.notes || ""
         };
       }
       function mapExpenseFromSupabase(row){
@@ -360,14 +366,34 @@
         };
       }
       function mapPurchaseToSupabase(item){
-        return {
-          id:item.id,
-          fecha:item.date || today(),
-          proveedor:item.supplierId || "",
-          concepto:encodePackedText(item),
-          importe:purchaseTotal(item),
-          created_at:item.created_at || item.createdAt || undefined
-        };
+        const lines = Array.isArray(item?.items) && item.items.length
+          ? item.items
+          : Array.isArray(item?.lines) && item.lines.length
+            ? item.lines
+            : [];
+        return lines.map((linea, index) => ({
+          registro_id:`${item.id || uid("buy")}-L${index}`,
+          factura_id:item.id || "",
+          numero_factura:item.number || "",
+          fecha_factura:item.date || item.issueDate || today(),
+          proveedor_id:item.supplierId || "",
+          proveedor_nombre:item.supplierName || "",
+          estado_pago:item.status || "pending",
+          fecha_pago:item.paymentDate || null,
+          producto_id:linea?.productId || "",
+          descripcion_linea:linea?.description || "",
+          cantidad:n(linea?.quantity),
+          unidad:linea?.unit || "",
+          precio_unitario_base:n(linea?.price ?? linea?.unitCost),
+          base_linea:n(linea?.base),
+          iva_pct:n(linea?.iva || linea?.ivaPct),
+          iva_linea:n(linea?.ivaAmount),
+          total_linea:n(linea?.total),
+          base_factura:n(item.base),
+          iva_factura:n(item.iva),
+          total_factura:n(item.total),
+          notas:item.notes || ""
+        }));
       }
       function mapPurchaseFromSupabase(row){
         const item = {
@@ -406,10 +432,19 @@
         return {
           id:item.id,
           fecha:item.date || today(),
-          concepto:encodePackedText(item),
-          importe:Math.abs(walletMovementDelta(item)),
-          tipo:item.kind || item.type || "",
-          created_at:item.created_at || item.createdAt || undefined
+          tipo:item.kind,
+          importe:n(item.amount),
+          delta:n(item.delta),
+          saldo_objetivo:n(item.targetBalance),
+          ambito:item.scope || "",
+          registrar_como:item.registerAs || "",
+          supplier_id:item.supplierId || "",
+          expense_category:item.expenseCategory || "",
+          product_id:item.productId || "",
+          quantity:n(item.quantity),
+          linked_type:item.linkedType || "",
+          linked_id:item.linkedId || "",
+          notas:item.notes || "",
         };
       }
       function mapWalletFromSupabase(row){
