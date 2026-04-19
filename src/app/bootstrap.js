@@ -1366,33 +1366,37 @@
           refresh();
           actions.querySelectorAll("[data-modal-action]").forEach(btn => btn.addEventListener("click", () => {
             const action = btn.dataset.modalAction;
-            if(action === "mark-paid"){
-              store.updateState(current => {
-                const target = current.invoices.find(x => x.id === id);
-                if(!target) return;
-                target.amountPaid = totals.total;
-                target.paidDate = form.elements.paidDate.value || today();
-                target.paymentMethod = form.elements.paymentMethod.value || "";
-                target.paymentNote = form.elements.paymentNote.value || "";
-              }, { persist:true });
-              syncState(); renderAll(); closeModal(); toast("Factura marcada como pagada");
-              return;
-            }
+              if(action === "mark-paid"){
+                store.updateState(current => {
+                  const target = current.invoices.find(x => x.id === id);
+                  if(!target) return;
+                  target.amountPaid = totals.total;
+                  target.paidDate = form.elements.paidDate.value || today();
+                  target.paymentMethod = form.elements.paymentMethod.value || "";
+                  target.paymentNote = form.elements.paymentNote.value || "";
+                }, { persist:true });
+                const updatedInvoice1 = store.getState().invoices.find(x => x.id === id);
+                if(updatedInvoice1) savePrimaryCollectionToSupabase("invoices", updatedInvoice1).catch(console.error);
+                syncState(); renderAll(); closeModal(); toast("Factura marcada como pagada");
+                return;
+              }
             if(action !== "save") return;
             if(!form.reportValidity()) return;
             const addedPaid = Math.max(n(form.elements.paidAmount.value), 0);
             const nextPaid = Math.min(totals.total, totals.paid + addedPaid);
-            store.updateState(current => {
-              const target = current.invoices.find(x => x.id === id);
-              if(!target) return;
-              target.amountPaid = nextPaid;
-              target.paidDate = addedPaid > 0 ? (form.elements.paidDate.value || today()) : (target.paidDate || "");
-              target.paymentMethod = form.elements.paymentMethod.value || "";
-              target.paymentNote = form.elements.paymentNote.value || "";
-            }, { persist:true });
-            syncState(); renderAll(); closeModal();
-            toast(nextPaid >= totals.total - 0.009 ? "Factura pagada" : nextPaid > 0.009 ? "Pago parcial registrado" : "Cobro actualizado");
-          }));
+              store.updateState(current => {
+                const target = current.invoices.find(x => x.id === id);
+                if(!target) return;
+                target.amountPaid = nextPaid;
+                target.paidDate = addedPaid > 0 ? (form.elements.paidDate.value || today()) : (target.paidDate || "");
+                target.paymentMethod = form.elements.paymentMethod.value || "";
+                target.paymentNote = form.elements.paymentNote.value || "";
+              }, { persist:true });
+              const updatedInvoice2 = store.getState().invoices.find(x => x.id === id);
+              if(updatedInvoice2) savePrimaryCollectionToSupabase("invoices", updatedInvoice2).catch(console.error);
+              syncState(); renderAll(); closeModal();
+              toast(nextPaid >= totals.total - 0.009 ? "Factura pagada" : nextPaid > 0.009 ? "Pago parcial registrado" : "Cobro actualizado");
+            }));
         }, [{id:"cancel",label:"Cancelar",className:"ghost"},{id:"save",label:"Registrar cobro",className:"ghost"},{id:"mark-paid",label:"Marcar como pagada",className:"primary"}]);
       }
 
