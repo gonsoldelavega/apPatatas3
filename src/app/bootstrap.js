@@ -504,6 +504,7 @@
         if(!currentMonth) return;
         const recurringExpenses = [
           {
+            id:`exp-gestoria-${currentMonth}`,
             concept:"Gestoría mensual",
             category:"gestoria",
             base:24.00,
@@ -514,6 +515,7 @@
             notes:"Gasto recurrente mensual automático"
           },
           {
+            id:`exp-autonomos-${currentMonth}`,
             concept:"Cuota autónomos",
             category:"seguridad_social",
             base:88.56,
@@ -531,9 +533,10 @@
         );
         recurringExpenses.forEach(item => {
           const key = String(item.concept || "").trim().toLowerCase();
-          if(existing.has(key)) return;
+          const alreadyExists = existing.has(key) || (state.expenses || []).some(exp => exp.id === item.id);
+          if(alreadyExists) return;
           saveEntity("expenses", {
-            id:uid("exp"),
+            id:item.id,
             date:firstDayOfCurrentMonth(),
             supplierId:"",
             category:item.category,
@@ -544,7 +547,7 @@
             ivaAmount:item.ivaAmount,
             total:item.total,
             notes:item.notes
-          });
+          }, item.id);
         });
       }
       async function savePrimaryCollectionToSupabase(collection, entity){
