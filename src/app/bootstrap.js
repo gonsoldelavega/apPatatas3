@@ -341,6 +341,57 @@
           items:[item]
         };
       }
+      function groupInvoiceRows(rows){
+        const groups = new Map();
+        (rows || []).forEach(row => {
+          const key = row?.factura_id || String(row?.registro_id || "").replace(/-L\d+$/, "") || uid("fac");
+          if(!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(row);
+        });
+        return Array.from(groups.entries()).map(([groupId, entries]) => {
+          const first = entries[0] || {};
+          const lines = entries.map(row => ({
+            productId:row.producto_id || "",
+            description:row.descripcion_linea || "",
+            quantity:n(row.cantidad),
+            unit:row.unidad || "",
+            price:n(row.precio_unitario_base),
+            base:n(row.base_linea),
+            ivaPct:n(row.iva_pct),
+            ivaAmount:n(row.iva_linea),
+            total:n(row.total_linea),
+            iva:n(row.iva_pct),
+            deliveryDate:row.fecha_factura || today()
+          }));
+          return {
+            id:groupId || String(first.registro_id || "").replace(/-L\d+$/, ""),
+            invoiceId:first.factura_id || groupId || "",
+            number:first.numero_factura || "",
+            date:first.fecha_factura || today(),
+            issueDate:first.fecha_factura || today(),
+            dueDate:first.fecha_vencimiento || "",
+            clientId:first.cliente_id || "",
+            clientName:first.cliente_nombre || "",
+            status:first.estado_cobro || "pending",
+            paymentDate:first.fecha_cobro || "",
+            paidDate:first.fecha_cobro || "",
+            total:n(first.total_factura),
+            base:n(first.base_factura),
+            iva:n(first.iva_factura),
+            amountPaid:String(first.estado_cobro || "").toLowerCase() === "pagada" || String(first.estado_cobro || "").toLowerCase() === "paid" ? n(first.total_factura) : 0,
+            periodStart:first.servicio_desde || first.fecha_factura || today(),
+            periodEnd:first.servicio_hasta || first.fecha_factura || today(),
+            templateId:"base",
+            internalNote:first.notas || "",
+            sendStatus:"",
+            showPaymentTerms:false,
+            paymentMethod:"",
+            paymentNote:"",
+            lines,
+            items:lines
+          };
+        });
+      }
       function mapExpenseToSupabase(item){
         return {
           id:item.id,
@@ -430,6 +481,52 @@
           attachment:null
         };
       }
+      function groupPurchaseRows(rows){
+        const groups = new Map();
+        (rows || []).forEach(row => {
+          const key = row?.factura_id || String(row?.registro_id || "").replace(/-L\d+$/, "") || uid("buy");
+          if(!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(row);
+        });
+        return Array.from(groups.entries()).map(([groupId, entries]) => {
+          const first = entries[0] || {};
+          const items = entries.map(row => ({
+            productId:row.producto_id || "",
+            description:row.descripcion_linea || "",
+            quantity:n(row.cantidad),
+            unit:row.unidad || "",
+            price:n(row.precio_unitario_base),
+            base:n(row.base_linea),
+            ivaPct:n(row.iva_pct),
+            ivaAmount:n(row.iva_linea),
+            total:n(row.total_linea),
+            iva:n(row.iva_pct)
+          }));
+          return {
+            id:groupId || String(first.registro_id || "").replace(/-L\d+$/, ""),
+            invoiceId:first.factura_id || groupId || "",
+            number:first.numero_factura || "",
+            date:first.fecha_factura || today(),
+            issueDate:first.fecha_factura || today(),
+            supplierId:first.proveedor_id || "",
+            supplierName:first.proveedor_nombre || "",
+            status:first.estado_pago || "pending",
+            paymentDate:first.fecha_pago || "",
+            paidDate:first.fecha_pago || "",
+            total:n(first.total_factura),
+            base:n(first.base_factura),
+            iva:n(first.iva_factura),
+            amountPaid:String(first.estado_pago || "").toLowerCase() === "pagada" || String(first.estado_pago || "").toLowerCase() === "paid" ? n(first.total_factura) : 0,
+            items,
+            lines:items,
+            productId:first.producto_id || "",
+            quantity:n(first.cantidad),
+            unitCost:n(first.precio_unitario_base),
+            notes:first.notas || "",
+            attachment:null
+          };
+        });
+      }
       function mapWalletToSupabase(item){
         return {
           id:item.id,
@@ -494,9 +591,9 @@
             current.clients = (clientsRows || []).map(mapClientFromSupabase);
             current.suppliers = (suppliersRows || []).map(mapSupplierFromSupabase);
             current.products = (productsRows || []).map(mapProductFromSupabase);
-            current.invoices = (invoicesRows || []).map(mapInvoiceFromSupabase);
+            current.invoices = groupInvoiceRows(invoicesRows || []);
             current.expenses = (expensesRows || []).map(mapExpenseFromSupabase);
-            current.purchases = (purchasesRows || []).map(mapPurchaseFromSupabase);
+            current.purchases = groupPurchaseRows(purchasesRows || []);
             current.walletMovements = (walletRows || []).map(mapWalletFromSupabase);
           }, { persist:true, reason:"supabase:hydrate-primary" });
           syncState();
