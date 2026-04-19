@@ -279,8 +279,10 @@
           fecha_vencimiento:item.dueDate || null,
           cliente_id:item.clientId || "",
           cliente_nombre:item.clientName || "",
-          estado_cobro:item.status || "pending",
-          fecha_cobro:item.paymentDate || item.paidDate || null,
+          estado_cobro:item.status ||
+            (n(item.amountPaid) >= n(item.total) && n(item.total) > 0 ? "pagada" :
+            n(item.amountPaid) > 0 ? "parcial" : "pending"),
+          fecha_cobro:item.paidDate || item.paymentDate || null,
           producto_id:linea?.productId || "",
           descripcion_linea:linea?.description || "",
           cantidad:n(linea?.quantity),
@@ -378,8 +380,10 @@
           fecha_factura:item.date || item.issueDate || today(),
           proveedor_id:item.supplierId || "",
           proveedor_nombre:item.supplierName || "",
-          estado_pago:item.status || "pending",
-          fecha_pago:item.paymentDate || null,
+          estado_pago:item.status ||
+            (n(item.amountPaid) >= n(item.total) && n(item.total) > 0 ? "pagada" :
+            n(item.amountPaid) > 0 ? "parcial" : "pending"),
+          fecha_pago:item.paidDate || item.paymentDate || null,
           producto_id:linea?.productId || "",
           descripcion_linea:linea?.description || "",
           cantidad:n(linea?.quantity),
