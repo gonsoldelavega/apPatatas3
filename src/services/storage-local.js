@@ -28,6 +28,16 @@
     return next;
   }
 
+  function normalizeRow(tableKey, row){
+    const spec = REMOTE_SPECS[tableKey];
+    if(!spec || !row || typeof row !== "object") return row;
+    if(Object.prototype.hasOwnProperty.call(row, "id") && row.id) return row;
+    return {
+      ...row,
+      id: row[spec.primaryKey] || row.id || ""
+    };
+  }
+
   async function fetchAllRows(tableKey, scope){
     try{
       const { getSupabaseClient } = await getSupabaseHelpers();
@@ -35,7 +45,7 @@
       const supabase = await getSupabaseClient();
       const { data, error } = await supabase.from(spec.table).select("*");
       if(error) throw error;
-      return data || [];
+      return (data || []).map(row => normalizeRow(tableKey, row));
     }catch(error){
       logSupabaseError(scope, error);
       return [];
@@ -55,14 +65,14 @@
           .eq(spec.primaryKey, payload.id)
           .select();
         if(error) throw error;
-        return data?.[0] || payload;
+        return normalizeRow(tableKey, data?.[0]) || payload;
       }
       const { data, error } = await supabase
         .from(spec.table)
         .insert(rowPayload)
         .select();
       if(error) throw error;
-      return data?.[0] || payload;
+      return normalizeRow(tableKey, data?.[0]) || payload;
     }catch(error){
       logSupabaseError(scope, error);
       return payload || null;

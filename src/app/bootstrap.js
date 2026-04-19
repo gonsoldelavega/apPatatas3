@@ -196,7 +196,7 @@
       }
       function mapClientFromSupabase(row){
         return {
-          id:row.id,
+          id:row.cliente_id || row.id || "",
           name:row.nombre || "",
           phone:row.telefono || "",
           email:row.email || "",
@@ -222,7 +222,7 @@
       }
       function mapProductFromSupabase(row){
         return {
-          id:row.id,
+          id:row.producto_id || row.id || "",
           name:row.nombre || "",
           price:n(row.precio),
           iva:n(row.iva),
@@ -252,7 +252,7 @@
         return migrate({
           ...window.AppInitialState.createDefaultState(),
           invoices:[{
-            id:row.id,
+            id:row.registro_id || row.id || "",
             clientId:row.cliente_id || "",
             number:row.numero || "",
             issueDate:row.fecha || today(),
@@ -307,9 +307,9 @@
       }
       function mapPurchaseFromSupabase(row){
         const packed = decodePackedText(row.concepto);
-        if(packed) return { ...packed, id:row.id };
+        if(packed) return { ...packed, id:row.registro_id || row.id || "" };
         return {
-          id:row.id,
+          id:row.registro_id || row.id || "",
           date:row.fecha || today(),
           supplierId:row.proveedor || "",
           productId:"",
@@ -2471,6 +2471,5 @@
       registerGlobalButtons();
       registerPwa();
     })();
-
 
 
