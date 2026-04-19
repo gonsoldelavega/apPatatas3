@@ -367,6 +367,7 @@
       }
       function mapPurchaseFromSupabase(row){
         const lines = parseJsonLines(row.lines);
+        const firstLine = lines[0] || {};
         return {
           id:row.id || "",
           number:row.numero_factura || "",
@@ -382,6 +383,18 @@
           total:n(row.total_factura),
           lines,
           items:lines,
+          productId:firstLine.productId || "",
+          description:firstLine.description || "",
+          quantity:firstLine.quantity || 0,
+          unitCost:firstLine.price || firstLine.unitCost || 0,
+          concept:firstLine.description || "",
+          supplier:row.proveedor_nombre || "",
+          amount:n(row.total_factura),
+          baseAmount:n(row.base_factura),
+          ivaAmount:n(row.iva_factura),
+          totalAmount:n(row.total_factura),
+          invoiceNumber:row.numero_factura || "",
+          type:"invoice",
           internalNote:row.internal_note || "",
           paymentDate:row.fecha_pago || "",
           attachment:null
