@@ -1,12 +1,12 @@
 (function(global){
   const REMOTE_SPECS = {
-    clientes: { table: "clientes", primaryKey: "cliente_id" },
-    proveedores: { table: "proveedores", primaryKey: "proveedor_id" },
-    productos: { table: "productos", primaryKey: "producto_id" },
-    facturas: { table: "facturas_venta", primaryKey: "registro_id" },
-    gastos: { table: "gastos", primaryKey: "id" },
-    compras: { table: "facturas_compra", primaryKey: "registro_id" },
-    monedero: { table: "monedero", primaryKey: "id" }
+    clientes:    { table: "clientes",        primaryKey: "cliente_id" },
+    proveedores: { table: "proveedores",     primaryKey: "proveedor_id" },
+    productos:   { table: "productos",       primaryKey: "producto_id" },
+    facturas:    { table: "facturas_venta",  primaryKey: "registro_id" },
+    compras:     { table: "facturas_compra", primaryKey: "registro_id" },
+    gastos:      { table: "gastos",          primaryKey: "id" },
+    monedero:    { table: "monedero",        primaryKey: "id" }
   };
 
   async function getSupabaseHelpers(){
@@ -42,12 +42,15 @@
     try{
       const { getSupabaseClient } = await getSupabaseHelpers();
       const spec = REMOTE_SPECS[tableKey];
+      console.log("[FETCH] tabla real en Supabase:", spec.table);
       const supabase = await getSupabaseClient();
+      console.log("[FETCH] supabase client ok:", !!supabase);
       const { data, error } = await supabase.from(spec.table).select("*");
+      console.log("[FETCH] data:", data, "error:", error);
       if(error) throw error;
       return (data || []).map(row => normalizeRow(tableKey, row));
     }catch(error){
-      logSupabaseError(scope, error);
+      console.error("[FETCH ERROR]", scope, error);
       return [];
     }
   }
