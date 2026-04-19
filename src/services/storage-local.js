@@ -62,16 +62,19 @@
     try{
       const { getSupabaseClient } = await getSupabaseHelpers();
       const spec = REMOTE_SPECS[tableKey];
+      console.log("[SAVE] tabla:", spec.table, "primaryKey:", spec.primaryKey);
       const supabase = await getSupabaseClient();
       const rowPayload = withPrimaryKey(tableKey, payload);
+      console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(rowPayload));
       const { data, error } = await supabase
         .from(spec.table)
         .upsert(rowPayload, { onConflict: spec.primaryKey })
         .select();
+      console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
       if(error) throw error;
       return normalizeRow(tableKey, data?.[0]) || payload;
     }catch(error){
-      logSupabaseError(scope, error);
+      console.error("[SAVE ERROR]", scope, error);
       return payload || null;
     }
   }
