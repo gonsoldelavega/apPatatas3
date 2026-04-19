@@ -3,8 +3,8 @@
     clientes:    { table: "clientes",        primaryKey: "cliente_id" },
     proveedores: { table: "proveedores",     primaryKey: "proveedor_id" },
     productos:   { table: "productos",       primaryKey: "producto_id" },
-    facturas:    { table: "facturas_venta",  primaryKey: "registro_id" },
-    compras:     { table: "facturas_compra", primaryKey: "registro_id" },
+    facturas:    { table: "facturas_venta",  primaryKey: "id" },
+    compras:     { table: "facturas_compra", primaryKey: "id" },
     gastos:      { table: "gastos",          primaryKey: "id" },
     monedero:    { table: "monedero",        primaryKey: "id" }
   };
@@ -157,21 +157,20 @@
       },
       async saveFactura(factura){
         try{
-          const lineas = Array.isArray(factura) ? factura : [factura];
           const { getSupabaseClient } = await getSupabaseHelpers();
           const supabase = await getSupabaseClient();
-          console.log("[SAVE] tabla:", "facturas_venta", "primaryKey:", "registro_id");
-          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(lineas));
+          console.log("[SAVE] tabla:", "facturas_venta", "primaryKey:", "id");
+          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(factura));
           const { data, error } = await supabase
             .from("facturas_venta")
-            .upsert(lineas, { onConflict: "registro_id" })
+            .upsert(factura, { onConflict: "id" })
             .select();
           console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
           if(error) throw error;
-          return data;
+          return data?.[0];
         }catch(error){
           console.error("[SAVE ERROR]", "saveFactura", error);
-          return Array.isArray(factura) ? factura : [factura];
+          return factura || null;
         }
       },
       async deleteFactura(id){
@@ -191,21 +190,20 @@
       },
       async saveCompra(compra){
         try{
-          const rows = Array.isArray(compra) ? compra : [compra];
           const { getSupabaseClient } = await getSupabaseHelpers();
           const supabase = await getSupabaseClient();
-          console.log("[SAVE] tabla:", "facturas_compra", "primaryKey:", "registro_id");
-          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(rows));
+          console.log("[SAVE] tabla:", "facturas_compra", "primaryKey:", "id");
+          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(compra));
           const { data, error } = await supabase
             .from("facturas_compra")
-            .upsert(rows, { onConflict: "registro_id" })
+            .upsert(compra, { onConflict: "id" })
             .select();
           console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
           if(error) throw error;
-          return data;
+          return data?.[0];
         }catch(error){
           console.error("[SAVE ERROR]", "saveCompra", error);
-          return Array.isArray(compra) ? compra : [compra];
+          return compra || null;
         }
       },
       async deleteCompra(id){
