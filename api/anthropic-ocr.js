@@ -59,12 +59,22 @@ export default async function handler(request, response) {
   if (request.method === "OPTIONS") return response.status(204).end();
   if (request.method !== "POST") return response.status(405).json({ ok: false, error: "method_not_allowed" });
 
+  let body = request.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      body = {};
+    }
+  }
+  if (!body || typeof body !== "object") body = {};
+
   const apiKey = process.env.ANTHROPIC_API_KEY || process.env.anthropic_api_key || "";
   if (!apiKey) {
     return response.status(500).json({ ok: false, error: "missing_anthropic_api_key" });
   }
 
-  const image = parseDataUrl(request.body?.imageDataUrl || "");
+  const image = parseDataUrl(body?.imageDataUrl || "");
   if (!image) {
     return response.status(400).json({ ok: false, error: "invalid_image" });
   }
