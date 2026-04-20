@@ -7,9 +7,13 @@
       step: input.step || "camera",
       activePageId: input.activePageId || "",
       capture: input.capture || null,
+      result: input.result || null,
+      processing: input.processing === true,
+      error: input.error || "",
       options: {
-        autoCapture: input.options?.autoCapture !== false,
-        selectedFilter: input.options?.selectedFilter || "document"
+        autoCapture: input.options?.autoCapture === true,
+        selectedFilter: input.options?.selectedFilter || "document",
+        mode: input.options?.mode || "document"
       }
     };
   }

@@ -1,8 +1,9 @@
 (function(global){
   function renderPurchaseCard(item, ctx){
     const hasAttachment = !!item.attachment?.dataUrl;
-    const base = ctx.n(item.quantity) * ctx.n(item.unitCost);
-    const taxAmount = base * (ctx.n(item.iva) / 100);
+    const base = Number.isFinite(Number(item.baseAmount)) ? ctx.n(item.baseAmount) : ctx.n(item.quantity) * ctx.n(item.unitCost);
+    const taxAmount = Number.isFinite(Number(item.ivaAmount)) ? ctx.n(item.ivaAmount) : base * (ctx.n(item.iva) / 100);
+    const total = Number.isFinite(Number(item.totalAmount)) ? ctx.n(item.totalAmount) : Number.isFinite(Number(item.amount)) ? ctx.n(item.amount) : ctx.purchaseTotal(item);
     const title = ctx.getProduct(item.productId)?.name || item.attachment?.name || "Compra manual";
     return `<article class="card card-tight">
       <div class="list-row-top">
@@ -10,7 +11,7 @@
           <h3 class="list-row-title">${ctx.esc(title)}</h3>
           <p class="list-row-sub">${ctx.esc(ctx.getSupplier(item.supplierId)?.name || "Proveedor")} \u00b7 ${ctx.date(item.date)}</p>
         </div>
-        <div class="price">${ctx.money(ctx.purchaseTotal(item))}</div>
+        <div class="price">${ctx.money(total)}</div>
       </div>
       <div class="inline-summary">
         ${item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>` : `<span class="chip">Compra manual</span>`}

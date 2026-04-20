@@ -1,5 +1,5 @@
 (function(global){
-  function renderScannerCamera(state){
+  function renderScannerCamera(){
     return `<section class="scanner-screen">
       <div class="scanner-stage">
         <video id="scannerVideo" class="scanner-video" autoplay playsinline muted></video>
@@ -7,46 +7,18 @@
         <div class="scanner-stage-top">
           <div>
             <h2>Escanear documento</h2>
-            <p>Apunta al documento completo. Veras la deteccion en vivo y despues podras ajustar las esquinas antes de confirmar.</p>
+            <p>Coloca la factura dentro de la guía y pulsa capturar cuando se vea nítida.</p>
           </div>
-          <span class="chip">${state.options.autoCapture ? "Auto" : "Manual"}</span>
+          <button type="button" class="ghost" data-scanner-action="close">Cerrar</button>
         </div>
         <div class="scanner-stage-bottom">
-          <p class="scanner-hint" id="scannerHint">Buscando bordes del documento...</p>
-          <div class="scanner-camera-actions">
-            <button type="button" class="ghost" data-scanner-action="close">Cerrar</button>
-            <button type="button" class="ghost" data-scanner-action="toggle-auto">${state.options.autoCapture ? "Auto ON" : "Auto OFF"}</button>
+          <p class="scanner-hint" id="scannerHint">Usa la cámara trasera y acerca la factura hasta que el texto se vea claro.</p>
+          <div class="scanner-camera-actions scanner-camera-actions-center">
             <button type="button" class="primary scanner-capture-btn" data-scanner-action="capture">Capturar</button>
           </div>
         </div>
       </div>
     </section>`;
-  }
-
-  function drawOverlay(overlay, corners, detected){
-    const ctx = overlay.getContext("2d");
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-    if(!corners?.length) return;
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = detected ? "rgba(56, 214, 140, 0.95)" : "rgba(246, 165, 26, 0.95)";
-    ctx.fillStyle = detected ? "rgba(56, 214, 140, 0.22)" : "rgba(246, 165, 26, 0.18)";
-    ctx.beginPath();
-    corners.forEach((point, index) => {
-      if(index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    });
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    corners.forEach(point => {
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-      ctx.strokeStyle = detected ? "rgba(56, 214, 140, 1)" : "rgba(246, 165, 26, 1)";
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    });
   }
 
   function fitOverlayToVideo(video, overlay){
@@ -60,33 +32,54 @@
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   }
 
-  function scaleCorners(corners, sourceWidth, sourceHeight, targetWidth, targetHeight){
-    return corners.map(point => ({
-      x: point.x * (targetWidth / sourceWidth),
-      y: point.y * (targetHeight / sourceHeight)
-    }));
-  }
+  function drawGuide(overlay){
+    const ctx = overlay.getContext("2d");
+    const width = parseFloat(overlay.style.width) || overlay.width;
+    const height = parseFloat(overlay.style.height) || overlay.height;
+    ctx.clearRect(0, 0, width, height);
 
-  function averageCornerDelta(previousCorners, nextCorners){
-    if(!previousCorners?.length || !nextCorners?.length || previousCorners.length !== nextCorners.length){
-      return Number.POSITIVE_INFINITY;
-    }
-    let total = 0;
-    for(let index = 0; index < previousCorners.length; index += 1){
-      total += Math.hypot(
-        previousCorners[index].x - nextCorners[index].x,
-        previousCorners[index].y - nextCorners[index].y
-      );
-    }
-    return total / previousCorners.length;
-  }
+    const guideWidth = width * 0.82;
+    const guideHeight = height * 0.58;
+    const x = (width - guideWidth) / 2;
+    const y = (height - guideHeight) / 2;
+    const radius = 24;
 
-  function smoothCorners(previousCorners, nextCorners, alpha){
-    if(!previousCorners?.length || previousCorners.length !== nextCorners.length) return nextCorners.map(point => ({ ...point }));
-    return nextCorners.map((point, index) => ({
-      x: previousCorners[index].x + (point.x - previousCorners[index].x) * alpha,
-      y: previousCorners[index].y + (point.y - previousCorners[index].y) * alpha
-    }));
+    ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(x, y, guideWidth, guideHeight);
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + guideWidth - radius, y);
+    ctx.quadraticCurveTo(x + guideWidth, y, x + guideWidth, y + radius);
+    ctx.lineTo(x + guideWidth, y + guideHeight - radius);
+    ctx.quadraticCurveTo(x + guideWidth, y + guideHeight, x + guideWidth - radius, y + guideHeight);
+    ctx.lineTo(x + radius, y + guideHeight);
+    ctx.quadraticCurveTo(x, y + guideHeight, x, y + guideHeight - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.stroke();
+
+    const corner = 26;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#3D7A5A";
+    [
+      [[x, y + corner], [x, y], [x + corner, y]],
+      [[x + guideWidth - corner, y], [x + guideWidth, y], [x + guideWidth, y + corner]],
+      [[x + guideWidth, y + guideHeight - corner], [x + guideWidth, y + guideHeight], [x + guideWidth - corner, y + guideHeight]],
+      [[x + corner, y + guideHeight], [x, y + guideHeight], [x, y + guideHeight - corner]]
+    ].forEach(points => {
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      ctx.lineTo(points[1][0], points[1][1]);
+      ctx.lineTo(points[2][0], points[2][1]);
+      ctx.stroke();
+    });
+    ctx.restore();
   }
 
   function mountScannerCamera(root, deps){
@@ -94,140 +87,54 @@
     const overlay = root.querySelector("#scannerOverlay");
     const hint = root.querySelector("#scannerHint");
     let stream = null;
-    let detectionTimer = null;
-    let latestDetection = null;
-    let stableFrames = 0;
-    let capturing = false;
     let unmounted = false;
-    let lastAutoCaptureAt = 0;
-    let smoothedDetection = null;
-    const onResize = () => fitOverlayToVideo(video, overlay);
-    const autoCaptureCooldownMs = 1500;
 
-    function stopLoop(){
-      if(detectionTimer) window.clearTimeout(detectionTimer);
-      detectionTimer = null;
-    }
+    const onResize = () => {
+      fitOverlayToVideo(video, overlay);
+      drawGuide(overlay);
+    };
 
-    function teardown(){
-      unmounted = true;
-      stopLoop();
-      deps.camera.stopCamera(stream);
-      stream = null;
-      window.removeEventListener("resize", onResize);
-    }
-
-    async function captureCurrentFrame(manual = false){
-      if(capturing) return false;
-      if(!manual && Date.now() - lastAutoCaptureAt < autoCaptureCooldownMs) return false;
-      capturing = true;
+    async function capture(){
       try{
-        const sourceCanvas = deps.camera.captureFrame(video);
-        const detection = await deps.detector.detectDocument(sourceCanvas);
-        if(!manual) lastAutoCaptureAt = Date.now();
+        hint.textContent = "Capturando en alta resolución...";
+        const canvas = deps.camera.captureFrame(video);
+        const detection = await deps.detector.detectDocument(canvas).catch(() => null);
         deps.onCapture({
-          sourceCanvas,
-          corners: detection.corners,
-          detected: detection.detected,
-          confidence: detection.confidence,
-          manual
+          sourceCanvas: canvas,
+          corners: detection?.corners || deps.detector.defaultCorners(canvas.width, canvas.height),
+          detected: Boolean(detection?.detected),
+          confidence: detection?.confidence || 0
         });
-        return true;
-      } catch(error){
+      }catch(error){
+        hint.textContent = "No se pudo capturar la imagen.";
         deps.onError?.(error);
-        return false;
-      } finally {
-        capturing = false;
       }
     }
 
-    async function scanFrame(){
-      if(unmounted || !video.videoWidth || !video.videoHeight){
-        detectionTimer = window.setTimeout(scanFrame, 220);
+    root.querySelector('[data-scanner-action="capture"]').addEventListener("click", capture);
+    root.querySelector('[data-scanner-action="close"]').addEventListener("click", () => deps.onClose());
+
+    deps.camera.startCamera(video).then(currentStream => {
+      if(unmounted){
+        deps.camera.stopCamera(currentStream);
         return;
       }
-      try{
-        fitOverlayToVideo(video, overlay);
-        const previewCanvas = deps.camera.createPreviewCanvas(video, 960);
-        const detection = await deps.detector.detectDocument(previewCanvas);
-        const diagonal = Math.hypot(previewCanvas.width, previewCanvas.height) || 1;
-        let geometryConsistency = 0;
-        let smoothedCorners = detection.corners;
-        if(detection.detected && smoothedDetection?.detected){
-          const delta = averageCornerDelta(smoothedDetection.corners, detection.corners);
-          const normalizedDelta = delta / diagonal;
-          geometryConsistency = Math.max(0, 1 - normalizedDelta / 0.035);
-          const alpha = geometryConsistency > 0.72 ? 0.22 : 0.38;
-          smoothedCorners = smoothCorners(smoothedDetection.corners, detection.corners, alpha);
-        } else if(detection.detected){
-          geometryConsistency = detection.confidence;
-          smoothedCorners = detection.corners.map(point => ({ ...point }));
-        }
-
-        const liveDetection = {
-          ...detection,
-          corners: detection.detected ? smoothedCorners : detection.corners,
-          width: previewCanvas.width,
-          height: previewCanvas.height,
-          geometryConsistency: Number(geometryConsistency.toFixed(3)),
-          stable: detection.detected && detection.confidence >= 0.58 && geometryConsistency >= 0.62
-        };
-        smoothedDetection = detection.detected
-          ? {
-              detected: true,
-              corners: liveDetection.corners.map(point => ({ ...point })),
-              confidence: liveDetection.confidence
-            }
-          : null;
-        latestDetection = liveDetection;
-        const rect = video.getBoundingClientRect();
-        drawOverlay(
-          overlay,
-          scaleCorners(liveDetection.corners, previewCanvas.width, previewCanvas.height, rect.width, rect.height),
-          liveDetection.detected
-        );
-        hint.textContent = liveDetection.detected
-          ? `Documento detectado (${Math.round(liveDetection.confidence * 100)}%)${liveDetection.stable ? "" : " · estabilizando"}.`
-          : "No se detecta bien el documento. Puedes capturar y ajustar manualmente.";
-
-        if(liveDetection.stable && deps.state.options.autoCapture){
-          stableFrames += 1;
-          if(stableFrames >= 4){
-            stableFrames = 0;
-            const didCapture = await captureCurrentFrame(false);
-            if(didCapture) return;
-          }
-        } else {
-          stableFrames = 0;
-        }
-      } catch(error){
-        hint.textContent = "No se pudo analizar la imagen en tiempo real.";
-        deps.onError?.(error);
-      }
-      detectionTimer = window.setTimeout(scanFrame, 260);
-    }
-
-    root.querySelector('[data-scanner-action="capture"]').addEventListener("click", () => captureCurrentFrame(true));
-    root.querySelector('[data-scanner-action="close"]').addEventListener("click", () => deps.onClose());
-    root.querySelector('[data-scanner-action="toggle-auto"]').addEventListener("click", () => deps.onToggleAuto());
-
-    deps.camera.startCamera(video, {
-      previewWidth: 3840,
-      previewHeight: 2160
-    }).then(currentStream => {
       stream = currentStream;
-      fitOverlayToVideo(video, overlay);
-      scanFrame();
+      onResize();
+      hint.textContent = "Listo para capturar.";
     }).catch(error => {
-      hint.textContent = "La camara no esta disponible en este dispositivo o navegador.";
+      hint.textContent = "La cámara no está disponible en este dispositivo o navegador.";
       deps.onError?.(error);
     });
 
     window.addEventListener("resize", onResize);
 
     return {
-      teardown,
-      getLatestDetection: () => latestDetection
+      teardown(){
+        unmounted = true;
+        window.removeEventListener("resize", onResize);
+        deps.camera.stopCamera(stream);
+      }
     };
   }
 

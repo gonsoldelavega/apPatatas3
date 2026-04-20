@@ -5,11 +5,14 @@
       : { id:ctx.uid("buy"), date:ctx.today(), supplierId:"", productId:"", quantity:"", unitCost:"", iva:"", notes:"", attachment:null };
     const item = { ...source, attachment:source?.attachment || null };
     const derivedBase = ctx.n(item.quantity) * ctx.n(item.unitCost);
-    const derivedTax = derivedBase * (ctx.n(item.iva) / 100);
+    const storedBase = Number.isFinite(Number(item.baseAmount)) ? ctx.n(item.baseAmount) : Number.isFinite(Number(item.base)) ? ctx.n(item.base) : derivedBase;
+    const storedTax = Number.isFinite(Number(item.ivaAmount)) ? ctx.n(item.ivaAmount) : item.type === "invoice" ? ctx.n(item.iva) : derivedBase * (ctx.n(item.iva) / 100);
+    const storedTotal = Number.isFinite(Number(item.totalAmount)) ? ctx.n(item.totalAmount) : Number.isFinite(Number(item.amount)) ? ctx.n(item.amount) : Number.isFinite(Number(item.total)) ? ctx.n(item.total) : ctx.purchaseTotal(item);
     const draft = {
       ...item,
-      totalAmount: item.quantity || item.unitCost || item.iva ? String(Number(ctx.purchaseTotal(item).toFixed(2))) : "",
-      taxAmount: derivedTax ? String(Number(derivedTax.toFixed(2))) : "",
+      totalAmount: storedTotal ? String(Number(storedTotal.toFixed(2))) : "",
+      taxAmount: storedTax ? String(Number(storedTax.toFixed(2))) : "",
+      baseAmount: storedBase ? String(Number(storedBase.toFixed(2))) : "",
       quantityInput: item.productId ? String(item.quantity || "") : ""
     };
 
@@ -173,6 +176,38 @@ Si el proveedor o producto de la factura coincide aproximadamente con alguno de 
           const safeQuantity = quantity || 1;
           const ivaRate = base > 0 ? (taxAmount / base) * 100 : 0;
           const unitCost = safeQuantity > 0 ? base / safeQuantity : base;
+          const currentLines = Array.isArray(item.lines) ? item.lines : [];
+          const firstLine = currentLines[0] || {};
+          const nextLines = currentLines.length
+            ? currentLines.map((line, index) => index === 0
+              ? {
+                  ...line,
+                  productId: affectsStock ? data.productId : (line.productId || ""),
+                  description: line.description || item.description || item.concept || "",
+                  quantity: affectsStock ? safeQuantity : (ctx.n(line.quantity) || 1),
+                  unit: line.unit || "",
+                  price: unitCost,
+                  unitCost,
+                  base,
+                  iva: ivaRate,
+                  ivaPct: ivaRate,
+                  ivaAmount: taxAmount,
+                  total
+                }
+              : line)
+            : [{
+                productId: affectsStock ? data.productId : "",
+                description: item.description || item.concept || "",
+                quantity: affectsStock ? safeQuantity : 1,
+                unit: "",
+                price: unitCost,
+                unitCost,
+                base,
+                iva: ivaRate,
+                ivaPct: ivaRate,
+                ivaAmount: taxAmount,
+                total
+              }];
           ctx.saveEntity("purchases", {
             ...item,
             date:data.date,
@@ -180,7 +215,16 @@ Si el proveedor o producto de la factura coincide aproximadamente con alguno de 
             productId:affectsStock ? data.productId : "",
             quantity:affectsStock ? safeQuantity : 1,
             unitCost,
-            iva:ivaRate,
+            iva:taxAmount,
+            ivaPct:ivaRate,
+            base,
+            total,
+            amount:total,
+            baseAmount:base,
+            ivaAmount:taxAmount,
+            totalAmount:total,
+            supplier:data.supplierId ? (ctx.getSupplier(data.supplierId)?.name || item.supplier || "") : "",
+            lines:nextLines,
             notes:data.notes,
             attachment:currentAttachment
           }, id);

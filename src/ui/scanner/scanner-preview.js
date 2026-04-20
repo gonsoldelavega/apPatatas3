@@ -1,81 +1,68 @@
 (function(global){
-  function pageThumb(page, active){
-    const filter = page.selectedFilter || "document";
-    const src = page.variants?.[filter] || page.variants?.document || page.source || "";
-    const modeLabel = filter === "document" ? "Documento" : filter === "grayscale" ? "Grises" : "Color";
-    return `<button class="scanner-thumb ${active ? "active" : ""}" data-page-id="${page.id}">
-      <img src="${src}" alt="Página escaneada">
-      <span>${modeLabel}</span>
-    </button>`;
+  function esc(value){
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 
-  function filterButton(filter, label, active){
-    return `<button type="button" class="scanner-filter-btn ${active ? "active" : ""}" data-filter="${filter}">${label}</button>`;
+  function rowValue(row, key){
+    return row?.[key] ?? "";
   }
 
-  function renderScannerPreview(state){
-    const activePage = state.pages.find(page => page.id === state.activePageId) || state.pages[0];
-    const activeFilter = activePage?.selectedFilter || state.options.selectedFilter || "document";
-    const previewSrc = activePage ? (activePage.variants?.[activeFilter] || activePage.variants?.document || activePage.source) : "";
+  function renderLineRow(line, index){
+    return `<div class="scanner-result-line">
+      <div class="field" style="grid-column:1/-1;"><label>Descripción línea ${index + 1}</label><input name="line-description-${index}" value="${esc(rowValue(line, "descripcion"))}"></div>
+      <div class="field"><label>Cantidad</label><input name="line-cantidad-${index}" type="number" step="0.01" value="${esc(rowValue(line, "cantidad"))}"></div>
+      <div class="field"><label>Precio unitario</label><input name="line-precio-${index}" type="number" step="0.01" value="${esc(rowValue(line, "precio_unitario"))}"></div>
+      <div class="field"><label>Base</label><input name="line-base-${index}" type="number" step="0.01" value="${esc(rowValue(line, "base"))}"></div>
+      <div class="field"><label>IVA %</label><input name="line-iva-${index}" type="number" step="0.01" value="${esc(rowValue(line, "iva_pct"))}"></div>
+      <div class="field"><label>Total</label><input name="line-total-${index}" type="number" step="0.01" value="${esc(rowValue(line, "total"))}"></div>
+    </div>`;
+  }
+
+  function renderScannerPreview(state, options = {}){
+    const result = state.result || {};
+    const extracted = result.extracted || {};
+    const lines = Array.isArray(extracted.lineas) && extracted.lineas.length ? extracted.lineas : [{}];
+    const saveLabel = options.mode === "purchase" ? "Guardar como compra" : "Usar imagen";
     return `<section class="scanner-screen">
-      <div class="scanner-preview">
+      <div class="scanner-preview scanner-result-screen">
         <div class="scanner-editor-top">
           <div>
-            <h2>Revisar escaneo</h2>
-            <p>Comprueba el resultado, elige el filtro más legible y confirma la imagen cuando esté lista.</p>
+            <h2>Resultado del escaneo</h2>
+            <p>Revisa los datos detectados por IA antes de guardarlos.</p>
           </div>
           <div class="scanner-top-actions">
-            <span class="chip">${state.pages.length} pág.</span>
-            <button type="button" class="ghost" data-scanner-action="close-preview">Salir</button>
+            <button type="button" class="ghost" data-scanner-action="discard">Descartar</button>
           </div>
         </div>
-
-        <div class="scanner-preview-main">
-          <div class="scanner-preview-primary">
-            <div class="scanner-preview-canvas-wrap">
-              ${previewSrc ? `<img src="${previewSrc}" class="scanner-preview-image" alt="Documento procesado">` : `<div class="empty"><p>No hay páginas todavía.</p></div>`}
-            </div>
-
-            <div class="scanner-filter-panel">
-              <div class="scanner-filter-copy">
-                <strong>Filtro</strong>
-                <span>Documento para máxima legibilidad, color para conservar tonos y grises para revisión neutra.</span>
-              </div>
-              <div class="scanner-filter-group">
-                ${filterButton("document", "Documento", activeFilter === "document")}
-                ${filterButton("grayscale", "Grises", activeFilter === "grayscale")}
-                ${filterButton("color", "Color", activeFilter === "color")}
-              </div>
-            </div>
+        ${state.error ? `<div class="scanner-warning">${esc(state.error)}</div>` : ""}
+        <div class="scanner-result-layout">
+          <div class="scanner-result-image-wrap">
+            ${result.processedDataUrl ? `<img src="${result.processedDataUrl}" class="scanner-preview-image" alt="Documento procesado">` : `<div class="empty"><p>No hay imagen procesada.</p></div>`}
           </div>
-
-          <div class="scanner-preview-sidebar">
-            <div class="scanner-thumb-list">
-              ${state.pages.map(page => pageThumb(page, page.id === activePage?.id)).join("")}
+          <form id="scannerResultForm" class="sheet-grid scanner-result-form">
+            <div class="field"><label>Número factura</label><input name="numero_factura" value="${esc(extracted.numero_factura)}"></div>
+            <div class="field"><label>Fecha</label><input name="fecha" type="date" value="${esc(extracted.fecha)}"></div>
+            <div class="field"><label>Proveedor</label><input name="proveedor_nombre" value="${esc(extracted.proveedor_nombre)}"></div>
+            <div class="field"><label>NIF proveedor</label><input name="proveedor_nif" value="${esc(extracted.proveedor_nif)}"></div>
+            <div class="field"><label>Cliente</label><input name="cliente_nombre" value="${esc(extracted.cliente_nombre)}"></div>
+            <div class="field"><label>NIF cliente</label><input name="cliente_nif" value="${esc(extracted.cliente_nif)}"></div>
+            <div class="field"><label>Base total</label><input name="base_total" type="number" step="0.01" value="${esc(extracted.base_total)}"></div>
+            <div class="field"><label>IVA total</label><input name="iva_total" type="number" step="0.01" value="${esc(extracted.iva_total)}"></div>
+            <div class="field"><label>Total factura</label><input name="total_factura" type="number" step="0.01" value="${esc(extracted.total_factura)}"></div>
+            <div class="field" style="grid-column:1/-1;"><label>Líneas</label></div>
+            <div class="scanner-result-lines" style="grid-column:1/-1;">
+              ${lines.map((line, index) => renderLineRow(line, index)).join("")}
             </div>
-
-            <div class="scanner-page-actions">
-              <button type="button" class="ghost" data-scanner-action="add-page">Añadir página</button>
-              <button type="button" class="ghost" data-scanner-action="page-up">Subir</button>
-              <button type="button" class="ghost" data-scanner-action="page-down">Bajar</button>
-              <button type="button" class="ghost" data-scanner-action="remove-page">Eliminar</button>
-            </div>
-
-            <div class="scanner-page-actions">
-              <button type="button" class="ghost" data-scanner-action="ocr-page">OCR</button>
-              <button type="button" class="ghost" data-scanner-action="export-pdf">PDF</button>
-            </div>
-
-            ${activePage?.ocr ? `<div class="summary"><div class="summary-row"><span>Confianza OCR</span><strong>${Math.round(activePage.ocr.confidence || 0)}%</strong></div><div class="hint">${(activePage.ocr.text || "").slice(0, 240) || "Sin texto"}</div></div>` : ""}
-          </div>
+          </form>
         </div>
-
         <div class="scanner-preview-footer">
           <div class="scanner-preview-footer-inner">
-            <button type="button" class="primary scanner-primary-action" data-scanner-action="use-scan">Usar imagen</button>
-            <button type="button" class="ghost" data-scanner-action="retake-page">Repetir foto</button>
-            <button type="button" class="ghost" data-scanner-action="edit-corners">Editar bordes</button>
-            <button type="button" class="ghost" data-scanner-action="close-preview">Cerrar</button>
+            <button type="button" class="ghost" data-scanner-action="retake">Repetir</button>
+            <button type="button" class="primary scanner-primary-action" data-scanner-action="save">${saveLabel}</button>
           </div>
         </div>
       </div>
@@ -83,18 +70,43 @@
   }
 
   function mountScannerPreview(root, deps){
-    root.querySelectorAll("[data-page-id]").forEach(button => button.addEventListener("click", () => deps.onSelectPage(button.dataset.pageId)));
-    root.querySelectorAll("[data-filter]").forEach(button => button.addEventListener("click", () => deps.onFilter(button.dataset.filter)));
-    root.querySelectorAll('[data-scanner-action="close-preview"]').forEach(button => button.addEventListener("click", () => deps.onClose()));
-    root.querySelector('[data-scanner-action="add-page"]').addEventListener("click", () => deps.onAddPage());
-    root.querySelector('[data-scanner-action="use-scan"]').addEventListener("click", () => deps.onUseScan());
-    root.querySelector('[data-scanner-action="remove-page"]').addEventListener("click", () => deps.onRemovePage());
-    root.querySelector('[data-scanner-action="page-up"]').addEventListener("click", () => deps.onReorder(-1));
-    root.querySelector('[data-scanner-action="page-down"]').addEventListener("click", () => deps.onReorder(1));
-    root.querySelector('[data-scanner-action="edit-corners"]').addEventListener("click", () => deps.onEditCorners());
-    root.querySelector('[data-scanner-action="retake-page"]').addEventListener("click", () => deps.onRetakePage());
-    root.querySelector('[data-scanner-action="ocr-page"]').addEventListener("click", () => deps.onRunOcr());
-    root.querySelector('[data-scanner-action="export-pdf"]').addEventListener("click", () => deps.onExportPdf());
+    const form = root.querySelector("#scannerResultForm");
+
+    function readForm(){
+      const formData = new FormData(form);
+      const lineas = [];
+      let index = 0;
+      while(form.elements[`line-description-${index}`]){
+        lineas.push({
+          descripcion: String(formData.get(`line-description-${index}`) || ""),
+          cantidad: Number(formData.get(`line-cantidad-${index}`) || 0),
+          precio_unitario: Number(formData.get(`line-precio-${index}`) || 0),
+          base: Number(formData.get(`line-base-${index}`) || 0),
+          iva_pct: Number(formData.get(`line-iva-${index}`) || 0),
+          total: Number(formData.get(`line-total-${index}`) || 0)
+        });
+        index += 1;
+      }
+      return {
+        numero_factura: String(formData.get("numero_factura") || ""),
+        fecha: String(formData.get("fecha") || ""),
+        proveedor_nombre: String(formData.get("proveedor_nombre") || ""),
+        proveedor_nif: String(formData.get("proveedor_nif") || ""),
+        cliente_nombre: String(formData.get("cliente_nombre") || ""),
+        cliente_nif: String(formData.get("cliente_nif") || ""),
+        base_total: Number(formData.get("base_total") || 0),
+        iva_total: Number(formData.get("iva_total") || 0),
+        total_factura: Number(formData.get("total_factura") || 0),
+        lineas
+      };
+    }
+
+    root.querySelector('[data-scanner-action="discard"]').addEventListener("click", () => deps.onDiscard());
+    root.querySelector('[data-scanner-action="retake"]').addEventListener("click", () => deps.onRetake());
+    root.querySelector('[data-scanner-action="save"]').addEventListener("click", async () => {
+      await deps.onSave(readForm());
+    });
+
     return {
       teardown(){ /* no-op */ }
     };

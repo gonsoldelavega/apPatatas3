@@ -856,7 +856,7 @@
   position:absolute;
   left:0;
   right:0;
-  z-index:12;
+  z-index:9999;
   padding:18px;
 }
 .scanner-stage-top{
@@ -919,14 +919,21 @@
 .scanner-camera-actions,
 .scanner-editor-actions{
   position:relative;
-  z-index:14;
+  z-index:9999;
   padding:12px;
   border-radius:18px;
   background:rgba(12, 18, 14, .58);
   backdrop-filter:blur(14px);
   box-shadow:0 8px 24px rgba(0,0,0,.24);
 }
-.scanner-capture-btn{min-width:140px}
+.scanner-camera-actions-center{
+  justify-content:center;
+}
+.scanner-capture-btn{
+  min-width:180px;
+  min-height:56px;
+  font-size:1rem;
+}
 .scanner-editor,
 .scanner-preview{
   min-height:100dvh;
@@ -945,6 +952,10 @@
   overflow:hidden;
   background:#f4f8f2;
   box-shadow:var(--shadow-soft);
+}
+.scanner-editor-canvas-wrap-strong{
+  background:#0f1612;
+  border-color:rgba(61,122,90,.18);
 }
 .scanner-warning{
   padding:12px 14px;
@@ -1098,7 +1109,7 @@
   box-shadow:0 18px 34px rgba(8,12,10,.28);
 }
 .scanner-preview-footer-inner button{
-  min-height:54px;
+  min-height:56px;
   border-radius:16px;
   font-size:.95rem;
   font-weight:700;
@@ -1110,6 +1121,45 @@
 }
 .scanner-preview-footer-inner .primary{
   box-shadow:none;
+}
+.scanner-editor-actions-fixed{
+  position:sticky;
+  bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+  justify-content:space-between;
+}
+.scanner-result-screen{
+  padding-bottom:calc(180px + env(safe-area-inset-bottom, 0px));
+}
+.scanner-result-layout{
+  display:grid;
+  gap:16px;
+}
+.scanner-result-image-wrap{
+  border-radius:22px;
+  overflow:hidden;
+  border:1px solid var(--line);
+  background:#111814;
+  box-shadow:var(--shadow-soft);
+}
+.scanner-result-form{
+  padding:16px;
+  border-radius:18px;
+  background:rgba(255,255,255,.96);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-soft);
+}
+.scanner-result-lines{
+  display:grid;
+  gap:12px;
+}
+.scanner-result-line{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  padding:12px;
+  border-radius:14px;
+  background:#f7faf6;
+  border:1px solid var(--line);
 }
 .toolbar .search-row input,
 .toolbar .search-row select{
@@ -1149,6 +1199,10 @@
   .scanner-editor,
   .scanner-preview{
     padding:24px 22px 44px;
+  }
+  .scanner-result-layout{
+    grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+    align-items:start;
   }
   .scanner-preview-main{
     grid-template-columns:minmax(0,1.5fr) minmax(320px,.8fr);

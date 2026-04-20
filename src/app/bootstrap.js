@@ -357,6 +357,9 @@
         };
       }
       function mapPurchaseToSupabase(item){
+        const baseAmount = Number.isFinite(Number(item.baseAmount)) ? n(item.baseAmount) : n(item.base);
+        const ivaAmount = Number.isFinite(Number(item.ivaAmount)) ? n(item.ivaAmount) : n(item.iva);
+        const totalAmount = Number.isFinite(Number(item.totalAmount)) ? n(item.totalAmount) : Number.isFinite(Number(item.amount)) ? n(item.amount) : n(item.total);
         return {
           id:item.id,
           numero_factura:item.number || "",
@@ -366,9 +369,9 @@
           estado_pago:item.status || "pending",
           fecha_pago:item.paidDate || item.paymentDate || null,
           amount_paid:n(item.amountPaid),
-          base_factura:n(item.base),
-          iva_factura:n(item.iva),
-          total_factura:n(item.total),
+          base_factura:baseAmount,
+          iva_factura:ivaAmount,
+          total_factura:totalAmount,
           lines:JSON.stringify(item.lines || []),
           internal_note:item.internalNote || ""
         };
@@ -403,6 +406,7 @@
           description:firstLine.description || "",
           quantity:firstLine.quantity || 0,
           unitCost:firstLine.price || firstLine.unitCost || 0,
+          ivaPct:firstLine.ivaPct ?? firstLine.iva ?? 0,
           concept:firstLine.description || "",
           supplier:row.proveedor_nombre || "",
           amount:n(row.total_factura),
@@ -1726,6 +1730,15 @@
             }
           });
           if(action === "new-scanned-supplier-invoice") return scannerViewUI.openScannerFlow({
+            mode:"purchase",
+            anthropicKey:readDeviceLocal("anthropic-api-key") || "",
+            suppliers:state.suppliers,
+            products:state.products,
+            createPurchaseId:() => uid("buy"),
+            onToast:message => toast(message),
+            async onSavePurchase(purchase){
+              await saveEntity("purchases", purchase, purchase.id);
+            },
             onComplete(session){
               documentFormUI.openDocumentForm(formContext(), null, {
                 scannedSession:session,
