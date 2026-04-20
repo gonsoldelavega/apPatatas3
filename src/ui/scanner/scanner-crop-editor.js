@@ -1,5 +1,6 @@
 (function(global){
   function renderScannerCropEditor(capture, state){
+    const processLabel = state.processing ? "Procesando..." : (state.error ? "Reintentar" : "Procesar con IA");
     return `<section class="scanner-screen scanner-review-container">
       <div class="scanner-image-area">
         <div class="scanner-editor-top scanner-review-top">
@@ -14,8 +15,13 @@
       </div>
       <div class="scanner-buttons-area">
         <div class="scanner-editor-actions scanner-review-actions">
-          <button type="button" class="ghost" data-scanner-action="retake">Repetir</button>
-          <button type="button" class="primary" data-scanner-action="process"${state.processing ? " disabled" : ""}>${state.processing ? "Procesando..." : "Procesar con IA"}</button>
+          <button type="button" class="ghost" data-scanner-action="retake"${state.processing ? " disabled" : ""}>Repetir</button>
+          <button type="button" class="primary" data-scanner-action="process"${state.processing ? " disabled" : ""}>${processLabel}</button>
+        </div>
+        <div class="scanner-review-status">
+          ${state.processing ? '<div class="scanner-review-message">Analizando factura con IA...</div>' : ""}
+          ${state.error ? `<div class="scanner-warning scanner-review-error">${state.error}</div>` : ""}
+          <button type="button" class="ghost scanner-save-raw-btn" data-scanner-action="save-raw"${state.processing ? " disabled" : ""}>Guardar imagen sin procesar</button>
         </div>
       </div>
     </section>`;
@@ -196,6 +202,9 @@
     root.querySelector('[data-scanner-action="retake"]').addEventListener("click", () => deps.onRetake());
     root.querySelector('[data-scanner-action="process"]').addEventListener("click", async () => {
       await deps.onProcess(exportPoints());
+    });
+    root.querySelector('[data-scanner-action="save-raw"]').addEventListener("click", async () => {
+      await deps.onSaveRaw();
     });
 
     img.onload = () => {

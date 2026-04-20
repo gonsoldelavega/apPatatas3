@@ -1026,6 +1026,30 @@
   border:1px solid rgba(255,255,255,.9);
   color:#ffffff;
 }
+.scanner-review-status{
+  display:grid;
+  gap:10px;
+  justify-items:center;
+  width:100%;
+}
+.scanner-review-message{
+  color:#ffffff;
+  font-size:.95rem;
+  font-weight:600;
+}
+.scanner-review-error{
+  width:min(100%, 640px);
+  margin:0;
+}
+.scanner-save-raw-btn{
+  min-height:42px;
+  padding:10px 18px;
+  border-radius:12px;
+  font-size:14px;
+  color:#ffffff;
+  border:1px solid rgba(255,255,255,.6);
+  background:transparent;
+}
 .scanner-warning{
   padding:12px 14px;
   border-radius:16px;

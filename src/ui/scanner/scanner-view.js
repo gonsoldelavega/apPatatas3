@@ -266,6 +266,21 @@
     };
   }
 
+  function buildPurchaseFromRawImage(imageDataUrl, options){
+    return buildPurchaseFromResult({
+      numero_factura:"",
+      fecha:today(),
+      proveedor_nombre:"",
+      proveedor_nif:"",
+      cliente_nombre:"",
+      cliente_nif:"",
+      lineas:[],
+      base_total:0,
+      iva_total:0,
+      total_factura:0
+    }, imageDataUrl, options);
+  }
+
   function sessionSnapshot(state){
     return {
       id:state.id,
@@ -325,6 +340,7 @@
     }
 
     async function processCapture(capture, corners, useFullImage = false){
+      console.log("[SCANNER] step antes:", store.getState().step);
       store.update(current => {
         current.processing = true;
         current.error = "";
@@ -347,12 +363,36 @@
           current.processing = false;
           current.step = "result";
         });
+        console.log("[SCANNER] step después:", store.getState().step);
+        console.log("[SCANNER] result:", store.getState().result);
       }catch(error){
         store.update(current => {
           current.processing = false;
           current.error = error?.message || "No se pudo procesar la factura con IA.";
         });
+        console.log("[SCANNER] step después:", store.getState().step);
+        console.log("[SCANNER] result:", store.getState().result);
       }
+    }
+
+    async function saveCaptureWithoutProcessing(capture){
+      if(options.mode === "purchase" && typeof options.onSavePurchase === "function"){
+        const purchase = buildPurchaseFromRawImage(capture.sourceDataUrl, options);
+        await options.onSavePurchase(purchase);
+        options.onToast?.("Imagen guardada sin procesar");
+        close();
+        return;
+      }
+      store.update(current => {
+        current.result = {
+          processedDataUrl:capture.sourceDataUrl,
+          extracted:normalizeExtractedResult({ fecha:today(), lineas:[] }),
+          page:null
+        };
+        current.error = "";
+        current.processing = false;
+        current.step = "result";
+      });
     }
 
     function render(state){
@@ -400,6 +440,9 @@
           onClose:requestClose,
           onProcess:async corners => {
             await processCapture(state.capture, corners, false);
+          },
+          onSaveRaw:async () => {
+            await saveCaptureWithoutProcessing(state.capture);
           }
         });
         return;
