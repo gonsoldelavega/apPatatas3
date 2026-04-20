@@ -26,6 +26,7 @@
     const ctx = canvas.getContext("2d");
     const img = new Image();
     const touchRadius = 30;
+    let dpr = 1;
     let points = [];
     let draggingIndex = -1;
     let imageScale = 1;
@@ -81,7 +82,7 @@
     }
 
     function draw(){
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
       ctx.drawImage(img, imageOffsetX, imageOffsetY, img.width * imageScale, img.height * imageScale);
 
       ctx.fillStyle = "rgba(61,122,90,0.18)";
@@ -200,11 +201,18 @@
     img.onload = () => {
       const wrap = root.querySelector(".scanner-review-canvas-wrap");
       const bounds = wrap.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.round(bounds.width));
-      canvas.height = Math.max(1, Math.round(bounds.height));
-      imageScale = Math.min(canvas.width / img.width, canvas.height / img.height);
-      imageOffsetX = (canvas.width - img.width * imageScale) / 2;
-      imageOffsetY = (canvas.height - img.height * imageScale) / 2;
+      dpr = window.devicePixelRatio || 1;
+      const cssWidth = Math.max(1, Math.round(bounds.width));
+      const cssHeight = Math.max(1, Math.round(bounds.height));
+      canvas.width = cssWidth * dpr;
+      canvas.height = cssHeight * dpr;
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      imageScale = Math.min(cssWidth / img.width, cssHeight / img.height);
+      imageOffsetX = (cssWidth - img.width * imageScale) / 2;
+      imageOffsetY = (cssHeight - img.height * imageScale) / 2;
       points = mapImageCornersToDisplay(deps.capture.corners);
       draw();
     };
