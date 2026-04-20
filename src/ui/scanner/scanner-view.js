@@ -75,12 +75,10 @@
   }
 
   async function callScannerApiRoute(imageDataUrl, options){
-    const anthropicKey = options.anthropicKey || global.localStorage?.getItem("anthropic-api-key") || "";
     const response = await fetch("/api/anthropic-ocr", {
       method:"POST",
       headers:{
-        "Content-Type":"application/json",
-        ...(anthropicKey ? { "x-anthropic-api-key":anthropicKey } : {})
+        "Content-Type":"application/json"
       },
       body:JSON.stringify({
         imageDataUrl

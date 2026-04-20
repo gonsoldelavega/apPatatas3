@@ -1,6 +1,6 @@
 function setCors(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Anthropic-Api-Key");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 }
 
@@ -30,54 +30,62 @@ function safeJsonParse(text = "") {
   }
 }
 
+function normalizeResult(result = {}) {
+  return {
+    numero_factura: result.numero_factura ?? null,
+    fecha: result.fecha ?? null,
+    proveedor_nombre: result.proveedor_nombre ?? null,
+    proveedor_nif: result.proveedor_nif ?? null,
+    cliente_nombre: result.cliente_nombre ?? null,
+    cliente_nif: result.cliente_nif ?? null,
+    lineas: Array.isArray(result.lineas)
+      ? result.lineas.map(line => ({
+          descripcion: line?.descripcion ?? null,
+          cantidad: line?.cantidad ?? null,
+          precio_unitario: line?.precio_unitario ?? null,
+          base: line?.base ?? null,
+          iva_pct: line?.iva_pct ?? null,
+          total: line?.total ?? null
+        }))
+      : [],
+    base_total: result.base_total ?? null,
+    iva_total: result.iva_total ?? null,
+    total_factura: result.total_factura ?? null
+  };
+}
+
 export default async function handler(request, response) {
   setCors(response);
   if (request.method === "OPTIONS") return response.status(204).end();
   if (request.method !== "POST") return response.status(405).json({ ok: false, error: "method_not_allowed" });
 
-  const apiKey = request.headers["x-anthropic-api-key"] || process.env.ANTHROPIC_API_KEY || "";
-  if (!apiKey) return response.status(400).json({ ok: false, error: "missing_anthropic_key" });
+  const apiKey = process.env.ANTHROPIC_API_KEY || "";
+  if (!apiKey) {
+    return response.status(500).json({ ok: false, error: "missing_anthropic_api_key" });
+  }
 
   const image = parseDataUrl(request.body?.imageDataUrl || "");
-  if (!image) return response.status(400).json({ ok: false, error: "invalid_image" });
-
-  const suppliers = Array.isArray(request.body?.suppliers) ? request.body.suppliers.slice(0, 200) : [];
-  const existingOcrText = String(request.body?.ocrText || "").slice(0, 12000);
-  const model = process.env.ANTHROPIC_OCR_MODEL || "claude-3-5-sonnet-latest";
+  if (!image) {
+    return response.status(400).json({ ok: false, error: "invalid_image" });
+  }
 
   const prompt = [
-    "Analiza una imagen de ticket o factura de proveedor en Espana para una app de facturacion.",
-    "Debes devolver SOLO JSON valido, sin markdown ni texto extra.",
-    "Objetivo:",
-    "1. Reconstruir el texto del documento lo mejor posible.",
-    "2. Extraer estructura util para negocio: tipo, titulo, fecha, proveedor, nif, subtotal/base, iva, total, numero de factura.",
-    "3. Si detectas un proveedor de la lista, devuelve su supplierId.",
-    "4. Si no estas seguro de un campo, usa cadena vacia o null.",
-    "5. Mantente conservador: no inventes importes ni fechas.",
-    "",
-    "Lista de proveedores conocidos:",
-    JSON.stringify(suppliers),
-    "",
-    "OCR local previo disponible para ayudarte:",
-    existingOcrText || "(vacio)",
-    "",
-    "Devuelve exactamente este esquema JSON:",
-    JSON.stringify({
-      text: "texto completo limpio del documento",
-      summary: {
-        documentType: "ticket|supplierInvoice|deliveryProof|receipt|other|",
-        title: "",
-        supplierId: "",
-        supplierName: "",
-        nif: "",
-        invoiceNumber: "",
-        date: "",
-        subtotal: null,
-        iva: null,
-        total: null,
-        notes: ""
-      }
-    })
+    "Eres un experto en extracción de datos de facturas españolas.",
+    "Analiza esta imagen de factura y extrae en JSON:",
+    "{",
+    '  "numero_factura": string | null,',
+    '  "fecha": "YYYY-MM-DD" | null,',
+    '  "proveedor_nombre": string | null,',
+    '  "proveedor_nif": string | null,',
+    '  "cliente_nombre": string | null,',
+    '  "cliente_nif": string | null,',
+    '  "lineas": [{"descripcion": string | null, "cantidad": number | null, "precio_unitario": number | null, "base": number | null, "iva_pct": number | null, "total": number | null}],',
+    '  "base_total": number | null,',
+    '  "iva_total": number | null,',
+    '  "total_factura": number | null',
+    "}",
+    "Si no puedes leer algún campo, ponlo como null.",
+    "Responde SOLO con JSON válido, sin texto extra."
   ].join("\n");
 
   let anthropicResponse;
@@ -90,10 +98,10 @@ export default async function handler(request, response) {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model,
-        max_tokens: 1400,
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1800,
         temperature: 0,
-        system: "Eres un extractor documental estricto. Responde solo con JSON valido.",
+        system: "Responde solo con JSON válido.",
         messages: [
           {
             role: "user",
@@ -116,43 +124,44 @@ export default async function handler(request, response) {
       })
     });
   } catch (error) {
-    return response.status(502).json({ ok: false, error: "anthropic_network_error", message: error?.message || String(error) });
+    return response.status(502).json({
+      ok: false,
+      error: error?.message || "anthropic_network_error"
+    });
   }
 
   const responseText = await anthropicResponse.text();
   if (!anthropicResponse.ok) {
     return response.status(anthropicResponse.status).json({
       ok: false,
-      error: "anthropic_api_error",
-      status: anthropicResponse.status,
-      body: responseText.slice(0, 2000)
+      error: responseText.slice(0, 2000) || "anthropic_api_error"
     });
   }
 
-  let parsedResponse;
+  let payload;
   try {
-    parsedResponse = JSON.parse(responseText);
+    payload = JSON.parse(responseText);
   } catch {
-    return response.status(502).json({ ok: false, error: "anthropic_invalid_response", body: responseText.slice(0, 2000) });
+    return response.status(502).json({
+      ok: false,
+      error: "anthropic_invalid_response"
+    });
   }
 
-  const outputText = Array.isArray(parsedResponse?.content)
-    ? parsedResponse.content.filter(item => item?.type === "text").map(item => item.text || "").join("\n")
+  const outputText = Array.isArray(payload?.content)
+    ? payload.content.filter(item => item?.type === "text").map(item => item.text || "").join("\n")
     : "";
-  const result = safeJsonParse(outputText);
-  if (!result) {
-    return response.status(502).json({ ok: false, error: "anthropic_invalid_json", body: outputText.slice(0, 2000) });
+
+  const parsed = safeJsonParse(outputText);
+  if (!parsed) {
+    return response.status(502).json({
+      ok: false,
+      error: "anthropic_invalid_json"
+    });
   }
 
   return response.status(200).json({
     ok: true,
-    provider: "anthropic",
-    model,
-    text: String(result?.text || ""),
-    summary: result?.summary && typeof result.summary === "object" ? result.summary : {},
-    raw: {
-      id: parsedResponse?.id || "",
-      stop_reason: parsedResponse?.stop_reason || ""
-    }
+    result: normalizeResult(parsed)
   });
 }
