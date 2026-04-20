@@ -59,8 +59,8 @@
       return [
         displayPointFromImage(corners[0]),
         displayPointFromImage(corners[1]),
-        displayPointFromImage(corners[3]),
-        displayPointFromImage(corners[2])
+        displayPointFromImage(corners[2]),
+        displayPointFromImage(corners[3])
       ];
     }
 
@@ -75,8 +75,8 @@
       return [
         imagePointFromDisplay(points[0]),
         imagePointFromDisplay(points[1]),
-        imagePointFromDisplay(points[3]),
-        imagePointFromDisplay(points[2])
+        imagePointFromDisplay(points[2]),
+        imagePointFromDisplay(points[3])
       ];
     }
 
