@@ -59,7 +59,7 @@ export default async function handler(request, response) {
   if (request.method === "OPTIONS") return response.status(204).end();
   if (request.method !== "POST") return response.status(405).json({ ok: false, error: "method_not_allowed" });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || "";
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.anthropic_api_key || "";
   if (!apiKey) {
     return response.status(500).json({ ok: false, error: "missing_anthropic_api_key" });
   }

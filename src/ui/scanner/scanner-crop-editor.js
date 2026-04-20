@@ -54,9 +54,9 @@
       const valid = corners.every(c => c && Number.isFinite(c.x) && Number.isFinite(c.y));
       if(!valid) return defaultPoints();
 
-      // corners come as [TL, TR, BL, BR] from detector
-      // we want [TL, TR, BR, BL] for drawing in order
-      const order = [corners[0], corners[1], corners[3], corners[2]];
+      // corners come as [TL, TR, BR, BL] from detector
+      // keep that same order for drawing the polygon without crossing
+      const order = [corners[0], corners[1], corners[2], corners[3]];
       return order.map(c => ({
         x: imageOffsetX + c.x * imageScale,
         y: imageOffsetY + c.y * imageScale
@@ -65,7 +65,7 @@
 
     function exportPoints(){
       // Convert back from display (CSS) to image coordinates
-      // Return as [TL, TR, BL, BR] for the processing pipeline
+      // Return as [TL, TR, BR, BL] to match the detector/display order
       const [tl, tr, br, bl] = points;
       function toImg(p){
         return {
@@ -73,7 +73,7 @@
           y: Math.max(0, Math.min(img.naturalHeight, (p.y - imageOffsetY) / imageScale))
         };
       }
-      return [toImg(tl), toImg(tr), toImg(bl), toImg(br)];
+      return [toImg(tl), toImg(tr), toImg(br), toImg(bl)];
     }
 
     function draw(){
