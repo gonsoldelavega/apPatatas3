@@ -1,20 +1,19 @@
 (function(global){
   function renderScannerCropEditor(capture, state){
-    return `<section class="scanner-screen">
-      <div class="scanner-editor">
-        <div class="scanner-editor-top">
+    return `<section class="scanner-screen scanner-review-container">
+      <div class="scanner-image-area">
+        <div class="scanner-editor-top scanner-review-top">
           <div>
             <h2>Ajustar esquinas</h2>
-            <p>Arrastra las cuatro esquinas hasta encajar el documento y luego procesa con IA.</p>
-          </div>
-          <div class="scanner-top-actions">
-            <button type="button" class="ghost" data-scanner-action="close">Cerrar</button>
+            <p>Arrastra las cuatro esquinas del documento y luego pulsa procesar.</p>
           </div>
         </div>
-        <div class="scanner-editor-canvas-wrap scanner-editor-canvas-wrap-strong">
+        <div class="scanner-editor-canvas-wrap scanner-editor-canvas-wrap-strong scanner-review-canvas-wrap">
           <canvas id="scannerCropCanvas" class="scanner-crop-canvas"></canvas>
         </div>
-        <div class="scanner-editor-actions scanner-editor-actions-fixed">
+      </div>
+      <div class="scanner-buttons-area">
+        <div class="scanner-editor-actions scanner-review-actions">
           <button type="button" class="ghost" data-scanner-action="retake">Repetir</button>
           <button type="button" class="primary" data-scanner-action="process"${state.processing ? " disabled" : ""}>${state.processing ? "Procesando..." : "Procesar con IA"}</button>
         </div>
@@ -26,35 +25,80 @@
     const canvas = root.querySelector("#scannerCropCanvas");
     const ctx = canvas.getContext("2d");
     const img = new Image();
-    let points = deps.capture.corners.map(point => ({ ...point }));
+    const touchRadius = 30;
+    let points = [];
     let draggingIndex = -1;
-    let scaleX = 1;
-    let scaleY = 1;
-    let pointerId = null;
+    let imageScale = 1;
+    let imageOffsetX = 0;
+    let imageOffsetY = 0;
+
+    function defaultDisplayCorners(){
+      return [
+        { x: canvas.width * 0.10, y: canvas.height * 0.10 },
+        { x: canvas.width * 0.90, y: canvas.height * 0.10 },
+        { x: canvas.width * 0.10, y: canvas.height * 0.90 },
+        { x: canvas.width * 0.90, y: canvas.height * 0.90 }
+      ];
+    }
+
+    function validCorners(corners){
+      return Array.isArray(corners)
+        && corners.length === 4
+        && corners.every(point => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+    }
+
+    function displayPointFromImage(point){
+      return {
+        x: imageOffsetX + point.x * imageScale,
+        y: imageOffsetY + point.y * imageScale
+      };
+    }
+
+    function mapImageCornersToDisplay(corners){
+      if(!validCorners(corners)) return defaultDisplayCorners();
+      return [
+        displayPointFromImage(corners[0]),
+        displayPointFromImage(corners[1]),
+        displayPointFromImage(corners[3]),
+        displayPointFromImage(corners[2])
+      ];
+    }
+
+    function imagePointFromDisplay(point){
+      return {
+        x: Math.max(0, Math.min(img.width, (point.x - imageOffsetX) / imageScale)),
+        y: Math.max(0, Math.min(img.height, (point.y - imageOffsetY) / imageScale))
+      };
+    }
+
+    function exportPoints(){
+      return [
+        imagePointFromDisplay(points[0]),
+        imagePointFromDisplay(points[1]),
+        imagePointFromDisplay(points[3]),
+        imagePointFromDisplay(points[2])
+      ];
+    }
 
     function draw(){
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, imageOffsetX, imageOffsetY, img.width * imageScale, img.height * imageScale);
 
       ctx.fillStyle = "rgba(61,122,90,0.18)";
       ctx.strokeStyle = "rgba(61,122,90,0.95)";
       ctx.lineWidth = 4;
       ctx.beginPath();
       points.forEach((point, index) => {
-        const x = point.x * scaleX;
-        const y = point.y * scaleY;
-        if(index === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        if(index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
       });
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
       points.forEach(point => {
-        const x = point.x * scaleX;
-        const y = point.y * scaleY;
         ctx.beginPath();
-        ctx.arc(x, y, 20, 0, Math.PI * 2);
+        ctx.arc(point.x, point.y, touchRadius, 0, Math.PI * 2);
         ctx.fillStyle = "#3D7A5A";
         ctx.fill();
         ctx.lineWidth = 4;
@@ -63,11 +107,11 @@
       });
     }
 
-    function pointerToImagePoint(event){
+    function localPoint(clientX, clientY){
       const rect = canvas.getBoundingClientRect();
       return {
-        x: (event.clientX - rect.left) / scaleX,
-        y: (event.clientY - rect.top) / scaleY
+        x: clientX - rect.left,
+        y: clientY - rect.top
       };
     }
 
@@ -81,56 +125,87 @@
           bestIndex = index;
         }
       });
-      return bestDistance <= 54 ? bestIndex : -1;
+      return bestDistance <= 48 ? bestIndex : -1;
     }
 
-    function onPointerDown(event){
-      const point = pointerToImagePoint(event);
-      const nextIndex = closestCorner(point);
-      if(nextIndex === -1) return;
-      draggingIndex = nextIndex;
-      pointerId = event.pointerId;
-      canvas.setPointerCapture(pointerId);
-    }
-
-    function onPointerMove(event){
+    function moveCorner(point){
       if(draggingIndex === -1) return;
-      const point = pointerToImagePoint(event);
+      const minX = imageOffsetX;
+      const minY = imageOffsetY;
+      const maxX = imageOffsetX + img.width * imageScale;
+      const maxY = imageOffsetY + img.height * imageScale;
       points[draggingIndex] = {
-        x: Math.max(0, Math.min(img.width, point.x)),
-        y: Math.max(0, Math.min(img.height, point.y))
+        x: Math.max(minX, Math.min(maxX, point.x)),
+        y: Math.max(minY, Math.min(maxY, point.y))
       };
       draw();
     }
 
-    function endDrag(event){
-      if(draggingIndex === -1) return;
-      if(pointerId != null){
-        try{ canvas.releasePointerCapture(pointerId); }catch{}
+    function onPointerDown(event){
+      const point = localPoint(event.clientX, event.clientY);
+      const found = closestCorner(point);
+      if(found === -1) return;
+      draggingIndex = found;
+      if(event.pointerId != null){
+        try{ canvas.setPointerCapture(event.pointerId); }catch{}
       }
+    }
+
+    function onPointerMove(event){
+      if(draggingIndex === -1) return;
+      moveCorner(localPoint(event.clientX, event.clientY));
+    }
+
+    function onPointerEnd(event){
       draggingIndex = -1;
-      pointerId = null;
+      if(event?.pointerId != null){
+        try{ canvas.releasePointerCapture(event.pointerId); }catch{}
+      }
+    }
+
+    function onTouchStart(event){
+      const touch = event.touches[0];
+      if(!touch) return;
+      const found = closestCorner(localPoint(touch.clientX, touch.clientY));
+      if(found === -1) return;
+      draggingIndex = found;
+    }
+
+    function onTouchMove(event){
+      if(draggingIndex === -1) return;
+      const touch = event.touches[0];
+      if(!touch) return;
+      event.preventDefault();
+      moveCorner(localPoint(touch.clientX, touch.clientY));
+    }
+
+    function onTouchEnd(){
+      draggingIndex = -1;
     }
 
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endDrag);
-    canvas.addEventListener("pointercancel", endDrag);
+    canvas.addEventListener("pointerup", onPointerEnd);
+    canvas.addEventListener("pointercancel", onPointerEnd);
+    canvas.addEventListener("touchstart", onTouchStart, { passive:true });
+    canvas.addEventListener("touchmove", onTouchMove, { passive:false });
+    canvas.addEventListener("touchend", onTouchEnd, { passive:true });
+    canvas.addEventListener("touchcancel", onTouchEnd, { passive:true });
 
     root.querySelector('[data-scanner-action="retake"]').addEventListener("click", () => deps.onRetake());
-    root.querySelector('[data-scanner-action="close"]').addEventListener("click", () => deps.onClose());
     root.querySelector('[data-scanner-action="process"]').addEventListener("click", async () => {
-      await deps.onProcess(points);
+      await deps.onProcess(exportPoints());
     });
 
     img.onload = () => {
-      const maxWidth = Math.min(window.innerWidth - 24, 960);
-      const maxHeight = Math.min(window.innerHeight - 240, 1200);
-      const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
-      canvas.width = Math.max(1, Math.round(img.width * ratio));
-      canvas.height = Math.max(1, Math.round(img.height * ratio));
-      scaleX = canvas.width / img.width;
-      scaleY = canvas.height / img.height;
+      const wrap = root.querySelector(".scanner-review-canvas-wrap");
+      const bounds = wrap.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(bounds.width));
+      canvas.height = Math.max(1, Math.round(bounds.height));
+      imageScale = Math.min(canvas.width / img.width, canvas.height / img.height);
+      imageOffsetX = (canvas.width - img.width * imageScale) / 2;
+      imageOffsetY = (canvas.height - img.height * imageScale) / 2;
+      points = mapImageCornersToDisplay(deps.capture.corners);
       draw();
     };
     img.src = deps.capture.sourceDataUrl;
