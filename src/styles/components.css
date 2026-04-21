@@ -50,7 +50,7 @@
   min-height:48px;
   border-radius:0;
   background:transparent;
-  color:#1A2E1F;
+  color:#3D7A5A;
   padding:8px 12px 10px;
   font-size:14px;
   display:flex;
@@ -58,8 +58,11 @@
   align-items:center;
   box-shadow:none;
   border:0;
-  border-bottom:2px solid transparent;
+  border-bottom:3px solid transparent;
   flex:1 0 auto;
+  font-weight:600;
+  opacity:.65;
+  transition:all .2s ease;
 }
 .tabs .nav-label{
   font-weight:600;
@@ -68,9 +71,11 @@
   white-space:nowrap;
 }
 .tabs button.active{
-  background:transparent;
+  background:rgba(61,122,90,.07);
   color:#3D7A5A;
-  border-bottom-color:#3D7A5A;
+  font-weight:700;
+  opacity:1;
+  border-bottom:3px solid #3D7A5A;
 }
 .card{
   padding:22px;

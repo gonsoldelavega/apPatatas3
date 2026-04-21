@@ -1,5 +1,8 @@
 (function(global){
   function renderNav(target, ctx){
+    target.style.background = "#FFFFFF";
+    target.style.borderBottom = "1px solid #DCE8DC";
+    target.style.boxShadow = "0 2px 6px rgba(0,0,0,0.05)";
     const viewGroups = {
       dashboard: new Set(["dashboard"]),
       billing: new Set(["billing"]),
