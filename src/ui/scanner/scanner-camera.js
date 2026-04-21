@@ -7,14 +7,18 @@
         <div class="scanner-stage-top">
           <div>
             <h2>Escanear documento</h2>
-            <p>Coloca la factura dentro de la guía y pulsa capturar cuando se vea nítida.</p>
+            <p>Coloca la factura dentro de la guia y pulsa capturar cuando se vea nitida.</p>
           </div>
           <button type="button" class="ghost" data-scanner-action="close">Cerrar</button>
         </div>
         <div class="scanner-stage-bottom">
-          <p class="scanner-hint" id="scannerHint">Usa la cámara trasera y acerca la factura hasta que el texto se vea claro.</p>
+          <p class="scanner-hint" id="scannerHint">Usa la camara trasera y acerca la factura hasta que el texto se vea claro.</p>
           <div class="scanner-camera-actions scanner-camera-actions-center">
             <button type="button" class="primary scanner-capture-btn" data-scanner-action="capture">Capturar</button>
+          </div>
+          <input type="file" id="scannerFileInput" accept="image/*" style="display:none;">
+          <div class="scanner-camera-actions scanner-camera-actions-center">
+            <button type="button" class="ghost" data-scanner-action="upload">Cargar desde galería</button>
           </div>
         </div>
       </div>
@@ -86,6 +90,7 @@
     const video = root.querySelector("#scannerVideo");
     const overlay = root.querySelector("#scannerOverlay");
     const hint = root.querySelector("#scannerHint");
+    const fileInput = root.querySelector("#scannerFileInput");
     let stream = null;
     let unmounted = false;
 
@@ -96,7 +101,7 @@
 
     async function capture(){
       try{
-        hint.textContent = "Capturando en alta resolución...";
+        hint.textContent = "Capturando en alta resolucion...";
         const canvas = deps.camera.captureFrame(video);
         const detection = await deps.detector.detectDocument(canvas).catch(() => null);
         deps.onCapture({
@@ -112,7 +117,46 @@
     }
 
     root.querySelector('[data-scanner-action="capture"]').addEventListener("click", capture);
+    root.querySelector('[data-scanner-action="upload"]').addEventListener("click", () => {
+      fileInput.click();
+    });
     root.querySelector('[data-scanner-action="close"]').addEventListener("click", () => deps.onClose());
+    fileInput.addEventListener("change", async e => {
+      const file = e.target.files?.[0];
+      if(!file) return;
+      try{
+        hint.textContent = "Cargando imagen...";
+        const dataUrl = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          deps.onCapture({
+            sourceCanvas: canvas,
+            corners: deps.detector.defaultCorners(canvas.width, canvas.height),
+            detected: false,
+            confidence: 0
+          });
+        };
+        img.onerror = error => {
+          hint.textContent = "No se pudo cargar la imagen seleccionada.";
+          deps.onError?.(error);
+        };
+        img.src = dataUrl;
+      }catch(error){
+        hint.textContent = "No se pudo leer el archivo seleccionado.";
+        deps.onError?.(error);
+      }finally{
+        fileInput.value = "";
+      }
+    });
 
     deps.camera.startCamera(video).then(currentStream => {
       if(unmounted){
@@ -123,7 +167,7 @@
       onResize();
       hint.textContent = "Listo para capturar.";
     }).catch(error => {
-      hint.textContent = "La cámara no está disponible en este dispositivo o navegador.";
+      hint.textContent = "La camara no esta disponible en este dispositivo o navegador.";
       deps.onError?.(error);
     });
 

@@ -55,7 +55,9 @@
     const lines = Array.isArray(input.lineas) ? input.lineas : [];
     return {
       numero_factura: input.numero_factura || "",
-      fecha: input.fecha || today(),
+      fecha: (input.fecha && /^\d{4}-\d{2}-\d{2}$/.test(input.fecha))
+        ? input.fecha
+        : today(),
       proveedor_nombre: input.proveedor_nombre || "",
       proveedor_nif: input.proveedor_nif || "",
       cliente_nombre: input.cliente_nombre || "",
@@ -337,19 +339,25 @@
       close();
     }
 
-    async function processCapture(capture, corners, useFullImage = false){
+  async function processCapture(capture, corners, useFullImage = false){
+    store.update(current => {
+      current.processing = true;
+      current.error = "";
+    });
+    try{
+      const processedDataUrl = capture.sourceDataUrl;
+      const pageData = {
+        id: "page-" + Date.now(),
+        createdAt: new Date().toISOString(),
+        source: capture.sourceDataUrl,
+        variants: { document: capture.sourceDataUrl },
+        selectedFilter: "document",
+        ocr: null,
+        meta: {}
+      };
+      const extracted = await extractInvoiceData(processedDataUrl, options);
       store.update(current => {
-        current.processing = true;
-        current.error = "";
-      });
-      try{
-        const pageData = useFullImage
-          ? await deps.processing.createPageFromFullImage(capture, { selectedFilter:"document" })
-          : await deps.processing.createPageFromCapture(capture, { corners, selectedFilter:"document" });
-        const processedDataUrl = pageData.variants?.document || pageData.variants?.grayscale || pageData.source;
-        const extracted = await extractInvoiceData(processedDataUrl, options);
-        store.update(current => {
-          current.pages = [pageData];
+        current.pages = [pageData];
           current.activePageId = pageData.id;
           current.capture = null;
           current.result = {

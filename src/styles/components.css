@@ -1235,8 +1235,10 @@
   flex:1;
   display:grid;
   gap:16px;
-  overflow-y:auto;
+  overflow-y:scroll;
   -webkit-overflow-scrolling:touch;
+  height:calc(100dvh - 200px);
+  max-height:calc(100dvh - 200px);
   padding:16px;
   min-height:0;
 }
