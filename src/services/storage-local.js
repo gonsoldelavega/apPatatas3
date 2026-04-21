@@ -45,15 +45,12 @@
     try{
       const { getSupabaseClient } = await getSupabaseHelpers();
       const spec = REMOTE_SPECS[tableKey];
-      console.log("[FETCH] tabla real en Supabase:", spec.table);
       const supabase = await getSupabaseClient();
-      console.log("[FETCH] supabase client ok:", !!supabase);
       const { data, error } = await supabase.from(spec.table).select("*");
-      console.log("[FETCH] data:", data, "error:", error);
       if(error) throw error;
       return (data || []).map(row => normalizeRow(tableKey, row));
     }catch(error){
-      console.error("[FETCH ERROR]", scope, error);
+      logSupabaseError(scope, error);
       return [];
     }
   }
@@ -62,23 +59,20 @@
     try{
       const { getSupabaseClient } = await getSupabaseHelpers();
       const spec = REMOTE_SPECS[tableKey];
-      console.log("[SAVE] tabla:", spec.table, "primaryKey:", spec.primaryKey);
       const supabase = await getSupabaseClient();
       const rowPayload = withPrimaryKey(tableKey, payload);
       const spec2 = REMOTE_SPECS[tableKey];
       if(spec2.primaryKey !== "id"){
         delete rowPayload.id;
       }
-      console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(rowPayload));
       const { data, error } = await supabase
         .from(spec.table)
         .upsert(rowPayload, { onConflict: spec.primaryKey })
         .select();
-      console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
       if(error) throw error;
       return normalizeRow(tableKey, data?.[0]) || payload;
     }catch(error){
-      console.error("[SAVE ERROR]", scope, error);
+      logSupabaseError(scope, error);
       return payload || null;
     }
   }
@@ -159,17 +153,14 @@
         try{
           const { getSupabaseClient } = await getSupabaseHelpers();
           const supabase = await getSupabaseClient();
-          console.log("[SAVE] tabla:", "facturas_venta", "primaryKey:", "id");
-          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(factura));
           const { data, error } = await supabase
             .from("facturas_venta")
             .upsert(factura, { onConflict: "id" })
             .select();
-          console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
           if(error) throw error;
           return data?.[0];
         }catch(error){
-          console.error("[SAVE ERROR]", "saveFactura", error);
+          logSupabaseError("saveFactura", error);
           return factura || null;
         }
       },
@@ -192,17 +183,14 @@
         try{
           const { getSupabaseClient } = await getSupabaseHelpers();
           const supabase = await getSupabaseClient();
-          console.log("[SAVE] tabla:", "facturas_compra", "primaryKey:", "id");
-          console.log("[SAVE] payload enviado a Supabase:", JSON.stringify(compra));
           const { data, error } = await supabase
             .from("facturas_compra")
             .upsert(compra, { onConflict: "id" })
             .select();
-          console.log("[SAVE] respuesta Supabase - data:", data, "error:", error);
           if(error) throw error;
           return data?.[0];
         }catch(error){
-          console.error("[SAVE ERROR]", "saveCompra", error);
+          logSupabaseError("saveCompra", error);
           return compra || null;
         }
       },

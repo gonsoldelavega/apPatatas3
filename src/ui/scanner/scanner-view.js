@@ -338,7 +338,6 @@
     }
 
     async function processCapture(capture, corners, useFullImage = false){
-      console.log("[SCANNER] step antes:", store.getState().step);
       store.update(current => {
         current.processing = true;
         current.error = "";
@@ -361,15 +360,11 @@
           current.processing = false;
           current.step = "result";
         });
-        console.log("[SCANNER] step después:", store.getState().step);
-        console.log("[SCANNER] result:", store.getState().result);
       }catch(error){
         store.update(current => {
           current.processing = false;
           current.error = error?.message || "No se pudo procesar la factura con IA.";
         });
-        console.log("[SCANNER] step después:", store.getState().step);
-        console.log("[SCANNER] result:", store.getState().result);
       }
     }
 

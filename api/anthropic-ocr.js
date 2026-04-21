@@ -79,24 +79,33 @@ export default async function handler(request, response) {
     return response.status(400).json({ ok: false, error: "invalid_image" });
   }
 
-  const prompt = [
-    "Eres un experto en extracción de datos de facturas españolas.",
-    "Analiza esta imagen de factura y extrae en JSON:",
-    "{",
-    '  "numero_factura": string | null,',
-    '  "fecha": "YYYY-MM-DD" | null,',
-    '  "proveedor_nombre": string | null,',
-    '  "proveedor_nif": string | null,',
-    '  "cliente_nombre": string | null,',
-    '  "cliente_nif": string | null,',
-    '  "lineas": [{"descripcion": string | null, "cantidad": number | null, "precio_unitario": number | null, "base": number | null, "iva_pct": number | null, "total": number | null}],',
-    '  "base_total": number | null,',
-    '  "iva_total": number | null,',
-    '  "total_factura": number | null',
-    "}",
-    "Si no puedes leer algún campo, ponlo como null.",
-    "Responde SOLO con JSON válido, sin texto extra."
-  ].join("\n");
+  const prompt = `Eres un experto en extracción de datos de facturas españolas de distribuidores de frutas y verduras.
+
+Analiza esta imagen de factura y extrae los datos en JSON.
+
+PROVEEDORES HABITUALES:
+- FRUTAS Y PATATAS GAYCA S.A. (NIF: A04037677): columnas Unds=cantidad, Precio=precio unitario, Importe=total línea
+- J. EXPÓSITO CAZORLA E HIJOS S.L. (NIF: B04854154): columnas Tot.Unds=cantidad, Precio=precio unitario, Total=total línea
+
+INSTRUCCIONES:
+- numero_factura: el número de factura (ej: FV006-00000709, 26002777)
+- fecha: fecha en formato YYYY-MM-DD
+- proveedor_nombre: nombre completo del proveedor emisor
+- proveedor_nif: NIF del proveedor
+- cliente_nombre: nombre del cliente receptor
+- cliente_nif: NIF del cliente
+- lineas: array con cada producto de la factura
+  - descripcion: nombre del producto
+  - cantidad: número de unidades o kilos
+  - precio_unitario: precio por unidad/kilo
+  - base: importe sin IVA de esa línea
+  - iva_pct: porcentaje de IVA (normalmente 4 para alimentación)
+  - total: importe total de esa línea con IVA
+- base_total: suma de bases imponibles
+- iva_total: suma de cuotas de IVA
+- total_factura: importe total a pagar
+
+Responde SOLO con JSON válido, sin texto extra, sin markdown.`;
 
   let anthropicResponse;
   try {

@@ -459,10 +459,8 @@
         };
       }
       async function loadSupabaseTableWithLogs(label, loader){
-        console.log(`[SUPABASE] cargando ${label}...`);
         try{
           const rows = await loader();
-          console.log(`[SUPABASE] ${label} → ${(rows || []).length} registros`);
           return rows || [];
         }catch(error){
           console.error(`[SUPABASE ERROR] ${label} → ${error?.message || String(error)}`);
@@ -588,7 +586,6 @@
         }
       }
       async function savePrimaryCollectionToSupabase(collection, entity){
-        console.log("[SAVE-COLLECTION]", collection, JSON.stringify(entity).substring(0, 300));
         if(collection === "clients") return storageService.saveCliente(mapClientToSupabase(entity));
         if(collection === "products") return storageService.saveProducto(mapProductToSupabase(entity));
         if(collection === "invoices") return storageService.saveFactura(mapInvoiceToSupabase(entity));
@@ -1730,19 +1727,24 @@
             }
           });
           if(action === "new-scanned-supplier-invoice") return scannerViewUI.openScannerFlow({
-            mode:"purchase",
-            anthropicKey:readDeviceLocal("anthropic-api-key") || "",
-            suppliers:state.suppliers,
-            products:state.products,
-            createPurchaseId:() => uid("buy"),
-            onToast:message => toast(message),
-            async onSavePurchase(purchase){
-              await saveEntity("purchases", purchase, purchase.id);
-            },
-            onComplete(session){
-              documentFormUI.openDocumentForm(formContext(), null, {
-                scannedSession:session,
-                defaults:{ type:"supplierInvoice" }
+              mode:"purchase",
+              anthropicKey:readDeviceLocal("anthropic-api-key") || "",
+              suppliers:state.suppliers,
+              products:state.products,
+              createPurchaseId:() => uid("buy"),
+              onToast:message => toast(message),
+              async onSavePurchase(purchase){
+                await savePrimaryCollectionToSupabase("purchases", purchase);
+                store.saveEntity("purchases", purchase, purchase.id);
+                syncState();
+                renderAll();
+                toast("Compra guardada correctamente");
+                scannerViewUI.closeScannerFlow();
+              },
+              onComplete(session){
+                documentFormUI.openDocumentForm(formContext(), null, {
+                  scannedSession:session,
+                  defaults:{ type:"supplierInvoice" }
               });
             }
           });
