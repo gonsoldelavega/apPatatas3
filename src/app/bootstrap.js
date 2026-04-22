@@ -4,6 +4,8 @@
       const APP_VERSION = "2026.04.16-vercel-sync";
       const SYNC_TOKEN_KEY = "factupapa-sync-token";
       const SYNC_META_KEY = "factupapa-sync-meta-v1";
+      const DRIVE_TOKEN_KEY = "google-drive-token";
+      const DRIVE_PROFILE_KEY = "google-drive-profile";
       const PRIMARY_REMOTE_COLLECTIONS = ["clients","products","invoices","expenses","purchases","walletMovements"];
       const YEAR = new Date().getFullYear();
       const LEGAL_PAYMENT_TEXT = {
@@ -807,6 +809,31 @@
           }
           window.localStorage.setItem(key, String(value));
         }catch(_error){}
+      }
+      function readDeviceJson(key){
+        try{
+          const raw = readDeviceLocal(key);
+          return raw ? JSON.parse(raw) : null;
+        }catch(_error){
+          return null;
+        }
+      }
+      function syncDriveAccessToken(token){
+        const nextToken = String(token || "").trim();
+        driveAccessToken = nextToken;
+        window.__googleAccessToken = nextToken;
+        writeDeviceLocal(DRIVE_TOKEN_KEY, nextToken);
+        return nextToken;
+      }
+      function syncDriveProfile(profile){
+        const nextProfile = profile && typeof profile === "object" ? {
+          displayName:String(profile.displayName || "").trim(),
+          emailAddress:String(profile.emailAddress || "").trim()
+        } : null;
+        driveProfile = nextProfile;
+        window.__googleDriveProfile = nextProfile;
+        writeDeviceLocal(DRIVE_PROFILE_KEY, nextProfile ? JSON.stringify(nextProfile) : "");
+        return nextProfile;
       }
       function readSyncMeta(){
         try{
@@ -1729,6 +1756,8 @@
           if(action === "new-scanned-supplier-invoice") return scannerViewUI.openScannerFlow({
               mode:"purchase",
               anthropicKey:readDeviceLocal("anthropic-api-key") || "",
+              driveClientId:state.settings.driveClientId || "607811965960-bokrfeloj97tel1fgbnhj0fgkm3ekrsg.apps.googleusercontent.com",
+              driveRootFolderName:state.settings.driveRootFolderName || "apPatatas",
               suppliers:state.suppliers,
               products:state.products,
               createPurchaseId:() => uid("buy"),
@@ -1784,8 +1813,9 @@
           }
           const syncTokenField = settingsForm?.querySelector('[name="syncToken"]');
           if(syncTokenField && !syncTokenField.value) syncTokenField.value = readDeviceLocal(SYNC_TOKEN_KEY) || "";
+          renderDriveStatusPanel(settingsForm);
           renderSyncStatusPanel(settingsForm);
-          settingsForm?.querySelectorAll('#syncStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
+          settingsForm?.querySelectorAll('#driveStatusPanel [data-action], #syncStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
             e.preventDefault();
             e.stopPropagation();
             handleAction(node.dataset.action, node.dataset.id, node.dataset.kind);
@@ -1922,7 +1952,10 @@
       shareInvoiceWhatsApp = id => shareInvoiceFile(id, "whatsapp").catch(() => toast("No se pudo compartir la factura"));
       shareInvoiceEmail = id => shareInvoiceFile(id, "email").catch(() => toast("No se pudo compartir la factura"));
       let driveTokenClient = null;
-      let driveAccessToken = "";
+      let driveAccessToken = readDeviceLocal(DRIVE_TOKEN_KEY).trim();
+      let driveProfile = readDeviceJson(DRIVE_PROFILE_KEY);
+      window.__googleAccessToken = driveAccessToken;
+      window.__googleDriveProfile = driveProfile;
       function driveLog(step, details = {}){
         console.info("[Drive]", step, details);
       }
@@ -1988,7 +2021,7 @@
                 driveLog("auth:failure", { reason, code:"drive-auth-missing-token" });
                 return reject(buildDriveError("drive-auth-missing-token", "Google no devolvió token", { response }));
               }
-              driveAccessToken = response.access_token;
+              syncDriveAccessToken(response.access_token);
               driveLog("auth:success", { reason });
               resolve(driveAccessToken);
             },
@@ -2009,6 +2042,15 @@
         const response = await fetch(url, { ...options, headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` } });
         if(!response.ok) throw buildDriveError(`drive-api-${response.status}`, `Drive API ${response.status}`);
         return response;
+      }
+      async function refreshDriveProfile(interactive = false){
+        const token = driveAccessToken || await getDriveAccessToken(interactive, "drive-profile");
+        const response = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)", {
+          headers:{ Authorization:`Bearer ${token}` }
+        });
+        if(!response.ok) throw buildDriveError(`drive-api-${response.status}`, `Drive API ${response.status}`);
+        const data = await response.json();
+        return syncDriveProfile(data?.user || null);
       }
       async function findOrCreateDriveFolder(name, parentId = "root"){
         const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and trashed=false and name='${String(name).replaceAll("'", "\\'")}' and '${parentId}' in parents`);
@@ -2110,9 +2152,25 @@
         await getDriveAccessToken(true, "download-state-drive");
         return downloadStateFromDrive(true);
       }
+      async function connectDriveFromSettings(){
+        await getDriveAccessToken(true, "drive-settings-connect");
+        await refreshDriveProfile(true).catch(() => driveProfile || null);
+        const settingsForm = document.getElementById("settingsForm");
+        if(settingsForm) renderDriveStatusPanel(settingsForm);
+        toast("Google Drive conectado");
+      }
+      function disconnectDriveFromSettings(){
+        syncDriveAccessToken("");
+        syncDriveProfile(null);
+        const settingsForm = document.getElementById("settingsForm");
+        if(settingsForm) renderDriveStatusPanel(settingsForm);
+        toast("Google Drive desconectado");
+      }
       const previousHandleAction = handleAction;
       handleAction = function(action, id, kind){
         if(action === "download-invoice-pdf") return downloadInvoicePdf(id).catch(() => toast("No se pudo generar el PDF"));
+        if(action === "drive-connect") return connectDriveFromSettings().catch(error => reportDriveFailure("settings-connect", error, "No se pudo conectar Google Drive"));
+        if(action === "drive-disconnect") return disconnectDriveFromSettings();
         if(action === "upload-invoice-drive") return beginDriveInvoiceUploadFromClick(id).catch(error => reportDriveFailure("upload-invoice", error, "No se pudo subir la factura a Google Drive"));
         if(action === "upload-state-drive") return beginDriveStateUploadFromClick().catch(error => reportDriveFailure("upload-state", error, "No se pudo subir la copia a Google Drive"));
         if(action === "download-state-drive") return beginDriveStateDownloadFromClick().catch(error => reportDriveFailure("download-state", error, "No se pudo traer la copia desde Google Drive"));
@@ -2204,6 +2262,29 @@
             "200:saved":"Datos subidos"
           };
           return map[text] || text;
+        }
+        function renderDriveStatusPanel(settingsForm){
+          if(!settingsForm) return;
+          let panel = settingsForm.querySelector("#driveStatusPanel");
+          if(!panel){
+            panel = document.createElement("div");
+            panel.id = "driveStatusPanel";
+            panel.className = "summary drive-summary";
+            const anchor = settingsForm.querySelector('[name="driveStateAutoSync"]')?.closest(".field") || settingsForm.lastElementChild;
+            if(anchor){
+              anchor.insertAdjacentElement("afterend", panel);
+            }else{
+              settingsForm.appendChild(panel);
+            }
+          }
+          const tokenPresent = !!String(driveAccessToken || readDeviceLocal(DRIVE_TOKEN_KEY) || "").trim();
+          const activeProfile = driveProfile || readDeviceJson(DRIVE_PROFILE_KEY);
+          const accountLabel = activeProfile?.emailAddress || activeProfile?.displayName || (tokenPresent ? "Sesión activa" : "Sin cuenta");
+          panel.innerHTML = `<div class="summary-row"><span>Google Drive</span><strong>${tokenPresent ? "Conectado" : "Sin conectar"}</strong></div>
+            <div class="summary-row"><span>Cuenta</span><strong>${esc(accountLabel)}</strong></div>
+            <div class="summary-row"><span>OAuth Client ID</span><strong>${state.settings.driveClientId ? "Configurado" : "Pendiente"}</strong></div>
+            <div class="summary-row"><span>Carpeta raíz</span><strong>${esc(state.settings.driveRootFolderName || "apPatatas")}</strong></div>
+            <div class="card-actions"><button type="button" data-action="drive-connect">${tokenPresent ? "Reconectar Drive" : "Conectar Google Drive"}</button><button type="button" data-action="drive-disconnect">Desconectar</button></div>`;
         }
         function renderSyncStatusPanel(settingsForm){
           if(!settingsForm) return;

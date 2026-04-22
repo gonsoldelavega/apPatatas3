@@ -20,6 +20,13 @@
           <div class="scanner-camera-actions scanner-camera-actions-center">
             <button type="button" class="ghost" data-scanner-action="upload">Cargar desde galería</button>
           </div>
+          <input type="file" id="scannerPdfInput" accept="application/pdf" style="display:none;">
+          <div class="scanner-camera-actions scanner-camera-actions-center">
+            <button type="button" class="ghost" data-scanner-action="upload-pdf" style="width:100%;padding:14px;border-radius:12px;border:2px solid #3D7A5A;background:transparent;color:#3D7A5A;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;">📄 Cargar PDF de factura</button>
+          </div>
+          <div class="scanner-camera-actions scanner-camera-actions-center">
+            <button type="button" data-scanner-action="upload-drive" style="width:100%;padding:14px;border-radius:12px;border:2px solid #3D7A5A;background:#3D7A5A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;">☁️ Importar desde Google Drive</button>
+          </div>
         </div>
       </div>
     </section>`;
@@ -91,6 +98,7 @@
     const overlay = root.querySelector("#scannerOverlay");
     const hint = root.querySelector("#scannerHint");
     const fileInput = root.querySelector("#scannerFileInput");
+    const pdfInput = root.querySelector("#scannerPdfInput");
     let stream = null;
     let unmounted = false;
 
@@ -120,7 +128,12 @@
     root.querySelector('[data-scanner-action="upload"]').addEventListener("click", () => {
       fileInput.click();
     });
+    root.querySelector('[data-scanner-action="upload-pdf"]').addEventListener("click", () => {
+      pdfInput.click();
+    });
+    root.querySelector('[data-scanner-action="upload-drive"]').addEventListener("click", () => deps.onDrivePicker());
     root.querySelector('[data-scanner-action="close"]').addEventListener("click", () => deps.onClose());
+
     fileInput.addEventListener("change", async e => {
       const file = e.target.files?.[0];
       if(!file) return;
@@ -155,6 +168,25 @@
         deps.onError?.(error);
       }finally{
         fileInput.value = "";
+      }
+    });
+
+    pdfInput.addEventListener("change", async e => {
+      const file = e.target.files?.[0];
+      if(!file) return;
+      try{
+        hint.textContent = "Cargando PDF...";
+        const dataUrl = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        await deps.onPdfCapture({ pdfDataUrl:dataUrl, fileName:file.name });
+      }catch(error){
+        hint.textContent = "No se pudo leer el PDF seleccionado.";
+        deps.onError?.(error);
+      }finally{
+        pdfInput.value = "";
       }
     });
 

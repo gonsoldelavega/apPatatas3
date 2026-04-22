@@ -15,7 +15,7 @@
   }
 
   function parseDataUrl(dataUrl = ""){
-    const match = String(dataUrl).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    const match = String(dataUrl).match(/^data:((?:image|application)\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
     if(!match) return null;
     return {
       mediaType: match[1],
@@ -139,7 +139,7 @@
         "anthropic-dangerous-direct-browser-access":"true"
       },
       body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",
+        model:"claude-sonnet-4-5",
         max_tokens:1800,
         temperature:0,
         system:"Responde solo con JSON válido.",
@@ -147,14 +147,23 @@
           {
             role:"user",
             content:[
-              {
-                type:"image",
-                source:{
-                  type:"base64",
-                  media_type:parsedImage.mediaType,
-                  data:parsedImage.data
-                }
-              },
+              parsedImage.mediaType === "application/pdf"
+                ? {
+                    type:"document",
+                    source:{
+                      type:"base64",
+                      media_type:parsedImage.mediaType,
+                      data:parsedImage.data
+                    }
+                  }
+                : {
+                    type:"image",
+                    source:{
+                      type:"base64",
+                      media_type:parsedImage.mediaType,
+                      data:parsedImage.data
+                    }
+                  },
               {
                 type:"text",
                 text:prompt
@@ -228,6 +237,8 @@
     const base = Number(result.base_total || 0);
     const ivaAmount = Number(result.iva_total || 0);
     const total = Number(result.total_factura || 0);
+    const sourceFile = parseDataUrl(processedDataUrl || "");
+    const isPdf = sourceFile?.mediaType === "application/pdf";
     return {
       id,
       number: result.numero_factura || "",
@@ -258,9 +269,9 @@
       internalNote:"",
       lines,
       attachment:{
-        name:`${result.numero_factura || "factura-compra"}.jpg`,
+        name:`${result.numero_factura || "factura-compra"}.${isPdf ? "pdf" : "jpg"}`,
         dataUrl:processedDataUrl,
-        mimeType:"image/jpeg"
+        mimeType:sourceFile?.mediaType || "image/jpeg"
       },
       notes:""
     };
@@ -396,6 +407,48 @@
       });
     }
 
+    async function processFromDrive(pdfDataUrl, fileMeta = {}){
+      store.update(current => {
+        current.processing = true;
+        current.error = "";
+      });
+      try{
+        const extracted = await extractInvoiceData(pdfDataUrl, options);
+        const pageData = {
+          id:`page-${Date.now()}`,
+          createdAt:new Date().toISOString(),
+          source:"",
+          corners:[],
+          variants:{},
+          selectedFilter:"document",
+          ocr:null,
+          meta:{
+            sourceType:"drive-pdf",
+            fileName:fileMeta.name || "",
+            fileId:fileMeta.id || ""
+          }
+        };
+        store.update(current => {
+          current.pages = [pageData];
+          current.activePageId = pageData.id;
+          current.capture = null;
+          current.result = {
+            processedDataUrl:"",
+            sourceDataUrl:pdfDataUrl,
+            extracted,
+            page:pageData
+          };
+          current.processing = false;
+          current.step = "result";
+        });
+      }catch(error){
+        store.update(current => {
+          current.processing = false;
+          current.error = error?.message || "No se pudo procesar el PDF de Drive con IA.";
+        });
+      }
+    }
+
     function render(state){
       mounted?.teardown?.();
       mounted = null;
@@ -406,6 +459,45 @@
           camera:deps.camera,
           detector:deps.detector,
           onClose:requestClose,
+          onDrivePicker:() => {
+            global.AppScannerDrivePicker.openDrivePicker(
+              async ({ pdfDataUrl, fileName }) => {
+                store.update(current => {
+                  current.processing = true;
+                  current.error = "";
+                  current.step = "processing";
+                });
+                try{
+                  const extracted = await extractInvoiceData(pdfDataUrl, options);
+                  store.update(current => {
+                    current.result = {
+                      processedDataUrl: pdfDataUrl,
+                      extracted,
+                      page: {
+                        id: "pdf-" + Date.now(),
+                        source: pdfDataUrl,
+                        variants: { document: pdfDataUrl },
+                        meta: { fileName: fileName || "" }
+                      }
+                    };
+                    current.processing = false;
+                    current.step = "result";
+                  });
+                }catch(error){
+                  store.update(current => {
+                    current.processing = false;
+                    current.error = error?.message || "No se pudo procesar el PDF.";
+                    current.step = "camera";
+                  });
+                }
+              },
+              error => {
+                store.update(current => {
+                  current.error = error?.message || "No se pudo acceder a Google Drive.";
+                });
+              }
+            );
+          },
           onError:error => {
             store.update(current => {
               current.error = error?.message || "No se pudo abrir la cámara.";
@@ -422,8 +514,48 @@
               current.step = "crop";
               current.error = "";
             });
+          },
+          onPdfCapture:async ({ pdfDataUrl, fileName }) => {
+            store.update(current => {
+              current.processing = true;
+              current.error = "";
+              current.step = "processing";
+            });
+            try {
+              const extracted = await extractInvoiceData(pdfDataUrl, options);
+              store.update(current => {
+                current.result = {
+                  processedDataUrl: pdfDataUrl,
+                  sourceDataUrl: pdfDataUrl,
+                  extracted,
+                  page: {
+                    id: "pdf-" + Date.now(),
+                    source: pdfDataUrl,
+                    variants: { document: pdfDataUrl },
+                    meta: { fileName: fileName || "" }
+                  }
+                };
+                current.processing = false;
+                current.step = "result";
+              });
+            } catch(error) {
+              store.update(current => {
+                current.processing = false;
+                current.error = error?.message || "No se pudo procesar el PDF.";
+                current.step = "camera";
+              });
+            }
           }
         });
+        return;
+      }
+
+      if(state.step === "processing"){
+        root.innerHTML = `<section class="scanner-screen" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;background:#000;color:#fff;height:100vh;">
+          <div style="font-size:48px;">🤖</div>
+          <p style="font-size:18px;font-weight:600;">Analizando factura con IA...</p>
+          <p style="font-size:14px;opacity:0.7;">Esto puede tardar unos segundos</p>
+        </section>`;
         return;
       }
 
@@ -461,7 +593,7 @@
         },
         onSave:async extracted => {
           if(options.mode === "purchase" && typeof options.onSavePurchase === "function"){
-            const purchase = buildPurchaseFromResult(extracted, state.result?.processedDataUrl || "", options);
+            const purchase = buildPurchaseFromResult(extracted, state.result?.sourceDataUrl || state.result?.processedDataUrl || "", options);
             await options.onSavePurchase(purchase);
             options.onToast?.("Compra guardada desde el escáner");
             close();

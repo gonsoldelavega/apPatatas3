@@ -5,7 +5,9 @@ function setCors(response) {
 }
 
 function parseDataUrl(dataUrl = "") {
-  const match = String(dataUrl).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  const match = String(dataUrl).match(
+    /^data:((?:image|application)\/[a-zA-Z0-9.+-]+);base64,(.+)$/
+  );
   if (!match) return null;
   return { mediaType: match[1], data: match[2] };
 }
@@ -109,6 +111,23 @@ Responde SOLO con JSON válido, sin texto extra, sin markdown.`;
 
   let anthropicResponse;
   try {
+    const contentBlock = image.mediaType === "application/pdf"
+      ? {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: image.data
+          }
+        }
+      : {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: image.mediaType,
+            data: image.data
+          }
+        };
     anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -125,14 +144,7 @@ Responde SOLO con JSON válido, sin texto extra, sin markdown.`;
           {
             role: "user",
             content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: image.mediaType,
-                  data: image.data
-                }
-              },
+              contentBlock,
               {
                 type: "text",
                 text: prompt
