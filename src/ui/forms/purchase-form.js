@@ -28,8 +28,8 @@
         </div>
         <div class="field"><label>Fecha emision</label><input name="date" type="date" value="${ctx.esc(draft.date)}"></div>
         <div class="field"><label>Proveedor</label><select name="supplierId"><option value="">Selecciona proveedor</option>${ctx.state.suppliers.map(s => `<option value="${s.id}" ${draft.supplierId === s.id ? "selected" : ""}>${ctx.esc(s.name)}</option>`).join("")}</select></div>
-        <div class="field"><label>Total documento</label><input name="totalAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.totalAmount)}" placeholder="0.00"></div>
-        <div class="field"><label>IVA / impuesto</label><input name="taxAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.taxAmount)}" placeholder="0.00"></div>
+        <div class="field"><label>Total documento</label><input name="totalAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.totalAmount)}" placeholder="0.00" readonly></div>
+        <div class="field"><label>IVA / impuesto</label><input name="taxAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.taxAmount)}" placeholder="0.00" readonly></div>
         <div class="field" style="grid-column:1/-1;">
           <label>Lineas de compra</label>
           <div id="purchaseLines" class="line-list"></div>
@@ -46,8 +46,9 @@
           <div id="purchaseAttachmentPreview">${renderAttachment(draft.attachment, ctx)}</div>
         </div>
         <div class="summary" style="grid-column:1/-1;">
-          <div class="summary-row"><span>Base estimada</span><strong id="purchaseBasePreview">${ctx.money(Math.max(0, ctx.n(draft.totalAmount) - ctx.n(draft.taxAmount)))}</strong></div>
-          <div class="summary-row"><span>Total compra</span><strong id="purchasePreview">${ctx.money(ctx.n(draft.totalAmount))}</strong></div>
+          <div class="summary-row"><span>Base</span><strong id="purchaseBasePreview">0,00 €</strong></div>
+          <div class="summary-row"><span>IVA</span><strong id="purchaseTaxPreview">0,00 €</strong></div>
+          <div class="summary-row"><span>Total compra</span><strong id="purchasePreview">0,00 €</strong></div>
         </div>
       </form>`,
       (body, actions) => {
@@ -57,10 +58,15 @@
         let currentAttachment = draft.attachment || null;
 
         const syncSummary = () => {
-          const total = ctx.n(form.elements.totalAmount.value);
-          const tax = ctx.n(form.elements.taxAmount.value);
-          body.querySelector("#purchaseBasePreview").textContent = ctx.money(Math.max(0, total - tax));
+          const lines = global.AppUILineEditor.collectLines(linesRoot, true, ctx);
+          const base = lines.reduce((sum, line) => sum + ctx.n(line.quantity) * ctx.n(line.price), 0);
+          const iva = lines.reduce((sum, line) => sum + ctx.lineTotal(line) - ctx.n(line.quantity) * ctx.n(line.price), 0);
+          const total = base + iva;
+          body.querySelector("#purchaseBasePreview").textContent = ctx.money(base);
+          body.querySelector("#purchaseTaxPreview").textContent = ctx.money(iva);
           body.querySelector("#purchasePreview").textContent = ctx.money(total);
+          form.elements.totalAmount.value = total.toFixed(2);
+          form.elements.taxAmount.value = iva.toFixed(2);
         };
 
         const drawAttachment = () => {
@@ -68,7 +74,7 @@
           body.querySelector("#purchaseAttachmentRemove").classList.toggle("hidden", !currentAttachment);
         };
 
-        global.AppUILineEditor.setupLineEditor(linesRoot, initialLines, false, syncSummary, ctx);
+        global.AppUILineEditor.setupLineEditor(linesRoot, initialLines, true, syncSummary, ctx);
 
         body.querySelector("#scanInvoiceBtn").addEventListener("click", () => body.querySelector("#scanInvoiceInput").click());
         body.querySelector("#scanInvoiceInput").addEventListener("change", async e => {
@@ -185,37 +191,19 @@ Si el proveedor o producto de la factura coincide aproximadamente con alguno de 
           }
         });
 
-        ["totalAmount","taxAmount"].forEach(name => form.elements[name].addEventListener("input", syncSummary));
         syncSummary();
 
         actions.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => {
           if(btn.dataset.modalAction !== "save") return;
           if(!form.reportValidity()) return;
-          const lines = global.AppUILineEditor.collectLines(linesRoot, false, ctx);
+          const lines = global.AppUILineEditor.collectLines(linesRoot, true, ctx);
           const data = Object.fromEntries(new FormData(form).entries());
-          const total = ctx.n(data.totalAmount);
-          const taxAmount = ctx.n(data.taxAmount);
-          const base = Math.max(0, total - taxAmount);
+          const base = lines.reduce((sum, line) => sum + ctx.n(line.quantity) * ctx.n(line.price), 0);
+          const ivaAmount = lines.reduce((sum, line) => sum + ctx.lineTotal(line) - ctx.n(line.quantity) * ctx.n(line.price), 0);
+          const total = base + ivaAmount;
           const firstLine = lines[0] || {};
           const stockLines = lines.filter(line => line.productId && ctx.n(line.quantity) > 0);
-          const primaryQuantity = ctx.n(firstLine.quantity);
-          const unitCost = primaryQuantity > 0 ? base / primaryQuantity : base;
-          const nextLines = lines.map((line, index) => {
-            const isPrimary = index === 0;
-            const quantity = ctx.n(line.quantity);
-            return {
-              ...line,
-              quantity,
-              unit: line.unit || "",
-              price: isPrimary ? unitCost : ctx.n(line.price),
-              unitCost: isPrimary ? unitCost : ctx.n(line.unitCost),
-              base: isPrimary ? base : ctx.n(line.base),
-              iva: isPrimary ? ctx.n(item.ivaPct || (base > 0 ? (taxAmount / base) * 100 : 0)) : ctx.n(line.iva),
-              ivaPct: isPrimary ? (base > 0 ? (taxAmount / base) * 100 : 0) : ctx.n(line.ivaPct ?? line.iva),
-              ivaAmount: isPrimary ? taxAmount : ctx.n(line.ivaAmount),
-              total: isPrimary ? total : ctx.n(line.total)
-            };
-          });
+          const unitCost = ctx.n(firstLine.price || firstLine.unitCost);
 
           ctx.saveEntity("purchases", {
             ...item,
@@ -224,16 +212,16 @@ Si el proveedor o producto de la factura coincide aproximadamente con alguno de 
             productId:firstLine.productId || "",
             quantity:firstLine.quantity || 0,
             unitCost,
-            iva:taxAmount,
-            ivaPct:base > 0 ? (taxAmount / base) * 100 : 0,
+            iva:ivaAmount,
+            ivaPct:ctx.n(firstLine.ivaPct ?? firstLine.iva),
             base,
             total,
             amount:total,
             baseAmount:base,
-            ivaAmount:taxAmount,
+            ivaAmount:ivaAmount,
             totalAmount:total,
             supplier:data.supplierId ? (ctx.getSupplier(data.supplierId)?.name || item.supplier || "") : "",
-            lines:nextLines,
+            lines:lines,
             notes:data.notes,
             attachment:currentAttachment,
             stockLines:stockLines.map(line => ({ productId:line.productId, quantity:ctx.n(line.quantity) }))
