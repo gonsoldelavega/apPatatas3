@@ -1574,8 +1574,31 @@
       }
       function previewInvoice(id){
         const invoice = state.invoices.find(x => x.id === id); if(!invoice) return;
-        openModal("Vista previa de factura", "Salida limpia sin controles internos", `<div style="background:#fff;border-radius:18px;overflow:auto">${buildInvoicePrint(invoice)}</div>`, null, [{id:"close",label:"Cerrar",className:"ghost"},{id:"print",label:"Imprimir",className:"primary"}]);
-        document.querySelector('[data-modal-action="print"]').addEventListener("click", () => printInvoice(id));
+        openModal("Factura", invoice.number || "Sin número", `<div class="sheet-grid">
+          <div class="summary" style="grid-column:1/-1;">
+            <div class="summary-row"><span>Cliente</span><strong>${esc(getClient(invoice.clientId)?.name || "Cliente sin asignar")}</strong></div>
+            <div class="summary-row"><span>Emisión</span><strong>${esc(date(invoice.issueDate))}</strong></div>
+            <div class="summary-row"><span>Total</span><strong>${money(invoiceTotals(invoice).total)}</strong></div>
+            <div class="summary-row"><span>Estado</span><strong>${esc(invoicePaymentStatus(invoice) === "paid" ? "Pagada" : invoicePaymentStatus(invoice) === "partial" ? "Pago parcial" : "Pendiente")}</strong></div>
+          </div>
+          <div style="grid-column:1/-1;background:#fff;border-radius:18px;overflow:auto">${buildInvoicePrint(invoice)}</div>
+        </div>`, (_body, actions) => {
+          actions.querySelectorAll("[data-modal-action]").forEach(btn => btn.addEventListener("click", () => {
+            const action = btn.dataset.modalAction;
+            if(action === "close") return;
+            closeModal();
+            if(action === "view-detail") return popupPrint(invoice.number, buildInvoicePrint(invoice));
+            if(action === "edit") return openInvoiceForm(id);
+            if(action === "mark-paid") return openInvoicePaymentForm(id);
+            if(action === "delete") return removeEntity("invoices", id, "¿Eliminar esta factura? Esto recalculara el stock.");
+          }));
+        }, [
+          {id:"close",label:"Cerrar",className:"ghost"},
+          {id:"view-detail",label:"Ver detalle",className:"ghost"},
+          {id:"edit",label:"Editar",className:"ghost"},
+          {id:"mark-paid",label:"Marcar como pagada",className:"ghost"},
+          {id:"delete",label:"Eliminar",className:"danger"}
+        ]);
       }
       function printInvoice(id){ const invoice = state.invoices.find(x => x.id === id); if(invoice) popupPrint(invoice.number, buildInvoicePrint(invoice)); }
       function printDeliveryNote(id){ const item = state.deliveryNotes.find(x => x.id === id); if(item) popupPrint(item.number, buildDeliveryPrint(item)); }
