@@ -35,10 +35,10 @@
       const templateSelect = body.querySelector("#invoiceTemplate");
       const termsSelect = body.querySelector("#invoiceTerms");
       function refresh(){
-        const totals = ctx.invoiceTotals({ lines:global.AppUILineEditor.collectLines(linesRoot, true, ctx), amountPaid:amountInput.value });
+        const totals = ctx.invoiceTotals({ lines:global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx), amountPaid:amountInput.value });
         body.querySelector("#invoiceSummary").innerHTML = `<div class="summary-row"><span>Base imponible</span><strong>${ctx.money(totals.base)}</strong></div><div class="summary-row"><span>IVA total</span><strong>${ctx.money(totals.vat)}</strong></div><div class="summary-row total"><span>Total factura</span><strong>${ctx.money(totals.total)}</strong></div><div class="summary-row"><span>Cobrado</span><strong>${ctx.money(totals.paid)}</strong></div><div class="summary-row"><span>Pendiente</span><strong>${ctx.money(totals.pending)}</strong></div>`;
       }
-      global.AppUILineEditor.setupLineEditor(linesRoot, invoice.lines || [ctx.blankLine()], true, refresh, ctx);
+      global.AppUILineEditor.setupLineEditor(linesRoot, invoice.lines || [ctx.blankLine()], "invoice", refresh, ctx);
       amountInput.addEventListener("input", refresh);
       clientSelect.addEventListener("change", () => {
         const client = ctx.getClient(clientSelect.value);
@@ -50,7 +50,7 @@
         if(btn.dataset.modalAction !== "save") return;
         const form = body.querySelector("#invoiceForm");
         if(!form.reportValidity()) return;
-        const lines = global.AppUILineEditor.collectLines(linesRoot, true, ctx);
+        const lines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
         if(!lines.length) return ctx.toast("A\u00f1ade al menos una l\u00ednea a la factura");
         const data = Object.fromEntries(new FormData(form).entries());
         const seq = ctx.parseInvoiceNumber(data.number);

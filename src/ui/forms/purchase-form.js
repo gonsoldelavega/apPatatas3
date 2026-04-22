@@ -58,7 +58,7 @@
         let currentAttachment = draft.attachment || null;
 
         const syncSummary = () => {
-          const lines = global.AppUILineEditor.collectLines(linesRoot, true, ctx);
+          const lines = global.AppUILineEditor.collectLines(linesRoot, "purchase", ctx);
           const base = lines.reduce((sum, line) => sum + ctx.n(line.quantity) * ctx.n(line.price), 0);
           const iva = lines.reduce((sum, line) => sum + ctx.lineTotal(line) - ctx.n(line.quantity) * ctx.n(line.price), 0);
           const total = base + iva;
@@ -74,7 +74,7 @@
           body.querySelector("#purchaseAttachmentRemove").classList.toggle("hidden", !currentAttachment);
         };
 
-        global.AppUILineEditor.setupLineEditor(linesRoot, initialLines, true, syncSummary, ctx);
+        global.AppUILineEditor.setupLineEditor(linesRoot, initialLines, "purchase", syncSummary, ctx);
 
         body.querySelector("#scanInvoiceBtn").addEventListener("click", () => body.querySelector("#scanInvoiceInput").click());
         body.querySelector("#scanInvoiceInput").addEventListener("change", async e => {
@@ -196,7 +196,7 @@ Si el proveedor o producto de la factura coincide aproximadamente con alguno de 
         actions.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => {
           if(btn.dataset.modalAction !== "save") return;
           if(!form.reportValidity()) return;
-          const lines = global.AppUILineEditor.collectLines(linesRoot, true, ctx);
+          const lines = global.AppUILineEditor.collectLines(linesRoot, "purchase", ctx);
           const data = Object.fromEntries(new FormData(form).entries());
           const base = lines.reduce((sum, line) => sum + ctx.n(line.quantity) * ctx.n(line.price), 0);
           const ivaAmount = lines.reduce((sum, line) => sum + ctx.lineTotal(line) - ctx.n(line.quantity) * ctx.n(line.price), 0);
