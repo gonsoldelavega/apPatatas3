@@ -1129,6 +1129,19 @@
           ui.search.invoicesStatus = node.dataset.invoiceStatus || "";
           renderAll();
         }));
+        document.querySelectorAll('#view-dashboard [data-dashboard-invoice]').forEach(node => {
+          const openInvoiceActions = e => {
+            if(e.target.closest('[data-action="update-invoice-payment"]')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            previewInvoice(node.dataset.dashboardInvoice);
+          };
+          node.addEventListener("click", openInvoiceActions);
+          node.addEventListener("keydown", e => {
+            if(e.key !== "Enter" && e.key !== " ") return;
+            openInvoiceActions(e);
+          });
+        });
         const settingsForm = document.getElementById("settingsForm");
         if(settingsForm) settingsForm.addEventListener("submit", e => {
           e.preventDefault();

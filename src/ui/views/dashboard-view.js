@@ -80,7 +80,7 @@
         ${featuredInvoices.length ? `
           <div class="dashboard-list">
             ${featuredInvoices.map(({ invoice, totals, status, tone, overdue }) => `
-              <article class="list-row list-row-interactive invoice-list-card" data-action="preview-invoice" data-id="${invoice.id}">
+              <article class="list-row list-row-interactive invoice-list-card" data-dashboard-invoice="${invoice.id}" role="button" tabindex="0">
                 <div class="invoice-card-top">
                   <div class="invoice-copy">
                     <p class="invoice-card-number">${ctx.esc(invoice.number)}</p>
