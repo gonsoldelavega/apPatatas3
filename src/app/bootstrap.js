@@ -27,7 +27,7 @@
         companyEmail:"gonsoldelavega@gmail.com",
         invoicePrefix:"FAC",
         nextInvoiceNumber:90,
-        accountHolder:"Irene",
+        accountHolder:"Irene González Cabrera",
         iban:"ES84 0182 5764 5102 0167 4970"
       };
         const navItems = [{id:"dashboard",label:"Inicio",icon:"⌂"},{id:"action-sheet",label:"Crear",icon:"+"},{id:"settings",label:"Ajustes",icon:"⚙"}];

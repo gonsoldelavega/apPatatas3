@@ -8,7 +8,7 @@
         invoiceYear:year,
         nextInvoiceNumber:90,
         iban:"ES84 0182 5764 5102 0167 4970",
-        accountHolder:"Irene",
+        accountHolder:"Irene González Cabrera",
         companyName:"Irene González Cabrera",
         companyNif:"45313973V",
         companyAddress:"Calle Luis Cañadas nº33, 04720 Aguadulce, Almería",
