@@ -19,6 +19,17 @@
         ],
         acceptance: "La recepción de la mercancía o de la factura implica la aceptación expresa de estas condiciones."
       };
+      const CANONICAL_SHARED_SETTINGS = {
+        companyName:"Irene González Cabrera",
+        companyNif:"45313973V",
+        companyAddress:"Calle Luis Cañadas nº33, 04720 Aguadulce, Almería",
+        companyPhone:"635516054",
+        companyEmail:"gonsoldelavega@gmail.com",
+        invoicePrefix:"FAC",
+        nextInvoiceNumber:90,
+        accountHolder:"Irene",
+        iban:"ES84 0182 5764 5102 0167 4970"
+      };
         const navItems = [{id:"dashboard",label:"Inicio",icon:"⌂"},{id:"action-sheet",label:"Crear",icon:"+"},{id:"settings",label:"Ajustes",icon:"⚙"}];
       const ui = window.AppUIState.createUiState();
       const selectors = window.AppSelectors;
@@ -508,22 +519,41 @@
       }
       function normalizeSharedSettingsSnapshot(settings = {}){
         return {
-          invoicePrefix:sharedSettingText(settings.invoicePrefix, "FAC"),
+          invoicePrefix:sharedSettingText(settings.invoicePrefix, CANONICAL_SHARED_SETTINGS.invoicePrefix),
           invoiceYear:n(settings.invoiceYear) || YEAR,
-          nextInvoiceNumber:Math.max(n(settings.nextInvoiceNumber) || 1, 1),
-          iban:sharedSettingText(settings.iban, ""),
-          accountHolder:sharedSettingText(settings.accountHolder, ""),
-          companyName:sharedSettingText(settings.companyName, ""),
-          companyNif:sharedSettingText(settings.companyNif, ""),
-          companyAddress:sharedSettingText(settings.companyAddress, ""),
-          companyPhone:sharedSettingText(settings.companyPhone, ""),
-          companyEmail:sharedSettingText(settings.companyEmail, ""),
+          nextInvoiceNumber:Math.max(n(settings.nextInvoiceNumber) || CANONICAL_SHARED_SETTINGS.nextInvoiceNumber, 1),
+          iban:sharedSettingText(settings.iban, CANONICAL_SHARED_SETTINGS.iban),
+          accountHolder:sharedSettingText(settings.accountHolder, CANONICAL_SHARED_SETTINGS.accountHolder),
+          companyName:sharedSettingText(settings.companyName, CANONICAL_SHARED_SETTINGS.companyName),
+          companyNif:sharedSettingText(settings.companyNif, CANONICAL_SHARED_SETTINGS.companyNif),
+          companyAddress:sharedSettingText(settings.companyAddress, CANONICAL_SHARED_SETTINGS.companyAddress),
+          companyPhone:sharedSettingText(settings.companyPhone, CANONICAL_SHARED_SETTINGS.companyPhone),
+          companyEmail:sharedSettingText(settings.companyEmail, CANONICAL_SHARED_SETTINGS.companyEmail),
           driveClientId:sharedSettingText(settings.driveClientId, ""),
           driveRootFolderName:sharedSettingText(settings.driveRootFolderName, "apPatatas"),
           driveAutoUpload:sharedSettingBool(settings.driveAutoUpload, false),
           driveStateFileName:sharedSettingText(settings.driveStateFileName, "apPatatas-state.json"),
           driveStateAutoSync:sharedSettingBool(settings.driveStateAutoSync, false)
         };
+      }
+      function applyCanonicalSharedSettingsFixups(settings = {}){
+        const next = { ...settings };
+        if(!sharedSettingText(next.companyName, "")) next.companyName = CANONICAL_SHARED_SETTINGS.companyName;
+        if(!sharedSettingText(next.companyNif, "")) next.companyNif = CANONICAL_SHARED_SETTINGS.companyNif;
+        if(!sharedSettingText(next.companyAddress, "") || next.companyAddress === "Calle Luis Cañadas 33, 04720 Roquetas de Mar"){
+          next.companyAddress = CANONICAL_SHARED_SETTINGS.companyAddress;
+        }
+        if(!sharedSettingText(next.companyPhone, "") || next.companyPhone === "635 516 054"){
+          next.companyPhone = CANONICAL_SHARED_SETTINGS.companyPhone;
+        }
+        if(!sharedSettingText(next.companyEmail, "")) next.companyEmail = CANONICAL_SHARED_SETTINGS.companyEmail;
+        if(!sharedSettingText(next.invoicePrefix, "")) next.invoicePrefix = CANONICAL_SHARED_SETTINGS.invoicePrefix;
+        if(!sharedSettingText(next.accountHolder, "") || next.accountHolder === "Irene González Cabrera"){
+          next.accountHolder = CANONICAL_SHARED_SETTINGS.accountHolder;
+        }
+        if(!sharedSettingText(next.iban, "")) next.iban = CANONICAL_SHARED_SETTINGS.iban;
+        next.nextInvoiceNumber = Math.max(n(next.nextInvoiceNumber) || 0, CANONICAL_SHARED_SETTINGS.nextInvoiceNumber);
+        return next;
       }
       function mapSharedSettingsFromSupabase(row, currentSettings = {}){
         if(!row || typeof row !== "object") return normalizeSharedSettingsSnapshot(currentSettings);
@@ -608,7 +638,7 @@
       }
       async function hydrateSharedStateFromSupabase(){
         try{
-          const localSettingsSnapshot = normalizeSharedSettingsSnapshot(state.settings || {});
+          const localSettingsSnapshot = normalizeSharedSettingsSnapshot(applyCanonicalSharedSettingsFixups(state.settings || {}));
           let [settingsRow, auxRow] = await Promise.all([
             storageService.getSharedSettings(),
             storageService.getAuxState()
@@ -628,7 +658,7 @@
           }
           store.updateState(current => {
             if(settingsRow){
-              current.settings = mapSharedSettingsFromSupabase(settingsRow, current.settings);
+              current.settings = applyCanonicalSharedSettingsFixups(mapSharedSettingsFromSupabase(settingsRow, current.settings));
             }
             if(auxRow){
               applyAuxStateFromSupabase(current, auxRow);
@@ -2031,6 +2061,7 @@
         current.settings.driveStateFileName = current.settings.driveStateFileName || "apPatatas-state.json";
         current.settings.driveStateAutoSync = current.settings.driveStateAutoSync === true || current.settings.driveStateAutoSync === "true";
         current.settings.deviceId = current.settings.deviceId || (crypto?.randomUUID ? crypto.randomUUID() : uid("device"));
+        current.settings = applyCanonicalSharedSettingsFixups(current.settings);
       });
       syncState();
       const baseBindViewEvents = bindViewEvents;
