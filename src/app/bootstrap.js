@@ -538,7 +538,9 @@
       }
       function applyCanonicalSharedSettingsFixups(settings = {}){
         const next = { ...settings };
-        if(!sharedSettingText(next.companyName, "")) next.companyName = CANONICAL_SHARED_SETTINGS.companyName;
+        if(!sharedSettingText(next.companyName, "") || next.companyName === "Gonsol de la Vega"){
+          next.companyName = CANONICAL_SHARED_SETTINGS.companyName;
+        }
         if(!sharedSettingText(next.companyNif, "")) next.companyNif = CANONICAL_SHARED_SETTINGS.companyNif;
         if(!sharedSettingText(next.companyAddress, "") || next.companyAddress === "Calle Luis Cañadas 33, 04720 Roquetas de Mar"){
           next.companyAddress = CANONICAL_SHARED_SETTINGS.companyAddress;
