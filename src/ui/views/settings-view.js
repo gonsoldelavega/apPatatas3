@@ -54,8 +54,18 @@
             <div class="field"><label>Siguiente numero</label><input name="nextInvoiceNumber" type="number" value="${ctx.esc(ctx.state.settings.nextInvoiceNumber)}"></div>
             <div class="field"><label>Titular cuenta</label><input name="accountHolder" value="${ctx.esc(ctx.state.settings.accountHolder)}"></div>
             <div class="field"><label>IBAN</label><input name="iban" value="${ctx.esc(ctx.state.settings.iban)}"></div>
+            <div class="field"><label>ID dispositivo</label><input name="deviceId" value="${ctx.esc(ctx.state.settings.deviceId || "")}"></div>
+            <div class="field"><label>Google OAuth Client ID</label><input name="driveClientId" value="${ctx.esc(ctx.state.settings.driveClientId || "")}" placeholder="Pega tu Client ID web para Drive"></div>
+            <div class="field"><label>Carpeta raiz Drive</label><input name="driveRootFolderName" value="${ctx.esc(ctx.state.settings.driveRootFolderName || "apPatatas")}"></div>
+            <div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${ctx.state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${ctx.state.settings.driveAutoUpload ? "selected" : ""}>Si</option></select></div>
+            <div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${ctx.esc(ctx.state.settings.driveStateFileName || "apPatatas-state.json")}"></div>
+            <div class="field"><label>Sincronizacion automatica datos Drive</label><select name="driveStateAutoSync"><option value="false" ${ctx.state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${ctx.state.settings.driveStateAutoSync ? "selected" : ""}>Si</option></select></div>
             <div class="field" style="grid-column:1/-1;"><button class="primary" type="submit">Guardar ajustes</button></div>
           </form>
+          <div class="summary">
+            <div class="summary-row"><span>OCR Anthropic</span><strong>Gestionado en servidor</strong></div>
+            <div class="hint">La clave de Anthropic ya no depende del dispositivo. Se usa desde las variables de entorno del backend.</div>
+          </div>
           <div class="actions section-actions"><button class="warn" data-action="reset-storage">Reiniciar datos locales</button></div>
         </div>
       </div>

@@ -496,26 +496,92 @@
           updated_at:new Date().toISOString()
         };
       }
+      function sharedSettingText(value, fallback = ""){
+        if(value === undefined || value === null || value === "") return fallback;
+        return String(value);
+      }
+      function sharedSettingBool(value, fallback = false){
+        if(value === true || value === false) return value;
+        if(value === "true") return true;
+        if(value === "false") return false;
+        return fallback === true || fallback === "true";
+      }
+      function normalizeSharedSettingsSnapshot(settings = {}){
+        return {
+          invoicePrefix:sharedSettingText(settings.invoicePrefix, "FAC"),
+          invoiceYear:n(settings.invoiceYear) || YEAR,
+          nextInvoiceNumber:Math.max(n(settings.nextInvoiceNumber) || 1, 1),
+          iban:sharedSettingText(settings.iban, ""),
+          accountHolder:sharedSettingText(settings.accountHolder, ""),
+          companyName:sharedSettingText(settings.companyName, ""),
+          companyNif:sharedSettingText(settings.companyNif, ""),
+          companyAddress:sharedSettingText(settings.companyAddress, ""),
+          companyPhone:sharedSettingText(settings.companyPhone, ""),
+          companyEmail:sharedSettingText(settings.companyEmail, ""),
+          driveClientId:sharedSettingText(settings.driveClientId, ""),
+          driveRootFolderName:sharedSettingText(settings.driveRootFolderName, "apPatatas"),
+          driveAutoUpload:sharedSettingBool(settings.driveAutoUpload, false),
+          driveStateFileName:sharedSettingText(settings.driveStateFileName, "apPatatas-state.json"),
+          driveStateAutoSync:sharedSettingBool(settings.driveStateAutoSync, false)
+        };
+      }
       function mapSharedSettingsFromSupabase(row, currentSettings = {}){
-        if(!row || typeof row !== "object") return currentSettings;
+        if(!row || typeof row !== "object") return normalizeSharedSettingsSnapshot(currentSettings);
+        const fallback = normalizeSharedSettingsSnapshot(currentSettings);
         return {
           ...currentSettings,
-          invoicePrefix:row.invoice_prefix || currentSettings.invoicePrefix || "FAC",
-          invoiceYear:n(row.invoice_year) || currentSettings.invoiceYear || YEAR,
-          nextInvoiceNumber:Math.max(n(row.next_invoice_number) || currentSettings.nextInvoiceNumber || 1, 1),
-          iban:row.iban || "",
-          accountHolder:row.account_holder || "",
-          companyName:row.company_name || "",
-          companyNif:row.company_nif || "",
-          companyAddress:row.company_address || "",
-          companyPhone:row.company_phone || "",
-          companyEmail:row.company_email || "",
-          driveClientId:row.drive_client_id || currentSettings.driveClientId || "",
-          driveRootFolderName:row.drive_root_folder_name || currentSettings.driveRootFolderName || "apPatatas",
-          driveAutoUpload:row.drive_auto_upload === true,
-          driveStateFileName:row.drive_state_file_name || currentSettings.driveStateFileName || "apPatatas-state.json",
-          driveStateAutoSync:row.drive_state_auto_sync === true
+          invoicePrefix:sharedSettingText(row.invoice_prefix, fallback.invoicePrefix),
+          invoiceYear:n(row.invoice_year) || fallback.invoiceYear,
+          nextInvoiceNumber:Math.max(n(row.next_invoice_number) || fallback.nextInvoiceNumber || 1, 1),
+          iban:sharedSettingText(row.iban, fallback.iban),
+          accountHolder:sharedSettingText(row.account_holder, fallback.accountHolder),
+          companyName:sharedSettingText(row.company_name, fallback.companyName),
+          companyNif:sharedSettingText(row.company_nif, fallback.companyNif),
+          companyAddress:sharedSettingText(row.company_address, fallback.companyAddress),
+          companyPhone:sharedSettingText(row.company_phone, fallback.companyPhone),
+          companyEmail:sharedSettingText(row.company_email, fallback.companyEmail),
+          driveClientId:sharedSettingText(row.drive_client_id, fallback.driveClientId),
+          driveRootFolderName:sharedSettingText(row.drive_root_folder_name, fallback.driveRootFolderName),
+          driveAutoUpload:sharedSettingBool(row.drive_auto_upload, fallback.driveAutoUpload),
+          driveStateFileName:sharedSettingText(row.drive_state_file_name, fallback.driveStateFileName),
+          driveStateAutoSync:sharedSettingBool(row.drive_state_auto_sync, fallback.driveStateAutoSync)
         };
+      }
+      function buildBackfilledSharedSettingsRow(remoteRow, localSettings){
+        const mergedSettings = mapSharedSettingsFromSupabase(remoteRow || {}, localSettings);
+        mergedSettings.nextInvoiceNumber = Math.max(
+          n(mergedSettings.nextInvoiceNumber),
+          n(localSettings?.nextInvoiceNumber),
+          1
+        );
+        return mapSharedSettingsToSupabase(mergedSettings);
+      }
+      function sharedSettingsNeedBackfill(remoteRow, nextRow){
+        if(!remoteRow) return true;
+        const keys = [
+          "invoice_prefix",
+          "invoice_year",
+          "next_invoice_number",
+          "iban",
+          "account_holder",
+          "company_name",
+          "company_nif",
+          "company_address",
+          "company_phone",
+          "company_email",
+          "drive_client_id",
+          "drive_root_folder_name",
+          "drive_auto_upload",
+          "drive_state_file_name",
+          "drive_state_auto_sync"
+        ];
+        return keys.some(key => {
+          const left = remoteRow[key];
+          const right = nextRow[key];
+          if(typeof right === "boolean") return left !== right;
+          if(typeof right === "number") return Number(left || 0) !== Number(right || 0);
+          return sharedSettingText(left, "") !== sharedSettingText(right, "");
+        });
       }
       function mapAuxStateToSupabase(snapshot){
         return {
@@ -542,12 +608,20 @@
       }
       async function hydrateSharedStateFromSupabase(){
         try{
-          const [settingsRow, auxRow] = await Promise.all([
+          const localSettingsSnapshot = normalizeSharedSettingsSnapshot(state.settings || {});
+          let [settingsRow, auxRow] = await Promise.all([
             storageService.getSharedSettings(),
             storageService.getAuxState()
           ]);
           if(!settingsRow){
-            await storageService.saveSharedSettings(mapSharedSettingsToSupabase(state.settings));
+            settingsRow = await storageService.saveSharedSettings(mapSharedSettingsToSupabase(localSettingsSnapshot))
+              || mapSharedSettingsToSupabase(localSettingsSnapshot);
+          }else{
+            const backfilledRow = buildBackfilledSharedSettingsRow(settingsRow, localSettingsSnapshot);
+            if(sharedSettingsNeedBackfill(settingsRow, backfilledRow)){
+              settingsRow = await storageService.saveSharedSettings(backfilledRow)
+                || { ...settingsRow, ...backfilledRow };
+            }
           }
           if(!auxRow){
             await storageService.saveAuxState(mapAuxStateToSupabase(state));
@@ -1270,8 +1344,15 @@
         if(settingsForm) settingsForm.addEventListener("submit", e => {
           e.preventDefault();
           const data = Object.fromEntries(new FormData(settingsForm).entries());
+          const normalizedSettings = {
+            ...data,
+            invoiceYear:n(data.invoiceYear),
+            nextInvoiceNumber:n(data.nextInvoiceNumber),
+            driveAutoUpload:data.driveAutoUpload === "true",
+            driveStateAutoSync:data.driveStateAutoSync === "true"
+          };
           store.updateState(current => {
-            current.settings = { ...current.settings, ...data, invoiceYear:n(data.invoiceYear), nextInvoiceNumber:n(data.nextInvoiceNumber) };
+            current.settings = { ...current.settings, ...normalizedSettings };
           }, { persist:true });
           syncState();
           renderAll();
@@ -1960,10 +2041,6 @@
           renderAll();
         }));
         const settingsForm = document.getElementById("settingsForm");
-          if(settingsForm && !settingsForm.querySelector('[name="driveClientId"]')){
-            const anchor = settingsForm.lastElementChild;
-            anchor.insertAdjacentHTML("beforebegin", `<div class="field"><label>ID dispositivo</label><input name="deviceId" value="${esc(state.settings.deviceId || "")}"></div><div class="field"><label>Google OAuth Client ID</label><input name="driveClientId" value="${esc(state.settings.driveClientId || "")}" placeholder="Pega tu Client ID web para Drive"></div><div class="field"><label>Carpeta raiz Drive</label><input name="driveRootFolderName" value="${esc(state.settings.driveRootFolderName || "apPatatas")}"></div><div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${state.settings.driveAutoUpload ? "selected" : ""}>Si</option></select></div><div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${esc(state.settings.driveStateFileName || "apPatatas-state.json")}"></div><div class="field"><label>Sincronizacion automatica datos Drive</label><select name="driveStateAutoSync"><option value="false" ${state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${state.settings.driveStateAutoSync ? "selected" : ""}>Si</option></select></div>`);
-          }
           renderDriveStatusPanel(settingsForm);
           settingsForm?.querySelectorAll('#driveStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
             e.preventDefault();
