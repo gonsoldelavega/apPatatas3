@@ -96,7 +96,7 @@
 
         const runOcr = async () => {
           if(!draft.images.length) return ctx.toast("Primero añade una imagen del documento");
-          setOcrStatus(ctx.getAnthropicKey() ? "Leyendo texto del documento con OCR + IA..." : "Leyendo texto del documento...");
+          setOcrStatus("Leyendo texto del documento con OCR + IA...");
           try{
             const result = await ctx.runDocumentOcr(draft.images[0].dataUrl);
             draft.ocrText = result.text;

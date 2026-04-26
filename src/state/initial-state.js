@@ -19,8 +19,8 @@
         driveAutoUpload:false,
         driveStateFileName:"apPatatas-state.json",
         driveStateAutoSync:false,
-        backendUrl:"/api/app-state",
-        backendAutoSync:true,
+        backendUrl:"",
+        backendAutoSync:false,
         deviceId:"",
         lastSavedAt:""
       },

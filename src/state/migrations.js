@@ -96,8 +96,8 @@
       next.products = applySeed(structuredClone(options.createDefaultState()), options.seed, options.uid).products;
     }
     next.clients = (next.clients || []).map(client => ({ ...client, taxId:normalizeTaxId(client.taxId) }));
-    next.settings.backendUrl = next.settings.backendUrl || "/api/app-state";
-    next.settings.backendAutoSync = next.settings.backendAutoSync === true || next.settings.backendAutoSync === "true";
+    next.settings.backendUrl = next.settings.backendUrl || "";
+    next.settings.backendAutoSync = false;
     next.settings.deviceId = next.settings.deviceId || "";
     next.settings.lastSavedAt = next.settings.lastSavedAt || next._sync.updatedAt || "";
     next.settings.driveClientId = next.settings.driveClientId || "";

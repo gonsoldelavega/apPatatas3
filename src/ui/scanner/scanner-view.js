@@ -107,9 +107,7 @@
   }
 
   async function callAnthropicDirect(imageDataUrl, options){
-    const parsedImage = parseDataUrl(imageDataUrl);
-    const anthropicKey = options.anthropicKey || global.localStorage?.getItem("anthropic-api-key") || "";
-    if(!parsedImage || !anthropicKey) throw new Error("missing_anthropic_key");
+    return callScannerApiRoute(imageDataUrl, options);
 
     const prompt = [
       "Eres un experto en extracción de datos de facturas españolas.",
@@ -186,12 +184,7 @@
   }
 
   async function extractInvoiceData(processedDataUrl, options){
-    try{
-      return await callScannerApiRoute(processedDataUrl, options);
-    }catch(error){
-      console.warn("scanner-ocr-api-fallback", error);
-      return callAnthropicDirect(processedDataUrl, options);
-    }
+    return callScannerApiRoute(processedDataUrl, options);
   }
 
   function inferUnit(line){

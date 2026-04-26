@@ -39,7 +39,7 @@
         <div class="panel-h">
           <div>
             <h2>Configuracion general</h2>
-            <div class="sub">Empresa, numeracion, datos bancarios y ajustes de sincronizacion</div>
+            <div class="sub">Empresa, numeracion, datos bancarios y ajustes compartidos</div>
           </div>
         </div>
         <div class="panel-b">
@@ -54,16 +54,8 @@
             <div class="field"><label>Siguiente numero</label><input name="nextInvoiceNumber" type="number" value="${ctx.esc(ctx.state.settings.nextInvoiceNumber)}"></div>
             <div class="field"><label>Titular cuenta</label><input name="accountHolder" value="${ctx.esc(ctx.state.settings.accountHolder)}"></div>
             <div class="field"><label>IBAN</label><input name="iban" value="${ctx.esc(ctx.state.settings.iban)}"></div>
-            <div class="field"><label>Token compartido de sincronizacion</label><input name="syncToken" value="" placeholder="La misma clave en movil y ordenador"></div>
             <div class="field" style="grid-column:1/-1;"><button class="primary" type="submit">Guardar ajustes</button></div>
           </form>
-          <div id="syncStatusPanel" class="summary sync-summary">
-            <div class="summary-row"><span>Estado de nube</span><strong>Comprobando...</strong></div>
-            <div class="card-actions">
-              <button type="button" data-action="sync-debug-force">Sincronizar ahora</button>
-              <button type="button" data-action="sync-debug-clear-cache">Borrar token de este dispositivo</button>
-            </div>
-          </div>
           <div class="actions section-actions"><button class="warn" data-action="reset-storage">Reiniciar datos locales</button></div>
         </div>
       </div>

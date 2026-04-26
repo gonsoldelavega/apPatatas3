@@ -1,5 +1,5 @@
-const CACHE = "factupapa-v2026-04-18-syncfix";
-const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg"];
+const CACHE = "factupapa-v2026-04-26-cloud-first";
+const APP_SHELL = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -48,7 +48,7 @@ self.addEventListener("fetch", event => {
   const isLocal = url.origin === self.location.origin;
   const isApiRequest = isLocal && url.pathname.startsWith("/api/");
   const isDocument = event.request.mode === "navigate" || event.request.destination === "document";
-  const isStaticAsset = isLocal && /(\.js|\.css|\.json|\.svg|\.webmanifest)$/i.test(url.pathname);
+  const isStaticAsset = isLocal && /(\.js|\.css|\.json|\.svg|\.png|\.jpg|\.jpeg|\.webmanifest)$/i.test(url.pathname);
   const isCriticalShell = isLocal && (
     url.pathname.endsWith("/index.html") ||
     url.pathname.endsWith("/manifest.json") ||
@@ -59,6 +59,10 @@ self.addEventListener("fetch", event => {
     return;
   }
   if(isDocument || isCriticalShell || isStaticAsset){
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+  if(isLocal){
     event.respondWith(networkFirst(event.request));
     return;
   }

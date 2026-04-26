@@ -84,76 +84,53 @@
           statusEl.style.display = "block";
           statusEl.textContent = "Analizando factura...";
           try{
-            const base64 = await new Promise((res, rej) => {
+            const dataUrl = await new Promise((res, rej) => {
               const reader = new FileReader();
-              reader.onload = () => res(String(reader.result || "").split(",")[1]);
+              reader.onload = () => res(String(reader.result || ""));
               reader.onerror = () => rej(new Error("No se pudo leer la imagen"));
               reader.readAsDataURL(file);
             });
-            const productNames = ctx.state.products.map(p => p.name).join(", ");
-            const supplierNames = ctx.state.suppliers.map(s => s.name).join(", ");
-            const response = await fetch("https://api.anthropic.com/v1/messages", {
+            const response = await fetch("/api/anthropic-ocr", {
               method: "POST",
               headers: {
-                "Content-Type": "application/json",
-                "x-api-key": ctx.getAnthropicKey(),
-                "anthropic-version": "2023-06-01",
-                "anthropic-dangerous-direct-browser-access": "true"
+                "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                model: "claude-sonnet-4-5",
-                max_tokens: 1000,
-                messages: [{
-                  role: "user",
-                  content: [
-                    {
-                      type: "image",
-                      source: { type: "base64", media_type: file.type || "image/jpeg", data: base64 }
-                    },
-                    {
-                      type: "text",
-                      text: `Analiza esta factura de compra y extrae los datos. Responde SOLO con un objeto JSON sin texto adicional ni backticks, con estos campos exactos:
-{
-  "date": "YYYY-MM-DD o null",
-  "supplierName": "nombre del proveedor tal como aparece o null",
-  "totalAmount": numero total de la factura con IVA o null,
-  "taxAmount": importe del IVA en euros o null,
-  "productName": "nombre del producto principal comprado o null",
-  "quantity": numero de kg o unidades compradas o null,
-  "notes": "cualquier referencia o dato adicional relevante o null"
-}
-Proveedores conocidos: ${supplierNames}
-Productos conocidos: ${productNames}
-Si el proveedor o producto de la factura coincide aproximadamente con alguno de la lista, usa el nombre exacto de la lista.`
-                    }
-                  ]
-                }]
+                imageDataUrl:dataUrl
               })
             });
-            const data = await response.json();
-            const text = data.content.map(block => block.text || "").join("");
-            const extracted = JSON.parse(text.replace(/```json|```/g, "").trim());
-            if(extracted.date) form.elements.date.value = extracted.date;
-            if(extracted.totalAmount != null) form.elements.totalAmount.value = Number(extracted.totalAmount).toFixed(2);
-            if(extracted.taxAmount != null) form.elements.taxAmount.value = Number(extracted.taxAmount).toFixed(2);
-            if(extracted.notes) form.elements.notes.value = extracted.notes;
-            if(extracted.supplierName){
-              const supplierMatch = ctx.state.suppliers.find(s => s.name.toLowerCase().includes(extracted.supplierName.toLowerCase()) || extracted.supplierName.toLowerCase().includes(s.name.toLowerCase()));
+            const payload = await response.json().catch(() => ({}));
+            if(!response.ok || payload?.ok === false){
+              throw new Error(payload?.error || `anthropic-${response.status}`);
+            }
+            const extracted = payload?.result || {};
+            if(extracted.fecha) form.elements.date.value = extracted.fecha;
+            if(extracted.total_factura != null) form.elements.totalAmount.value = Number(extracted.total_factura).toFixed(2);
+            if(extracted.iva_total != null) form.elements.taxAmount.value = Number(extracted.iva_total).toFixed(2);
+            if(extracted.proveedor_nombre){
+              const supplierMatch = ctx.state.suppliers.find(s => s.name.toLowerCase().includes(extracted.proveedor_nombre.toLowerCase()) || extracted.proveedor_nombre.toLowerCase().includes(s.name.toLowerCase()));
               if(supplierMatch) form.elements.supplierId.value = supplierMatch.id;
             }
-            if(extracted.productName){
-              const productMatch = ctx.state.products.find(p => p.name.toLowerCase().includes(extracted.productName.toLowerCase()) || extracted.productName.toLowerCase().includes(p.name.toLowerCase()));
+            if(extracted.lineas?.[0]?.descripcion){
+              const firstExtractedLine = extracted.lineas[0];
+              const productMatch = ctx.state.products.find(p => p.name.toLowerCase().includes(firstExtractedLine.descripcion.toLowerCase()) || firstExtractedLine.descripcion.toLowerCase().includes(p.name.toLowerCase()));
               if(productMatch){
                 const firstLine = linesRoot.querySelector('.line[data-index="0"]');
                 if(firstLine){
                   const productSelect = firstLine.querySelector('[name="productId"]');
                   const quantityInput = firstLine.querySelector('[name="quantity"]');
+                  const priceInput = firstLine.querySelector('[name="price"]');
+                  const ivaInput = firstLine.querySelector('[name="iva"]');
                   const descriptionInput = firstLine.querySelector('[name="description"]');
                   if(productSelect) productSelect.value = productMatch.id;
                   if(descriptionInput) descriptionInput.value = productMatch.name;
-                  if(quantityInput && extracted.quantity != null) quantityInput.value = extracted.quantity;
+                  if(quantityInput && firstExtractedLine.cantidad != null) quantityInput.value = firstExtractedLine.cantidad;
+                  if(priceInput && firstExtractedLine.precio_unitario != null) priceInput.value = firstExtractedLine.precio_unitario;
+                  if(ivaInput && firstExtractedLine.iva_pct != null) ivaInput.value = firstExtractedLine.iva_pct;
                   productSelect?.dispatchEvent(new Event("change", { bubbles:true }));
                   quantityInput?.dispatchEvent(new Event("input", { bubbles:true }));
+                  priceInput?.dispatchEvent(new Event("input", { bubbles:true }));
+                  ivaInput?.dispatchEvent(new Event("input", { bubbles:true }));
                   descriptionInput?.dispatchEvent(new Event("input", { bubbles:true }));
                 }
               }

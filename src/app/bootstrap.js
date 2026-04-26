@@ -6,7 +6,8 @@
       const SYNC_META_KEY = "factupapa-sync-meta-v1";
       const DRIVE_TOKEN_KEY = "google-drive-token";
       const DRIVE_PROFILE_KEY = "google-drive-profile";
-      const PRIMARY_REMOTE_COLLECTIONS = ["clients","products","invoices","expenses","purchases","walletMovements"];
+      const PRIMARY_REMOTE_COLLECTIONS = ["clients","suppliers","products","invoices","expenses","purchases","walletMovements"];
+      const SHARED_REMOTE_COLLECTIONS = ["templates","deliveryNotes","documents"];
       const YEAR = new Date().getFullYear();
       const LEGAL_PAYMENT_TEXT = {
         payment: "Forma de pago: El importe de la presente factura deberá ser abonado en un plazo máximo de 72 horas desde su fecha de emisión.",
@@ -248,6 +249,21 @@
           notes:row.notas || ""
         };
       }
+      function mapSupplierToSupabase(item){
+        return {
+          proveedor_id:item.id,
+          nombre:item.name || "",
+          nif:item.taxId || "",
+          telefono:item.phone || "",
+          email:item.email || "",
+          direccion:item.address || "",
+          cp:item.cp || "",
+          ciudad:item.city || "",
+          provincia:item.province || "",
+          pais:item.country || "",
+          notas:item.notes || ""
+        };
+      }
       function mapProductToSupabase(item){
         return {
           producto_id:item.id,
@@ -460,6 +476,61 @@
           notes:row.notas || ""
         };
       }
+      function mapSharedSettingsToSupabase(settings){
+        return {
+          invoice_prefix:settings.invoicePrefix || "FAC",
+          invoice_year:n(settings.invoiceYear) || YEAR,
+          next_invoice_number:Math.max(n(settings.nextInvoiceNumber) || 1, 1),
+          iban:settings.iban || "",
+          account_holder:settings.accountHolder || "",
+          company_name:settings.companyName || "",
+          company_nif:settings.companyNif || "",
+          company_address:settings.companyAddress || "",
+          company_phone:settings.companyPhone || "",
+          company_email:settings.companyEmail || "",
+          drive_client_id:settings.driveClientId || "",
+          drive_root_folder_name:settings.driveRootFolderName || "apPatatas",
+          drive_auto_upload:settings.driveAutoUpload === true || settings.driveAutoUpload === "true",
+          drive_state_file_name:settings.driveStateFileName || "apPatatas-state.json",
+          drive_state_auto_sync:settings.driveStateAutoSync === true || settings.driveStateAutoSync === "true",
+          updated_at:new Date().toISOString()
+        };
+      }
+      function mapSharedSettingsFromSupabase(row, currentSettings = {}){
+        if(!row || typeof row !== "object") return currentSettings;
+        return {
+          ...currentSettings,
+          invoicePrefix:row.invoice_prefix || currentSettings.invoicePrefix || "FAC",
+          invoiceYear:n(row.invoice_year) || currentSettings.invoiceYear || YEAR,
+          nextInvoiceNumber:Math.max(n(row.next_invoice_number) || currentSettings.nextInvoiceNumber || 1, 1),
+          iban:row.iban || "",
+          accountHolder:row.account_holder || "",
+          companyName:row.company_name || "",
+          companyNif:row.company_nif || "",
+          companyAddress:row.company_address || "",
+          companyPhone:row.company_phone || "",
+          companyEmail:row.company_email || "",
+          driveClientId:row.drive_client_id || currentSettings.driveClientId || "",
+          driveRootFolderName:row.drive_root_folder_name || currentSettings.driveRootFolderName || "apPatatas",
+          driveAutoUpload:row.drive_auto_upload === true,
+          driveStateFileName:row.drive_state_file_name || currentSettings.driveStateFileName || "apPatatas-state.json",
+          driveStateAutoSync:row.drive_state_auto_sync === true
+        };
+      }
+      function mapAuxStateToSupabase(snapshot){
+        return {
+          templates:structuredClone(snapshot.templates || []),
+          delivery_notes:structuredClone(snapshot.deliveryNotes || []),
+          documents:structuredClone(snapshot.documents || []),
+          updated_at:new Date().toISOString()
+        };
+      }
+      function applyAuxStateFromSupabase(current, row){
+        if(!row || typeof row !== "object") return;
+        if(Array.isArray(row.templates)) current.templates = row.templates;
+        if(Array.isArray(row.delivery_notes)) current.deliveryNotes = row.delivery_notes;
+        if(Array.isArray(row.documents)) current.documents = row.documents;
+      }
       async function loadSupabaseTableWithLogs(label, loader){
         try{
           const rows = await loader();
@@ -467,6 +538,34 @@
         }catch(error){
           console.error(`[SUPABASE ERROR] ${label} → ${error?.message || String(error)}`);
           throw error;
+        }
+      }
+      async function hydrateSharedStateFromSupabase(){
+        try{
+          const [settingsRow, auxRow] = await Promise.all([
+            storageService.getSharedSettings(),
+            storageService.getAuxState()
+          ]);
+          if(!settingsRow){
+            await storageService.saveSharedSettings(mapSharedSettingsToSupabase(state.settings));
+          }
+          if(!auxRow){
+            await storageService.saveAuxState(mapAuxStateToSupabase(state));
+          }
+          store.updateState(current => {
+            if(settingsRow){
+              current.settings = mapSharedSettingsFromSupabase(settingsRow, current.settings);
+            }
+            if(auxRow){
+              applyAuxStateFromSupabase(current, auxRow);
+            }
+          }, { persist:true, reason:"supabase:hydrate-shared-state" });
+          syncState();
+          return true;
+        }catch(error){
+          console.error("[supabase] No se pudieron cargar los ajustes compartidos. Se usara la copia local temporal.", error);
+          showDataNotice("Usando ajustes locales temporales. La configuración compartida de Supabase no ha respondido.", "warn");
+          return false;
         }
       }
       async function hydratePrimaryEntitiesFromSupabase(){
@@ -589,6 +688,7 @@
       }
       async function savePrimaryCollectionToSupabase(collection, entity){
         if(collection === "clients") return storageService.saveCliente(mapClientToSupabase(entity));
+        if(collection === "suppliers") return storageService.saveProveedor(mapSupplierToSupabase(entity));
         if(collection === "products") return storageService.saveProducto(mapProductToSupabase(entity));
         if(collection === "invoices") return storageService.saveFactura(mapInvoiceToSupabase(entity));
         if(collection === "expenses") return storageService.saveGasto(mapExpenseToSupabase(entity));
@@ -598,6 +698,7 @@
       }
       async function deletePrimaryCollectionFromSupabase(collection, id){
         if(collection === "clients") return storageService.deleteCliente(id);
+        if(collection === "suppliers") return storageService.deleteProveedor(id);
         if(collection === "products") return storageService.deleteProducto(id);
         if(collection === "invoices") return storageService.deleteFactura(id);
         if(collection === "expenses") return storageService.deleteGasto(id);
@@ -605,12 +706,25 @@
         if(collection === "walletMovements") return storageService.deleteWalletMovement(id);
         return false;
       }
+      async function saveSharedSettingsToSupabase(nextSettings){
+        return storageService.saveSharedSettings(mapSharedSettingsToSupabase(nextSettings));
+      }
+      async function saveAuxCollectionsToSupabase(){
+        return storageService.saveAuxState(mapAuxStateToSupabase(state));
+      }
       async function saveEntity(collection, entity, id){
         const isPrimaryRemote = PRIMARY_REMOTE_COLLECTIONS.includes(collection);
+        const isSharedRemote = SHARED_REMOTE_COLLECTIONS.includes(collection);
         if(!isPrimaryRemote){
           store.saveEntity(collection, entity, id);
           syncState();
           renderAll();
+          if(isSharedRemote){
+            saveAuxCollectionsToSupabase().catch(error => {
+              console.error(`[supabase] No se pudo guardar ${collection} compartido. Se mantiene copia local temporal.`, error);
+              showDataNotice("No se pudo guardar el estado compartido en Supabase. Se ha conservado una copia local temporal.", "warn");
+            });
+          }
           return;
         }
         store.saveEntity(collection, entity, id);
@@ -728,6 +842,7 @@
       async function removeEntity(collection, id, message){
         if(!confirm(message)) return;
         const isPrimaryRemote = PRIMARY_REMOTE_COLLECTIONS.includes(collection);
+        const isSharedRemote = SHARED_REMOTE_COLLECTIONS.includes(collection);
         if(isPrimaryRemote){
           try{
             await deletePrimaryCollectionFromSupabase(collection, id);
@@ -740,6 +855,12 @@
         store.removeEntity(collection, id);
         syncState();
         renderAll();
+        if(isSharedRemote){
+          saveAuxCollectionsToSupabase().catch(error => {
+            console.error(`[supabase] No se pudo actualizar ${collection} compartido tras borrar.`, error);
+            showDataNotice("No se pudo actualizar el estado compartido en Supabase tras borrar. Se ha conservado una copia local temporal.", "warn");
+          });
+        }
       }
       function deleteWalletMovement(id){
         const item = state.walletMovements.find(x => x.id === id);
@@ -944,11 +1065,18 @@
         };
       }
 
-      function bumpNextInvoiceNumber(seq){
+      async function reserveNextInvoiceNumber(){
+        const result = await storageService.reserveInvoiceNumber(mapSharedSettingsToSupabase(state.settings));
+        if(!result) return composeInvoiceNumber(state.settings.nextInvoiceNumber);
+        const reserved = Math.max(Number(result.reserved || state.settings.nextInvoiceNumber || 1), 1);
         store.updateState(current => {
-          current.settings.nextInvoiceNumber = seq + 1;
-        });
+          current.settings = mapSharedSettingsFromSupabase(result.row || {}, {
+            ...current.settings,
+            nextInvoiceNumber:reserved + 1
+          });
+        }, { persist:true, reason:"supabase:reserve-invoice-number" });
         syncState();
+        return composeInvoiceNumber(reserved);
       }
       function formContext(){
         return {
@@ -980,14 +1108,13 @@
            createWalletMovement,
            deleteWalletMovement,
            toast,
-          getAnthropicKey: () => readDeviceLocal("anthropic-api-key") || "",
           relatedOptions,
             parseRelatedValue,
             processAttachmentFile,
             openAttachment,
             processDocumentFile,
             runDocumentOcr,
-            bumpNextInvoiceNumber,
+            reserveNextInvoiceNumber,
             openScannerFlow: options => scannerViewUI.openScannerFlow(options)
           };
         }
@@ -1061,13 +1188,10 @@
         };
       }
       async function enhanceDocumentOcrWithAnthropic(dataUrl, localResult){
-        const anthropicKey = readDeviceLocal("anthropic-api-key") || "";
-        if(!anthropicKey) return null;
         const response = await fetch("/api/anthropic-ocr", {
           method:"POST",
           headers:{
-            "Content-Type":"application/json",
-            "x-anthropic-api-key":anthropicKey
+            "Content-Type":"application/json"
           },
           body:JSON.stringify({
             imageDataUrl:dataUrl,
@@ -1146,20 +1270,16 @@
         if(settingsForm) settingsForm.addEventListener("submit", e => {
           e.preventDefault();
           const data = Object.fromEntries(new FormData(settingsForm).entries());
-          if (data.anthropicApiKey && data.anthropicApiKey.trim()) {
-            writeDeviceLocal("anthropic-api-key", data.anthropicApiKey.trim());
-          }
-          if (Object.prototype.hasOwnProperty.call(data, "syncToken")) {
-            const syncToken = String(data.syncToken || "").trim();
-            writeDeviceLocal(SYNC_TOKEN_KEY, syncToken);
-            window.__SYNC_TOKEN__ = syncToken;
-          }
-          delete data.anthropicApiKey;
-          delete data.syncToken;
           store.updateState(current => {
             current.settings = { ...current.settings, ...data, invoiceYear:n(data.invoiceYear), nextInvoiceNumber:n(data.nextInvoiceNumber) };
           }, { persist:true });
-          syncState(); toast("Ajustes guardados"); renderAll();
+          syncState();
+          renderAll();
+          saveSharedSettingsToSupabase(state.settings).catch(error => {
+            console.error("[supabase] No se pudieron guardar los ajustes compartidos.", error);
+            showDataNotice("No se pudieron guardar los ajustes compartidos en Supabase. Se ha conservado una copia local temporal.", "warn");
+          });
+          toast("Ajustes guardados");
         });
         document.querySelectorAll("[data-action]").forEach(node => node.addEventListener("click", e => {
           e.stopPropagation();
@@ -1790,8 +1910,7 @@
             }
           });
           if(action === "new-scanned-supplier-invoice") return scannerViewUI.openScannerFlow({
-              mode:"purchase",
-              anthropicKey:readDeviceLocal("anthropic-api-key") || "",
+            mode:"purchase",
               driveClientId:state.settings.driveClientId || "607811965960-bokrfeloj97tel1fgbnhj0fgkm3ekrsg.apps.googleusercontent.com",
               driveRootFolderName:state.settings.driveRootFolderName || "apPatatas",
               suppliers:state.suppliers,
@@ -1830,8 +1949,6 @@
         current.settings.driveAutoUpload = current.settings.driveAutoUpload === true || current.settings.driveAutoUpload === "true";
         current.settings.driveStateFileName = current.settings.driveStateFileName || "apPatatas-state.json";
         current.settings.driveStateAutoSync = current.settings.driveStateAutoSync === true || current.settings.driveStateAutoSync === "true";
-        current.settings.backendUrl = current.settings.backendUrl || "/api/app-state";
-        current.settings.backendAutoSync = current.settings.backendAutoSync === true || current.settings.backendAutoSync === "true";
         current.settings.deviceId = current.settings.deviceId || (crypto?.randomUUID ? crypto.randomUUID() : uid("device"));
       });
       syncState();
@@ -1845,20 +1962,17 @@
         const settingsForm = document.getElementById("settingsForm");
           if(settingsForm && !settingsForm.querySelector('[name="driveClientId"]')){
             const anchor = settingsForm.lastElementChild;
-            anchor.insertAdjacentHTML("beforebegin", `<div class="field"><label>API Key Anthropic (escáner IA)</label><input name="anthropicApiKey" type="password" value="${esc(readDeviceLocal('anthropic-api-key') || '')}" placeholder="sk-ant-..."></div><div class="field"><label>Backend URL</label><input name="backendUrl" value="${esc(state.settings.backendUrl || "/api/app-state")}" placeholder="/api/app-state"></div><div class="field"><label>Sincronizacion automatica nube</label><select name="backendAutoSync"><option value="false" ${state.settings.backendAutoSync ? "" : "selected"}>No</option><option value="true" ${state.settings.backendAutoSync ? "selected" : ""}>Si</option></select></div><div class="field"><label>ID dispositivo</label><input name="deviceId" value="${esc(state.settings.deviceId || "")}"></div><div class="field"><label>Google OAuth Client ID</label><input name="driveClientId" value="${esc(state.settings.driveClientId || "")}" placeholder="Pega tu Client ID web para Drive"></div><div class="field"><label>Carpeta raiz Drive</label><input name="driveRootFolderName" value="${esc(state.settings.driveRootFolderName || "apPatatas")}"></div><div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${state.settings.driveAutoUpload ? "selected" : ""}>Si</option></select></div><div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${esc(state.settings.driveStateFileName || "apPatatas-state.json")}"></div><div class="field"><label>Sincronizacion automatica datos Drive</label><select name="driveStateAutoSync"><option value="false" ${state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${state.settings.driveStateAutoSync ? "selected" : ""}>Si</option></select></div>`);
+            anchor.insertAdjacentHTML("beforebegin", `<div class="field"><label>ID dispositivo</label><input name="deviceId" value="${esc(state.settings.deviceId || "")}"></div><div class="field"><label>Google OAuth Client ID</label><input name="driveClientId" value="${esc(state.settings.driveClientId || "")}" placeholder="Pega tu Client ID web para Drive"></div><div class="field"><label>Carpeta raiz Drive</label><input name="driveRootFolderName" value="${esc(state.settings.driveRootFolderName || "apPatatas")}"></div><div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${state.settings.driveAutoUpload ? "selected" : ""}>Si</option></select></div><div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${esc(state.settings.driveStateFileName || "apPatatas-state.json")}"></div><div class="field"><label>Sincronizacion automatica datos Drive</label><select name="driveStateAutoSync"><option value="false" ${state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${state.settings.driveStateAutoSync ? "selected" : ""}>Si</option></select></div>`);
           }
-          const syncTokenField = settingsForm?.querySelector('[name="syncToken"]');
-          if(syncTokenField && !syncTokenField.value) syncTokenField.value = readDeviceLocal(SYNC_TOKEN_KEY) || "";
           renderDriveStatusPanel(settingsForm);
-          renderSyncStatusPanel(settingsForm);
-          settingsForm?.querySelectorAll('#driveStatusPanel [data-action], #syncStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
+          settingsForm?.querySelectorAll('#driveStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
             e.preventDefault();
             e.stopPropagation();
             handleAction(node.dataset.action, node.dataset.id, node.dataset.kind);
           }));
           const exportActions = document.querySelector("#view-exports .panel .actions");
         if(exportActions && !exportActions.querySelector('[data-action="upload-state-drive"]')){
-          exportActions.insertAdjacentHTML("beforeend", `<button data-action="sync-backend-push">Subir nube</button><button data-action="sync-backend-pull">Traer nube</button><button data-action="upload-state-drive">Backup Drive</button><button data-action="download-state-drive">Traer de Drive</button>`);
+          exportActions.insertAdjacentHTML("beforeend", `<button data-action="upload-state-drive">Backup Drive</button><button data-action="download-state-drive">Traer de Drive</button>`);
         }
         const exportsView = document.getElementById("view-exports");
         if(exportsView && !exportsView.querySelector("#fiscalPanel")){
@@ -2762,6 +2876,17 @@
           getLastSuccessAt:() => runtime.lastSuccessAt
         };
       })();
+      syncManager = {
+        onLocalPersist(){},
+        bootstrap:async () => false,
+        startAutoSync(){},
+        pushNow:async () => false,
+        pullNow:async () => false,
+        forceNow:async () => ({ disabled:true }),
+        clearLocalSyncCache(){},
+        getStatus:() => "disabled",
+        getLastSuccessAt:() => ""
+      };
       const previousSaveEntityWithDrive = saveEntity;
       saveEntity = function(collection, entity, id){
         previousSaveEntityWithDrive(collection, entity, id);
@@ -2772,20 +2897,10 @@
         if(action === "new-wallet-out") return openWalletMovementForm("out");
         if(action === "new-wallet-adjust") return openWalletMovementForm("adjust");
         if(action === "delete-wallet-movement") return deleteWalletMovement(id);
-        if(action === "sync-backend-push") return syncManager.pushNow(false).catch(() => toast("No se pudo subir a la nube"));
-        if(action === "sync-backend-pull") return syncManager.pullNow(false).catch(() => toast("No se pudo traer la copia de la nube"));
-        if(action === "sync-debug-force") return syncManager.forceNow().then(summary => {
-          renderAll();
-          if(summary?.lastError){
-            toast(`Sync forzada con error: ${summary.lastError}`);
-            return;
-          }
-          toast(`Sync forzada OK · Pull: ${summary?.lastPullResult || "ok"} · Push: ${summary?.lastPushResult || "ok"}`);
-        }).catch(error => {
-          console.error("[SharedSync] force-sync-error", error);
-          toast(`La sync forzada falló: ${error?.message || "error desconocido"}`);
-        });
-        if(action === "sync-debug-clear-cache") return (() => { syncManager.clearLocalSyncCache(); renderAll(); toast("Caché local de sync limpiada"); })();
+        if(action === "sync-backend-push" || action === "sync-backend-pull" || action === "sync-debug-force" || action === "sync-debug-clear-cache"){
+          toast("La sincronizacion antigua esta desactivada. Ahora la fuente unica es Supabase.");
+          return;
+        }
         return previousHandleActionWithDrive(action, id, kind);
       };
       store.updateState(current => {
@@ -2800,14 +2915,9 @@
         console.error("[supabase] No se pudo inicializar el cliente", error);
         showDataNotice("No se pudo cargar configuración de Supabase. Se usará la copia local temporal.", "warn");
       }
-      requestRuntimeSyncToken();
-      try{
-        await syncManager.bootstrap();
-      }finally{
-        await hydratePrimaryEntitiesFromSupabase();
-        await ensureMonthlyRecurringExpenses();
-        syncManager.startAutoSync();
-      }
+      await hydrateSharedStateFromSupabase();
+      await hydratePrimaryEntitiesFromSupabase();
+      await ensureMonthlyRecurringExpenses();
       renderAll();
       registerGlobalButtons();
       registerPwa();
