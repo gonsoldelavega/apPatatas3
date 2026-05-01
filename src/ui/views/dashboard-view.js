@@ -4,7 +4,15 @@
     const invoicesMonth = ctx.state.invoices
       .filter(x => ctx.monthKey(x.issueDate) === month)
       .slice()
-      .sort((a, b) => (b.issueDate || "").localeCompare(a.issueDate || ""));
+      .sort((a, b) => {
+        const parsedA = ctx.parseInvoiceNumber(a.number || "");
+        const parsedB = ctx.parseInvoiceNumber(b.number || "");
+        if(parsedA && parsedB){
+          if(parsedB.year !== parsedA.year) return parsedB.year - parsedA.year;
+          if(parsedB.seq !== parsedA.seq) return parsedB.seq - parsedA.seq;
+        }
+        return (b.issueDate || "").localeCompare(a.issueDate || "");
+      });
     const monthRevenue = invoicesMonth.reduce((sum, invoice) => sum + ctx.invoiceTotals(invoice).total, 0);
     const monthExpenses = ctx.state.expenses.filter(x => ctx.monthKey(x.date) === month).reduce((sum, item) => sum + ctx.expenseTotal(item), 0);
     const monthPurchases = ctx.state.purchases.filter(x => ctx.monthKey(x.date) === month).reduce((sum, item) => sum + ctx.purchaseTotal(item), 0);
