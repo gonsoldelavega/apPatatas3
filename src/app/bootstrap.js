@@ -2101,11 +2101,7 @@
         driveStateSyncTimer = setTimeout(() => uploadStateToDrive(true).catch(() => {}), 1500);
       }
       saveEntity = function(collection, entity, id){
-        baseSaveEntity(collection, entity, id);
-        if(collection === "invoices" && (state.settings.driveAutoUpload === true || state.settings.driveAutoUpload === "true")){
-          setTimeout(() => uploadInvoiceToDrive(entity.id, true).catch(() => {}), 0);
-        }
-        queueDriveStateSync();
+        previousSaveEntityWithDrive(collection, entity, id);
       };
 
       const ensureExternalScript = src => new Promise((resolve, reject) => {
