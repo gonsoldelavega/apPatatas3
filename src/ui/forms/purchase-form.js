@@ -181,6 +181,15 @@
           const firstLine = lines[0] || {};
           const stockLines = lines.filter(line => line.productId && ctx.n(line.quantity) > 0);
           const unitCost = ctx.n(firstLine.price || firstLine.unitCost);
+          const selectedSupplierName = data.supplierId ? (ctx.getSupplier(data.supplierId)?.name || "") : "";
+          const normalizedLines = lines.map(line => ({
+            ...line,
+            description: String(line.description || ctx.getProduct(line.productId)?.name || "").trim(),
+            quantity: ctx.n(line.quantity),
+            price: ctx.n(line.price),
+            iva: ctx.n(line.iva),
+            ivaPct: ctx.n(line.ivaPct ?? line.iva)
+          }));
 
           ctx.saveEntity("purchases", {
             ...item,
@@ -197,8 +206,9 @@
             baseAmount:base,
             ivaAmount:ivaAmount,
             totalAmount:total,
-            supplier:data.supplierId ? (ctx.getSupplier(data.supplierId)?.name || item.supplier || "") : "",
-            lines:lines,
+            supplier:selectedSupplierName || item.supplier || "",
+            supplierName:selectedSupplierName || item.supplierName || item.supplier || "",
+            lines:normalizedLines,
             notes:data.notes,
             attachment:currentAttachment,
             stockLines:stockLines.map(line => ({ productId:line.productId, quantity:ctx.n(line.quantity) }))

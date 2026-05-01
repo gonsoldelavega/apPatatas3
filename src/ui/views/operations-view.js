@@ -1,20 +1,36 @@
 (function(global){
+  function purchaseTitle(item, ctx){
+    const lineDescriptions = Array.isArray(item.lines)
+      ? item.lines
+          .map(line => String(line.description || ctx.getProduct(line.productId)?.name || "").trim())
+          .filter(Boolean)
+      : [];
+    if(lineDescriptions.length === 1) return lineDescriptions[0];
+    if(lineDescriptions.length > 1) return `${lineDescriptions[0]} +${lineDescriptions.length - 1}`;
+    return item.attachment?.name || item.number || "Compra manual";
+  }
+
+  function purchaseSupplierLabel(item, ctx){
+    return ctx.getSupplier(item.supplierId)?.name || item.supplierName || item.supplier || "Proveedor";
+  }
+
   function renderPurchaseCard(item, ctx){
     const hasAttachment = !!item.attachment?.dataUrl;
     const base = Number.isFinite(Number(item.baseAmount)) ? ctx.n(item.baseAmount) : ctx.n(item.quantity) * ctx.n(item.unitCost);
     const taxAmount = Number.isFinite(Number(item.ivaAmount)) ? ctx.n(item.ivaAmount) : base * (ctx.n(item.iva) / 100);
     const total = Number.isFinite(Number(item.totalAmount)) ? ctx.n(item.totalAmount) : Number.isFinite(Number(item.amount)) ? ctx.n(item.amount) : ctx.purchaseTotal(item);
-    const title = ctx.getProduct(item.productId)?.name || item.attachment?.name || "Compra manual";
+    const title = purchaseTitle(item, ctx);
+    const supplierLabel = purchaseSupplierLabel(item, ctx);
     return `<article class="card card-tight">
       <div class="list-row-top">
         <div>
           <h3 class="list-row-title">${ctx.esc(title)}</h3>
-          <p class="list-row-sub">${ctx.esc(ctx.getSupplier(item.supplierId)?.name || "Proveedor")} \u00b7 ${ctx.date(item.date)}</p>
+          <p class="list-row-sub">${ctx.esc(supplierLabel)} \u00b7 ${ctx.date(item.date)}</p>
         </div>
         <div class="price">${ctx.money(total)}</div>
       </div>
       <div class="inline-summary">
-        ${item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>` : `<span class="chip">Compra manual</span>`}
+        ${Array.isArray(item.lines) && item.lines.length ? `<span class="chip">${item.lines.length} l\u00ednea(s)</span>` : item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>` : `<span class="chip">Compra manual</span>`}
         <span class="chip">Base: ${ctx.money(base)}</span>
         <span class="chip">IVA: ${ctx.money(taxAmount)}</span>
         ${hasAttachment ? `<span class="chip good">Adjunto listo</span>` : ""}

@@ -80,42 +80,42 @@
    NAVEGACIÓN INFERIOR (TABS)
 ──────────────────────────────────────────── */
 .tabs button {
-  min-width: 100px;
-  min-height: 46px;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--muted);
-  padding: 8px 12px 9px;
-  font-size: 13px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: none;
-  border: 0;
+    min-width: 100px;
+    min-height: 52px;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--muted);
+    padding: 10px 14px 11px;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: none;
+    border: 0;
   border-bottom: 3px solid transparent;
   flex: 1 0 auto;
-  font-weight: 600;
-  letter-spacing: .01em;
-  opacity: .72;
-  transition: all .2s ease;
-}
-
+    font-weight: 700;
+    letter-spacing: .02em;
+    opacity: .88;
+    transition: all .2s ease;
+  }
+  
 .tabs .nav-label {
-  font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  font-size: 11px;
-}
-
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  
 .tabs button.active {
-  background: rgba(196,96,42,.10);
-  color: var(--text);
-  font-weight: 700;
-  opacity: 1;
-  border-bottom-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(196,96,42,.16);
-}
+    background: rgba(196,96,42,.10);
+    color: var(--text);
+    font-weight: 800;
+    opacity: 1;
+    border-bottom-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(196,96,42,.16);
+  }
 
 .tabs button:hover,
 .tabs button:focus-visible {
