@@ -696,8 +696,9 @@
           }, { persist:true, reason:"supabase:hydrate-primary" });
           syncState();
           supabaseHydrated = true;
-          hideDataNotice();
-          return true;
+      hideDataNotice();
+      activateRealtime();
+      return true;
         }catch(error){
           console.error("[supabase] No se pudieron cargar los datos principales. Se usara la copia local temporal.", error);
           showDataNotice("Trabajando con copia temporal local. La nube principal no ha respondido.", "warn");
@@ -836,13 +837,16 @@
         store.saveEntity(collection, entity, id);
         syncState();
         renderAll();
+       AppSyncStatus.setSaving();
         savePrimaryCollectionToSupabase(collection, entity)
           .then(() => {
             hideDataNotice();
+            AppSyncStatus.setSynced();
           })
           .catch(error => {
             console.error(`[supabase] No se pudo guardar ${collection}. Se mantiene copia local temporal.`, error);
             showDataNotice("No se pudo guardar en Supabase. Se ha conservado una copia local temporal.", "warn");
+            AppSyncStatus.setError();
           });
       }
       function createWalletMovement(payload){
@@ -3032,3 +3036,63 @@
       registerGlobalButtons();
       registerPwa();
     })();
+async function activateRealtime() {
+        try {
+          const { getSupabaseClient: getSC } = await import("../services/supabase-client.js");
+          const supabase = await getSC();
+
+          const TABLE_TO_LOADER = {
+            "clientes":        () => storageService.getClientes().then(rows => rows.map(mapClientFromSupabase)),
+            "proveedores":     () => storageService.getProveedores().then(rows => rows.map(mapSupplierFromSupabase)),
+            "productos":       () => storageService.getProductos().then(rows => rows.map(mapProductFromSupabase)),
+            "facturas_venta":  () => storageService.getFacturas().then(rows => rows.map(mapInvoiceFromSupabase)),
+            "facturas_compra": () => storageService.getCompras().then(rows => rows.map(mapPurchaseFromSupabase)),
+            "gastos":          () => storageService.getGastos().then(rows => rows.map(mapExpenseFromSupabase)),
+            "monedero":        () => storageService.getWalletMovements().then(rows => rows.map(mapWalletFromSupabase))
+          };
+
+          const COLLECTION_MAP = {
+            "clientes": "clients", "proveedores": "suppliers", "productos": "products",
+            "facturas_venta": "invoices", "facturas_compra": "purchases",
+            "gastos": "expenses", "monedero": "walletMovements"
+          };
+
+          AppRealtime.subscribe(supabase, async ({ table, eventType }) => {
+            console.log("[realtime] cambio →", table, eventType);
+
+            if (table === "__reconnect__" || table === "__visibility__") {
+              await hydratePrimaryEntitiesFromSupabase();
+              await hydrateSharedStateFromSupabase();
+              return;
+            }
+
+            if (table === "app_settings" || table === "app_aux_state") {
+              await hydrateSharedStateFromSupabase();
+              syncState();
+              renderAll();
+              return;
+            }
+
+            const loader = TABLE_TO_LOADER[table];
+            const collection = COLLECTION_MAP[table];
+            if (!loader || !collection) return;
+
+            try {
+              const rows = await loader();
+              store.updateState(current => {
+                current[collection] = rows;
+              }, { persist: true, reason: `realtime:${table}` });
+              syncState();
+              renderAll();
+              AppSyncStatus.setSynced();
+            } catch (err) {
+              console.error("[realtime] error recargando", table, err);
+              AppSyncStatus.setError();
+            }
+          });
+
+          console.log("[realtime] activo ✓");
+        } catch (err) {
+          console.error("[realtime] no se pudo activar:", err);
+        }
+      }
