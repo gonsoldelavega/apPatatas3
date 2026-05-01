@@ -1,16 +1,18 @@
 (function(global){
+  function invoiceSequence(value){
+    const match = String(value || "").match(/(\d+)(?=\/)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
   function renderDashboardView(ctx){
     const month = ctx.today().slice(0, 7);
     const invoicesMonth = ctx.state.invoices
       .filter(x => ctx.monthKey(x.issueDate) === month)
       .slice()
       .sort((a, b) => {
-        const parsedA = ctx.parseInvoiceNumber(a.number || "");
-        const parsedB = ctx.parseInvoiceNumber(b.number || "");
-        if(parsedA && parsedB){
-          if(parsedB.year !== parsedA.year) return parsedB.year - parsedA.year;
-          if(parsedB.seq !== parsedA.seq) return parsedB.seq - parsedA.seq;
-        }
+        const seqA = invoiceSequence(a.number);
+        const seqB = invoiceSequence(b.number);
+        if(seqB !== seqA) return seqB - seqA;
         return (b.issueDate || "").localeCompare(a.issueDate || "");
       });
     const monthRevenue = invoicesMonth.reduce((sum, invoice) => sum + ctx.invoiceTotals(invoice).total, 0);
