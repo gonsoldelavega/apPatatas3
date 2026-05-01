@@ -1819,8 +1819,20 @@
       function popupPrint(title, html){
         const win = window.open("", "_blank");
         if(!win) return toast("El navegador bloqueó la ventana de impresión");
-        win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;background:#fff} ${document.querySelector("style").textContent}</style></head><body>${html}</body></html>`);
-        win.document.close(); win.focus(); setTimeout(() => win.print(), 200);
+        const styleMarkup = [...document.querySelectorAll('link[rel="stylesheet"], style')]
+          .map(node => {
+            if(node.tagName === "LINK"){
+              return `<link rel="stylesheet" href="${esc(node.href)}">`;
+            }
+            return `<style>${node.textContent || ""}</style>`;
+          })
+          .join("");
+        win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta name="viewport" content="width=device-width, initial-scale=1">${styleMarkup}<style>html,body{margin:0;background:#ffffff}body{color:#121212}.invoice-print{max-width:920px;margin:0 auto}@page{size:auto;margin:12mm}</style></head><body>${html}</body></html>`);
+        win.document.close();
+        win.focus();
+        const triggerPrint = () => setTimeout(() => win.print(), 120);
+        if(win.document.readyState === "complete") triggerPrint();
+        else win.addEventListener("load", triggerPrint, { once:true });
       }
       function previewInvoice(id){
         const invoice = state.invoices.find(x => x.id === id); if(!invoice) return;
