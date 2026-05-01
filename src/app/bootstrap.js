@@ -1838,18 +1838,22 @@
             if(action === "close") return;
             closeModal();
             if(action === "view-detail") return popupPrint(invoice.number, buildInvoicePrint(invoice));
+            if(action === "print") return printInvoice(id);
+            if(action === "whatsapp") return shareInvoiceWhatsApp(id);
             if(action === "edit") return openInvoiceForm(id);
             if(action === "mark-paid") return openInvoicePaymentForm(id);
             if(action === "delete") return removeEntity("invoices", id, "¿Eliminar esta factura? Esto recalculara el stock.");
           }));
         }, [
-          {id:"close",label:"Cerrar",className:"ghost"},
-          {id:"view-detail",label:"Ver detalle",className:"ghost"},
-          {id:"edit",label:"Editar",className:"ghost"},
-          {id:"mark-paid",label:"Marcar como pagada",className:"ghost"},
-          {id:"delete",label:"Eliminar",className:"danger"}
-        ]);
-      }
+            {id:"close",label:"Cerrar",className:"ghost"},
+            {id:"view-detail",label:"Ver detalle",className:"ghost"},
+            {id:"print",label:"Imprimir",className:"ghost"},
+            {id:"whatsapp",label:"WhatsApp",className:"ghost"},
+            {id:"edit",label:"Editar",className:"ghost"},
+            {id:"mark-paid",label:"Marcar como pagada",className:"ghost"},
+            {id:"delete",label:"Eliminar",className:"danger"}
+          ]);
+        }
       function printInvoice(id){ const invoice = state.invoices.find(x => x.id === id); if(invoice) popupPrint(invoice.number, buildInvoicePrint(invoice)); }
       function printDeliveryNote(id){ const item = state.deliveryNotes.find(x => x.id === id); if(item) popupPrint(item.number, buildDeliveryPrint(item)); }
       function duplicateInvoice(id){ const source = state.invoices.find(x => x.id === id); if(!source) return; const copy = structuredClone(source); copy.id = uid("fac"); copy.number = composeInvoiceNumber(state.settings.nextInvoiceNumber); copy.issueDate = today(); copy.amountPaid = 0; openInvoiceForm(null, copy); }

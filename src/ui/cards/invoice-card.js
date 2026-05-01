@@ -31,10 +31,10 @@
         <button data-action="preview-invoice" data-id="${invoice.id}">Ver</button>
         <button data-action="edit-invoice" data-id="${invoice.id}">Editar</button>
         <button data-action="download-invoice-pdf" data-id="${invoice.id}">PDF</button>
+        <button data-action="print-invoice" data-id="${invoice.id}">Imprimir</button>
         <button data-action="upload-invoice-drive" data-id="${invoice.id}">Drive</button>
         <button data-action="share-whatsapp" data-id="${invoice.id}">WhatsApp</button>
         <button data-action="share-email" data-id="${invoice.id}">Email</button>
-        <button data-action="export-invoice-png" data-id="${invoice.id}">PNG</button>
         <button class="danger" data-action="delete-invoice" data-id="${invoice.id}">Eliminar</button>
       </div>
     </article>`;
