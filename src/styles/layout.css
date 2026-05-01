@@ -1,149 +1,231 @@
-.app{
-  max-width:1320px;
-  margin:0 auto;
-  padding:16px 16px 124px;
+/* ============================================================
+   FACTUPAPA — LAYOUT
+   App shell, hero header, navegación inferior, modal/sheet
+   ============================================================ */
+
+.app {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 14px calc(124px + env(safe-area-inset-bottom, 0px));
 }
-.panel{
-  background:#FFFFFF;
-  border:1px solid rgba(220,232,220,.82);
-  border-radius:var(--r);
-  box-shadow:var(--shadow);
+
+/* ── Panel base (tarjeta con borde) ── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-card);
 }
-.hero{
-  position:sticky;
-  top:0;
-  z-index:24;
-  margin:0 0 16px;
-  padding:16px 18px;
-  background:rgba(247,249,245,.96);
-  backdrop-filter:blur(16px);
+
+/* ── Hero / header superior ── */
+.hero {
+  position: sticky;
+  top: 0;
+  z-index: 24;
+  margin: 0 -14px 18px;
+  padding: 18px 20px calc(18px + env(safe-area-inset-top, 0px));
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+
+  /* Header oscuro cálido */
+  background: var(--header-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 4px 24px rgba(26,15,8,.22);
+  border-radius: 0;
 }
-.hero.panel{
-  border-color:rgba(220,232,220,.72);
+
+.hero.panel {
+  background: var(--header-bg);
+  border-color: transparent;
 }
-.hero-top{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
+
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
-.brand h1{
-  margin:0;
-  font-size:1.45rem;
-  font-weight:600;
-  letter-spacing:-.04em;
+
+/* ── Marca dentro del hero ── */
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  color: var(--text-inv);
 }
-.brand p{
-  margin:10px 0 0;
-  color:var(--muted);
-  font-size:.94rem;
-  line-height:1.45;
-  max-width:40rem;
+
+.brand p {
+  margin: 6px 0 0;
+  color: rgba(253,248,240,.55);
+  font-size: .88rem;
+  line-height: 1.45;
+  font-weight: 300;
+  max-width: 40rem;
 }
-.view{display:none}
-.view.active{
-  display:grid;
-  gap:18px;
-  animation:fade .22s ease;
+
+/* ── Botón icono dentro del hero (invertido) ── */
+.hero button.icon.ghost {
+  background: rgba(255,255,255,.09);
+  border-color: rgba(255,255,255,.14);
+  color: var(--text-inv);
 }
-@keyframes fade{
-  from{opacity:0;transform:translateY(8px)}
-  to{opacity:1;transform:translateY(0)}
+.hero button.icon.ghost:hover {
+  background: rgba(255,255,255,.16);
 }
-.panel-h{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
-  padding:18px 18px 0;
+
+/* ── Vistas ── */
+.view { display: none }
+.view.active {
+  display: grid;
+  gap: 18px;
+  animation: fade .24s ease;
+  padding-top: 18px;
 }
-.panel-h h2,.panel-h h3{
-  margin:0;
-  font-size:1.04rem;
-  letter-spacing:-.02em;
+
+@keyframes fade {
+  from { opacity: 0; transform: translateY(10px) }
+  to   { opacity: 1; transform: translateY(0) }
 }
-.sub{
-  color:var(--muted);
-  margin-top:6px;
-  font-size:.9rem;
-  line-height:1.45;
+
+/* ── Panel header (dentro de tarjetas) ── */
+.panel-h {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 20px 20px 0;
 }
-.panel-b{padding:18px}
-.grid,.cards,.sheet-grid,.dual,.stats,.toolbar,.search-row{
-  display:grid;
-  gap:14px;
+
+.panel-h h2, .panel-h h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--text);
 }
-.cards,.grid,.sheet-grid,.dual{grid-template-columns:1fr}
-.stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-.toolbar{margin-bottom:14px}
-.search-row{grid-template-columns:1fr}
-.tabs{
-  position:fixed;
-  left:12px;
-  right:12px;
-  bottom:12px;
-  z-index:30;
-  display:flex;
-  gap:8px;
-  padding:8px 10px;
-  overflow-x:auto;
-  background:rgba(255,255,255,.94);
-  border:1px solid rgba(220,232,220,.9);
-  border-radius:14px;
-  backdrop-filter:blur(16px);
-  box-shadow:var(--shadow-soft);
+
+.sub {
+  color: var(--muted);
+  margin-top: 6px;
+  font-size: .88rem;
+  line-height: 1.5;
 }
-.modal{
-  position:fixed;
-  inset:0;
-  display:none;
-  place-items:end center;
-  z-index:40;
-  background:rgba(26,46,31,.22);
-  padding:10px;
+
+.panel-b { padding: 20px }
+
+/* ── Grids estructurales ── */
+.grid, .cards, .sheet-grid, .dual, .stats, .toolbar, .search-row {
+  display: grid;
+  gap: 14px;
 }
-.modal.show{display:grid}
-.sheet{
-  width:100%;
-  max-width:920px;
-  max-height:94vh;
-  overflow:auto;
-  border-radius:20px 20px 14px 14px;
-  background:#FFFFFF;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow);
+
+.cards, .grid, .sheet-grid, .dual { grid-template-columns: 1fr }
+.stats { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.toolbar { margin-bottom: 14px }
+.search-row { grid-template-columns: 1fr }
+
+/* ── Navegación inferior (tabs) ── */
+.tabs {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  /* Fondo oscuro cálido — coherente con el header */
+  background: rgba(42,31,26,.94);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(26,15,8,.28), 0 2px 8px rgba(26,15,8,.14);
 }
-.sheet-actions{
-  display:flex;
-  justify-content:flex-end;
-  gap:10px;
-  padding:0 18px 18px;
-  position:sticky;
-  bottom:0;
-  background:linear-gradient(180deg,rgba(247,249,245,.22),rgba(247,249,245,.96));
-  backdrop-filter:blur(12px);
+
+.tabs::-webkit-scrollbar { display: none }
+
+/* ── Modal / Sheet ── */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: end center;
+  z-index: 40;
+  background: rgba(26,15,8,.40);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 10px;
 }
-@media(min-width:760px){
-  body{padding-bottom:28px}
-  .app{padding:28px 24px 40px}
-  .hero{
-    position:static;
-    margin-bottom:18px;
+
+.modal.show { display: grid }
+
+.sheet {
+  width: 100%;
+  max-width: 920px;
+  max-height: 94dvh;
+  overflow: auto;
+  border-radius: var(--r-xl) var(--r-xl) var(--r) var(--r);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 -4px 40px rgba(26,15,8,.16), 0 0 0 1px rgba(255,255,255,.08);
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 20px 20px;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(242,237,228,0) 0%,
+    rgba(242,237,228,.92) 40%,
+    rgba(242,237,228,.99) 100%
+  );
+  backdrop-filter: blur(8px);
+}
+
+/* ── Responsive desktop ── */
+@media (min-width: 760px) {
+  body { padding-bottom: 28px }
+
+  .app { padding: 0 24px 40px }
+
+  .hero {
+    position: static;
+    margin: 0 -24px 0;
+    border-radius: 0;
   }
-  .tabs{
-    position:sticky;
-    top:16px;
-    bottom:auto;
-    left:auto;
-    right:auto;
-    margin-bottom:18px;
+
+  .view.active { padding-top: 24px }
+
+  .tabs {
+    position: sticky;
+    top: 16px;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    margin-bottom: 18px;
+    background: rgba(42,31,26,.90);
   }
-  .dual{grid-template-columns:1.1fr .9fr}
-  .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .sheet-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .search-row{grid-template-columns:1.1fr .9fr}
-  .toolbar{grid-template-columns:1fr auto;align-items:end}
-  .modal{place-items:center}
-  .sheet{border-radius:28px}
+
+  .dual        { grid-template-columns: 1.1fr .9fr }
+  .cards       { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .sheet-grid  { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .stats       { grid-template-columns: repeat(4, minmax(0, 1fr)) }
+  .search-row  { grid-template-columns: 1.1fr .9fr }
+  .toolbar     { grid-template-columns: 1fr auto; align-items: end }
+
+  .modal       { place-items: center }
+  .sheet       { border-radius: var(--r-xl) }
 }

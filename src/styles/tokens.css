@@ -1,26 +1,67 @@
-:root{
-  --bg:#F7F9F5;
-  --bg-2:#F3F7F1;
-  --bg-3:#EDF4ED;
-  --panel:#FFFFFF;
-  --panel-2:#FFFFFF;
-  --panel-3:#F9FCF8;
-  --panel-elevated:#ffffff;
-  --line:#DCE8DC;
-  --line-strong:#C9D8C9;
-  --text:#1A2E1F;
-  --muted:#6B7C6E;
-  --muted-2:#8D9C8F;
-  --accent:#3D7A5A;
-  --accent-2:#2F6248;
-  --accent-soft:rgba(61,122,90,.12);
-  --good:#3D7A5A;
-  --warn:#E8A838;
-  --danger:#C0392B;
-  --neutral:#6AAF85;
-  --r:12px;
-  --r-sm:12px;
-  --r-xs:12px;
-  --shadow:0 8px 24px rgba(23,45,31,.08);
-  --shadow-soft:0 2px 8px rgba(0,0,0,.06);
+/* ============================================================
+   FACTUPAPA — DESIGN TOKENS
+   Paleta: crema cálida · terracota · verde oliva · marrón oscuro
+   Inspiración: negocio local, producto fresco, hostelería seria
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+
+:root {
+  /* ── Fondos ── */
+  --bg:   #F2EDE4;          /* crema cálida principal */
+  --bg-2: #EDE7DC;          /* crema ligeramente más oscura */
+  --bg-3: #E7DFD2;          /* crema profunda para gradiente base */
+
+  /* ── Superficies (tarjetas, paneles) ── */
+  --panel:          #FDFAF5;   /* blanco cálido, no frío */
+  --panel-2:        #FDFAF5;
+  --panel-3:        #F8F4EC;
+  --panel-elevated: #FFFFFF;
+
+  /* ── Header oscuro (hero superior de pantalla) ── */
+  --header-bg:      #2A1F1A;   /* marrón carbón muy oscuro */
+  --header-bg-2:    #3D2B22;   /* marrón para acentos dentro del header */
+
+  /* ── Líneas y bordes ── */
+  --line:           rgba(180,160,130,.30);
+  --line-strong:    rgba(160,135,105,.42);
+
+  /* ── Texto ── */
+  --text:    #1C1410;          /* marrón casi negro — más cálido que #000 */
+  --muted:   #7A6A58;          /* marrón medio para subtextos */
+  --muted-2: #9C8A77;          /* marrón claro para placeholders */
+  --text-inv:#FDF8F0;          /* texto sobre fondos oscuros */
+
+  /* ── Acento principal — terracota ── */
+  --accent:      #C4602A;      /* terracota profunda */
+  --accent-2:    #A84E20;      /* terracota más oscura (hover) */
+  --accent-soft: rgba(196,96,42,.12);
+  --accent-inv:  #FFFFFF;
+
+  /* ── Acento secundario — verde oliva ── */
+  --olive:       #5A7A3A;      /* verde oliva sano */
+  --olive-soft:  rgba(90,122,58,.12);
+  --olive-dark:  #3D5A28;
+
+  /* ── Estados semánticos ── */
+  --good:    #5A7A3A;          /* verde oliva para "bien" */
+  --warn:    #C4892A;          /* ámbar cálido para "atención" */
+  --danger:  #B83030;          /* rojo terracota para "error/peligro" */
+  --neutral: #7A9A60;          /* verde medio para "neutral positivo" */
+
+  /* ── Radios ── */
+  --r:    14px;
+  --r-sm: 10px;
+  --r-xs:  8px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+
+  /* ── Sombras ── */
+  --shadow:      0 8px 32px rgba(44,25,15,.10), 0 2px 8px rgba(44,25,15,.06);
+  --shadow-soft: 0 2px 10px rgba(44,25,15,.07);
+  --shadow-card: 0 1px 3px rgba(44,25,15,.06), 0 4px 16px rgba(44,25,15,.05);
+
+  /* ── Tipografía ── */
+  --font-body:    'DM Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Lora', Georgia, 'Times New Roman', serif;
 }

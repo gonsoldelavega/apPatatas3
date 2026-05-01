@@ -1,62 +1,168 @@
-*{box-sizing:border-box}
-html,body{
-  margin:0;
-  min-height:100%;
-  font-family:"Inter","Segoe UI","Helvetica Neue",Arial,sans-serif;
+/* ============================================================
+   FACTUPAPA — BASE STYLES
+   Reset, tipografía global, botones, inputs
+   ============================================================ */
+
+* { box-sizing: border-box }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  padding-bottom: 112px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   background:
-    linear-gradient(180deg,var(--bg) 0%,var(--bg-2) 58%,var(--bg-3) 100%);
-  color:var(--text);
+    linear-gradient(160deg, var(--bg) 0%, var(--bg-2) 55%, var(--bg-3) 100%);
+  min-height: 100dvh;
 }
-body{
-  padding-bottom:112px;
-  -webkit-font-smoothing:antialiased;
-  text-rendering:optimizeLegibility;
+
+button, input, select, textarea { font: inherit }
+
+/* ── Botón base ── */
+button {
+  border: 0;
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--text);
+  min-height: 52px;
+  padding: 0 20px;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--line);
+  transition:
+    background-color .18s ease,
+    color .18s ease,
+    transform .15s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
 }
-button,input,select,textarea{font:inherit}
-button{
-  border:0;
-  border-radius:12px;
-  background:var(--panel);
-  color:var(--text);
-  min-height:50px;
-  padding:0 18px;
-  cursor:pointer;
-  box-shadow:var(--shadow-soft);
-  transition:background-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease;
-}
-button.primary{
-  background:var(--accent);
-  color:#ffffff;
-  font-weight:600;
+
+button:active { transform: scale(.98) }
+
+/* ── Primario — terracota ── */
+button.primary {
+  background: var(--accent);
+  color: #FFFFFF;
+  font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(196,96,42,.28);
+  letter-spacing: .01em;
 }
 button.primary:hover,
-button.primary:focus-visible{
-  background:#2F6248;
-  box-shadow:0 8px 20px rgba(61,122,90,.14);
+button.primary:focus-visible {
+  background: var(--accent-2);
+  box-shadow: 0 6px 20px rgba(196,96,42,.36);
+  transform: translateY(-1px);
 }
-button.ghost{
-  background:rgba(255,255,255,.88);
-  border:1px solid var(--line);
-  box-shadow:none;
+
+/* ── Secundario — outline cálido ── */
+button.ghost {
+  background: rgba(253,250,245,.88);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  box-shadow: none;
 }
-button.warn{background:rgba(232,168,56,.16);color:#9b6a06}
-button.danger{background:rgba(192,57,43,.12);color:#9a2f24}
-button.icon{width:46px;min-width:46px;padding:0}
-input,select,textarea{
-  width:100%;
-  min-height:54px;
-  border-radius:12px;
-  border:1px solid var(--line);
-  background:rgba(255,255,255,.96);
-  color:var(--text);
-  padding:13px 14px;
-  outline:none;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.65);
+button.ghost:hover,
+button.ghost:focus-visible {
+  background: var(--panel);
+  border-color: var(--accent-soft);
 }
-input::placeholder,textarea::placeholder{color:var(--muted-2)}
-input:focus,select:focus,textarea:focus{
-  border-color:rgba(61,122,90,.34);
-  box-shadow:0 0 0 3px rgba(61,122,90,.12);
+
+/* ── Botón oliva (confirmación) ── */
+button.olive {
+  background: var(--olive);
+  color: #FFFFFF;
+  font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(90,122,58,.28);
 }
-textarea{min-height:108px;resize:vertical}
-details summary::-webkit-details-marker{display:none}
+button.olive:hover,
+button.olive:focus-visible {
+  background: var(--olive-dark);
+  transform: translateY(-1px);
+}
+
+/* ── Warn / Danger ── */
+button.warn    { background: rgba(196,137,42,.14); color: #7A5010; border-color: rgba(196,137,42,.22) }
+button.danger  { background: rgba(184,48,48,.10);  color: #8A2020; border-color: rgba(184,48,48,.18) }
+
+/* ── Icono cuadrado ── */
+button.icon {
+  width: 46px;
+  min-width: 46px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* ── Inputs ── */
+input, select, textarea {
+  width: 100%;
+  min-height: 54px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-strong);
+  background: rgba(253,250,245,.95);
+  color: var(--text);
+  padding: 14px 16px;
+  outline: none;
+  transition: border-color .18s ease, box-shadow .18s ease;
+  box-shadow: inset 0 1px 2px rgba(44,25,15,.04);
+}
+
+input::placeholder,
+textarea::placeholder { color: var(--muted-2) }
+
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(196,96,42,.40);
+  box-shadow: 0 0 0 3px rgba(196,96,42,.10);
+  background: #FFFFFF;
+}
+
+textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237A6A58' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 44px;
+}
+
+details summary::-webkit-details-marker { display: none }
+
+/* ── Tipografía display (encabezados con serif) ── */
+h1, h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+
+h3, h4, h5, h6 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+/* ── Toast / feedback visual ── */
+.toast-wrap {
+  position: fixed;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
