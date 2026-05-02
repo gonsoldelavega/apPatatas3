@@ -2056,8 +2056,6 @@
           return baseHandleAction(action, id, kind);
         };
       document.title = "Factupapa";
-      document.querySelector(".brand h1").textContent = "Factupapa";
-      document.querySelector(".brand p").textContent = "Facturacion clara, escaneo documental y control diario del negocio";
       document.getElementById("installBtn").textContent = "App";
 
       store.updateState(current => {
