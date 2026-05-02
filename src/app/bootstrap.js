@@ -3033,8 +3033,7 @@
       registerGlobalButtons();
       registerPwa();
       scheduleDailyDriveBackup();
-    })();
-function scheduleDailyDriveBackup(){
+      function scheduleDailyDriveBackup(){
         const LAST_BACKUP_KEY = "factupapa-last-drive-backup";
         function getTodayKey(){ return new Date().toISOString().slice(0,10); }
         async function runDailyBackup(){
@@ -3072,7 +3071,6 @@ function scheduleDailyDriveBackup(){
       }
 
       async function activateRealtime() {
-async function activateRealtime() {
         try {
           const { getSupabaseClient: getSC } = await import("../services/supabase-client.js");
           const supabase = await getSC();
@@ -3131,4 +3129,4 @@ async function activateRealtime() {
         } catch (err) {
           console.error("[realtime] no se pudo activar:", err);
         }
-      }
+      }})();
