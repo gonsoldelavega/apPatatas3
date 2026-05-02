@@ -15,13 +15,20 @@
 </head>
 <body>
   <div class="app">
-    <header class="hero panel">
-      <div class="hero-top">
-        <div class="brand">
-          <h1>Factupapa</h1>
-          <p>Operativa diaria, facturación, stock y gestión del negocio</p>
-        </div>
-        <button class="icon ghost" id="installBtn">Ia</button>
+    <header id="appHeader" style="
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 10px 16px;
+      padding-top: calc(10px + env(safe-area-inset-top, 0px));
+      position: sticky; top:0; z-index:50;
+      background: rgba(42,31,26,.97);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      box-shadow: 0 2px 12px rgba(26,15,8,.18);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    ">
+      <span style="font-family:'Lora',Georgia,serif;font-size:1.25rem;font-weight:700;letter-spacing:-.03em;color:#FDF8F0;">Factu<span style="color:#C4602A;">papa</span></span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#5A7A3A;" title="Sincronizado"></div>
+        <button class="icon ghost" id="installBtn" style="min-height:36px;width:36px;min-width:36px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:rgba(253,248,240,.7);font-size:.75rem;font-weight:700;">App</button>
       </div>
     </header>
     <nav class="tabs panel" id="tabs"></nav>
@@ -100,8 +107,10 @@
   <script src="./src/ui/scanner/scanner-view.js"></script>
   <script src="./src/ui/render-nav.js"></script>
   <script src="./src/ui/render-views.js"></script>
-<script src="./src/services/sync-status.js"></script>
-<script src="./src/services/supabase-realtime.js"></script>
+  <script src="./src/services/splash.js"></script>
+  <script src="./src/services/alerts-panel.js"></script>
+  <script src="./src/services/sync-status.js"></script>
+  <script src="./src/services/supabase-realtime.js"></script>
   <script src="./src/app/bootstrap.js"></script>
 </body>
 </html>

@@ -1819,20 +1819,8 @@
       function popupPrint(title, html){
         const win = window.open("", "_blank");
         if(!win) return toast("El navegador bloqueó la ventana de impresión");
-        const styleMarkup = [...document.querySelectorAll('link[rel="stylesheet"], style')]
-          .map(node => {
-            if(node.tagName === "LINK"){
-              return `<link rel="stylesheet" href="${esc(node.href)}">`;
-            }
-            return `<style>${node.textContent || ""}</style>`;
-          })
-          .join("");
-        win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta name="viewport" content="width=device-width, initial-scale=1">${styleMarkup}<style>html,body{margin:0;background:#ffffff}body{color:#121212}.invoice-print{max-width:920px;margin:0 auto}@page{size:auto;margin:12mm}</style></head><body>${html}</body></html>`);
-        win.document.close();
-        win.focus();
-        const triggerPrint = () => setTimeout(() => win.print(), 120);
-        if(win.document.readyState === "complete") triggerPrint();
-        else win.addEventListener("load", triggerPrint, { once:true });
+        win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;background:#fff} ${document.querySelector("style").textContent}</style></head><body>${html}</body></html>`);
+        win.document.close(); win.focus(); setTimeout(() => win.print(), 200);
       }
       function previewInvoice(id){
         const invoice = state.invoices.find(x => x.id === id); if(!invoice) return;
@@ -1850,22 +1838,18 @@
             if(action === "close") return;
             closeModal();
             if(action === "view-detail") return popupPrint(invoice.number, buildInvoicePrint(invoice));
-            if(action === "print") return printInvoice(id);
-            if(action === "whatsapp") return shareInvoiceWhatsApp(id);
             if(action === "edit") return openInvoiceForm(id);
             if(action === "mark-paid") return openInvoicePaymentForm(id);
             if(action === "delete") return removeEntity("invoices", id, "¿Eliminar esta factura? Esto recalculara el stock.");
           }));
         }, [
-            {id:"close",label:"Cerrar",className:"ghost"},
-            {id:"view-detail",label:"Ver detalle",className:"ghost"},
-            {id:"print",label:"Imprimir",className:"ghost"},
-            {id:"whatsapp",label:"WhatsApp",className:"ghost"},
-            {id:"edit",label:"Editar",className:"ghost"},
-            {id:"mark-paid",label:"Marcar como pagada",className:"ghost"},
-            {id:"delete",label:"Eliminar",className:"danger"}
-          ]);
-        }
+          {id:"close",label:"Cerrar",className:"ghost"},
+          {id:"view-detail",label:"Ver detalle",className:"ghost"},
+          {id:"edit",label:"Editar",className:"ghost"},
+          {id:"mark-paid",label:"Marcar como pagada",className:"ghost"},
+          {id:"delete",label:"Eliminar",className:"danger"}
+        ]);
+      }
       function printInvoice(id){ const invoice = state.invoices.find(x => x.id === id); if(invoice) popupPrint(invoice.number, buildInvoicePrint(invoice)); }
       function printDeliveryNote(id){ const item = state.deliveryNotes.find(x => x.id === id); if(item) popupPrint(item.number, buildDeliveryPrint(item)); }
       function duplicateInvoice(id){ const source = state.invoices.find(x => x.id === id); if(!source) return; const copy = structuredClone(source); copy.id = uid("fac"); copy.number = composeInvoiceNumber(state.settings.nextInvoiceNumber); copy.issueDate = today(); copy.amountPaid = 0; openInvoiceForm(null, copy); }
@@ -1987,7 +1971,7 @@
             "new-purchase":() => openPurchaseForm(), "edit-purchase":() => openPurchaseForm(id), "delete-purchase":() => removeEntity("purchases", id, "¿Eliminar esta compra? El stock se recalculara automáticamente."),
           "new-expense":() => openExpenseForm(), "edit-expense":() => openExpenseForm(id), "delete-expense":() => removeEntity("expenses", id, "¿Eliminar este gasto?"),
           "new-delivery-note":() => openDeliveryNoteForm(), "edit-delivery-note":() => openDeliveryNoteForm(id), "delete-delivery-note":() => removeEntity("deliveryNotes", id, "¿Eliminar este albarán?"), "print-delivery-note":() => printDeliveryNote(id),
-            "new-invoice":() => openInvoiceForm(), "edit-invoice":() => openInvoiceForm(id), "new-invoice-for-client":() => openInvoiceForm(null, { clientId:id }), "duplicate-invoice":() => duplicateInvoice(id), "delete-invoice":() => removeEntity("invoices", id, "¿Eliminar esta factura? Esto recalculara el stock."), "preview-invoice":() => previewInvoice(id), "print-invoice":() => printInvoice(id), "share-whatsapp":() => shareInvoiceWhatsApp(id), "share-email":() => shareInvoiceEmail(id), "export-invoice-png":() => exportInvoicePng(id), "update-invoice-payment":() => openInvoicePaymentForm(id),
+            "new-invoice":() => openInvoiceForm(), "edit-invoice":() => openInvoiceForm(id), "new-invoice-for-client":() => openInvoiceForm(null, { clientId:id }), "duplicate-invoice":() => duplicateInvoice(id), "delete-invoice":() => removeEntity("invoices", id, "¿Eliminar esta factura? Esto recalculara el stock."), "preview-invoice":() => previewInvoice(id), "print-invoice":() => printInvoice(id), "share-whatsapp":() => shareInvoiceWhatsApp(id), "share-email":() => shareInvoiceEmail(id), "export-invoice-png":() => printInvoice(id), "update-invoice-payment":() => openInvoicePaymentForm(id),
             "export-csv":() => exportCsv(kind), "export-json":exportJson, "import-json":importJson, "reset-storage":resetStorage }[action] || (() => {}))();
         }
       function registerGlobalButtons(){ document.querySelectorAll(".quick [data-action]").forEach(btn => btn.addEventListener("click", () => handleAction(btn.dataset.action))); }
@@ -3044,10 +3028,50 @@
       await hydrateSharedStateFromSupabase();
       await hydratePrimaryEntitiesFromSupabase();
       await ensureMonthlyRecurringExpenses();
+      if(typeof AppSplash !== "undefined") AppSplash.hide();
       renderAll();
       registerGlobalButtons();
       registerPwa();
+      scheduleDailyDriveBackup();
     })();
+function scheduleDailyDriveBackup(){
+        const LAST_BACKUP_KEY = "factupapa-last-drive-backup";
+        function getTodayKey(){ return new Date().toISOString().slice(0,10); }
+        async function runDailyBackup(){
+          const lastBackup = window.localStorage.getItem(LAST_BACKUP_KEY) || "";
+          if(lastBackup === getTodayKey()) return;
+          const driveToken = window.localStorage.getItem("google-drive-token") || "";
+          if(!driveToken.trim()) return;
+          try{
+            window.__googleAccessToken = driveToken.trim();
+            await uploadStateToDrive(true, true);
+            const currentMonth = new Date().toISOString().slice(0,7);
+            for(const invoice of (state.invoices || [])){
+              const im = (invoice.issueDate || invoice.date || "").slice(0,7);
+              if(im !== currentMonth) continue;
+              await uploadInvoiceToDrive(invoice.id, true, true).catch(()=>{});
+            }
+            window.localStorage.setItem(LAST_BACKUP_KEY, getTodayKey());
+            console.log("[drive-backup] Backup diario OK:", getTodayKey());
+          }catch(err){
+            console.warn("[drive-backup] Falló:", err?.message || err);
+          }
+        }
+        function msUntilMidnight(){
+          const now = new Date();
+          const next = new Date(now);
+          next.setDate(now.getDate()+1);
+          next.setHours(0,1,0,0);
+          return next.getTime() - now.getTime();
+        }
+        function scheduleNext(){
+          setTimeout(()=>{ runDailyBackup().catch(()=>{}); scheduleNext(); }, msUntilMidnight());
+        }
+        setTimeout(()=>runDailyBackup().catch(()=>{}), 8000);
+        scheduleNext();
+      }
+
+      async function activateRealtime() {
 async function activateRealtime() {
         try {
           const { getSupabaseClient: getSC } = await import("../services/supabase-client.js");
