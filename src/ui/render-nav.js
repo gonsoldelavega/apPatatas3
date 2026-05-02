@@ -21,38 +21,37 @@
   };
 
   const NAV_ITEMS = [
-    { id:"dashboard",  label:"Inicio"    },
-    { id:"billing",    label:"Facturas"  },
-    { id:"operations", label:"Gastos"    },
-    { id:"wallet",     label:"Caja"      },
-    { id:"scanner",    label:"Escáner"   },
+    { id:"dashboard",  label:"Inicio" },
+    { id:"billing",    label:"Facturas" },
+    { id:"operations", label:"Gastos" },
+    { id:"wallet",     label:"Caja" },
+    { id:"scanner",    label:"Escaner" },
     { id:"catalog",    label:"Productos" },
-    { id:"settings",   label:"Más"       }
+    { id:"settings",   label:"Mas" }
   ];
 
   function renderNav(target, ctx){
-    const activeNav = Object.keys(VIEW_GROUPS).find(k => VIEW_GROUPS[k].has(ctx.activeView)) || "dashboard";
+    const activeNav = Object.keys(VIEW_GROUPS).find(key => VIEW_GROUPS[key].has(ctx.activeView)) || "dashboard";
 
-    /* ── Estilos inline del contenedor (posición fija abajo) ── */
     Object.assign(target.style, {
-      position:        "fixed",
-      left:            "0",
-      right:           "0",
-      bottom:          "0",
-      zIndex:          "100",
-      display:         "flex",
-      alignItems:      "stretch",
-      justifyContent:  "space-around",
-      padding:         "0",
-      margin:          "0",
-      background:      "rgba(28,20,16,.97)",
-      borderTop:       "1px solid rgba(255,255,255,.07)",
-      borderRadius:    "0",
-      boxShadow:       "0 -4px 24px rgba(26,15,8,.28)",
-      backdropFilter:  "blur(20px)",
+      position: "fixed",
+      left: "0",
+      right: "0",
+      bottom: "0",
+      zIndex: "100",
+      display: "flex",
+      alignItems: "stretch",
+      justifyContent: "space-around",
+      padding: "0",
+      margin: "0",
+      background: "rgba(28,20,16,.97)",
+      borderTop: "1px solid rgba(255,255,255,.07)",
+      borderRadius: "0",
+      boxShadow: "0 -4px 24px rgba(26,15,8,.28)",
+      backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
-      height:          `calc(60px + env(safe-area-inset-bottom, 0px))`,
-      paddingBottom:   "env(safe-area-inset-bottom, 0px)"
+      height: "calc(60px + env(safe-area-inset-bottom, 0px))",
+      paddingBottom: "env(safe-area-inset-bottom, 0px)"
     });
 
     target.innerHTML = NAV_ITEMS.map(item => {
@@ -74,8 +73,8 @@
             border-radius: 0;
             box-shadow: none;
             cursor: pointer;
-            color: ${isActive ? "#F2C4A0" : "rgba(253,248,240,.38)"};
-            transition: color .18s ease;
+            color: ${isActive ? "#F2C4A0" : "rgba(253,248,240,.60)"};
+            transition: color .18s ease, opacity .18s ease;
             position: relative;
           "
         >
@@ -95,26 +94,25 @@
             justify-content: center;
             width: 24px;
             height: 24px;
-            opacity: ${isActive ? "1" : "0.55"};
-            transform: ${isActive ? "scale(1.08)" : "scale(1)"};
-            transition: transform .18s ease, opacity .18s ease;
+            opacity: ${isActive ? "1" : "0.72"};
+            transform: scale(1);
+            transition: opacity .18s ease;
           ">${NAV_ICONS[item.id]}</span>
           <span style="
             font-size: 9.5px;
-            font-weight: ${isActive ? "700" : "500"};
+            font-weight: 700;
             letter-spacing: .04em;
             text-transform: uppercase;
             line-height: 1;
+            min-height: 10px;
             font-family: 'DM Sans', system-ui, sans-serif;
-            opacity: ${isActive ? "1" : "0.55"};
+            opacity: ${isActive ? "1" : "0.72"};
           ">${item.label}</span>
         </button>
       `;
     }).join("");
 
-    target.querySelectorAll("[data-view]").forEach(btn =>
-      btn.addEventListener("click", () => ctx.onSelect(btn.dataset.view))
-    );
+    target.querySelectorAll("[data-view]").forEach(btn => btn.addEventListener("click", () => ctx.onSelect(btn.dataset.view)));
   }
 
   global.AppUIRenderNav = { renderNav };

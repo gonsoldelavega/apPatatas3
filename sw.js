@@ -1,5 +1,13 @@
-const CACHE = "factupapa-v2026-04-26-cloud-first";
-const APP_SHELL = ["./", "./index.html", "./manifest.json"];
+const CACHE = "factupapa-v2026-05-02-pwa-icon";
+const APP_SHELL = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./apple-touch-icon.png"
+];
 
 self.addEventListener("install", event => {
   event.waitUntil(

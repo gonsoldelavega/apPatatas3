@@ -1,9 +1,7 @@
 (function(global){
   function purchaseTitle(item, ctx){
     const lineDescriptions = Array.isArray(item.lines)
-      ? item.lines
-          .map(line => String(line.description || ctx.getProduct(line.productId)?.name || "").trim())
-          .filter(Boolean)
+      ? item.lines.map(line => String(line.description || ctx.getProduct(line.productId)?.name || "").trim()).filter(Boolean)
       : [];
     if(lineDescriptions.length === 1) return lineDescriptions[0];
     if(lineDescriptions.length > 1) return `${lineDescriptions[0]} +${lineDescriptions.length - 1}`;
@@ -19,18 +17,18 @@
     const base = Number.isFinite(Number(item.baseAmount)) ? ctx.n(item.baseAmount) : ctx.n(item.quantity) * ctx.n(item.unitCost);
     const taxAmount = Number.isFinite(Number(item.ivaAmount)) ? ctx.n(item.ivaAmount) : base * (ctx.n(item.iva) / 100);
     const total = Number.isFinite(Number(item.totalAmount)) ? ctx.n(item.totalAmount) : Number.isFinite(Number(item.amount)) ? ctx.n(item.amount) : ctx.purchaseTotal(item);
-    const title = purchaseTitle(item, ctx);
     const supplierLabel = purchaseSupplierLabel(item, ctx);
+    const itemTitle = purchaseTitle(item, ctx);
     return `<article class="card card-tight">
       <div class="list-row-top">
         <div>
-          <h3 class="list-row-title">${ctx.esc(title)}</h3>
-          <p class="list-row-sub">${ctx.esc(supplierLabel)} \u00b7 ${ctx.date(item.date)}</p>
+          <h3 class="list-row-title">${ctx.esc(supplierLabel)}</h3>
+          <p class="list-row-sub">${ctx.esc(itemTitle)} · ${ctx.date(item.date)}</p>
         </div>
         <div class="price">${ctx.money(total)}</div>
       </div>
       <div class="inline-summary">
-        ${Array.isArray(item.lines) && item.lines.length ? `<span class="chip">${item.lines.length} l\u00ednea(s)</span>` : item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>` : `<span class="chip">Compra manual</span>`}
+        ${Array.isArray(item.lines) && item.lines.length ? `<span class="chip">${item.lines.length} linea(s)</span>` : item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>` : `<span class="chip">Compra manual</span>`}
         <span class="chip">Base: ${ctx.money(base)}</span>
         <span class="chip">IVA: ${ctx.money(taxAmount)}</span>
         ${hasAttachment ? `<span class="chip good">Adjunto listo</span>` : ""}
@@ -48,7 +46,7 @@
       <div class="list-row-top">
         <div>
           <h3 class="list-row-title">${ctx.esc(item.concept || item.category || "Gasto")}</h3>
-          <p class="list-row-sub">${ctx.esc(item.category || "Sin categor\u00eda")} \u00b7 ${ctx.date(item.date)}</p>
+          <p class="list-row-sub">${ctx.esc(item.category || "Sin categoria")} · ${ctx.date(item.date)}</p>
         </div>
         <div class="price">${ctx.money(ctx.expenseTotal(item))}</div>
       </div>
@@ -69,12 +67,12 @@
       <div class="list-row-top">
         <div>
           <h3 class="list-row-title">${ctx.esc(item.number)}</h3>
-          <p class="list-row-sub">${ctx.esc(ctx.getClient(item.clientId)?.name || "Cliente")} \u00b7 ${ctx.date(item.date)}</p>
+          <p class="list-row-sub">${ctx.esc(ctx.getClient(item.clientId)?.name || "Cliente")} · ${ctx.date(item.date)}</p>
         </div>
         <span class="chip ${item.status === "firmado" ? "good" : item.status === "pendiente" ? "warn" : ""}">${ctx.esc(item.status)}</span>
       </div>
       <div class="inline-summary">
-        <span class="chip">${(item.lines || []).length} l\u00edneas</span>
+        <span class="chip">${(item.lines || []).length} lineas</span>
         ${item.notes ? `<span class="chip">${ctx.esc(item.notes)}</span>` : ""}
       </div>
       <div class="card-actions">
@@ -96,7 +94,7 @@
     return `<div class="cards">
       <div class="panel" id="operations-purchases">
         <div class="panel-h">
-          <div><h2>Compras</h2><div class="sub">Entrada de mercanc\u00eda y subida de stock</div></div>
+          <div><h2>Compras</h2><div class="sub">Entrada de mercancia y subida de stock</div></div>
           <div class="actions"><button class="primary" data-action="new-purchase">Nueva compra</button></div>
         </div>
         <div class="panel-b">
@@ -110,18 +108,18 @@
           <div class="actions"><button class="primary" data-action="new-expense">Nuevo gasto</button></div>
         </div>
         <div class="panel-b">
-          <div class="search-shell"><div class="search-row"><select data-search="expensesCategory"><option value="">Todas las categor\u00edas</option>${["gasolina","agua","luz","bolsas","gestoria","autonomo","mantenimiento"].map(c => `<option value="${c}" ${ctx.ui.search.expensesCategory === c ? "selected" : ""}>${c}</option>`).join("")}</select></div></div>
+          <div class="search-shell"><div class="search-row"><select data-search="expensesCategory"><option value="">Todas las categorias</option>${["gasolina","agua","luz","bolsas","gestoria","autonomo","mantenimiento"].map(c => `<option value="${c}" ${ctx.ui.search.expensesCategory === c ? "selected" : ""}>${c}</option>`).join("")}</select></div></div>
           <div class="entity-stack">${expenses.length ? expenses.map(item => renderExpenseCard(item, ctx)).join("") : '<div class="empty"><p>No hay gastos registrados.</p></div>'}</div>
         </div>
       </div>
       <div class="panel">
         <div class="panel-h">
           <div><h2>Albaranes</h2><div class="sub">Entregas sin precios, listas para imprimir</div></div>
-          <div class="actions"><button class="primary" data-action="new-delivery-note">Nuevo albar\u00e1n</button></div>
+          <div class="actions"><button class="primary" data-action="new-delivery-note">Nuevo albaran</button></div>
         </div>
         <div class="panel-b">
           <div class="search-shell"><div class="search-row"><select data-search="deliveryNotesClient"><option value="">Todos los clientes</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${ctx.ui.search.deliveryNotesClient === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div></div>
-          <div class="entity-stack">${notes.length ? notes.map(item => renderDeliveryCard(item, ctx)).join("") : '<div class="empty"><p>No hay albaranes todav\u00eda.</p></div>'}</div>
+          <div class="entity-stack">${notes.length ? notes.map(item => renderDeliveryCard(item, ctx)).join("") : '<div class="empty"><p>No hay albaranes todavia.</p></div>'}</div>
         </div>
       </div>
       <div class="panel">
@@ -130,8 +128,8 @@
           <div class="actions"><button class="primary" data-action="new-document">Nuevo documento</button></div>
         </div>
         <div class="panel-b">
-          <div class="search-shell"><div class="search-row"><input placeholder="Buscar documento, proveedor o nota" value="${ctx.esc(ctx.ui.search.documents)}" data-search="documents"><select data-search="documentsType"><option value="">Todos los tipos</option>${[{id:"ticket",name:"Ticket"},{id:"supplierInvoice",name:"Factura proveedor"},{id:"deliveryProof",name:"Albar\u00e1n proveedor"},{id:"receipt",name:"Justificante"},{id:"other",name:"Otro"}].map(t => `<option value="${t.id}" ${ctx.ui.search.documentsType === t.id ? "selected" : ""}>${t.name}</option>`).join("")}</select></div></div>
-          <div class="entity-stack">${documents.length ? documents.map(item => global.AppUICardDocument.renderDocumentCard(item, ctx)).join("") : '<div class="empty"><p>No hay documentos registrados todav\u00eda.</p></div>'}</div>
+          <div class="search-shell"><div class="search-row"><input placeholder="Buscar documento, proveedor o nota" value="${ctx.esc(ctx.ui.search.documents)}" data-search="documents"><select data-search="documentsType"><option value="">Todos los tipos</option>${[{id:"ticket",name:"Ticket"},{id:"supplierInvoice",name:"Factura proveedor"},{id:"deliveryProof",name:"Albaran proveedor"},{id:"receipt",name:"Justificante"},{id:"other",name:"Otro"}].map(t => `<option value="${t.id}" ${ctx.ui.search.documentsType === t.id ? "selected" : ""}>${t.name}</option>`).join("")}</select></div></div>
+          <div class="entity-stack">${documents.length ? documents.map(item => global.AppUICardDocument.renderDocumentCard(item, ctx)).join("") : '<div class="empty"><p>No hay documentos registrados todavia.</p></div>'}</div>
         </div>
       </div>
     </div>`;

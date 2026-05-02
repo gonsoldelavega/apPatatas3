@@ -1,9 +1,24 @@
 {
-  "name": "apPatatas",
-  "short_name": "apPatatas",
-  "start_url": "./",
+  "name": "Factupapa",
+  "short_name": "Factupapa",
+  "description": "Facturacion y gestion del negocio",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a1018",
-  "theme_color": "#0f1724",
-  "icons": []
+  "background_color": "#F7F9F5",
+  "theme_color": "#2D5C43",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
