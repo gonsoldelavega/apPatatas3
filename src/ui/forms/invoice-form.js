@@ -63,22 +63,20 @@
         btn.disabled = true;
         btn.textContent = "Guardando...";
         try{
-          let nextNumber = data.number;
-          if(!id && data.number === invoice.number && typeof ctx.reserveNextInvoiceNumber === "function"){
-            try{
-              const reserved = await Promise.race([
-                ctx.reserveNextInvoiceNumber(),
-                new Promise(resolve => setTimeout(() => resolve(""), 3000))
-              ]);
-              if(reserved) nextNumber = reserved;
-            }catch(error){
-              console.warn("No se pudo reservar numero remoto. Se guarda con el numero visible.", error);
-            }
-          }
-
-          ctx.saveEntity("invoices", { ...invoice, ...data, number:nextNumber, amountPaid:ctx.n(data.amountPaid), showPaymentTerms:data.showPaymentTerms === "true", lines }, id);
+          const payload = {
+            ...invoice,
+            ...data,
+            number:data.number,
+            amountPaid:ctx.n(data.amountPaid),
+            showPaymentTerms:data.showPaymentTerms === "true",
+            lines
+          };
+          await Promise.resolve(ctx.saveEntity("invoices", payload, id));
           global.AppUIModal.closeModal();
           ctx.toast("Factura guardada");
+        }catch(error){
+          console.error("No se pudo guardar la factura", error);
+          ctx.toast("No se pudo guardar la factura. Revisa la consola.");
         }finally{
           btn.disabled = false;
           btn.textContent = originalLabel;

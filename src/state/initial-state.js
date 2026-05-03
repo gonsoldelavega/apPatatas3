@@ -6,7 +6,7 @@
       settings:{
         invoicePrefix:"FAC",
         invoiceYear:year,
-        nextInvoiceNumber:90,
+        nextInvoiceNumber:94,
         iban:"ES84 0182 5764 5102 0167 4970",
         accountHolder:"Irene González Cabrera",
         companyName:"Irene González Cabrera",

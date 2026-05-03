@@ -26,7 +26,7 @@
         companyPhone:"635516054",
         companyEmail:"gonsoldelavega@gmail.com",
         invoicePrefix:"FAC",
-        nextInvoiceNumber:90,
+        nextInvoiceNumber:94,
         accountHolder:"Irene González Cabrera",
         iban:"ES84 0182 5764 5102 0167 4970"
       };
