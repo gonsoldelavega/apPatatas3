@@ -3224,11 +3224,9 @@
           setTimeout(()=>{ runDailyBackup().catch(()=>{}); scheduleNext(); }, msUntilMidnight());
         }
         setTimeout(()=>runDailyBackup().catch(()=>{}), 8000);
-        scheduleNext();
-      }
-
-      async function activateRealtime() {
-        try {
+        scheduleNext();}
+            async function activateRealtime() {
+      try {
           const { getSupabaseClient: getSC } = await import("../services/supabase-client.js");
           const supabase = await getSC();
 
