@@ -1817,12 +1817,153 @@
         const client = getClient(item.clientId) || {};
         return `<div class="invoice-print"><div class="top"><div><h1>Albarán</h1><p><strong>${esc(item.number)}</strong></p><p>Fecha: ${esc(date(item.date))}</p></div><div class="meta-block"><p>${esc(state.settings.companyName)}</p><p>${esc(state.settings.companyPhone)}</p></div></div><div class="info"><div class="box"><h3>Cliente</h3><p>${esc(client.name || "")}</p><p>${esc(client.address || "")}</p></div><div class="box"><h3>Estado</h3><p>${esc(item.status)}</p><p>${esc(item.notes || "")}</p></div></div><table><thead><tr><th>Producto</th><th>Cantidad</th><th>Descripción</th></tr></thead><tbody>${item.lines.map(line => `<tr><td>${esc(getProduct(line.productId)?.name || line.description || "")}</td><td>${n(line.quantity)}</td><td>${esc(line.description || "")}</td></tr>`).join("")}</tbody></table></div>`;
       }
-      function popupPrint(title, html){
-        const win = window.open("", "_blank");
-        if(!win) return toast("El navegador bloqueó la ventana de impresión");
-        win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;background:#fff} ${document.querySelector("style").textContent}</style></head><body>${html}</body></html>`);
-        win.document.close(); win.focus(); setTimeout(() => win.print(), 200);
-      }
+        function invoicePrintCss(){
+          return `
+            *{box-sizing:border-box}
+            html,body{margin:0;background:#fff;color:#121212}
+            body{font-family:"Segoe UI",Arial,sans-serif;padding:0}
+            .invoice-print{
+              width:190mm;
+              min-height:270mm;
+              margin:0 auto;
+              padding:14mm 12mm 12mm;
+              background:#fff;
+              color:#121212;
+              font-family:"Segoe UI",Arial,sans-serif;
+            }
+            .invoice-print h1,.invoice-print h2,.invoice-print h3,.invoice-print p{margin:0}
+            .invoice-print .doc-head,.invoice-print .totals,.invoice-print .bank{
+              display:flex;
+              justify-content:space-between;
+              gap:20px;
+            }
+            .invoice-print .doc-head{
+              align-items:flex-start;
+              margin-bottom:22px;
+              padding-bottom:16px;
+              border-bottom:2px solid #111;
+            }
+            .invoice-print .issuer{max-width:58%}
+            .invoice-print .issuer-kicker{
+              font-size:10px;
+              letter-spacing:.16em;
+              text-transform:uppercase;
+              color:#666;
+              margin-bottom:8px;
+              font-weight:700;
+            }
+            .invoice-print .issuer h1{
+              font-size:21px;
+              font-weight:700;
+              line-height:1.18;
+              margin-bottom:10px;
+            }
+            .invoice-print .issuer p{font-size:12px;line-height:1.5;color:#383838}
+            .invoice-print .meta-block{text-align:right;min-width:210px}
+            .invoice-print .meta-block h2{
+              font-size:26px;
+              letter-spacing:.08em;
+              text-transform:uppercase;
+              margin-bottom:8px;
+            }
+            .invoice-print .meta-number{font-size:17px;font-weight:800;margin-bottom:8px}
+            .invoice-print .meta-block p{font-size:12px;line-height:1.5;color:#383838}
+            .invoice-print .info{
+              display:grid;
+              grid-template-columns:1fr;
+              gap:18px;
+              margin-bottom:22px;
+            }
+            .invoice-print .box{
+              border:1px solid #d8d8d8;
+              border-radius:12px;
+              padding:14px 16px;
+            }
+            .invoice-print .box h3{
+              font-size:11px;
+              letter-spacing:.12em;
+              text-transform:uppercase;
+              color:#656565;
+              margin-bottom:8px;
+            }
+            .invoice-print .box p{font-size:13px;line-height:1.45}
+            .invoice-print table{
+              width:100%;
+              border-collapse:collapse;
+              border:1px solid #dcdcdc;
+              margin-top:4px;
+            }
+            .invoice-print thead th{
+              background:#f5f5f5;
+              font-size:11px;
+              letter-spacing:.06em;
+              text-transform:uppercase;
+              color:#525252;
+              font-weight:800;
+            }
+            .invoice-print th,.invoice-print td{
+              padding:10px 12px;
+              border-bottom:1px solid #ececec;
+              text-align:left;
+              font-size:12.5px;
+              vertical-align:top;
+            }
+            .invoice-print th:last-child,.invoice-print td:last-child{text-align:right}
+            .invoice-print tbody tr:last-child td{border-bottom:0}
+            .invoice-print .totals{justify-content:flex-end;margin:18px 0}
+            .invoice-print .total-box{
+              width:320px;
+              border:1.5px solid #111;
+              border-radius:14px;
+              padding:14px 16px;
+              background:#fafafa;
+            }
+            .invoice-print .total-box p{
+              display:flex;
+              justify-content:space-between;
+              gap:14px;
+              font-size:13px;
+              line-height:1.7;
+            }
+            .invoice-print .total-box p strong{font-size:18px}
+            .invoice-print .bank{
+              border-top:1px solid #d8d8d8;
+              padding-top:16px;
+              align-items:flex-start;
+            }
+            .invoice-print .bank h3{
+              font-size:11px;
+              letter-spacing:.12em;
+              text-transform:uppercase;
+              color:#656565;
+              margin-bottom:8px;
+            }
+            .invoice-print .bank p{font-size:13px;line-height:1.55}
+            .invoice-print .bank-total{min-width:210px;text-align:right}
+            .invoice-print .bank-total p:last-child{font-size:24px;font-weight:800;line-height:1.1}
+            .invoice-print .notes-legal{
+              margin-top:18px;
+              border-top:1px solid #d7d7d7;
+              padding-top:14px;
+              font-size:11px;
+              line-height:1.45;
+              color:#2f2f2f;
+            }
+            @page{size:A4;margin:10mm}
+            @media print{
+              html,body{width:210mm;background:#fff}
+              body{padding:0}
+              .invoice-print{width:190mm;margin:0;padding:0}
+            }
+          `;
+        }
+        function popupPrint(title, html){
+          const win = window.open("", "_blank");
+          if(!win) return toast("El navegador bloqueó la ventana de impresión");
+          win.document.open();
+          win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${invoicePrintCss()}</style></head><body>${html}<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},250);});<\/script></body></html>`);
+          win.document.close();
+        }
       function previewInvoice(id){
         const invoice = state.invoices.find(x => x.id === id); if(!invoice) return;
         openModal("Factura", invoice.number || "Sin número", `<div class="sheet-grid">
