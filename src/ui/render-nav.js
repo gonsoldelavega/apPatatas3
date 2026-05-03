@@ -44,9 +44,9 @@
         z-index: 100 !important;
         display: flex !important;
         align-items: stretch !important;
-        justify-content: space-around !important;
+        justify-content: flex-start !important;
         gap: 0 !important;
-        padding: 0 !important;
+        padding: 0 8px !important;
         margin: 0 !important;
         border-radius: 0 !important;
         background: rgba(28,20,16,.97) !important;
@@ -57,10 +57,16 @@
         -webkit-backdrop-filter: blur(20px) !important;
         height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
         padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-        overflow: hidden !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        scrollbar-width: none !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior-x: contain !important;
       }
+      #tabs::-webkit-scrollbar { display: none !important; }
       #tabs button {
-        flex: 1 !important;
+        flex: 0 0 82px !important;
+        width: 82px !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
