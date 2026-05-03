@@ -3051,10 +3051,17 @@
             }
             window.localStorage.setItem(LAST_BACKUP_KEY, getTodayKey());
             console.log("[drive-backup] Backup diario OK:", getTodayKey());
-          }catch(err){
-            console.warn("[drive-backup] Falló:", err?.message || err);
+            }catch(err){
+              if(String(err?.message || err).includes("401")){
+                window.localStorage.removeItem("google-drive-token");
+                window.localStorage.removeItem("google-drive-profile");
+                window.__googleAccessToken = "";
+                driveAccessToken = "";
+                driveProfile = null;
+              }
+              console.warn("[drive-backup] Falló:", err?.message || err);
+            }
           }
-        }
         function msUntilMidnight(){
           const now = new Date();
           const next = new Date(now);

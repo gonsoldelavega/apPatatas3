@@ -10,8 +10,13 @@
     "app_settings",
     "app_aux_state"
   ];
+  let activeSubscription = null;
 
   function subscribe(supabase, onChange){
+    if(activeSubscription){
+      activeSubscription.unsubscribe();
+      activeSubscription = null;
+    }
     if(!supabase || typeof supabase.channel !== "function"){
       throw new Error("Supabase realtime no disponible");
     }
@@ -49,13 +54,15 @@
     document.addEventListener("visibilitychange", onVisible);
     global.addEventListener("online", onOnline);
 
-    return {
+    activeSubscription = {
       unsubscribe(){
         document.removeEventListener("visibilitychange", onVisible);
         global.removeEventListener("online", onOnline);
         supabase.removeChannel(channel);
+        if(activeSubscription === this) activeSubscription = null;
       }
     };
+    return activeSubscription;
   }
 
   global.AppRealtime = {

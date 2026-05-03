@@ -14,7 +14,11 @@ async function loadPublicConfig() {
     if (!payload?.supabaseUrl || !payload?.supabaseAnonKey) {
       throw new Error("missing_supabase_public_config");
     }
-    return payload;
+    return {
+      ...payload,
+      supabaseUrl: String(payload.supabaseUrl || "").trim(),
+      supabaseAnonKey: String(payload.supabaseAnonKey || "").trim()
+    };
   } catch (_error) {
     throw new Error("No se pudo cargar configuración de Supabase");
   }
