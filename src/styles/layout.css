@@ -159,7 +159,7 @@
   inset: 0;
   display: none;
   place-items: end center;
-  z-index: 40;
+  z-index: 1000;
   background: rgba(26,15,8,.40);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -172,20 +172,29 @@
   width: 100%;
   max-width: 920px;
   max-height: 94dvh;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   border-radius: var(--r-xl) var(--r-xl) var(--r) var(--r);
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 -4px 40px rgba(26,15,8,.16), 0 0 0 1px rgba(255,255,255,.08);
 }
 
+.sheet > .panel-b {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 28px;
+}
+
 .sheet-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 0 20px 20px;
+  padding: 14px 20px calc(18px + env(safe-area-inset-bottom, 0px));
   position: sticky;
   bottom: 0;
+  z-index: 1001;
   background: linear-gradient(
     180deg,
     rgba(242,237,228,0) 0%,

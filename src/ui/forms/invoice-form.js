@@ -59,15 +59,30 @@
         const seq = ctx.parseInvoiceNumber(data.number);
         if(!seq) return ctx.toast("Numero de factura invalido. Usa algo como FAC-080/2026");
 
-        let nextNumber = data.number;
-        if(!id && data.number === invoice.number && typeof ctx.reserveNextInvoiceNumber === "function"){
-          nextNumber = await ctx.reserveNextInvoiceNumber();
-          if(!nextNumber) return ctx.toast("No se pudo reservar el siguiente numero de factura");
-        }
+        const originalLabel = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Guardando...";
+        try{
+          let nextNumber = data.number;
+          if(!id && data.number === invoice.number && typeof ctx.reserveNextInvoiceNumber === "function"){
+            try{
+              const reserved = await Promise.race([
+                ctx.reserveNextInvoiceNumber(),
+                new Promise(resolve => setTimeout(() => resolve(""), 3000))
+              ]);
+              if(reserved) nextNumber = reserved;
+            }catch(error){
+              console.warn("No se pudo reservar numero remoto. Se guarda con el numero visible.", error);
+            }
+          }
 
-        ctx.saveEntity("invoices", { ...invoice, ...data, number:nextNumber, amountPaid:ctx.n(data.amountPaid), showPaymentTerms:data.showPaymentTerms === "true", lines }, id);
-        global.AppUIModal.closeModal();
-        ctx.toast("Factura guardada");
+          ctx.saveEntity("invoices", { ...invoice, ...data, number:nextNumber, amountPaid:ctx.n(data.amountPaid), showPaymentTerms:data.showPaymentTerms === "true", lines }, id);
+          global.AppUIModal.closeModal();
+          ctx.toast("Factura guardada");
+        }finally{
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
       }));
     }, [{id:"cancel",label:"Cancelar",className:"ghost"},{id:"save",label:"Guardar factura",className:"primary"}]);
   }
