@@ -3183,48 +3183,9 @@
           }
         );
       }
-                  return;
-          const LAST_BACKUP_KEY = "factupapa-last-drive-backup";
-        function getTodayKey(){ return new Date().toISOString().slice(0,10); }
-        async function runDailyBackup(){
-          const lastBackup = window.localStorage.getItem(LAST_BACKUP_KEY) || "";
-          if(lastBackup === getTodayKey()) return;
-          const driveToken = window.localStorage.getItem("google-drive-token") || "";
-          if(!driveToken.trim()) return;
-          try{
-            window.__googleAccessToken = driveToken.trim();
-            await uploadStateToDrive(true, true);
-            const currentMonth = new Date().toISOString().slice(0,7);
-            for(const invoice of (state.invoices || [])){
-              const im = (invoice.issueDate || invoice.date || "").slice(0,7);
-              if(im !== currentMonth) continue;
-              await uploadInvoiceToDrive(invoice.id, true, true).catch(()=>{});
-            }
-            window.localStorage.setItem(LAST_BACKUP_KEY, getTodayKey());
-            console.log("[drive-backup] Backup diario OK:", getTodayKey());
-            }catch(err){
-              if(String(err?.message || err).includes("401")){
-                window.localStorage.removeItem("google-drive-token");
-                window.localStorage.removeItem("google-drive-profile");
-                window.__googleAccessToken = "";
-                driveAccessToken = "";
-                driveProfile = null;
-              }
-              console.warn("[drive-backup] Falló:", err?.message || err);
-            }
-          }
-        function msUntilMidnight(){
-          const now = new Date();
-          const next = new Date(now);
-          next.setDate(now.getDate()+1);
-          next.setHours(0,1,0,0);
-          return next.getTime() - now.getTime();
+        function scheduleDailyDriveBackup(){
+          return;
         }
-        function scheduleNext(){
-          setTimeout(()=>{ runDailyBackup().catch(()=>{}); scheduleNext(); }, msUntilMidnight());
-        }
-        setTimeout(()=>runDailyBackup().catch(()=>{}), 8000);
-        scheduleNext();}
             async function activateRealtime() {
       try {
           const { getSupabaseClient: getSC } = await import("../services/supabase-client.js");
