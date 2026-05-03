@@ -3172,9 +3172,18 @@
       renderAll();
       registerGlobalButtons();
       registerPwa();
-      scheduleDailyDriveBackup();
-        function scheduleDailyDriveBackup(){
-          return;
+      if(typeof AppDriveAgent !== "undefined"){
+        AppDriveAgent.scheduleDriveAgent(
+          state.settings.driveRootFolderName || "apPatatas",
+          async (purchase) => {
+            store.saveEntity("purchases", purchase, purchase.id);
+            syncState();
+            renderAll();
+            await savePrimaryCollectionToSupabase("purchases", purchase);
+          }
+        );
+      }
+                  return;
           const LAST_BACKUP_KEY = "factupapa-last-drive-backup";
         function getTodayKey(){ return new Date().toISOString().slice(0,10); }
         async function runDailyBackup(){

@@ -1,45 +1,43 @@
 (function(global){
+
   function renderScannerWorkspaceView(ctx){
-    const documentCount = ctx.state.documents.length;
     const latestDocuments = ctx.state.documents
       .slice()
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-      .slice(0, 3);
+      .slice(0, 4);
 
     return `<div class="view-stack workspace-stack">
+
+      <!-- Acciones principales — lo primero que ve el usuario -->
       <section class="dashboard-block soft-block">
-        <div class="section-title">
-          <div>
-            <h3>ESCANEAR CON IA</h3>
-            <p>Empieza por aqui para capturar o importar el documento.</p>
-          </div>
+        <div class="section-title" style="margin-bottom:16px;">
+          <h3>Escanear documento</h3>
         </div>
         <div class="scanner-entry-grid">
-          <button class="scanner-entry primary" data-action="new-scanned-supplier-invoice" style="grid-column:1/-1;">
-            <span>Factura proveedor</span>
-            <strong>Escanear y guardar documento de compra</strong>
+          <button class="scanner-entry primary" data-action="new-scanned-supplier-invoice" style="grid-column:1/-1;min-height:80px;">
+            <strong style="font-size:1.05rem;">📄 Escanear con IA</strong>
+            <span>Factura proveedor — lee el importe, fecha y proveedor automáticamente</span>
           </button>
           <button class="scanner-entry" data-action="new-scanned-ticket">
-            <span>Ticket o gasto</span>
-            <strong>Captura para justificar gastos rapidamente</strong>
+            <strong>🧾 Ticket / gasto</strong>
+            <span>Captura rápida para justificar gastos</span>
           </button>
           <button class="scanner-entry" data-action="open-scanner-pdf">
-            <span>Escaneo libre</span>
-            <strong>Generar PDF multipagina y revisar despues</strong>
+            <strong>📑 PDF multipágina</strong>
+            <span>Escaneo libre para archivar</span>
           </button>
           <button class="scanner-entry" data-action="new-document">
-            <span>Subir imagen</span>
-            <strong>Usar fotos ya hechas desde galeria</strong>
+            <strong>🖼 Subir imagen</strong>
+            <span>Usar foto ya hecha</span>
           </button>
         </div>
       </section>
 
+      <!-- Últimos documentos -->
       <section class="dashboard-block soft-block">
         <div class="section-title">
-          <div>
-            <h3>ULTIMOS DOCUMENTOS</h3>
-            <p>${documentCount} guardado(s). Acceso rapido a lo ultimo capturado o subido.</p>
-          </div>
+          <h3>Últimos documentos</h3>
+          <button class="ghost" style="min-height:34px;padding:0 12px;font-size:.82rem;" data-view="operations">Ver todos</button>
         </div>
         ${latestDocuments.length ? `
           <div class="dashboard-list">
@@ -55,8 +53,9 @@
               </article>
             `).join("")}
           </div>
-        ` : '<div class="empty"><p>Todavia no hay documentos escaneados.</p></div>'}
+        ` : '<div class="empty"><p>Todavía no hay documentos escaneados.</p></div>'}
       </section>
+
     </div>`;
   }
 
