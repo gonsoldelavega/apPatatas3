@@ -2100,7 +2100,7 @@
         driveStateSyncTimer = setTimeout(() => uploadStateToDrive(true).catch(() => {}), 1500);
       }
       saveEntity = function(collection, entity, id){
-        previousSaveEntityWithDrive(collection, entity, id);
+        baseSaveEntity(collection, entity, id);
       };
 
       const ensureExternalScript = src => new Promise((resolve, reject) => {
@@ -3032,8 +3032,9 @@
       registerGlobalButtons();
       registerPwa();
       scheduleDailyDriveBackup();
-      function scheduleDailyDriveBackup(){
-        const LAST_BACKUP_KEY = "factupapa-last-drive-backup";
+        function scheduleDailyDriveBackup(){
+          return;
+          const LAST_BACKUP_KEY = "factupapa-last-drive-backup";
         function getTodayKey(){ return new Date().toISOString().slice(0,10); }
         async function runDailyBackup(){
           const lastBackup = window.localStorage.getItem(LAST_BACKUP_KEY) || "";
