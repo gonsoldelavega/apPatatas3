@@ -519,10 +519,11 @@
         return fallback === true || fallback === "true";
       }
       function normalizeSharedSettingsSnapshot(settings = {}){
+        const manualNextInvoiceNumber = Math.max(n(settings.nextInvoiceNumber) || CANONICAL_SHARED_SETTINGS.nextInvoiceNumber, 1);
         return {
           invoicePrefix:sharedSettingText(settings.invoicePrefix, CANONICAL_SHARED_SETTINGS.invoicePrefix),
           invoiceYear:n(settings.invoiceYear) || YEAR,
-          nextInvoiceNumber:Math.max(n(settings.nextInvoiceNumber) || CANONICAL_SHARED_SETTINGS.nextInvoiceNumber, 1),
+          nextInvoiceNumber:manualNextInvoiceNumber,
           iban:sharedSettingText(settings.iban, CANONICAL_SHARED_SETTINGS.iban),
           accountHolder:sharedSettingText(settings.accountHolder, CANONICAL_SHARED_SETTINGS.accountHolder),
           companyName:sharedSettingText(settings.companyName, CANONICAL_SHARED_SETTINGS.companyName),
@@ -555,7 +556,7 @@
           next.accountHolder = CANONICAL_SHARED_SETTINGS.accountHolder;
         }
         if(!sharedSettingText(next.iban, "")) next.iban = CANONICAL_SHARED_SETTINGS.iban;
-        next.nextInvoiceNumber = Math.max(n(next.nextInvoiceNumber) || 0, CANONICAL_SHARED_SETTINGS.nextInvoiceNumber);
+        next.nextInvoiceNumber = Math.max(n(next.nextInvoiceNumber) || CANONICAL_SHARED_SETTINGS.nextInvoiceNumber, 1);
         return next;
       }
       function mapSharedSettingsFromSupabase(row, currentSettings = {}){
@@ -582,11 +583,6 @@
       }
       function buildBackfilledSharedSettingsRow(remoteRow, localSettings){
         const mergedSettings = mapSharedSettingsFromSupabase(remoteRow || {}, localSettings);
-        mergedSettings.nextInvoiceNumber = Math.max(
-          n(mergedSettings.nextInvoiceNumber),
-          n(localSettings?.nextInvoiceNumber),
-          1
-        );
         return mapSharedSettingsToSupabase(mergedSettings);
       }
       function sharedSettingsNeedBackfill(remoteRow, nextRow){
@@ -1383,7 +1379,7 @@
           });
         });
         const settingsForm = document.getElementById("settingsForm");
-        if(settingsForm) settingsForm.addEventListener("submit", e => {
+        if(settingsForm) settingsForm.addEventListener("submit", async e => {
           e.preventDefault();
           const data = Object.fromEntries(new FormData(settingsForm).entries());
           const normalizedSettings = {
@@ -1401,11 +1397,25 @@
           }, { persist:true });
           syncState();
           renderAll();
-          saveSharedSettingsToSupabase(state.settings).catch(error => {
+          try{
+            AppSyncStatus.setSaving();
+            const savedSettingsRow = await saveSharedSettingsToSupabase(state.settings);
+            if(savedSettingsRow){
+              store.updateState(current => {
+                current.settings = applyCanonicalSharedSettingsFixups(mapSharedSettingsFromSupabase(savedSettingsRow, current.settings));
+              }, { persist:true, reason:"settings:saved-shared" });
+              syncState();
+              renderAll();
+            }
+            hideDataNotice();
+            AppSyncStatus.setSynced();
+            toast("Ajustes guardados");
+          }catch(error){
             console.error("[supabase] No se pudieron guardar los ajustes compartidos.", error);
             showDataNotice("No se pudieron guardar los ajustes compartidos en Supabase. Se ha conservado una copia local temporal.", "warn");
-          });
-          toast("Ajustes guardados");
+            AppSyncStatus.setError();
+            toast("Ajustes guardados solo en este dispositivo");
+          }
         });
         document.querySelectorAll("[data-action]").forEach(node => node.addEventListener("click", e => {
           e.stopPropagation();
