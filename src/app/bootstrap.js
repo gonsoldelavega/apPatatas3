@@ -2126,6 +2126,8 @@
         }
       function registerGlobalButtons(){ document.querySelectorAll(".quick [data-action]").forEach(btn => btn.addEventListener("click", () => handleAction(btn.dataset.action))); }
       function registerPwa(){
+        let serviceWorkerRegistration = null;
+        let updateCheckTimer = null;
         window.addEventListener("beforeinstallprompt", e => {
           e.preventDefault();
           deferredPrompt = e;
@@ -2135,7 +2137,13 @@
         if(installBtn && !installBtn.dataset.bound){
           installBtn.dataset.bound = "true";
           installBtn.addEventListener("click", async () => {
-            if(!deferredPrompt) return toast("Instalacion disponible al abrir desde navegador compatible");
+            if(!deferredPrompt){
+              if(serviceWorkerRegistration){
+                await serviceWorkerRegistration.update().catch(() => {});
+                return toast("Buscando actualizaciones");
+              }
+              return toast("Instalacion disponible al abrir desde navegador compatible");
+            }
             deferredPrompt.prompt();
             deferredPrompt = null;
           });
@@ -2148,10 +2156,35 @@
             toast("La app se ha actualizado");
             window.location.reload();
           });
+          const activateWaitingWorker = registration => {
+            if(registration?.waiting) registration.waiting.postMessage("SKIP_WAITING");
+          };
+          const watchInstallingWorker = registration => {
+            const worker = registration.installing;
+            if(!worker) return;
+            worker.addEventListener("statechange", () => {
+              if(worker.state === "installed" && navigator.serviceWorker.controller){
+                worker.postMessage("SKIP_WAITING");
+              }
+            });
+          };
+          const checkForUpdates = () => {
+            if(!serviceWorkerRegistration) return;
+            serviceWorkerRegistration.update().then(() => {
+              activateWaitingWorker(serviceWorkerRegistration);
+            }).catch(() => {});
+          };
+          document.addEventListener("visibilitychange", () => {
+            if(document.visibilityState === "visible") checkForUpdates();
+          });
+          window.addEventListener("focus", checkForUpdates);
           navigator.serviceWorker.register("./sw.js", { updateViaCache:"none" }).then(registration => {
-            if(registration.waiting) registration.waiting.postMessage("SKIP_WAITING");
-            registration.update().catch(() => {});
-            setInterval(() => registration.update().catch(() => {}), 60000);
+            serviceWorkerRegistration = registration;
+            activateWaitingWorker(registration);
+            registration.addEventListener("updatefound", () => watchInstallingWorker(registration));
+            checkForUpdates();
+            clearInterval(updateCheckTimer);
+            updateCheckTimer = setInterval(checkForUpdates, 30000);
           }).catch(console.error);
         }
       }

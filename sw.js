@@ -1,4 +1,4 @@
-const CACHE = "factupapa-v2026-05-06-registro-compras";
+const CACHE = "factupapa-v2026-05-06-pwa-auto-update";
 const APP_SHELL = [
   "./",
   "./index.html",
