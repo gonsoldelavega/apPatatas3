@@ -67,6 +67,7 @@
       let deferredPrompt = null;
       let suppressSyncPersistence = false;
       let syncManager = null;
+      let purchaseRegistrySync = null;
       let supabaseHydrated = false;
 
       function uid(prefix){ return ids.uid(prefix); }
@@ -1241,9 +1242,13 @@
       }
       function productCard(product){ return productCardUI.renderProductCard(product, uiRenderContext()); }
       function purchaseCard(item){
+        const firstLine = (item.lines || [])[0] || {};
+        const title = getProduct(item.productId)?.name || firstLine.description || item.concept || item.description || "Compra";
+        const supplierLabel = getSupplier(item.supplierId)?.name || item.supplierName || item.supplier || "Proveedor";
+        const ivaLabel = Number.isFinite(Number(item.ivaPct)) ? item.ivaPct : item.iva;
         return `<article class="card">
-          <div class="head"><div><h3>${esc(getProduct(item.productId)?.name || "Producto")}</h3><p>${esc(getSupplier(item.supplierId)?.name || "Proveedor")} · ${date(item.date)}</p></div><span class="chip good">${money(purchaseTotal(item))}</span></div>
-          <div class="meta"><span class="chip">Cantidad: ${n(item.quantity)}</span><span class="chip">Coste: ${money(item.unitCost)}</span><span class="chip">IVA: ${n(item.iva)}%</span></div>
+          <div class="head"><div><h3>${esc(title)}</h3><p>${esc(supplierLabel)} · ${date(item.date)}</p></div><span class="chip good">${money(purchaseTotal(item))}</span></div>
+          <div class="meta"><span class="chip">Cantidad: ${n(item.quantity)}</span><span class="chip">Coste: ${money(item.unitCost)}</span><span class="chip">IVA: ${n(ivaLabel)}%</span></div>
           <div class="card-actions"><button data-action="edit-purchase" data-id="${item.id}">Editar</button><button class="danger" data-action="delete-purchase" data-id="${item.id}">Eliminar</button></div>
         </article>`;
       }
@@ -1386,7 +1391,10 @@
             invoiceYear:n(data.invoiceYear),
             nextInvoiceNumber:n(data.nextInvoiceNumber),
             driveAutoUpload:data.driveAutoUpload === "true",
-            driveStateAutoSync:data.driveStateAutoSync === "true"
+            driveStateAutoSync:data.driveStateAutoSync === "true",
+            purchaseRegistryAutoSync:data.purchaseRegistryAutoSync !== "false",
+            purchaseRegistrySpreadsheetId:String(data.purchaseRegistrySpreadsheetId || "").trim(),
+            purchaseRegistrySheetName:String(data.purchaseRegistrySheetName || "REGISTRO").trim() || "REGISTRO"
           };
           store.updateState(current => {
             current.settings = { ...current.settings, ...normalizedSettings };
@@ -2035,7 +2043,7 @@
       function exportCsv(kind){
         let rows = [];
         if(kind === "invoices"){ rows = [["Numero","Cliente","Fecha","Periodo","Plantilla","Base","IVA","Total","Cobrado","Pendiente","Estado envio","Notas internas"]]; state.invoices.forEach(i => { const t = invoiceTotals(i); rows.push([i.number, getClient(i.clientId)?.name || "", i.issueDate, period(i.periodStart, i.periodEnd), templateName(i.templateId), t.base.toFixed(2), t.vat.toFixed(2), t.total.toFixed(2), t.paid.toFixed(2), t.pending.toFixed(2), i.sendStatus || "", i.internalNote || ""]); }); }
-        if(kind === "purchases"){ rows = [["Fecha","Proveedor","Producto","Cantidad","Coste unitario","IVA","Total","Notas"]]; state.purchases.forEach(i => rows.push([i.date, getSupplier(i.supplierId)?.name || "", getProduct(i.productId)?.name || "", i.quantity, i.unitCost, i.iva, purchaseTotal(i).toFixed(2), i.notes || ""])); }
+        if(kind === "purchases"){ rows = [["Fecha","Proveedor","Producto","Cantidad","Coste unitario","IVA","Total","Notas"]]; state.purchases.forEach(i => rows.push([i.date, getSupplier(i.supplierId)?.name || i.supplierName || i.supplier || "", getProduct(i.productId)?.name || i.description || i.concept || "", i.quantity, i.unitCost, i.ivaPct ?? i.iva, purchaseTotal(i).toFixed(2), i.notes || ""])); }
         if(kind === "expenses"){ rows = [["Fecha","Proveedor","Categoria","Concepto","Base","IVA","Total","Notas"]]; state.expenses.forEach(i => rows.push([i.date, getSupplier(i.supplierId)?.name || "", i.category || "", i.concept || "", n(i.base).toFixed(2), n(i.iva), expenseTotal(i).toFixed(2), i.notes || ""])); }
         if(kind === "deliveryNotes"){ rows = [["Numero","Cliente","Fecha","Estado","Lineas","Notas"]]; state.deliveryNotes.forEach(i => rows.push([i.number, getClient(i.clientId)?.name || "", i.date, i.status, (i.lines || []).map(line => `${line.description || getProduct(line.productId)?.name || ""} x${line.quantity}`).join(" | "), i.notes || ""])); }
         if(kind === "documents"){ rows = [["Fecha","Tipo","Titulo","Proveedor","Vinculado","Numero fotos","Notas"]]; state.documents.forEach(i => rows.push([i.date, documentTypeLabel(i.type), i.title || "", getSupplier(i.supplierId)?.name || "", i.relatedType && i.relatedId ? relatedLabel(i.relatedType, i.relatedId) : "", (i.images || []).length, i.notes || ""])); }
@@ -2206,6 +2214,9 @@
         current.settings.driveAutoUpload = current.settings.driveAutoUpload === true || current.settings.driveAutoUpload === "true";
         current.settings.driveStateFileName = current.settings.driveStateFileName || "apPatatas-state.json";
         current.settings.driveStateAutoSync = current.settings.driveStateAutoSync === true || current.settings.driveStateAutoSync === "true";
+        current.settings.purchaseRegistryAutoSync = current.settings.purchaseRegistryAutoSync !== false && current.settings.purchaseRegistryAutoSync !== "false";
+        current.settings.purchaseRegistrySpreadsheetId = current.settings.purchaseRegistrySpreadsheetId || "1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU";
+        current.settings.purchaseRegistrySheetName = current.settings.purchaseRegistrySheetName || "REGISTRO";
         current.settings.deviceId = current.settings.deviceId || (crypto?.randomUUID ? crypto.randomUUID() : uid("device"));
         current.settings = applyCanonicalSharedSettingsFixups(current.settings);
       });
@@ -2411,7 +2422,7 @@
         return new Promise((resolve, reject) => {
           driveTokenClient = google.accounts.oauth2.initTokenClient({
             client_id: state.settings.driveClientId,
-            scope: "https://www.googleapis.com/auth/drive.file",
+            scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets.readonly",
             callback: response => {
               if(response.error){
                 driveLog("auth:failure", { reason, code:response.error });
@@ -2566,11 +2577,27 @@
         if(settingsForm) renderDriveStatusPanel(settingsForm);
         toast("Google Drive desconectado");
       }
+      async function syncPurchaseRegistryFromSettings(){
+        if(!purchaseRegistrySync) return toast("Sincronizacion de compras no inicializada");
+        AppSyncStatus.setSaving();
+        try{
+          const result = await purchaseRegistrySync.importNow({ interactive:true, silent:false });
+          if(result?.disabled) toast("La sincronizacion del registro esta desactivada");
+          AppSyncStatus.setSynced();
+          return result;
+        }catch(error){
+          console.error("[purchase-registry-sync] No se pudo sincronizar el registro", error);
+          AppSyncStatus.setError();
+          toast("No se pudo leer el registro de compras. Revisa permisos de Google Drive.");
+          return null;
+        }
+      }
       const previousHandleAction = handleAction;
       handleAction = function(action, id, kind){
         if(action === "download-invoice-pdf") return downloadInvoicePdf(id).catch(() => toast("No se pudo generar el PDF"));
         if(action === "drive-connect") return connectDriveFromSettings().catch(error => reportDriveFailure("settings-connect", error, "No se pudo conectar Google Drive"));
         if(action === "drive-disconnect") return disconnectDriveFromSettings();
+        if(action === "sync-purchase-registry") return syncPurchaseRegistryFromSettings();
         if(action === "upload-invoice-drive") return beginDriveInvoiceUploadFromClick(id).catch(error => reportDriveFailure("upload-invoice", error, "No se pudo subir la factura a Google Drive"));
         if(action === "upload-state-drive") return beginDriveStateUploadFromClick().catch(error => reportDriveFailure("upload-state", error, "No se pudo subir la copia a Google Drive"));
         if(action === "download-state-drive") return beginDriveStateDownloadFromClick().catch(error => reportDriveFailure("download-state", error, "No se pudo traer la copia desde Google Drive"));
@@ -3172,7 +3199,27 @@
       renderAll();
       registerGlobalButtons();
       registerPwa();
-      if(typeof AppDriveAgent !== "undefined"){
+      if(typeof AppPurchaseRegistrySync !== "undefined"){
+        purchaseRegistrySync = AppPurchaseRegistrySync.createPurchaseRegistrySync({
+          getState:() => state,
+          getAccessToken:getDriveAccessToken,
+          toast,
+          async savePurchase(purchase){
+            store.saveEntity("purchases", purchase, purchase.id);
+            syncState();
+            renderAll();
+            await savePrimaryCollectionToSupabase("purchases", purchase);
+          }
+        });
+        purchaseRegistrySync.runDaily().then(result => {
+          if(result?.imported){
+            syncState();
+            renderAll();
+            AppSyncStatus.setSynced();
+          }
+        });
+      }
+      if(typeof AppDriveAgent !== "undefined" && state.settings.legacyDriveAgentAutoSync === true){
         AppDriveAgent.scheduleDriveAgent(
           state.settings.driveRootFolderName || "apPatatas",
           async (purchase) => {

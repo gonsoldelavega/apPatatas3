@@ -59,6 +59,10 @@
               <div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${ctx.state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${ctx.state.settings.driveAutoUpload ? "selected" : ""}>Sí</option></select></div>
               <div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${ctx.esc(ctx.state.settings.driveStateFileName || "apPatatas-state.json")}"></div>
               <div class="field"><label>Sync automática Drive</label><select name="driveStateAutoSync"><option value="false" ${ctx.state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${ctx.state.settings.driveStateAutoSync ? "selected" : ""}>Sí</option></select></div>
+              <div class="field"><label>Compras desde registro</label><select name="purchaseRegistryAutoSync"><option value="true" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "" : "selected"}>Si</option><option value="false" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "selected" : ""}>No</option></select></div>
+              <div class="field"><label>ID registro compras</label><input name="purchaseRegistrySpreadsheetId" value="${ctx.esc(ctx.state.settings.purchaseRegistrySpreadsheetId || "1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU")}"></div>
+              <div class="field"><label>Hoja registro compras</label><input name="purchaseRegistrySheetName" value="${ctx.esc(ctx.state.settings.purchaseRegistrySheetName || "REGISTRO")}"></div>
+              <div class="field" style="grid-column:1/-1;"><button class="ghost" type="button" data-action="sync-purchase-registry">Sincronizar compras del registro</button></div>
               <div class="field" style="grid-column:1/-1;"><button class="primary" type="submit">Guardar ajustes</button></div>
             </form>
             <div class="actions section-actions" style="margin-top:14px;">

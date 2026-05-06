@@ -1,0 +1,66 @@
+{
+  "name": "Gonsol - Clasificar facturas de compras desde Drive",
+  "mode": "safe-outline",
+  "description": "Workflow base para n8n. Requiere credenciales Google Drive/Sheets en n8n y un paso OCR/extraccion de texto.",
+  "schedule": {
+    "type": "daily",
+    "suggested_time": "07:30"
+  },
+  "drive": {
+    "input_folder_id": "1ETAzvmssbDM7cLDUEy89quY0xEnNecd4",
+    "purchases_folder_id": "1Q627xLAkvxB_MqUMCYPsTXRKoJIOvMvR",
+    "year_2026_folder_id": "1DdOU176x510MbGGoGCagu5pfvWKdsI3R",
+    "quarter_folder_ids_2026": {
+      "T1": "1EP7xP5fYmgcit8cCmRrcXTtTy1UG52tP",
+      "T2": "1Z4J2e8Nfm9Z-o2AjQ5ZKbdJwxTRvLO6G",
+      "T3": "1neQiDnzu6Fa0CRxh2VFfmRLWq_dyySA9",
+      "T4": "19pJwQJM4sv2BFuVC4JQ8v10UIOT8S2Sw"
+    }
+  },
+  "sheet": {
+    "spreadsheet_id": "1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU",
+    "sheet_name": "REGISTRO",
+    "append_columns": [
+      "Fecha documento",
+      "Fecha registro",
+      "Tipo",
+      "Subtipo",
+      "Serie / Nº",
+      "Cliente / Proveedor",
+      "NIF/CIF",
+      "Concepto",
+      "Categoría",
+      "Base imponible",
+      "IVA %",
+      "Cuota IVA",
+      "Total",
+      "Estado",
+      "Método pago",
+      "Mes",
+      "Trimestre",
+      "Año",
+      "Ruta / enlace Drive",
+      "Nombre archivo",
+      "Revisado",
+      "Observaciones"
+    ]
+  },
+  "nodes": [
+    "Schedule Trigger diario",
+    "Google Drive: listar archivos de 99_PENDIENTE_DE_CLASIFICAR",
+    "Split in Batches: procesar uno por uno",
+    "Google Drive: descargar archivo",
+    "OCR/extraccion texto PDF o imagen",
+    "Execute Command: llamar a facturas-drive con texto extraido",
+    "Code: parsear JSON y calcular carpeta destino",
+    "IF: confianza >= 0.80 y campos obligatorios presentes",
+    "Google Sheets: append row en REGISTRO",
+    "Google Drive: mover a 02_COMPRAS/<AÑO>/<T>",
+    "Rama revision: registrar con Revisado=no y observacion"
+  ],
+  "required_n8n_credentials": [
+    "Google Drive OAuth2",
+    "Google Sheets OAuth2"
+  ],
+  "required_decision": "Elegir motor OCR/extraccion: n8n PDF extract, Google Drive conversion, OpenAI vision, Google Document AI u otro."
+}
