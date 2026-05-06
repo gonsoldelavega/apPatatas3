@@ -228,6 +228,9 @@
     async function runDaily(){
       const lastRun = Date.parse(global.localStorage.getItem(LAST_RUN_KEY) || "");
       if(Number.isFinite(lastRun) && Date.now() - lastRun < DAY_MS) return { skippedDaily:true };
+      if(typeof options.hasAccessToken === "function" && !options.hasAccessToken()){
+        return { skippedAuth:true };
+      }
       try{
         return await importNow({ interactive:false, silent:true });
       }catch(error){

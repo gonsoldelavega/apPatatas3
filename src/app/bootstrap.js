@@ -3202,6 +3202,7 @@
       if(typeof AppPurchaseRegistrySync !== "undefined"){
         purchaseRegistrySync = AppPurchaseRegistrySync.createPurchaseRegistrySync({
           getState:() => state,
+          hasAccessToken:() => !!String(driveAccessToken || readDeviceLocal(DRIVE_TOKEN_KEY) || "").trim(),
           getAccessToken:getDriveAccessToken,
           toast,
           async savePurchase(purchase){

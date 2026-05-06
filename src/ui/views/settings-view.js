@@ -24,6 +24,24 @@
         </div>
       </div>
 
+      <div class="panel soft-block">
+        <div class="panel-h">
+          <div>
+            <h2>Registro de compras</h2>
+            <p>Importa en la app las facturas ya procesadas en el registro maestro.</p>
+          </div>
+        </div>
+        <div class="panel-b">
+          <div class="summary">
+            <div class="summary-row"><span>Estado</span><strong>${ctx.state.settings.purchaseRegistryAutoSync === false ? "Desactivado" : "Activo"}</strong></div>
+            <div class="summary-row"><span>Hoja</span><strong>${ctx.esc(ctx.state.settings.purchaseRegistrySheetName || "REGISTRO")}</strong></div>
+          </div>
+          <div class="actions section-actions" style="margin-top:14px;">
+            <button class="primary" type="button" data-action="sync-purchase-registry">Sincronizar compras</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Configuración general colapsable -->
       <div class="panel soft-block">
         <details>
