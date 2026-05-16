@@ -1175,7 +1175,14 @@
 
       async function reserveNextInvoiceNumber(){
         const result = await storageService.reserveInvoiceNumber(mapSharedSettingsToSupabase(state.settings));
-        if(!result) return composeInvoiceNumber(state.settings.nextInvoiceNumber);
+
+        if(!result){
+          console.error("[invoice-number] No se pudo reservar número oficial en Supabase. Creación de factura bloqueada.");
+          showDataNotice("No se pudo reservar número oficial de factura. Revisa conexión/Supabase antes de facturar.", "error");
+          AppSyncStatus.setError();
+          return "";
+        }
+
         const reserved = Math.max(Number(result.reserved || state.settings.nextInvoiceNumber || 1), 1);
         store.updateState(current => {
           current.settings = mapSharedSettingsFromSupabase(result.row || {}, {

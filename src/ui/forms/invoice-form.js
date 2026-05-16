@@ -1,10 +1,27 @@
 (function(global){
-  function openInvoiceForm(ctx, id, preset = null){
+  async function openInvoiceForm(ctx, id, preset = null){
     const baseInvoice = preset?.id ? preset : (id ? ctx.state.invoices.find(x => x.id === id) : null);
+    const isNewInvoice = !id && !baseInvoice?.id;
+    let reservedNumber = "";
+
+    if(isNewInvoice){
+      if(typeof ctx.reserveNextInvoiceNumber !== "function"){
+        ctx.toast("No se puede crear factura: reserva de numeración no disponible.");
+        return;
+      }
+
+      reservedNumber = await ctx.reserveNextInvoiceNumber();
+
+      if(!reservedNumber){
+        ctx.toast("No se puede crear factura: no se ha podido reservar número oficial.");
+        return;
+      }
+    }
+
     const invoice = baseInvoice || {
       id:ctx.uid("fac"),
       clientId:preset?.clientId || "",
-      number:ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber),
+      number:reservedNumber || ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber),
       issueDate:ctx.today(),
       periodStart:ctx.today(),
       periodEnd:ctx.today(),
@@ -17,7 +34,7 @@
     };
     global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Un unico bloque logico de periodo y plantilla editable", `<form id="invoiceForm" class="sheet-grid">
       <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
-      <div class="field"><label>Numero</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" required></div>
+      <div class="field"><label>Numero</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
       <div class="field"><label>Fecha de emision interna</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
       <div class="field"><label>Plantilla</label><select name="templateId" id="invoiceTemplate"><option value="">Selecciona plantilla</option>${ctx.state.templates.map(t => `<option value="${t.id}" ${invoice.templateId === t.id ? "selected" : ""}>${ctx.esc(t.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Periodo de facturacion · inicio</label><input name="periodStart" type="date" value="${ctx.esc(invoice.periodStart)}"></div>
@@ -58,6 +75,16 @@
         const data = Object.fromEntries(new FormData(form).entries());
         const seq = ctx.parseInvoiceNumber(data.number);
         if(!seq) return ctx.toast("Numero de factura invalido. Usa algo como FAC-080/2026");
+
+        const normalizedNumber = String(data.number || "").trim().toUpperCase();
+        const duplicate = (ctx.state.invoices || []).some(inv =>
+          inv.id !== invoice.id &&
+          String(inv.number || "").trim().toUpperCase() === normalizedNumber
+        );
+
+        if(duplicate){
+          return ctx.toast("Ya existe una factura con ese número. No se puede guardar duplicada.");
+        }
 
         const originalLabel = btn.textContent;
         btn.disabled = true;
