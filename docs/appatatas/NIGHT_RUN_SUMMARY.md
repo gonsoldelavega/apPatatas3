@@ -56,8 +56,8 @@
 
 ## Push y despliegue
 
-- Pendiente de ejecutar push al escribir este resumen.
-- Vercel deberia desplegar automaticamente tras push a `main`.
+- Push a `main`: completado.
+- Vercel desplegado: confirmado. Produccion responde `200` y `sw.js` ya sirve `CACHE_VERSION = "2026-05-17-night-run"`.
 
 ## Pendiente para activar el agente Drive real
 
