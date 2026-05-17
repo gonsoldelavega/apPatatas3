@@ -60,6 +60,13 @@
     return "";
   }
 
+  function normalizeRegistryStatus(value){
+    const status = normalizeText(value);
+    if(["pagado", "pagada", "paid", "cobrado", "abonado", "ok"].includes(status)) return "paid";
+    if(["parcial", "pago parcial", "partial"].includes(status)) return "partial";
+    return "pending";
+  }
+
   function extractDriveFileId(value){
     const raw = String(value || "");
     return raw.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]
@@ -103,7 +110,7 @@
     if(!nameKey && !nifKey) return "";
     const match = (suppliers || []).find(supplier => {
       const supplierNameKey = normalizeText(supplier.name);
-      const supplierNifKey = normalizeText(supplier.nif);
+      const supplierNifKey = normalizeText(supplier.taxId || supplier.nif || supplier.nifCif);
       return (nifKey && supplierNifKey && supplierNifKey === nifKey)
         || (nameKey && supplierNameKey && (supplierNameKey.includes(nameKey) || nameKey.includes(supplierNameKey)));
     });
@@ -116,11 +123,14 @@
     const total = parseEuro(row[COLUMNS.total]);
     const ivaPct = parseEuro(row[COLUMNS.ivaPct]);
     const supplierName = String(row[COLUMNS.supplier] || "").trim();
+    const supplierNif = String(row[COLUMNS.nif] || "").trim();
     const concept = String(row[COLUMNS.concept] || row[COLUMNS.category] || "Factura de compra").trim();
     const number = String(row[COLUMNS.number] || "").trim();
     const date = parseDate(row[COLUMNS.documentDate]) || new Date().toISOString().slice(0, 10);
-    const supplierId = findSupplierId(state.suppliers, supplierName, row[COLUMNS.nif]);
+    const supplierId = findSupplierId(state.suppliers, supplierName, supplierNif);
     const id = buildPurchaseId(row);
+    const status = normalizeRegistryStatus(row[COLUMNS.status]);
+    const amountPaid = status === "paid" ? total : 0;
     const line = {
       productId:"",
       description:concept,
@@ -138,6 +148,7 @@
       issueDate:date,
       supplierId,
       supplierName,
+      supplierNif,
       supplier:supplierName,
       productId:"",
       description:concept,
@@ -152,10 +163,10 @@
       baseAmount:base,
       ivaAmount,
       totalAmount:total,
-      status:"paid",
-      paidDate:date,
-      paymentDate:date,
-      amountPaid:total,
+      status,
+      paidDate:status === "paid" ? date : "",
+      paymentDate:status === "paid" ? date : "",
+      amountPaid,
       paymentMethod:String(row[COLUMNS.paymentMethod] || "").trim(),
       type:"invoice",
       source:"google-registro-compras",
@@ -172,9 +183,23 @@
   }
 
   function hasPurchase(state, purchase){
+    const purchaseNumber = normalizeText(purchase.number || purchase.invoiceNumber);
+    const purchaseSupplier = normalizeText(purchase.supplierNif || purchase.supplierName || purchase.supplier);
+    const purchaseDate = parseDate(purchase.date || purchase.issueDate);
+    const purchaseTotal = parseEuro(purchase.totalAmount || purchase.total || purchase.amount);
     return (state.purchases || []).some(item => {
       if(item.id && item.id === purchase.id) return true;
       if(item.sourceRegistryFileId && purchase.sourceRegistryFileId && item.sourceRegistryFileId === purchase.sourceRegistryFileId) return true;
+      const itemNumber = normalizeText(item.number || item.invoiceNumber);
+      const itemSupplier = normalizeText(item.supplierNif || item.supplierName || item.supplier);
+      const itemDate = parseDate(item.date || item.issueDate);
+      const itemTotal = parseEuro(item.totalAmount || item.total || item.amount);
+      if(purchaseNumber && itemNumber && purchaseNumber === itemNumber && purchaseSupplier && itemSupplier && purchaseSupplier === itemSupplier){
+        return true;
+      }
+      if(purchaseDate && itemDate && purchaseDate === itemDate && purchaseSupplier && itemSupplier && purchaseSupplier === itemSupplier && Math.abs(purchaseTotal - itemTotal) < 0.01){
+        return true;
+      }
       return false;
     });
   }

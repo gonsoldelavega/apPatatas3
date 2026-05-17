@@ -89,6 +89,12 @@ PROVEEDORES HABITUALES:
 - FRUTAS Y PATATAS GAYCA S.A. (NIF: A04037677): columnas Unds=cantidad, Precio=precio unitario, Importe=total línea
 - J. EXPÓSITO CAZORLA E HIJOS S.L. (NIF: B04854154): columnas Tot.Unds=cantidad, Precio=precio unitario, Total=total línea
 
+REGLAS ESPECIFICAS ACTUALIZADAS:
+- GAYCA y FRUTCAYCAZ son proveedores distintos.
+- GAYCA / FRUTAS Y PATATAS GAYCA S.A. (A04037677): factura/ticket termico vertical. El numero suele empezar por FV, por ejemplo FV006-00000996; no incluyas el numero de vendedor como parte del numero de factura. Columnas: Descripcion, Lote, Unds, Precio, Dto, Importe. El producto habitual casi siempre es PATATAS AGRIA; si el texto de producto es dudoso en una factura GAYCA, prioriza PATATAS AGRIA salvo que se lea claramente otro producto.
+- FRUTCAYCAZ / FRUTIGAYCAZ / J. EXPOSITO CAZORLA E HIJOS S.L. (B04854154): factura apaisada y puede venir rotada. El numero suele ser numerico, por ejemplo 26004132. Puede listar un albaran y debajo varias lineas de producto. Extrae las lineas reales y no guardes "ALBARAN ..." como producto si hay detalle debajo. Columnas: Codigo, Descripcion, Num. Lote, Plt., Caj., Und., Tot.Unds, Precio, IVA, Total.
+- En ambos proveedores el IVA habitual de alimentacion es 4%. Comprueba que base_total + iva_total coincide con total_factura.
+
 INSTRUCCIONES:
 - numero_factura: el número de factura (ej: FV006-00000709, 26002777)
 - fecha: fecha en formato YYYY-MM-DD

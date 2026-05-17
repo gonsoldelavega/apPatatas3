@@ -38,6 +38,24 @@
 13. Google Drive: mover archivo solo si `dryRun=false` y el registro ya existe.
 14. Respuesta JSON con contadores.
 
+## Clasificacion por trimestre
+
+La carpeta destino debe calcularse con la fecha de documento, no con la fecha de registro.
+
+- T1: enero-marzo
+- T2: abril-junio
+- T3: julio-septiembre
+- T4: octubre-diciembre
+
+Ruta recomendada:
+
+`Compras/{year}/T{quarter}/{supplier}/{YYYY-MM-DD}_{supplier}_{invoice_number}_{total}.pdf`
+
+Ejemplos:
+
+- `Compras/2026/T2/GAYCA/2026-05-04_GAYCA_FV006-00000996_85,80.pdf`
+- `Compras/2026/T2/FRUTCAYCAZ/2026-05-16_FRUTCAYCAZ_26004132_66,35.pdf`
+
 ## Respuesta recomendada
 
 ```json
