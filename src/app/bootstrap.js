@@ -2092,7 +2092,26 @@
       }
       function printInvoice(id){ const invoice = state.invoices.find(x => x.id === id); if(invoice) popupPrint(invoice.number, buildInvoicePrint(invoice)); }
       function printDeliveryNote(id){ const item = state.deliveryNotes.find(x => x.id === id); if(item) popupPrint(item.number, buildDeliveryPrint(item)); }
-      function duplicateInvoice(id){ const source = state.invoices.find(x => x.id === id); if(!source) return; const copy = structuredClone(source); copy.id = uid("fac"); copy.number = composeInvoiceNumber(state.settings.nextInvoiceNumber); copy.issueDate = today(); copy.amountPaid = 0; openInvoiceForm(null, copy); }
+      function duplicateInvoice(id){
+        const source = state.invoices.find(x => x.id === id);
+        if(!source) return;
+        const copy = structuredClone(source);
+        delete copy.id;
+        delete copy.number;
+        copy.issueDate = today();
+        copy.periodStart = today();
+        copy.periodEnd = today();
+        copy.amountPaid = "";
+        copy.paidDate = "";
+        copy.paymentDate = "";
+        copy.paymentMethod = "";
+        copy.paymentNote = "";
+        copy.status = "pending";
+        copy.sendStatus = "";
+        copy.internalNote = "";
+        copy.lines = (copy.lines || []).map(line => ({ ...line, deliveryDate:today() }));
+        openInvoiceForm(null, copy);
+      }
       function shareInvoiceWhatsApp(id){
         const invoice = state.invoices.find(x => x.id === id); if(!invoice) return;
         const client = getClient(invoice.clientId); const totals = invoiceTotals(invoice);

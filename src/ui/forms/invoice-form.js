@@ -1,7 +1,7 @@
 (function(global){
   async function openInvoiceForm(ctx, id, preset = null){
-    const baseInvoice = preset?.id ? preset : (id ? ctx.state.invoices.find(x => x.id === id) : null);
-    const isNewInvoice = !id && !baseInvoice?.id;
+    const baseInvoice = id ? ctx.state.invoices.find(x => x.id === id) : null;
+    const isNewInvoice = !id;
     let reservedNumber = "";
 
     if(isNewInvoice){
@@ -18,9 +18,9 @@
       }
     }
 
-    const invoice = baseInvoice || {
+    const defaultInvoice = {
       id:ctx.uid("fac"),
-      clientId:preset?.clientId || "",
+      clientId:"",
       number:reservedNumber || ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber),
       issueDate:ctx.today(),
       periodStart:ctx.today(),
@@ -31,6 +31,27 @@
       amountPaid:"",
       showPaymentTerms:"",
       lines:[ctx.blankLine()]
+    };
+    const invoice = baseInvoice || {
+      ...defaultInvoice,
+      ...(preset || {}),
+      id:ctx.uid("fac"),
+      number:reservedNumber,
+      issueDate:ctx.today(),
+      periodStart:ctx.today(),
+      periodEnd:ctx.today(),
+      amountPaid:"",
+      paidDate:"",
+      paymentDate:"",
+      paymentMethod:"",
+      paymentNote:"",
+      status:"pending",
+      sendStatus:"",
+      internalNote:"",
+      lines:(preset?.lines || defaultInvoice.lines).map(line => ({
+        ...line,
+        deliveryDate:ctx.today()
+      }))
     };
     const defaultDeliveryDate = invoice.issueDate || ctx.today();
     const invoiceLines = (invoice.lines?.length ? invoice.lines : [ctx.blankLine()]).map(line => ({
