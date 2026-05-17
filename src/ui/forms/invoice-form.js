@@ -32,6 +32,12 @@
       showPaymentTerms:"",
       lines:[ctx.blankLine()]
     };
+    const defaultDeliveryDate = invoice.issueDate || ctx.today();
+    const invoiceLines = (invoice.lines?.length ? invoice.lines : [ctx.blankLine()]).map(line => ({
+      ...line,
+      deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || defaultDeliveryDate
+    }));
+    const isValidDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
     global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Un unico bloque logico de periodo y plantilla editable", `<form id="invoiceForm" class="sheet-grid">
       <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Numero</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
@@ -57,7 +63,7 @@
         body.querySelector("#invoiceSummary").innerHTML = `<div class="summary-row"><span>Base imponible</span><strong>${ctx.money(totals.base)}</strong></div><div class="summary-row"><span>IVA total</span><strong>${ctx.money(totals.vat)}</strong></div><div class="summary-row total"><span>Total factura</span><strong>${ctx.money(totals.total)}</strong></div><div class="summary-row"><span>Cobrado</span><strong>${ctx.money(totals.paid)}</strong></div><div class="summary-row"><span>Pendiente</span><strong>${ctx.money(totals.pending)}</strong></div>`;
       }
 
-      global.AppUILineEditor.setupLineEditor(linesRoot, invoice.lines || [ctx.blankLine()], "invoice", refresh, ctx);
+      global.AppUILineEditor.setupLineEditor(linesRoot, invoiceLines, "invoice", refresh, ctx);
       amountInput.addEventListener("input", refresh);
       clientSelect.addEventListener("change", () => {
         const client = ctx.getClient(clientSelect.value);
@@ -71,8 +77,28 @@
         const form = body.querySelector("#invoiceForm");
         if(!form.reportValidity()) return;
         const lines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
-        if(!lines.length) return ctx.toast("Anade al menos una linea a la factura");
         const data = Object.fromEntries(new FormData(form).entries());
+        if(!data.clientId) return ctx.toast("Selecciona un cliente para la factura.");
+        if(!isValidDate(data.issueDate)) return ctx.toast("Indica una fecha de emision valida.");
+        if(data.periodStart && data.periodEnd && data.periodStart > data.periodEnd){
+          return ctx.toast("El inicio del periodo no puede ser posterior al final.");
+        }
+        if(!lines.length) return ctx.toast("Anade al menos una linea a la factura");
+        const invalidLineIndex = lines.findIndex(line =>
+          ctx.n(line.quantity) <= 0 ||
+          ctx.n(line.price) < 0 ||
+          !Number.isFinite(Number(line.iva)) ||
+          !line.deliveryDate ||
+          !isValidDate(line.deliveryDate) ||
+          !Number.isFinite(ctx.lineTotal(line))
+        );
+        if(invalidLineIndex >= 0){
+          return ctx.toast(`Revisa la linea ${invalidLineIndex + 1}: entrega, cantidad, precio e IVA deben ser validos.`);
+        }
+        const totals = ctx.invoiceTotals({ ...invoice, ...data, lines });
+        if(!Number.isFinite(totals.total) || totals.total < 0){
+          return ctx.toast("El total calculado de la factura no es coherente.");
+        }
         const seq = ctx.parseInvoiceNumber(data.number);
         if(!seq) return ctx.toast("Numero de factura invalido. Usa algo como FAC-080/2026");
 

@@ -28,6 +28,13 @@
 
   function setupLineEditor(root, lines, mode, onChange, ctx){
     const amountMode = usesAmounts(mode);
+    const normalizeLine = line => ({
+      ...line,
+      deliveryDate: mode === "invoice"
+        ? (line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || ctx.today())
+        : ""
+    });
+    lines = (lines || []).map(normalizeLine);
 
     const syncLineFromDom = item => {
       if(!item) return;
@@ -61,7 +68,7 @@
 
       root.querySelector("[data-add-line]").addEventListener("click", () => {
         syncLinesFromDom();
-        lines.push(ctx.blankLine());
+        lines.push(normalizeLine(ctx.blankLine()));
         draw();
         onChange && onChange();
       });

@@ -330,6 +330,7 @@
       function mapInvoiceFromSupabase(row){
         const lines = parseJsonLines(row.lines).map(line => ({
           ...line,
+          deliveryDate: line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || row.fecha_factura || today(),
           iva: line.iva ?? line.ivaPct ?? 0,
           ivaPct: line.ivaPct ?? line.iva ?? 0,
           ivaAmount: line.ivaAmount ?? line.ivaLinea ?? 0,
@@ -1787,10 +1788,16 @@
       function buildInvoicePrint(invoice){
         const client = getClient(invoice.clientId) || {};
         const totals = invoiceTotals(invoice);
-        const showDeliveryDate = invoice.templateId === "quincenal";
+        const lines = (invoice.lines || []).map(line => ({
+          ...line,
+          deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || invoice.issueDate || today()
+        }));
+        const deliveryDates = [...new Set(lines.map(line => line.deliveryDate).filter(Boolean))];
+        const generalDeliveryDate = deliveryDates.length === 1 ? deliveryDates[0] : "";
+        const showDeliveryDate = !generalDeliveryDate;
         const showCompact = invoice.templateId === "compacta";
           const showPaymentTerms = !!invoice.showPaymentTerms;
-        const rows = invoice.lines.map(line => `<tr>${showDeliveryDate ? `<td>${esc(date(line.deliveryDate))}</td>` : ""}<td>${esc(line.description || getProduct(line.productId)?.name || "")}</td><td>${n(line.quantity)}</td>${showCompact ? "" : `<td>${money(line.price)}</td>`}<td>${n(line.iva)}%</td><td>${money(lineTotal(line))}</td></tr>`).join("");
+        const rows = lines.map(line => `<tr>${showDeliveryDate ? `<td>${esc(date(line.deliveryDate))}</td>` : ""}<td>${esc(line.description || getProduct(line.productId)?.name || "")}</td><td>${n(line.quantity)}</td>${showCompact ? "" : `<td>${money(line.price)}</td>`}<td>${n(line.iva)}%</td><td>${money(lineTotal(line))}</td></tr>`).join("");
         return `<div class="invoice-print">
           <div class="doc-head">
             <div class="issuer">
@@ -1804,7 +1811,8 @@
               <h2>Factura</h2>
               <div class="meta-number">${esc(invoice.number)}</div>
               <p>Emisión: ${esc(date(invoice.issueDate))}</p>
-              <p>Periodo: ${esc(period(invoice.periodStart, invoice.periodEnd))}</p>
+              ${invoice.periodStart || invoice.periodEnd ? `<p>Periodo: ${esc(period(invoice.periodStart, invoice.periodEnd))}</p>` : ""}
+              ${generalDeliveryDate ? `<p>Fecha de entrega: ${esc(date(generalDeliveryDate))}</p>` : ""}
             </div>
           </div>
             <div class="info">
@@ -1819,7 +1827,7 @@
             </div>
             <table>
             <thead>
-              <tr>${showDeliveryDate ? "<th>Entrega</th>" : ""}<th>Concepto</th><th>Cantidad</th>${showCompact ? "" : "<th>Precio</th>"}<th>IVA</th><th>Total</th></tr>
+              <tr>${showDeliveryDate ? "<th>Fecha de entrega</th>" : ""}<th>Concepto</th><th>Cantidad</th>${showCompact ? "" : "<th>Precio</th>"}<th>IVA</th><th>Total</th></tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
