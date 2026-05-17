@@ -27,6 +27,50 @@
       <div class="panel soft-block">
         <div class="panel-h">
           <div>
+            <h2>Estado de la app</h2>
+            <p>Salud operativa, sincronizacion y siguiente numeracion.</p>
+          </div>
+        </div>
+        <div class="panel-b">
+          <div class="summary">
+            <div class="summary-row"><span>Version</span><strong>${ctx.esc(ctx.appVersion || "Sin version")}</strong></div>
+            <div class="summary-row"><span>Ultimo commit</span><strong>${ctx.esc(ctx.appCommit || "No disponible en runtime")}</strong></div>
+            <div class="summary-row"><span>Ultima sincronizacion</span><strong>${ctx.health?.lastSyncAt ? ctx.date(ctx.health.lastSyncAt) : "Sin dato"}</strong></div>
+            <div class="summary-row"><span>Supabase</span><strong>${ctx.esc(ctx.health?.supabaseStatus || "Sin dato")}</strong></div>
+            <div class="summary-row"><span>Google Drive</span><strong>${ctx.esc(ctx.health?.googleDriveStatus || "Sin conectar")}</strong></div>
+            <div class="summary-row"><span>Service worker</span><strong>${ctx.esc(ctx.health?.serviceWorkerStatus || "Sin dato")}</strong></div>
+            <div class="summary-row"><span>Modo PWA</span><strong>${ctx.esc(ctx.health?.pwaMode || "Navegador")}</strong></div>
+            <div class="summary-row"><span>Siguiente factura</span><strong>${ctx.esc(ctx.health?.nextInvoiceNumber || "")}</strong></div>
+            ${ctx.health?.syncDiscrepancy ? `<div class="summary-row"><span>Aviso</span><strong>${ctx.esc(ctx.health.syncDiscrepancy)}</strong></div>` : ""}
+          </div>
+          <div class="actions section-actions" style="margin-top:14px;">
+            <button class="primary" type="button" data-action="repair-local-sync">Reparar sincronizacion local</button>
+            <button type="button" data-action="sync-drive-invoices-now">Sincronizar facturas de Drive ahora</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel soft-block">
+        <div class="panel-h">
+          <div>
+            <h2>Bandeja de revision Drive</h2>
+            <p>Preparada para clasificar facturas cuando el agente este activo.</p>
+          </div>
+        </div>
+        <div class="panel-b">
+          <div class="summary">
+            <div class="summary-row"><span>Pendientes de revision</span><strong>0</strong></div>
+            <div class="summary-row"><span>Duplicados probables</span><strong>0</strong></div>
+            <div class="summary-row"><span>Errores de lectura</span><strong>0</strong></div>
+            <div class="summary-row"><span>Procesadas</span><strong>0</strong></div>
+          </div>
+          <p style="margin:12px 0 0;color:var(--muted);font-size:.88rem;line-height:1.5;">La bandeja real dependera de la tabla processed_documents y del webhook n8n. Hasta entonces no mueve ni procesa archivos reales.</p>
+        </div>
+      </div>
+
+      <div class="panel soft-block">
+        <div class="panel-h">
+          <div>
             <h2>Registro de compras</h2>
             <p>Importa en la app las facturas ya procesadas en el registro maestro.</p>
           </div>

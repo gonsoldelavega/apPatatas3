@@ -2,6 +2,7 @@
       const { getSupabaseClient } = await import("../services/supabase-client.js");
       const KEY = window.AppInitialState.STORAGE_KEY;
       const APP_VERSION = "2026.04.16-vercel-sync";
+      const APP_COMMIT = window.__APP_COMMIT__ || document.querySelector('meta[name="app-commit"]')?.content || "";
       const SYNC_TOKEN_KEY = "factupapa-sync-token";
       const SYNC_META_KEY = "factupapa-sync-meta-v1";
       const DRIVE_TOKEN_KEY = "google-drive-token";
@@ -1137,9 +1138,24 @@
         console.info("[SharedSync]", step, details);
       }
       function uiRenderContext(){
+        const syncMeta = readSyncMeta();
+        const driveTokenPresent = !!String(driveAccessToken || readDeviceLocal(DRIVE_TOKEN_KEY) || "").trim();
+        const serviceWorkerActive = !!navigator.serviceWorker?.controller;
+        const standaloneMode = window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
         return {
           state,
           ui,
+          appVersion:APP_VERSION,
+          appCommit:APP_COMMIT,
+          health:{
+            lastSyncAt:syncMeta.lastSuccessAt || state.settings.lastSavedAt || "",
+            supabaseStatus:supabaseHydrated ? "Conectado" : "Pendiente o temporal",
+            googleDriveStatus:driveTokenPresent ? "Conectado" : "Sin conectar",
+            serviceWorkerStatus:serviceWorkerActive ? "Activo" : ("serviceWorker" in navigator ? "Registrable" : "No compatible"),
+            pwaMode:standaloneMode ? "Instalada" : "Navegador",
+            nextInvoiceNumber:composeInvoiceNumber(state.settings.nextInvoiceNumber),
+            syncDiscrepancy:supabaseHydrated ? "" : "No se pudo confirmar Supabase; usando copia local temporal."
+          },
           n,
           money,
           date,
@@ -1193,6 +1209,55 @@
         }, { persist:true, reason:"supabase:reserve-invoice-number" });
         syncState();
         return composeInvoiceNumber(reserved);
+      }
+      async function repairLocalSyncFromSupabase(){
+        AppSyncStatus.setSaving();
+        const beforeCounts = {
+          clients:(state.clients || []).length,
+          products:(state.products || []).length,
+          invoices:(state.invoices || []).length,
+          purchases:(state.purchases || []).length
+        };
+        try{
+          const sharedOk = await hydrateSharedStateFromSupabase();
+          const primaryOk = await hydratePrimaryEntitiesFromSupabase();
+          if(!sharedOk || !primaryOk) throw new Error("supabase_hydration_failed");
+          mergeSyncMeta({
+            lastSuccessAt:safeIso(undefined, ""),
+            lastRemoteTimestamp:"",
+            lastLocalTimestamp:syncStamp(syncState()),
+            lastError:"",
+            lastPullResult:"repair:supabase",
+            lastPushResult:""
+          });
+          store.updateState(current => {
+            current._sync = {
+              ...(current._sync || {}),
+              version:1,
+              updatedAt:safeIso(undefined, "")
+            };
+            current.settings = {
+              ...(current.settings || {}),
+              lastSavedAt:current._sync.updatedAt
+            };
+          }, { persist:true, reason:"supabase:repair-local-sync" });
+          syncState();
+          renderAll();
+          AppSyncStatus.setSynced();
+          const afterCounts = {
+            clients:(state.clients || []).length,
+            products:(state.products || []).length,
+            invoices:(state.invoices || []).length,
+            purchases:(state.purchases || []).length
+          };
+          toast(`Sync reparada desde Supabase: ${afterCounts.invoices} facturas, ${afterCounts.purchases} compras.`);
+          return { ok:true, beforeCounts, afterCounts };
+        }catch(error){
+          console.error("[supabase] No se pudo reparar la sincronizacion local", error);
+          AppSyncStatus.setError();
+          toast("No se pudo reparar: Supabase no respondio. No se han borrado datos locales.");
+          return { ok:false, error:error?.message || String(error), beforeCounts };
+        }
       }
       function formContext(){
         return {
@@ -2650,12 +2715,49 @@
           return null;
         }
       }
+      async function syncDriveInvoicesNow(){
+        const token = getRuntimeSyncToken() || readDeviceLocal(SYNC_TOKEN_KEY).trim();
+        if(!token){
+          toast("Falta token local para lanzar el agente Drive.");
+          return null;
+        }
+        AppSyncStatus.setSaving();
+        try{
+          const response = await fetch("/api/drive-invoices-sync", {
+            method:"POST",
+            headers:{
+              "Content-Type":"application/json",
+              "x-sync-token":token
+            },
+            body:JSON.stringify({
+              source:"appatatas-settings",
+              folderId:"1ETAzvmssbDM7cLDUEy89quY0xEnNecd4",
+              requestedAt:new Date().toISOString()
+            }),
+            cache:"no-store"
+          });
+          const payload = await response.json().catch(() => ({}));
+          if(!response.ok || payload?.ok === false){
+            throw new Error(payload?.error || `drive-sync-${response.status}`);
+          }
+          AppSyncStatus.setSynced();
+          toast(payload?.message || "Sincronizacion Drive solicitada.");
+          return payload;
+        }catch(error){
+          console.error("[drive-invoices-sync] No se pudo lanzar la sincronizacion", error);
+          AppSyncStatus.setError();
+          toast("No se pudo sincronizar Drive. Revisa env vars del webhook.");
+          return null;
+        }
+      }
       const previousHandleAction = handleAction;
       handleAction = function(action, id, kind){
         if(action === "download-invoice-pdf") return downloadInvoicePdf(id).catch(() => toast("No se pudo generar el PDF"));
         if(action === "drive-connect") return connectDriveFromSettings().catch(error => reportDriveFailure("settings-connect", error, "No se pudo conectar Google Drive"));
         if(action === "drive-disconnect") return disconnectDriveFromSettings();
         if(action === "sync-purchase-registry") return syncPurchaseRegistryFromSettings();
+        if(action === "repair-local-sync") return repairLocalSyncFromSupabase();
+        if(action === "sync-drive-invoices-now") return syncDriveInvoicesNow();
         if(action === "upload-invoice-drive") return beginDriveInvoiceUploadFromClick(id).catch(error => reportDriveFailure("upload-invoice", error, "No se pudo subir la factura a Google Drive"));
         if(action === "upload-state-drive") return beginDriveStateUploadFromClick().catch(error => reportDriveFailure("upload-state", error, "No se pudo subir la copia a Google Drive"));
         if(action === "download-state-drive") return beginDriveStateDownloadFromClick().catch(error => reportDriveFailure("download-state", error, "No se pudo traer la copia desde Google Drive"));

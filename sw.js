@@ -1,4 +1,5 @@
-const CACHE = "factupapa-v2026-05-06-invoice-number-settings";
+const CACHE_VERSION = "2026-05-17-night-run";
+const CACHE = `factupapa-${CACHE_VERSION}`;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -30,8 +31,10 @@ self.addEventListener("message", event => {
 async function networkFirst(request){
   try{
     const response = await fetch(request, { cache:"no-store" });
-    const cache = await caches.open(CACHE);
-    cache.put(request, response.clone());
+    if(response.ok){
+      const cache = await caches.open(CACHE);
+      cache.put(request, response.clone());
+    }
     return response;
   }catch{
     const cached = await caches.match(request);
@@ -43,8 +46,10 @@ async function networkFirst(request){
 async function staleWhileRevalidate(request){
   const cached = await caches.match(request);
   const network = fetch(request).then(async response => {
-    const cache = await caches.open(CACHE);
-    cache.put(request, response.clone());
+    if(response.ok){
+      const cache = await caches.open(CACHE);
+      cache.put(request, response.clone());
+    }
     return response;
   }).catch(() => cached);
   return cached || network;
@@ -55,6 +60,7 @@ self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
   const isLocal = url.origin === self.location.origin;
   const isApiRequest = isLocal && url.pathname.startsWith("/api/");
+  const isSupabaseRequest = /(^|\.)supabase\.co$/i.test(url.hostname) || url.hostname.includes("supabase");
   const isDocument = event.request.mode === "navigate" || event.request.destination === "document";
   const isStaticAsset = isLocal && /(\.js|\.css|\.json|\.svg|\.png|\.jpg|\.jpeg|\.webmanifest)$/i.test(url.pathname);
   const isCriticalShell = isLocal && (
@@ -62,7 +68,7 @@ self.addEventListener("fetch", event => {
     url.pathname.endsWith("/manifest.json") ||
     url.pathname.endsWith("/sw.js")
   );
-  if(isApiRequest){
+  if(isApiRequest || isSupabaseRequest){
     event.respondWith(fetch(event.request, { cache:"no-store" }));
     return;
   }
