@@ -2,6 +2,7 @@
   async function openInvoiceForm(ctx, id, preset = null){
     const baseInvoice = id ? ctx.state.invoices.find(x => x.id === id) : null;
     const isNewInvoice = !id;
+    const MIN_NEXT_INVOICE_NUMBER = 101;
     let reservedNumber = "";
     let usedEmergencyNumber = false;
 
@@ -12,13 +13,17 @@
           0,
           ...(ctx.state?.invoices || []).map(inv => Number(ctx.parseInvoiceNumber(inv.number)) || 0)
         );
-        const safeNext = Math.max(configuredNext, existingMax + 1, 1);
+        const safeNext = Math.max(configuredNext, existingMax + 1, MIN_NEXT_INVOICE_NUMBER);
         return ctx.composeInvoiceNumber(safeNext);
       };
 
       if(typeof ctx.reserveNextInvoiceNumber === "function"){
         try{
           reservedNumber = await ctx.reserveNextInvoiceNumber();
+          if((Number(ctx.parseInvoiceNumber(reservedNumber)) || 0) < MIN_NEXT_INVOICE_NUMBER){
+            console.warn("Número reservado por debajo del mínimo operativo. Se fuerza factura 101 o superior.", { reservedNumber });
+            reservedNumber = "";
+          }
         }catch(error){
           console.error("No se pudo reservar número oficial. Se usará numeración local de emergencia.", error);
         }
