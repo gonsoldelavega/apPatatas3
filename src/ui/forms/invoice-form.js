@@ -2,7 +2,7 @@
   async function openInvoiceForm(ctx, id, preset = null){
     const baseInvoice = id ? ctx.state.invoices.find(x => x.id === id) : null;
     const isNewInvoice = !id;
-    const MIN_NEXT_INVOICE_NUMBER = 101;
+    const MIN_NEXT_INVOICE_NUMBER = 102;
     let reservedNumber = "";
     let usedEmergencyNumber = false;
 
@@ -21,7 +21,7 @@
         try{
           reservedNumber = await ctx.reserveNextInvoiceNumber();
           if((Number(ctx.parseInvoiceNumber(reservedNumber)) || 0) < MIN_NEXT_INVOICE_NUMBER){
-            console.warn("Número reservado por debajo del mínimo operativo. Se fuerza factura 101 o superior.", { reservedNumber });
+            console.warn("Número reservado por debajo del mínimo operativo. Se fuerza factura 102 o superior.", { reservedNumber });
             reservedNumber = "";
           }
         }catch(error){
