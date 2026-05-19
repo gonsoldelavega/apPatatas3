@@ -200,6 +200,11 @@ input:focus,select:focus,textarea:focus{
   border-color:rgba(17,24,32,.16)!important;
 }
 
+/* Oculta el disparador del webhook Drive/n8n mientras no este configurado en Vercel. */
+[data-action="sync-drive-invoices-now"]{
+  display:none!important;
+}
+
 @media (max-width:520px){
   .app{padding-left:12px;padding-right:12px}
   .panel-b{padding:18px}
