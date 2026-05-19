@@ -3,18 +3,31 @@
     const baseInvoice = id ? ctx.state.invoices.find(x => x.id === id) : null;
     const isNewInvoice = !id;
     let reservedNumber = "";
+    let usedEmergencyNumber = false;
 
     if(isNewInvoice){
-      if(typeof ctx.reserveNextInvoiceNumber !== "function"){
-        ctx.toast("No se puede crear factura: reserva de numeración no disponible.");
-        return;
+      const computeEmergencyNumber = () => {
+        const configuredNext = Math.max(Number(ctx.state?.settings?.nextInvoiceNumber || 1), 1);
+        const existingMax = Math.max(
+          0,
+          ...(ctx.state?.invoices || []).map(inv => Number(ctx.parseInvoiceNumber(inv.number)) || 0)
+        );
+        const safeNext = Math.max(configuredNext, existingMax + 1, 1);
+        return ctx.composeInvoiceNumber(safeNext);
+      };
+
+      if(typeof ctx.reserveNextInvoiceNumber === "function"){
+        try{
+          reservedNumber = await ctx.reserveNextInvoiceNumber();
+        }catch(error){
+          console.error("No se pudo reservar número oficial. Se usará numeración local de emergencia.", error);
+        }
       }
 
-      reservedNumber = await ctx.reserveNextInvoiceNumber();
-
       if(!reservedNumber){
-        ctx.toast("No se puede crear factura: no se ha podido reservar número oficial.");
-        return;
+        reservedNumber = computeEmergencyNumber();
+        usedEmergencyNumber = true;
+        ctx.toast("Modo emergencia: número local asignado. Revisa la numeración al sincronizar.");
       }
     }
 
@@ -59,7 +72,7 @@
       deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || defaultDeliveryDate
     }));
     const isValidDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
-    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Un unico bloque logico de periodo y plantilla editable", `<form id="invoiceForm" class="sheet-grid">
+    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", usedEmergencyNumber ? "Numeración local de emergencia: guarda la factura y revisa la sincronización después" : "Un unico bloque logico de periodo y plantilla editable", `<form id="invoiceForm" class="sheet-grid">
       <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Numero</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
       <div class="field"><label>Fecha de emision interna</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
@@ -147,7 +160,7 @@
           };
           await Promise.resolve(ctx.saveEntity("invoices", payload, id));
           global.AppUIModal.closeModal();
-          ctx.toast("Factura guardada");
+          ctx.toast(usedEmergencyNumber ? "Factura guardada en modo emergencia" : "Factura guardada");
         }catch(error){
           console.error("No se pudo guardar la factura", error);
           ctx.toast("No se pudo guardar la factura. Revisa la consola.");
