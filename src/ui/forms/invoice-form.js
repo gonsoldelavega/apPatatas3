@@ -59,33 +59,69 @@
       deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || defaultDeliveryDate
     }));
     const isValidDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
-    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "La numeración solo se consume al guardar la factura", `<form id="invoiceForm" class="sheet-grid">
-      <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
-      <div class="field"><label>Numero</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
-      <div class="field"><label>Fecha de emision interna</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
-      <div class="field"><label>Plantilla</label><select name="templateId" id="invoiceTemplate"><option value="">Selecciona plantilla</option>${ctx.state.templates.map(t => `<option value="${t.id}" ${invoice.templateId === t.id ? "selected" : ""}>${ctx.esc(t.name)}</option>`).join("")}</select></div>
-      <div class="field"><label>Periodo de facturacion · inicio</label><input name="periodStart" type="date" value="${ctx.esc(invoice.periodStart)}"></div>
-      <div class="field"><label>Periodo de facturacion · fin</label><input name="periodEnd" type="date" value="${ctx.esc(invoice.periodEnd)}"></div>
-      <div class="field"><label>Estado de envio interno</label><select name="sendStatus"><option value="">Sin estado</option>${["pendiente","enviada","revisar"].map(s => `<option value="${s}" ${invoice.sendStatus === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
-      <div class="field"><label>Importe cobrado interno</label><input name="amountPaid" type="number" step="0.01" value="${ctx.esc(invoice.amountPaid)}"></div>
-      <div class="field"><label>Mostrar clausula legal</label><select name="showPaymentTerms" id="invoiceTerms"><option value="">Sin definir</option><option value="false" ${invoice.showPaymentTerms === false || invoice.showPaymentTerms === "false" ? "selected" : ""}>No</option><option value="true" ${invoice.showPaymentTerms === true || invoice.showPaymentTerms === "true" ? "selected" : ""}>Si</option></select></div>
-      <div class="field" style="grid-column:1/-1;"><label>Lineas de factura</label><div id="invoiceLines" class="line-list"></div></div>
-      <div class="field" style="grid-column:1/-1;"><label>Nota interna</label><textarea name="internalNote">${ctx.esc(invoice.internalNote)}</textarea></div>
-      <div class="summary" style="grid-column:1/-1;" id="invoiceSummary"></div>
+
+    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Flujo guiado: cliente, entregas, cobro y revisión", `<form id="invoiceForm" class="invoice-guided-form">
+      <div class="invoice-sticky-summary" id="invoiceStickySummary">
+        <div>
+          <span class="invoice-step-eyebrow">Factura preparada</span>
+          <strong>${ctx.esc(invoice.number)}</strong>
+        </div>
+        <div class="invoice-sticky-total"><span>Total</span><strong>0,00 €</strong></div>
+      </div>
+
+      <section class="invoice-step-card">
+        <div class="invoice-step-head"><span>1</span><div><h3>Cliente y numeración</h3><p>El número no se consume hasta guardar.</p></div></div>
+        <div class="sheet-grid invoice-step-grid">
+          <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
+          <div class="field"><label>Número</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
+          <div class="field"><label>Fecha de emisión</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
+          <div class="field"><label>Plantilla</label><select name="templateId" id="invoiceTemplate"><option value="">Selecciona plantilla</option>${ctx.state.templates.map(t => `<option value="${t.id}" ${invoice.templateId === t.id ? "selected" : ""}>${ctx.esc(t.name)}</option>`).join("")}</select></div>
+        </div>
+      </section>
+
+      <section class="invoice-step-card">
+        <div class="invoice-step-head"><span>2</span><div><h3>Periodo y entregas</h3><p>Indica el rango de facturación y las líneas entregadas.</p></div></div>
+        <div class="sheet-grid invoice-step-grid">
+          <div class="field"><label>Periodo · inicio</label><input name="periodStart" type="date" value="${ctx.esc(invoice.periodStart)}"></div>
+          <div class="field"><label>Periodo · fin</label><input name="periodEnd" type="date" value="${ctx.esc(invoice.periodEnd)}"></div>
+          <div class="field invoice-lines-field" style="grid-column:1/-1;"><label>Líneas de factura</label><div id="invoiceLines" class="line-list"></div></div>
+        </div>
+      </section>
+
+      <section class="invoice-step-card">
+        <div class="invoice-step-head"><span>3</span><div><h3>Cobro y condiciones</h3><p>Registra si ya hay cobro parcial o total.</p></div></div>
+        <div class="sheet-grid invoice-step-grid">
+          <div class="field"><label>Estado de envío interno</label><select name="sendStatus"><option value="">Sin estado</option>${["pendiente","enviada","revisar"].map(s => `<option value="${s}" ${invoice.sendStatus === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+          <div class="field"><label>Importe cobrado</label><input name="amountPaid" type="number" step="0.01" value="${ctx.esc(invoice.amountPaid)}"></div>
+          <div class="field"><label>Mostrar cláusula legal</label><select name="showPaymentTerms" id="invoiceTerms"><option value="">Sin definir</option><option value="false" ${invoice.showPaymentTerms === false || invoice.showPaymentTerms === "false" ? "selected" : ""}>No</option><option value="true" ${invoice.showPaymentTerms === true || invoice.showPaymentTerms === "true" ? "selected" : ""}>Sí</option></select></div>
+          <div class="field" style="grid-column:1/-1;"><label>Nota interna</label><textarea name="internalNote">${ctx.esc(invoice.internalNote)}</textarea></div>
+        </div>
+      </section>
+
+      <section class="invoice-step-card invoice-review-card">
+        <div class="invoice-step-head"><span>4</span><div><h3>Revisión final</h3><p>Comprueba total, cobrado y pendiente antes de guardar.</p></div></div>
+        <div class="summary" id="invoiceSummary"></div>
+      </section>
     </form>`, (body, actions) => {
       const linesRoot = body.querySelector("#invoiceLines");
       const amountInput = body.querySelector('input[name="amountPaid"]');
+      const numberInput = body.querySelector('input[name="number"]');
       const clientSelect = body.querySelector("#invoiceClient");
       const templateSelect = body.querySelector("#invoiceTemplate");
       const termsSelect = body.querySelector("#invoiceTerms");
+      const sticky = body.querySelector("#invoiceStickySummary");
 
       function refresh(){
         const totals = ctx.invoiceTotals({ lines:global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx), amountPaid:amountInput.value });
         body.querySelector("#invoiceSummary").innerHTML = `<div class="summary-row"><span>Base imponible</span><strong>${ctx.money(totals.base)}</strong></div><div class="summary-row"><span>IVA total</span><strong>${ctx.money(totals.vat)}</strong></div><div class="summary-row total"><span>Total factura</span><strong>${ctx.money(totals.total)}</strong></div><div class="summary-row"><span>Cobrado</span><strong>${ctx.money(totals.paid)}</strong></div><div class="summary-row"><span>Pendiente</span><strong>${ctx.money(totals.pending)}</strong></div>`;
+        if(sticky){
+          sticky.innerHTML = `<div><span class="invoice-step-eyebrow">Factura preparada</span><strong>${ctx.esc(numberInput.value || invoice.number)}</strong></div><div class="invoice-sticky-total"><span>Total</span><strong>${ctx.money(totals.total)}</strong></div><div class="invoice-sticky-total pending"><span>Pendiente</span><strong>${ctx.money(totals.pending)}</strong></div>`;
+        }
       }
 
       global.AppUILineEditor.setupLineEditor(linesRoot, invoiceLines, "invoice", refresh, ctx);
       amountInput.addEventListener("input", refresh);
+      numberInput.addEventListener("input", refresh);
       clientSelect.addEventListener("change", () => {
         const client = ctx.getClient(clientSelect.value);
         if(client?.templateId && !templateSelect.value) templateSelect.value = client.templateId;
