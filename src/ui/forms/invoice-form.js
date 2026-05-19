@@ -2,44 +2,26 @@
   async function openInvoiceForm(ctx, id, preset = null){
     const baseInvoice = id ? ctx.state.invoices.find(x => x.id === id) : null;
     const isNewInvoice = !id;
-    const MIN_NEXT_INVOICE_NUMBER = 102;
-    let reservedNumber = "";
-    let usedEmergencyNumber = false;
+    const MIN_NEXT_INVOICE_NUMBER = 101;
 
-    if(isNewInvoice){
-      const computeEmergencyNumber = () => {
-        const configuredNext = Math.max(Number(ctx.state?.settings?.nextInvoiceNumber || 1), 1);
-        const existingMax = Math.max(
-          0,
-          ...(ctx.state?.invoices || []).map(inv => Number(ctx.parseInvoiceNumber(inv.number)) || 0)
-        );
-        const safeNext = Math.max(configuredNext, existingMax + 1, MIN_NEXT_INVOICE_NUMBER);
-        return ctx.composeInvoiceNumber(safeNext);
-      };
+    function computePreviewInvoiceNumber(){
+      const configuredNext = Math.max(Number(ctx.state?.settings?.nextInvoiceNumber || 1), 1);
+      const usedNumbers = (ctx.state?.invoices || [])
+        .map(inv => Number(ctx.parseInvoiceNumber(inv.number)) || 0)
+        .filter(Boolean);
+      const has101 = usedNumbers.includes(MIN_NEXT_INVOICE_NUMBER);
+      const existingMax = Math.max(0, ...usedNumbers);
 
-      if(typeof ctx.reserveNextInvoiceNumber === "function"){
-        try{
-          reservedNumber = await ctx.reserveNextInvoiceNumber();
-          if((Number(ctx.parseInvoiceNumber(reservedNumber)) || 0) < MIN_NEXT_INVOICE_NUMBER){
-            console.warn("Número reservado por debajo del mínimo operativo. Se fuerza factura 102 o superior.", { reservedNumber });
-            reservedNumber = "";
-          }
-        }catch(error){
-          console.error("No se pudo reservar número oficial. Se usará numeración local de emergencia.", error);
-        }
-      }
-
-      if(!reservedNumber){
-        reservedNumber = computeEmergencyNumber();
-        usedEmergencyNumber = true;
-        ctx.toast("Modo emergencia: número local asignado. Revisa la numeración al sincronizar.");
-      }
+      if(!has101) return ctx.composeInvoiceNumber(MIN_NEXT_INVOICE_NUMBER);
+      return ctx.composeInvoiceNumber(Math.max(configuredNext, existingMax + 1, MIN_NEXT_INVOICE_NUMBER + 1));
     }
+
+    const previewNumber = isNewInvoice ? computePreviewInvoiceNumber() : "";
 
     const defaultInvoice = {
       id:ctx.uid("fac"),
       clientId:"",
-      number:reservedNumber || ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber),
+      number:previewNumber || ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber),
       issueDate:ctx.today(),
       periodStart:ctx.today(),
       periodEnd:ctx.today(),
@@ -54,7 +36,7 @@
       ...defaultInvoice,
       ...(preset || {}),
       id:ctx.uid("fac"),
-      number:reservedNumber,
+      number:previewNumber,
       issueDate:ctx.today(),
       periodStart:ctx.today(),
       periodEnd:ctx.today(),
@@ -77,7 +59,7 @@
       deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || defaultDeliveryDate
     }));
     const isValidDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
-    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", usedEmergencyNumber ? "Numeración local de emergencia: guarda la factura y revisa la sincronización después" : "Un unico bloque logico de periodo y plantilla editable", `<form id="invoiceForm" class="sheet-grid">
+    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "La numeración solo se consume al guardar la factura", `<form id="invoiceForm" class="sheet-grid">
       <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Numero</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
       <div class="field"><label>Fecha de emision interna</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
@@ -117,6 +99,7 @@
         if(!form.reportValidity()) return;
         const lines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
         const data = Object.fromEntries(new FormData(form).entries());
+        if(isNewInvoice) data.number = computePreviewInvoiceNumber();
         if(!data.clientId) return ctx.toast("Selecciona un cliente para la factura.");
         if(!isValidDate(data.issueDate)) return ctx.toast("Indica una fecha de emision valida.");
         if(data.periodStart && data.periodEnd && data.periodStart > data.periodEnd){
@@ -165,7 +148,7 @@
           };
           await Promise.resolve(ctx.saveEntity("invoices", payload, id));
           global.AppUIModal.closeModal();
-          ctx.toast(usedEmergencyNumber ? "Factura guardada en modo emergencia" : "Factura guardada");
+          ctx.toast("Factura guardada");
         }catch(error){
           console.error("No se pudo guardar la factura", error);
           ctx.toast("No se pudo guardar la factura. Revisa la consola.");
