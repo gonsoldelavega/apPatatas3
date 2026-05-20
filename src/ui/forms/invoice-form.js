@@ -60,7 +60,7 @@
     }));
     const isValidDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 
-    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Flujo guiado: cliente, entregas, cobro y revisión", `<form id="invoiceForm" class="invoice-guided-form">
+    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Flujo guiado: cliente, entregas, cobro y revisión", `<form id="invoiceForm" class="invoice-guided-form" novalidate>
       <div class="invoice-sticky-summary" id="invoiceStickySummary">
         <div>
           <span class="invoice-step-eyebrow">Factura preparada</span>
@@ -73,7 +73,7 @@
         <div class="invoice-step-head"><span>1</span><div><h3>Cliente y numeración</h3><p>El número no se consume hasta guardar.</p></div></div>
         <div class="sheet-grid invoice-step-grid">
           <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
-          <div class="field"><label>Número</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""} required></div>
+          <div class="field"><label>Número</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""}></div>
           <div class="field"><label>Fecha de emisión</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
           <div class="field"><label>Plantilla</label><select name="templateId" id="invoiceTemplate"><option value="">Selecciona plantilla</option>${ctx.state.templates.map(t => `<option value="${t.id}" ${invoice.templateId === t.id ? "selected" : ""}>${ctx.esc(t.name)}</option>`).join("")}</select></div>
         </div>
@@ -110,6 +110,7 @@
       const templateSelect = body.querySelector("#invoiceTemplate");
       const termsSelect = body.querySelector("#invoiceTerms");
       const sticky = body.querySelector("#invoiceStickySummary");
+      const form = body.querySelector("#invoiceForm");
 
       function refresh(){
         const totals = ctx.invoiceTotals({ lines:global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx), amountPaid:amountInput.value });
@@ -119,29 +120,20 @@
         }
       }
 
-      global.AppUILineEditor.setupLineEditor(linesRoot, invoiceLines, "invoice", refresh, ctx);
-      amountInput.addEventListener("input", refresh);
-      numberInput.addEventListener("input", refresh);
-      clientSelect.addEventListener("change", () => {
-        const client = ctx.getClient(clientSelect.value);
-        if(client?.templateId && !templateSelect.value) templateSelect.value = client.templateId;
-        if(!termsSelect.value) termsSelect.value = client?.paymentTermsDefault ? "true" : "false";
-      });
-      refresh();
-
-      actions.querySelectorAll("button").forEach(btn => btn.addEventListener("click", async () => {
-        if(btn.dataset.modalAction !== "save") return;
-        const form = body.querySelector("#invoiceForm");
-        if(!form.reportValidity()) return;
-        const lines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
+      function getFormData(){
         const data = Object.fromEntries(new FormData(form).entries());
         if(isNewInvoice) data.number = computePreviewInvoiceNumber();
-        if(!data.clientId) return ctx.toast("Selecciona un cliente para la factura.");
-        if(!isValidDate(data.issueDate)) return ctx.toast("Indica una fecha de emision valida.");
-        if(data.periodStart && data.periodEnd && data.periodStart > data.periodEnd){
-          return ctx.toast("El inicio del periodo no puede ser posterior al final.");
-        }
-        if(!lines.length) return ctx.toast("Anade al menos una linea a la factura");
+        return data;
+      }
+
+      function validateInvoiceData(data, lines){
+        if(!data.clientId) return "Selecciona un cliente para la factura.";
+        if(!data.number || !ctx.parseInvoiceNumber(data.number)) return "Número de factura inválido. Usa algo como FAC-100/2026.";
+        if(!isValidDate(data.issueDate)) return "Indica una fecha de emisión válida.";
+        if(data.periodStart && !isValidDate(data.periodStart)) return "Indica una fecha de inicio de periodo válida.";
+        if(data.periodEnd && !isValidDate(data.periodEnd)) return "Indica una fecha de fin de periodo válida.";
+        if(data.periodStart && data.periodEnd && data.periodStart > data.periodEnd) return "El inicio del periodo no puede ser posterior al final.";
+        if(!lines.length) return "Añade al menos una línea a la factura.";
         const invalidLineIndex = lines.findIndex(line =>
           ctx.n(line.quantity) <= 0 ||
           ctx.n(line.price) < 0 ||
@@ -150,33 +142,36 @@
           !isValidDate(line.deliveryDate) ||
           !Number.isFinite(ctx.lineTotal(line))
         );
-        if(invalidLineIndex >= 0){
-          return ctx.toast(`Revisa la linea ${invalidLineIndex + 1}: entrega, cantidad, precio e IVA deben ser validos.`);
-        }
+        if(invalidLineIndex >= 0) return `Revisa la línea ${invalidLineIndex + 1}: entrega, cantidad, precio e IVA deben ser válidos.`;
         const totals = ctx.invoiceTotals({ ...invoice, ...data, lines });
-        if(!Number.isFinite(totals.total) || totals.total < 0){
-          return ctx.toast("El total calculado de la factura no es coherente.");
-        }
-        const seq = ctx.parseInvoiceNumber(data.number);
-        if(!seq) return ctx.toast("Numero de factura invalido. Usa algo como FAC-080/2026");
-
+        if(!Number.isFinite(totals.total) || totals.total < 0) return "El total calculado de la factura no es coherente.";
         const normalizedNumber = String(data.number || "").trim().toUpperCase();
         const duplicate = (ctx.state.invoices || []).some(inv =>
           inv.id !== invoice.id &&
           String(inv.number || "").trim().toUpperCase() === normalizedNumber
         );
+        if(duplicate) return "Ya existe una factura con ese número. No se puede guardar duplicada.";
+        return "";
+      }
 
-        if(duplicate){
-          return ctx.toast("Ya existe una factura con ese número. No se puede guardar duplicada.");
-        }
-
-        const originalLabel = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = "Guardando...";
+      async function saveInvoice(btn){
+        const originalLabel = btn?.textContent || "Guardar factura";
         try{
+          const lines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
+          const data = getFormData();
+          const validationError = validateInvoiceData(data, lines);
+          if(validationError){
+            ctx.toast(validationError);
+            return;
+          }
+          if(btn){
+            btn.disabled = true;
+            btn.textContent = "Guardando...";
+          }
           const payload = {
             ...invoice,
             ...data,
+            id:invoice.id,
             number:data.number,
             amountPaid:ctx.n(data.amountPaid),
             showPaymentTerms:data.showPaymentTerms === "true",
@@ -184,15 +179,38 @@
           };
           await Promise.resolve(ctx.saveEntity("invoices", payload, id));
           global.AppUIModal.closeModal();
-          ctx.toast("Factura guardada");
+          ctx.toast(id ? "Cambios guardados" : "Factura guardada");
         }catch(error){
           console.error("No se pudo guardar la factura", error);
-          ctx.toast("No se pudo guardar la factura. Revisa la consola.");
+          ctx.toast(error?.message ? `No se pudo guardar: ${error.message}` : "No se pudo guardar la factura.");
         }finally{
-          btn.disabled = false;
-          btn.textContent = originalLabel;
+          if(btn){
+            btn.disabled = false;
+            btn.textContent = originalLabel;
+          }
         }
-      }));
+      }
+
+      global.AppUILineEditor.setupLineEditor(linesRoot, invoiceLines, "invoice", refresh, ctx);
+      amountInput.addEventListener("input", refresh);
+      numberInput.addEventListener("input", refresh);
+      form.addEventListener("submit", event => {
+        event.preventDefault();
+        saveInvoice(actions.querySelector('[data-modal-action="save"]'));
+      });
+      clientSelect.addEventListener("change", () => {
+        const client = ctx.getClient(clientSelect.value);
+        if(client?.templateId && !templateSelect.value) templateSelect.value = client.templateId;
+        if(!termsSelect.value) termsSelect.value = client?.paymentTermsDefault ? "true" : "false";
+      });
+      actions.addEventListener("click", event => {
+        const btn = event.target.closest('[data-modal-action="save"]');
+        if(!btn) return;
+        event.preventDefault();
+        event.stopPropagation();
+        saveInvoice(btn);
+      });
+      refresh();
     }, [{id:"cancel",label:"Cancelar",className:"ghost"},{id:"save",label:"Guardar factura",className:"primary"}]);
   }
 
