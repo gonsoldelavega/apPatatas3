@@ -1,0 +1,79 @@
+/* Factupapa — compact billing filters */
+
+.billing-panel-compact .panel-b{
+  padding-top:12px!important;
+}
+.invoice-filter-drawer{
+  margin-bottom:16px;
+  border-radius:22px;
+  border:1px solid rgba(17,24,32,.10);
+  background:rgba(255,255,255,.70);
+  box-shadow:var(--shadow-card);
+  overflow:hidden;
+}
+.invoice-filter-drawer summary{
+  min-height:70px;
+  padding:14px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  cursor:pointer;
+  list-style:none;
+  user-select:none;
+}
+.invoice-filter-drawer summary::-webkit-details-marker{display:none}
+.invoice-filter-drawer summary strong{
+  display:block;
+  font-size:1rem;
+  font-weight:900;
+  letter-spacing:-.02em;
+}
+.invoice-filter-drawer summary span:not(.chip){
+  display:block;
+  margin-top:3px;
+  color:var(--muted);
+  font-size:.84rem;
+}
+.invoice-filter-drawer summary .chip{
+  flex:0 0 auto;
+}
+.invoice-filter-drawer[open] summary{
+  border-bottom:1px solid rgba(17,24,32,.08);
+}
+.invoice-filter-content{
+  padding:14px;
+  background:rgba(247,249,251,.72);
+}
+.invoice-filter-content .search-row{
+  display:grid;
+  gap:10px;
+}
+.invoice-filter-content input,
+.invoice-filter-content select{
+  min-height:50px!important;
+  font-size:1rem!important;
+}
+.invoice-filter-content .filter-chip-row{
+  margin-top:12px;
+  gap:8px;
+}
+.month-stack:first-of-type{
+  margin-top:8px!important;
+}
+@media (max-width:520px){
+  .billing-panel-head{
+    align-items:flex-start!important;
+    gap:12px!important;
+  }
+  .billing-panel-head .actions .primary{
+    min-height:52px!important;
+    padding:0 18px!important;
+    border-radius:20px!important;
+    font-size:.92rem!important;
+    max-width:150px;
+  }
+  .invoice-filter-drawer{
+    margin-bottom:14px;
+  }
+}
