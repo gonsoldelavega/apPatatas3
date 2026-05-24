@@ -33,6 +33,10 @@
       .trim();
   }
 
+  function normalizeFileKey(value){
+    return normalizeText(value).replace(/[^a-z0-9]+/g, "");
+  }
+
   function round2(value){
     const number = Number(value);
     return Number.isFinite(number) ? Math.round((number + Number.EPSILON) * 100) / 100 : 0;
@@ -211,6 +215,8 @@
     const id = buildPurchaseId(row);
     const status = normalizeRegistryStatus(row[COLUMNS.status]);
     const amountPaid = status === "paid" ? amounts.total : 0;
+    const sourceRegistryFileName = fileName(row);
+    const sourceRegistryFileId = extractDriveFileId(row[COLUMNS.driveLink]);
     const line = {
       productId:"",
       description:concept,
@@ -253,16 +259,28 @@
       paymentMethod:String(row[COLUMNS.paymentMethod] || "").trim(),
       type:"invoice",
       source:"google-registro-compras",
-      sourceRegistryFileId:extractDriveFileId(row[COLUMNS.driveLink]),
-      sourceRegistryFileName:fileName(row),
+      sourceRegistryFileId,
+      sourceRegistryFileName,
       driveLink:String(row[COLUMNS.driveLink] || "").trim(),
       lines:[line],
       items:[line],
       notes:["Importada del registro maestro", row[COLUMNS.observations]].filter(Boolean).join(" · "),
-      internalNote:["Importada del registro maestro", row[COLUMNS.driveLink], fileName(row)].filter(Boolean).join(" · "),
+      internalNote:["Importada del registro maestro", row[COLUMNS.driveLink], sourceRegistryFileName].filter(Boolean).join(" · "),
       attachment:null,
       stockLines:[]
     };
+  }
+
+  function itemFileKey(item){
+    return normalizeFileKey([
+      item.sourceRegistryFileName,
+      item.fileName,
+      item.attachment?.name,
+      item.documentName,
+      item.internalNote,
+      item.notes,
+      item.driveLink
+    ].filter(Boolean).join(" "));
   }
 
   function findMatchingPurchase(state, purchase){
@@ -270,26 +288,63 @@
     const purchaseSupplier = normalizeText(purchase.supplierNif || purchase.supplierName || purchase.supplier);
     const purchaseDate = parseDate(purchase.date || purchase.issueDate);
     const purchaseTotal = parseEuro(purchase.totalAmount || purchase.total || purchase.amount);
+    const purchaseFileId = purchase.sourceRegistryFileId || extractDriveFileId(purchase.driveLink);
+    const purchaseFileKey = normalizeFileKey(purchase.sourceRegistryFileName || purchase.driveLink || "");
+    const purchaseConcept = normalizeText(purchase.description || purchase.concept || "");
+
     return (state.purchases || []).find(item => {
       if(item.id && item.id === purchase.id) return true;
-      if(item.sourceRegistryFileId && purchase.sourceRegistryFileId && item.sourceRegistryFileId === purchase.sourceRegistryFileId) return true;
+
+      const itemFileId = item.sourceRegistryFileId || extractDriveFileId(item.driveLink || item.internalNote || "");
+      if(itemFileId && purchaseFileId && itemFileId === purchaseFileId) return true;
+
+      const currentFileKey = itemFileKey(item);
+      if(purchaseFileKey && currentFileKey && (currentFileKey.includes(purchaseFileKey) || purchaseFileKey.includes(currentFileKey))){
+        return true;
+      }
+
       const itemNumber = normalizeText(item.number || item.invoiceNumber);
       const itemSupplier = normalizeText(item.supplierNif || item.supplierName || item.supplier);
       const itemDate = parseDate(item.date || item.issueDate);
       const itemTotal = parseEuro(item.totalAmount || item.total || item.amount);
-      if(purchaseNumber && itemNumber && purchaseNumber === itemNumber && purchaseSupplier && itemSupplier && purchaseSupplier === itemSupplier){
+      const itemConcept = normalizeText(item.description || item.concept || "");
+
+      if(purchaseNumber && itemNumber && purchaseNumber === itemNumber) return true;
+      if(purchaseNumber && itemNumber && purchaseNumber.replace(/\.0+$/, "") === itemNumber.replace(/\.0+$/, "")) return true;
+
+      if(purchaseDate && itemDate && purchaseDate === itemDate && purchaseSupplier && itemSupplier && purchaseSupplier === itemSupplier){
         return true;
       }
+
+      if(purchaseDate && itemDate && purchaseDate === itemDate && purchaseConcept && itemConcept && (itemConcept.includes(purchaseConcept) || purchaseConcept.includes(itemConcept))){
+        return true;
+      }
+
       if(purchaseDate && itemDate && purchaseDate === itemDate && purchaseSupplier && itemSupplier && purchaseSupplier === itemSupplier && Math.abs(purchaseTotal - itemTotal) < 0.01){
         return true;
       }
+
+      // Reparación específica de importes antiguos mal leídos: el total antiguo puede no coincidir.
+      // Ejemplo real: GAYCA 20/05/2026 fue guardada como 0,56 € aunque el PDF suma 14,56 €.
+      const bothGayca = normalizeText([purchase.supplierName, item.supplierName, item.supplier].join(" ")).includes("gayca");
+      if(bothGayca && purchaseDate && itemDate && purchaseDate === itemDate){
+        const oldLooksLikeVatOnly = Math.abs(itemTotal - parseEuro(purchase.ivaAmount)) < 0.02;
+        const sameSmallPurchase = purchaseTotal < 30 && itemTotal < purchaseTotal;
+        if(oldLooksLikeVatOnly || sameSmallPurchase) return true;
+      }
+
       return false;
     }) || null;
   }
 
   function shouldRepairImportedPurchase(existing, purchase){
     if(!existing) return true;
-    const isRegistryPurchase = existing.source === "google-registro-compras" || existing.sourceRegistryFileId || existing.id === purchase.id;
+    const isRegistryPurchase = existing.source === "google-registro-compras"
+      || existing.sourceRegistryFileId
+      || existing.sourceRegistryFileName
+      || existing.id === purchase.id
+      || itemFileKey(existing)
+      || normalizeText(existing.internalNote || existing.notes).includes("registro maestro");
     if(!isRegistryPurchase) return false;
     const fields = [
       [existing.totalAmount || existing.total || existing.amount, purchase.totalAmount],
