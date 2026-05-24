@@ -2730,7 +2730,11 @@
         }catch(error){
           console.error("[purchase-registry-sync] No se pudo sincronizar el registro", error);
           AppSyncStatus.setError();
-          toast("No se pudo leer el registro de compras. Revisa permisos de Google Drive.");
+          if(error?.message === "server_google_sheets_unavailable"){
+            toast("Google Sheets no accesible desde servidor");
+          }else{
+            toast("No se pudo leer el registro de compras. Revisa configuracion del servidor.");
+          }
           return null;
         }
       }
