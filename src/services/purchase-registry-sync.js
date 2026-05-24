@@ -33,6 +33,11 @@
       .trim();
   }
 
+  function round2(value){
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round((number + Number.EPSILON) * 100) / 100 : 0;
+  }
+
   function parseEuro(value){
     if(typeof value === "number") return Number.isFinite(value) ? value : 0;
     const raw = String(value || "").trim();
@@ -47,6 +52,11 @@
   }
 
   function parseDate(value){
+    if(typeof value === "number" && Number.isFinite(value)){
+      const epoch = Date.UTC(1899, 11, 30);
+      const date = new Date(epoch + value * DAY_MS);
+      return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "";
+    }
     const raw = String(value || "").trim();
     if(!raw) return "";
     if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
@@ -104,6 +114,79 @@
       && (!reviewed || reviewed === "si" || reviewed === "sí" || reviewed === "ok");
   }
 
+  function fileName(row){
+    return String(row[COLUMNS.fileName] || "").trim();
+  }
+
+  function inferDefaultVat(row){
+    const haystack = normalizeText([
+      row[COLUMNS.supplier], row[COLUMNS.concept], row[COLUMNS.category], fileName(row)
+    ].join(" "));
+    if(haystack.includes("higienlab") || haystack.includes("envase") || haystack.includes("bolsa")) return 21;
+    if(haystack.includes("gayca") || haystack.includes("patata") || haystack.includes("agria") || haystack.includes("materia prima")) return 4;
+    return 21;
+  }
+
+  function normalizeSupplierName(row){
+    const raw = String(row[COLUMNS.supplier] || "").trim();
+    const file = normalizeText(fileName(row));
+    const supplier = normalizeText(raw);
+    if(file.includes("higienlab") || supplier.includes("higienlab")) return "HIGIENLAB";
+    if(file.includes("gayca") || supplier.includes("gayca") || supplier.includes("frutas y patatas")) return "FRUTAS Y PATATAS GAYCA, S.A.";
+    return raw;
+  }
+
+  function normalizeConcept(row){
+    const raw = String(row[COLUMNS.concept] || "").trim();
+    const haystack = normalizeText([raw, row[COLUMNS.category], row[COLUMNS.supplier], fileName(row)].join(" "));
+    if(!raw || normalizeText(raw) === "compra"){
+      if(haystack.includes("gayca") || haystack.includes("materia prima")) return "PATATAS AGRIA";
+      if(haystack.includes("higienlab") || haystack.includes("envase")) return "ENVASES";
+      return "Factura de compra";
+    }
+    return raw;
+  }
+
+  function normalizeInvoiceNumber(row){
+    const raw = row[COLUMNS.number];
+    const text = String(raw || "").trim();
+    if(text && !/^\d+(?:\.0+)?$/.test(text)) return text;
+    const file = fileName(row);
+    const match = file.match(/_(FV[^_]+|\d{1,2}-\d{1,2}-\d{2,4}|GONZALEZ|HIGIENLAB)_/i);
+    if(match) return match[1];
+    const date = parseDate(row[COLUMNS.documentDate]);
+    if(date){
+      const [year, month, day] = date.split("-");
+      return `${day}-${month}-${year.slice(2)}`;
+    }
+    return text;
+  }
+
+  function normalizeAmounts(row){
+    let base = parseEuro(row[COLUMNS.base]);
+    let ivaPct = parseEuro(row[COLUMNS.ivaPct]);
+    let ivaAmount = parseEuro(row[COLUMNS.ivaAmount]);
+    let total = parseEuro(row[COLUMNS.total]);
+    const defaultVat = inferDefaultVat(row);
+    const invalidVat = !Number.isFinite(ivaPct) || ivaPct <= 0 || ivaPct > 30;
+    const shiftedBase = total > 0 && base <= 0 && ivaAmount > 0 && ivaAmount < total;
+    const incoherent = total > 0 && Math.abs(round2(base + ivaAmount) - round2(total)) > 0.03;
+
+    if(total > 0 && (invalidVat || shiftedBase || incoherent)){
+      ivaPct = defaultVat;
+      base = round2(total / (1 + ivaPct / 100));
+      ivaAmount = round2(total - base);
+    }else{
+      base = round2(base);
+      ivaPct = round2(ivaPct || defaultVat);
+      if(total > 0 && ivaAmount <= 0) ivaAmount = round2(total - base);
+      ivaAmount = round2(ivaAmount);
+      total = round2(total || base + ivaAmount);
+    }
+
+    return { base, ivaPct, ivaAmount, total };
+  }
+
   function findSupplierId(suppliers, supplierName, nif){
     const nameKey = normalizeText(supplierName);
     const nifKey = normalizeText(nif);
@@ -118,26 +201,26 @@
   }
 
   function rowToPurchase(row, state){
-    const base = parseEuro(row[COLUMNS.base]);
-    const ivaAmount = parseEuro(row[COLUMNS.ivaAmount]);
-    const total = parseEuro(row[COLUMNS.total]);
-    const ivaPct = parseEuro(row[COLUMNS.ivaPct]);
-    const supplierName = String(row[COLUMNS.supplier] || "").trim();
+    const amounts = normalizeAmounts(row);
+    const supplierName = normalizeSupplierName(row);
     const supplierNif = String(row[COLUMNS.nif] || "").trim();
-    const concept = String(row[COLUMNS.concept] || row[COLUMNS.category] || "Factura de compra").trim();
-    const number = String(row[COLUMNS.number] || "").trim();
+    const concept = normalizeConcept(row);
+    const number = normalizeInvoiceNumber(row);
     const date = parseDate(row[COLUMNS.documentDate]) || new Date().toISOString().slice(0, 10);
     const supplierId = findSupplierId(state.suppliers, supplierName, supplierNif);
     const id = buildPurchaseId(row);
     const status = normalizeRegistryStatus(row[COLUMNS.status]);
-    const amountPaid = status === "paid" ? total : 0;
+    const amountPaid = status === "paid" ? amounts.total : 0;
     const line = {
       productId:"",
       description:concept,
       quantity:1,
-      price:base || Math.max(total - ivaAmount, 0),
-      iva:ivaPct,
-      ivaPct
+      price:amounts.base,
+      iva:amounts.ivaPct,
+      ivaPct:amounts.ivaPct,
+      ivaAmount:amounts.ivaAmount,
+      base:amounts.base,
+      total:amounts.total
     };
 
     return {
@@ -155,14 +238,14 @@
       concept,
       quantity:1,
       unitCost:line.price,
-      iva:ivaAmount,
-      ivaPct,
-      base,
-      total,
-      amount:total,
-      baseAmount:base,
-      ivaAmount,
-      totalAmount:total,
+      iva:amounts.ivaAmount,
+      ivaPct:amounts.ivaPct,
+      base:amounts.base,
+      total:amounts.total,
+      amount:amounts.total,
+      baseAmount:amounts.base,
+      ivaAmount:amounts.ivaAmount,
+      totalAmount:amounts.total,
       status,
       paidDate:status === "paid" ? date : "",
       paymentDate:status === "paid" ? date : "",
@@ -171,23 +254,23 @@
       type:"invoice",
       source:"google-registro-compras",
       sourceRegistryFileId:extractDriveFileId(row[COLUMNS.driveLink]),
-      sourceRegistryFileName:String(row[COLUMNS.fileName] || "").trim(),
+      sourceRegistryFileName:fileName(row),
       driveLink:String(row[COLUMNS.driveLink] || "").trim(),
       lines:[line],
       items:[line],
       notes:["Importada del registro maestro", row[COLUMNS.observations]].filter(Boolean).join(" · "),
-      internalNote:["Importada del registro maestro", row[COLUMNS.driveLink], row[COLUMNS.fileName]].filter(Boolean).join(" · "),
+      internalNote:["Importada del registro maestro", row[COLUMNS.driveLink], fileName(row)].filter(Boolean).join(" · "),
       attachment:null,
       stockLines:[]
     };
   }
 
-  function hasPurchase(state, purchase){
+  function findMatchingPurchase(state, purchase){
     const purchaseNumber = normalizeText(purchase.number || purchase.invoiceNumber);
     const purchaseSupplier = normalizeText(purchase.supplierNif || purchase.supplierName || purchase.supplier);
     const purchaseDate = parseDate(purchase.date || purchase.issueDate);
     const purchaseTotal = parseEuro(purchase.totalAmount || purchase.total || purchase.amount);
-    return (state.purchases || []).some(item => {
+    return (state.purchases || []).find(item => {
       if(item.id && item.id === purchase.id) return true;
       if(item.sourceRegistryFileId && purchase.sourceRegistryFileId && item.sourceRegistryFileId === purchase.sourceRegistryFileId) return true;
       const itemNumber = normalizeText(item.number || item.invoiceNumber);
@@ -201,7 +284,23 @@
         return true;
       }
       return false;
-    });
+    }) || null;
+  }
+
+  function shouldRepairImportedPurchase(existing, purchase){
+    if(!existing) return true;
+    const isRegistryPurchase = existing.source === "google-registro-compras" || existing.sourceRegistryFileId || existing.id === purchase.id;
+    if(!isRegistryPurchase) return false;
+    const fields = [
+      [existing.totalAmount || existing.total || existing.amount, purchase.totalAmount],
+      [existing.baseAmount || existing.base, purchase.baseAmount],
+      [existing.ivaAmount || existing.iva, purchase.ivaAmount],
+      [existing.ivaPct, purchase.ivaPct]
+    ];
+    if(fields.some(([a, b]) => Math.abs(parseEuro(a) - parseEuro(b)) > 0.01)) return true;
+    if(normalizeText(existing.supplierName || existing.supplier) !== normalizeText(purchase.supplierName)) return true;
+    if(normalizeText(existing.description || existing.concept) !== normalizeText(purchase.description)) return true;
+    return false;
   }
 
   function createPurchaseRegistrySync(options){
@@ -225,10 +324,11 @@
 
     async function importNow({ interactive = true, silent = false } = {}){
       if(settings().purchaseRegistryAutoSync === false || settings().purchaseRegistryAutoSync === "false"){
-        return { imported:0, skipped:0, disabled:true };
+        return { imported:0, repaired:0, skipped:0, disabled:true };
       }
       const rows = await fetchRows(interactive);
       let imported = 0;
+      let repaired = 0;
       let skipped = 0;
       for(const row of rows){
         if(!isPurchaseInvoice(row)){
@@ -237,17 +337,27 @@
         }
         const current = options.getState();
         const purchase = rowToPurchase(row, current);
-        if(!purchase.totalAmount || hasPurchase(current, purchase)){
+        if(!purchase.totalAmount){
           skipped += 1;
+          continue;
+        }
+        const existing = findMatchingPurchase(current, purchase);
+        if(existing){
+          if(shouldRepairImportedPurchase(existing, purchase)){
+            await options.savePurchase({ ...purchase, id:existing.id || purchase.id });
+            repaired += 1;
+          }else{
+            skipped += 1;
+          }
           continue;
         }
         await options.savePurchase(purchase);
         imported += 1;
       }
       global.localStorage.setItem(LAST_RUN_KEY, new Date().toISOString());
-      if(!silent && imported) options.toast(`${imported} compras importadas del registro`);
-      if(!silent && !imported) options.toast("Registro revisado: no hay compras nuevas");
-      return { imported, skipped, disabled:false };
+      if(!silent && (imported || repaired)) options.toast(`${imported} compras nuevas · ${repaired} reparadas`);
+      if(!silent && !imported && !repaired) options.toast("Registro revisado: no hay compras nuevas ni reparaciones");
+      return { imported, repaired, skipped, disabled:false };
     }
 
     async function runDaily(){
