@@ -1,4 +1,45 @@
 (function(global){
+  function isDateLike(value){
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  }
+
+  function boolOrEmpty(value){
+    if(value === true || value === "true") return true;
+    if(value === false || value === "false") return false;
+    return "";
+  }
+
+  function normalizeInvoiceMetadata(snapshot){
+    if(!snapshot || !Array.isArray(snapshot.invoices)) return snapshot;
+    snapshot.invoices = snapshot.invoices.map(invoice => {
+      if(!invoice) return invoice;
+      const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
+      const meta = lines.find(line => line && line._invoiceMeta)?._invoiceMeta || {};
+      const periodStart = isDateLike(invoice.periodStart) ? invoice.periodStart : isDateLike(meta.periodStart) ? meta.periodStart : invoice.issueDate || invoice.date || "";
+      const periodEnd = isDateLike(invoice.periodEnd) ? invoice.periodEnd : isDateLike(meta.periodEnd) ? meta.periodEnd : periodStart;
+      const showPaymentTerms = boolOrEmpty(invoice.showPaymentTerms) !== "" ? boolOrEmpty(invoice.showPaymentTerms) : boolOrEmpty(meta.showPaymentTerms);
+      const sendStatus = invoice.sendStatus || meta.sendStatus || "";
+      const paymentNote = invoice.paymentNote || meta.paymentNote || "";
+      const nextMeta = {
+        periodStart,
+        periodEnd,
+        showPaymentTerms:showPaymentTerms === true,
+        sendStatus,
+        paymentNote
+      };
+      return {
+        ...invoice,
+        periodStart,
+        periodEnd,
+        showPaymentTerms:showPaymentTerms === true,
+        sendStatus,
+        paymentNote,
+        lines:lines.map((line, index) => index === 0 ? { ...line, _invoiceMeta:nextMeta } : line)
+      };
+    });
+    return snapshot;
+  }
+
   function createStore(options){
     const loadOptions = {
       key: options.key,
@@ -9,11 +50,12 @@
       uid: options.uid
     };
 
-    let state = options.storage.loadState(loadOptions);
+    let state = normalizeInvoiceMetadata(options.storage.loadState(loadOptions));
 
     function commitPersist(meta = {}){
+      state = normalizeInvoiceMetadata(state);
       const prepared = options.beforePersist ? options.beforePersist(state, meta) : null;
-      if(prepared) state = prepared;
+      if(prepared) state = normalizeInvoiceMetadata(prepared);
       options.storage.persistState(options.key, state);
       if(options.onPersist) options.onPersist(state, meta);
       return state;
@@ -25,12 +67,13 @@
       },
       updateState(mutator, settings = {}){
         const maybeNext = mutator(state);
-        if(maybeNext) state = maybeNext;
+        if(maybeNext) state = normalizeInvoiceMetadata(maybeNext);
+        else state = normalizeInvoiceMetadata(state);
         if(settings.persist) commitPersist({ reason:settings.reason || "updateState" });
         return state;
       },
       replaceState(nextState, settings = {}){
-        state = nextState;
+        state = normalizeInvoiceMetadata(nextState);
         if(settings.persist) commitPersist({ reason:settings.reason || "replaceState" });
         return state;
       },
@@ -40,11 +83,11 @@
       },
       resetState(){
         options.storage.removeItem(options.key);
-        state = options.storage.loadState(loadOptions);
+        state = normalizeInvoiceMetadata(options.storage.loadState(loadOptions));
         return state;
       },
       migrate(saved){
-        return options.migrate(saved, loadOptions);
+        return normalizeInvoiceMetadata(options.migrate(saved, loadOptions));
       },
       saveEntity(collection, entity, id){
         return this.updateState(current => {
