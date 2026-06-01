@@ -15,7 +15,6 @@
           <div class="inline-summary">
             ${item.supplierId ? `<span class="chip">Proveedor: ${deps.esc(deps.getSupplier(item.supplierId)?.name || "-")}</span>` : ""}
             ${item.relatedType && item.relatedId ? `<span class="chip">Vinculado: ${deps.esc(deps.relatedLabel(item.relatedType, item.relatedId))}</span>` : `<span class="chip">Sin vincular</span>`}
-            ${item.ocrText ? `<span class="chip good">OCR listo</span>` : ""}
             ${item.notes ? `<span class="chip">${deps.esc(item.notes)}</span>` : ""}
           </div>
           <div class="card-actions">

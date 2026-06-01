@@ -131,10 +131,10 @@
           <div class="card">
             <div class="meta">
               <span class="chip good">Supabase</span>
-              <span class="chip good">Escáner</span>
               <span class="chip good">PDF</span>
               <span class="chip good">CSV/JSON</span>
               <span class="chip good">Google Drive</span>
+              <span class="chip good">Registro de compras</span>
             </div>
           </div>
           <p style="margin:14px 0 0;color:var(--muted);font-size:.88rem;line-height:1.55;">Los productos descuentan stock al facturarse y las compras lo incrementan. Los albaranes no afectan al stock. El backup JSON sirve como copia de seguridad completa.</p>
