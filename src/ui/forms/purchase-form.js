@@ -17,15 +17,8 @@
 
     global.AppUIModal.openModal(
       id ? "Editar compra" : "Nueva compra",
-      "Registra la compra manualmente o escanea la factura con IA para rellenar automaticamente",
+      "Registra la compra manualmente. Las compras tambien se cargan desde el registro de Sheets.",
       `<form id="purchaseForm" class="sheet-grid">
-        <div class="field" style="grid-column:1/-1;">
-          <button type="button" class="primary" id="scanInvoiceBtn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
-            Escanear factura con IA
-          </button>
-          <input id="scanInvoiceInput" type="file" accept="image/*" capture="environment" class="hidden">
-          <div id="scanInvoiceStatus" style="display:none;padding:8px;text-align:center;font-size:0.9em;opacity:0.7;">Analizando factura...</div>
-        </div>
         <div class="field"><label>Fecha emision</label><input name="date" type="date" value="${ctx.esc(draft.date)}"></div>
         <div class="field"><label>Proveedor</label><select name="supplierId"><option value="">Selecciona proveedor</option>${ctx.state.suppliers.map(s => `<option value="${s.id}" ${draft.supplierId === s.id ? "selected" : ""}>${ctx.esc(s.name)}</option>`).join("")}</select></div>
         <div class="field"><label>Total documento</label><input name="totalAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.totalAmount)}" placeholder="0.00" readonly></div>
@@ -75,74 +68,6 @@
         };
 
         global.AppUILineEditor.setupLineEditor(linesRoot, initialLines, "purchase", syncSummary, ctx);
-
-        body.querySelector("#scanInvoiceBtn").addEventListener("click", () => body.querySelector("#scanInvoiceInput").click());
-        body.querySelector("#scanInvoiceInput").addEventListener("change", async e => {
-          const file = e.target.files?.[0];
-          if(!file) return;
-          const statusEl = body.querySelector("#scanInvoiceStatus");
-          statusEl.style.display = "block";
-          statusEl.textContent = "Analizando factura...";
-          try{
-            const dataUrl = await new Promise((res, rej) => {
-              const reader = new FileReader();
-              reader.onload = () => res(String(reader.result || ""));
-              reader.onerror = () => rej(new Error("No se pudo leer la imagen"));
-              reader.readAsDataURL(file);
-            });
-            const response = await fetch("/api/anthropic-ocr", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                imageDataUrl:dataUrl
-              })
-            });
-            const payload = await response.json().catch(() => ({}));
-            if(!response.ok || payload?.ok === false){
-              throw new Error(payload?.error || `anthropic-${response.status}`);
-            }
-            const extracted = payload?.result || {};
-            if(extracted.fecha) form.elements.date.value = extracted.fecha;
-            if(extracted.total_factura != null) form.elements.totalAmount.value = Number(extracted.total_factura).toFixed(2);
-            if(extracted.iva_total != null) form.elements.taxAmount.value = Number(extracted.iva_total).toFixed(2);
-            if(extracted.proveedor_nombre){
-              const supplierMatch = ctx.state.suppliers.find(s => s.name.toLowerCase().includes(extracted.proveedor_nombre.toLowerCase()) || extracted.proveedor_nombre.toLowerCase().includes(s.name.toLowerCase()));
-              if(supplierMatch) form.elements.supplierId.value = supplierMatch.id;
-            }
-            if(extracted.lineas?.[0]?.descripcion){
-              const firstExtractedLine = extracted.lineas[0];
-              const productMatch = ctx.state.products.find(p => p.name.toLowerCase().includes(firstExtractedLine.descripcion.toLowerCase()) || firstExtractedLine.descripcion.toLowerCase().includes(p.name.toLowerCase()));
-              if(productMatch){
-                const firstLine = linesRoot.querySelector('.line[data-index="0"]');
-                if(firstLine){
-                  const productSelect = firstLine.querySelector('[name="productId"]');
-                  const quantityInput = firstLine.querySelector('[name="quantity"]');
-                  const priceInput = firstLine.querySelector('[name="price"]');
-                  const ivaInput = firstLine.querySelector('[name="iva"]');
-                  const descriptionInput = firstLine.querySelector('[name="description"]');
-                  if(productSelect) productSelect.value = productMatch.id;
-                  if(descriptionInput) descriptionInput.value = productMatch.name;
-                  if(quantityInput && firstExtractedLine.cantidad != null) quantityInput.value = firstExtractedLine.cantidad;
-                  if(priceInput && firstExtractedLine.precio_unitario != null) priceInput.value = firstExtractedLine.precio_unitario;
-                  if(ivaInput && firstExtractedLine.iva_pct != null) ivaInput.value = firstExtractedLine.iva_pct;
-                  productSelect?.dispatchEvent(new Event("change", { bubbles:true }));
-                  quantityInput?.dispatchEvent(new Event("input", { bubbles:true }));
-                  priceInput?.dispatchEvent(new Event("input", { bubbles:true }));
-                  ivaInput?.dispatchEvent(new Event("input", { bubbles:true }));
-                  descriptionInput?.dispatchEvent(new Event("input", { bubbles:true }));
-                }
-              }
-            }
-            syncSummary();
-            statusEl.textContent = "Factura analizada. Revisa los datos.";
-          }catch(error){
-            body.querySelector("#scanInvoiceStatus").textContent = "No se pudo analizar la factura. Rellena manualmente.";
-            console.error("Scan error:", error);
-          }
-          e.target.value = "";
-        });
 
         body.querySelector("#purchaseAttachmentTrigger").addEventListener("click", () => body.querySelector("#purchaseAttachmentInput").click());
         body.querySelector("#purchaseAttachmentInput").addEventListener("change", async e => {

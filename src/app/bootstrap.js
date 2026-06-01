@@ -50,7 +50,6 @@
       const clientCardUI = window.AppUICardClient;
       const productCardUI = window.AppUICardProduct;
       const documentCardUI = window.AppUICardDocument;
-      const scannerViewUI = window.AppUIScannerView;
       const renderNavUI = window.AppUIRenderNav;
       const renderViewsUI = window.AppUIRenderViews;
       const modalUI = window.AppUIModal;
@@ -63,7 +62,6 @@
       const walletFormUI = window.AppUIFormWallet;
       const invoiceFormUI = window.AppUIFormInvoice;
       const documentFormUI = window.AppUIFormDocument;
-      const ocrService = window.AppOcrService;
       const deliveryNoteFormUI = window.AppUIFormDeliveryNote;
       let deferredPrompt = null;
       let suppressSyncPersistence = false;
@@ -1294,9 +1292,7 @@
             processAttachmentFile,
             openAttachment,
             processDocumentFile,
-            runDocumentOcr,
-            reserveNextInvoiceNumber,
-            openScannerFlow: options => scannerViewUI.openScannerFlow(options)
+            reserveNextInvoiceNumber
           };
         }
 
@@ -1344,50 +1340,6 @@
       }
       function relatedLabel(type, id){ return documentsDomain.relatedLabel(type, id, { relatedEntity, date }); }
       function documentCard(item){ return documentCardUI.renderDocumentCard(item, uiRenderContext()); }
-      function normalizeOcrText(text){ return documentsDomain.normalizeOcrText(text); }
-      function pickLargestAmount(text){ return documentsDomain.pickLargestAmount(text); }
-      function detectDateFromText(text){ return documentsDomain.detectDateFromText(text); }
-      function matchSupplierFromText(text){ return documentsDomain.matchSupplierFromText(text, state.suppliers); }
-      function extractOcrSummary(text){ return documentsDomain.extractOcrSummary(text, state.suppliers); }
-      function knownSuppliersForAi(){
-        return (state.suppliers || []).map(supplier => ({
-          id:supplier.id || "",
-          name:supplier.name || "",
-          nif:supplier.nif || ""
-        }));
-      }
-      function mergeOcrSummary(baseSummary, aiSummary, text){
-        const inferred = extractOcrSummary(text || "");
-        const supplierId = aiSummary?.supplierId || inferred?.supplierId || "";
-        const matchedSupplier = supplierId ? getSupplier(supplierId) : matchSupplierFromText(text || "");
-        return {
-          ...inferred,
-          ...(baseSummary || {}),
-          ...(aiSummary || {}),
-          supplierId:supplierId || matchedSupplier?.id || "",
-          title:aiSummary?.title || matchedSupplier?.name || inferred?.title || baseSummary?.title || "",
-          date:aiSummary?.date || inferred?.date || baseSummary?.date || "",
-          total:Number.isFinite(Number(aiSummary?.total)) ? Number(aiSummary.total) : (baseSummary?.total ?? inferred?.total ?? null),
-          nif:aiSummary?.nif || inferred?.nif || baseSummary?.nif || "",
-          supplierName:aiSummary?.supplierName || matchedSupplier?.name || ""
-        };
-      }
-      async function enhanceDocumentOcrWithAnthropic(dataUrl, localResult){
-        const response = await fetch("/api/anthropic-ocr", {
-          method:"POST",
-          headers:{
-            "Content-Type":"application/json"
-          },
-          body:JSON.stringify({
-            imageDataUrl:dataUrl,
-            ocrText:localResult?.text || "",
-            suppliers:knownSuppliersForAi()
-          })
-        });
-        const payload = await response.json().catch(() => ({}));
-        if(!response.ok || payload?.ok === false) throw new Error(payload?.error || `anthropic-${response.status}`);
-        return payload;
-      }
       function groupInvoices(list){ return invoicesDomain.groupInvoices(list, monthKey, dates.formatMonthLabel, invoiceTotals); }
         function renderNav(){
           renderNavUI.renderNav(document.getElementById("tabs"), {
@@ -1569,206 +1521,14 @@
         link.download = attachment.name || "documento";
         link.click();
       }
-      function loadImageFromDataUrl(src){
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-        });
-      }
-      let openCvReadyPromise = null;
-      function ensureOpenCv(){
-        if(window.cv?.Mat) return Promise.resolve();
-        if(openCvReadyPromise) return openCvReadyPromise;
-        openCvReadyPromise = new Promise((resolve, reject) => {
-          const finish = () => {
-            if(window.cv?.Mat){
-              resolve();
-              return true;
-            }
-            return false;
-          };
-          if(finish()) return;
-          const existing = [...document.scripts].find(s => s.src && s.src.includes("opencv.js"));
-          const watchReady = () => {
-            const started = Date.now();
-            const timer = setInterval(() => {
-              if(finish()){
-                clearInterval(timer);
-                return;
-              }
-              if(Date.now() - started > 20000){
-                clearInterval(timer);
-                reject(new Error("opencv-timeout"));
-              }
-            }, 120);
-          };
-          if(existing){
-            watchReady();
-            return;
-          }
-          const script = document.createElement("script");
-          script.async = true;
-          script.src = "https://docs.opencv.org/4.x/opencv.js";
-          script.onload = watchReady;
-          script.onerror = () => reject(new Error("opencv-load"));
-          document.head.appendChild(script);
-        }).catch(error => {
-          openCvReadyPromise = null;
-          throw error;
-        });
-        return openCvReadyPromise;
-      }
-      function distanceBetween(a, b){
-        return Math.hypot(a.x - b.x, a.y - b.y);
-      }
-      function orderQuadPoints(points){
-        const bySum = [...points].sort((a, b) => (a.x + a.y) - (b.x + b.y));
-        const byDiff = [...points].sort((a, b) => (a.y - a.x) - (b.y - b.x));
-        return [bySum[0], byDiff[0], bySum[3], byDiff[3]];
-      }
-      function simpleDocumentFallback(img, mode){
-        const maxSide = 1800;
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const width = Math.max(1, Math.round(img.width * scale));
-        const height = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        if(mode !== "photo"){
-          const imageData = ctx.getImageData(0, 0, width, height);
-          const data = imageData.data;
-          for(let i = 0; i < data.length; i += 4){
-            const gray = data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114;
-            const boosted = mode === "contrast"
-              ? (gray > 170 ? 255 : gray < 90 ? 20 : Math.min(255, Math.max(0, (gray - 110) * 1.55 + 110)))
-              : (gray > 145 ? 255 : 0);
-            data[i] = boosted;
-            data[i + 1] = boosted;
-            data[i + 2] = boosted;
-          }
-          ctx.putImageData(imageData, 0, 0);
-        }
+      async function processDocumentFile(file){
+        const dataUrl = await readFileAsDataUrl(file);
         return {
-          dataUrl: canvas.toDataURL("image/jpeg", .92),
-          scanMeta: { detected:false, mode, width, height }
+          id: uid("img"),
+          name: file.name || "documento",
+          dataUrl,
+          createdAt: new Date().toISOString()
         };
-      }
-      async function processDocumentFile(file, mode = "scanner"){
-        const src = await readFileAsDataUrl(file);
-        const img = await loadImageFromDataUrl(src);
-        const fallback = () => {
-          const simple = simpleDocumentFallback(img, mode);
-          return {
-            id: uid("img"),
-            name: file.name,
-            dataUrl: simple.dataUrl,
-            createdAt: new Date().toISOString(),
-            scanMeta: simple.scanMeta
-          };
-        };
-        if(mode === "photo") return fallback();
-        try{
-          await ensureOpenCv();
-          const maxSide = 1800;
-          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-          const width = Math.max(1, Math.round(img.width * scale));
-          const height = Math.max(1, Math.round(img.height * scale));
-          const sourceCanvas = document.createElement("canvas");
-          sourceCanvas.width = width;
-          sourceCanvas.height = height;
-          const sourceCtx = sourceCanvas.getContext("2d");
-          sourceCtx.fillStyle = "#ffffff";
-          sourceCtx.fillRect(0, 0, width, height);
-          sourceCtx.drawImage(img, 0, 0, width, height);
-          const srcMat = cv.imread(sourceCanvas);
-          const gray = new cv.Mat();
-          const blur = new cv.Mat();
-          const edges = new cv.Mat();
-          const contours = new cv.MatVector();
-          const hierarchy = new cv.Mat();
-          cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY, 0);
-          cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-          cv.Canny(blur, edges, 60, 180, 3, false);
-          cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-          let bestPoints = null;
-          let bestArea = 0;
-          for(let i = 0; i < contours.size(); i += 1){
-            const contour = contours.get(i);
-            const peri = cv.arcLength(contour, true);
-            const approx = new cv.Mat();
-            cv.approxPolyDP(contour, approx, 0.02 * peri, true);
-            const area = Math.abs(cv.contourArea(contour));
-            if(approx.rows === 4 && area > bestArea && area > (width * height * 0.12)){
-              const pts = [];
-              for(let j = 0; j < 4; j += 1){
-                pts.push({ x: approx.intPtr(j, 0)[0], y: approx.intPtr(j, 0)[1] });
-              }
-              bestPoints = orderQuadPoints(pts);
-              bestArea = area;
-            }
-            contour.delete();
-            approx.delete();
-          }
-          gray.delete();
-          blur.delete();
-          edges.delete();
-          contours.delete();
-          hierarchy.delete();
-          let resultMat = srcMat.clone();
-          let detected = false;
-          if(bestPoints){
-            detected = true;
-            const [tl, tr, br, bl] = bestPoints;
-            const targetWidth = Math.max(900, Math.round(Math.max(distanceBetween(br, bl), distanceBetween(tr, tl))));
-            const targetHeight = Math.max(1200, Math.round(Math.max(distanceBetween(tr, br), distanceBetween(tl, bl))));
-            const srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-            const dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, targetWidth - 1, 0, targetWidth - 1, targetHeight - 1, 0, targetHeight - 1]);
-            const transform = cv.getPerspectiveTransform(srcTri, dstTri);
-            const warped = new cv.Mat();
-            cv.warpPerspective(srcMat, warped, transform, new cv.Size(targetWidth, targetHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
-            resultMat.delete();
-            resultMat = warped;
-            srcTri.delete();
-            dstTri.delete();
-            transform.delete();
-          }
-          if(mode !== "photo"){
-            const normalized = new cv.Mat();
-            const mono = new cv.Mat();
-            cv.cvtColor(resultMat, mono, cv.COLOR_RGBA2GRAY, 0);
-            if(mode === "scanner"){
-              cv.adaptiveThreshold(mono, normalized, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 31, 12);
-            }else{
-              cv.normalize(mono, normalized, 0, 255, cv.NORM_MINMAX);
-            }
-            resultMat.delete();
-            mono.delete();
-            resultMat = new cv.Mat();
-            cv.cvtColor(normalized, resultMat, cv.COLOR_GRAY2RGBA, 0);
-            normalized.delete();
-          }
-          const outputCanvas = document.createElement("canvas");
-          cv.imshow(outputCanvas, resultMat);
-          const output = {
-            id: uid("img"),
-            name: file.name,
-            dataUrl: outputCanvas.toDataURL("image/jpeg", .92),
-            createdAt: new Date().toISOString(),
-            scanMeta: { detected, mode, width:outputCanvas.width, height:outputCanvas.height }
-          };
-          srcMat.delete();
-          resultMat.delete();
-          return output;
-        }catch(error){
-          console.warn("scan-fallback", error);
-          return fallback();
-        }
       }
       function openDocumentForm(id, options = {}){ return documentFormUI.openDocumentForm(formContext(), id, options); }
       function viewDocument(id){
@@ -1776,8 +1536,6 @@
         openModal(item.title || documentTypeLabel(item.type), "Documento registrado en la app", `<div class="grid">
           <div class="summary"><div class="summary-row"><span>Fecha</span><strong>${date(item.date)}</strong></div><div class="summary-row"><span>Tipo</span><strong>${esc(documentTypeLabel(item.type))}</strong></div><div class="summary-row"><span>Proveedor</span><strong>${esc(getSupplier(item.supplierId)?.name || "-")}</strong></div><div class="summary-row"><span>Vinculado</span><strong>${esc(item.relatedType && item.relatedId ? relatedLabel(item.relatedType, item.relatedId) : "Sin vincular")}</strong></div></div>
           <div class="doc-grid">${(item.images || []).map(img => `<div class="doc-thumb"><img src="${img.dataUrl}" alt="${esc(item.title || "Documento")}"></div>`).join("")}</div>
-          ${item.ocrSummary ? `<div class="card"><div class="meta"><span class="chip good">OCR</span>${item.ocrSummary.total != null ? `<span class="chip">Total detectado: ${money(item.ocrSummary.total)}</span>` : ""}${item.ocrSummary.date ? `<span class="chip">Fecha: ${esc(item.ocrSummary.date)}</span>` : ""}${item.ocrSummary.nif ? `<span class="chip">NIF: ${esc(item.ocrSummary.nif)}</span>` : ""}</div></div>` : ""}
-          ${item.ocrText ? `<div class="card"><p style="margin:0 0 10px;color:var(--muted)">Texto OCR</p><pre style="white-space:pre-wrap;margin:0;font:inherit;color:var(--text);max-height:240px;overflow:auto">${esc(item.ocrText)}</pre></div>` : ""}
           ${item.notes ? `<div class="card"><p style="margin:0;color:var(--muted)">${esc(item.notes)}</p></div>` : ""}
         </div>`, null, [{id:"close",label:"Cerrar",className:"ghost"}]);
       }
@@ -2304,43 +2062,6 @@
             if(!purchase?.attachment) return toast("Esta compra no tiene documento adjunto");
             return openAttachment(purchase.attachment);
           }
-          if(action === "open-scanner-pdf") return scannerViewUI.openScannerFlow({
-            onComplete(session){
-              const pages = (session?.pages || []).length;
-              toast(pages ? `Escaneo listo con ${pages} pagina(s). Puedes exportar el PDF desde el escaner.` : "Escaneo finalizado");
-            }
-          });
-          if(action === "new-scanned-ticket") return scannerViewUI.openScannerFlow({
-            onComplete(session){
-              documentFormUI.openDocumentForm(formContext(), null, {
-                scannedSession:session,
-                defaults:{ type:"ticket" }
-              });
-            }
-          });
-          if(action === "new-scanned-supplier-invoice") return scannerViewUI.openScannerFlow({
-            mode:"purchase",
-              driveClientId:state.settings.driveClientId || "607811965960-bokrfeloj97tel1fgbnhj0fgkm3ekrsg.apps.googleusercontent.com",
-              driveRootFolderName:state.settings.driveRootFolderName || "apPatatas",
-              suppliers:state.suppliers,
-              products:state.products,
-              createPurchaseId:() => uid("buy"),
-              onToast:message => toast(message),
-              async onSavePurchase(purchase){
-                await savePrimaryCollectionToSupabase("purchases", purchase);
-                store.saveEntity("purchases", purchase, purchase.id);
-                syncState();
-                renderAll();
-                toast("Compra guardada correctamente");
-                scannerViewUI.closeScannerFlow();
-              },
-              onComplete(session){
-                documentFormUI.openDocumentForm(formContext(), null, {
-                  scannedSession:session,
-                  defaults:{ type:"supplierInvoice" }
-              });
-            }
-          });
           if(action === "new-document") return openDocumentForm(null);
           if(action === "edit-document") return openDocumentForm(id);
           if(action === "view-document") return viewDocument(id);
@@ -2411,36 +2132,6 @@
         await ensureExternalScript("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js");
         await ensureExternalScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js");
       }
-      let tesseractReadyPromise = null;
-      async function ensureTesseract(){
-        if(window.Tesseract?.recognize) return;
-        if(tesseractReadyPromise) return tesseractReadyPromise;
-        tesseractReadyPromise = ensureExternalScript("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js").catch(error => {
-          tesseractReadyPromise = null;
-          throw error;
-        });
-        return tesseractReadyPromise;
-      }
-        async function runDocumentOcr(dataUrl){
-          const localResult = await ocrService.recognizeImage(dataUrl);
-          const localText = normalizeOcrText(localResult?.text || "");
-          const localSummary = extractOcrSummary(localText);
-          try{
-            const aiResult = await enhanceDocumentOcrWithAnthropic(dataUrl, { text:localText, summary:localSummary });
-            const finalText = normalizeOcrText(aiResult?.text || localText);
-            const finalSummary = mergeOcrSummary(localSummary, aiResult?.summary || {}, finalText);
-            return {
-              text:finalText,
-              summary:finalSummary,
-              confidence:Math.max(localResult?.confidence || 0, 95),
-              raw:{ local:localResult || null, anthropic:aiResult || null },
-              provider:"anthropic+tesseract"
-            };
-          }catch(error){
-            console.warn("anthropic-ocr-fallback", error);
-            return { text:localText, summary:localSummary, confidence:localResult?.confidence || 0, raw:{ local:localResult || null, anthropicError:error?.message || String(error) }, provider:"tesseract" };
-          }
-        }
       async function buildInvoicePdfBlob(invoice){
         await ensurePdfStack();
         const host = document.createElement("div");
@@ -2738,41 +2429,6 @@
           return null;
         }
       }
-      async function syncDriveInvoicesNow(){
-        const token = getRuntimeSyncToken() || readDeviceLocal(SYNC_TOKEN_KEY).trim();
-        if(!token){
-          toast("Falta token local para lanzar el agente Drive.");
-          return null;
-        }
-        AppSyncStatus.setSaving();
-        try{
-          const response = await fetch("/api/drive-invoices-sync", {
-            method:"POST",
-            headers:{
-              "Content-Type":"application/json",
-              "x-sync-token":token
-            },
-            body:JSON.stringify({
-              source:"appatatas-settings",
-              folderId:"1ETAzvmssbDM7cLDUEy89quY0xEnNecd4",
-              requestedAt:new Date().toISOString()
-            }),
-            cache:"no-store"
-          });
-          const payload = await response.json().catch(() => ({}));
-          if(!response.ok || payload?.ok === false){
-            throw new Error(payload?.error || `drive-sync-${response.status}`);
-          }
-          AppSyncStatus.setSynced();
-          toast(payload?.message || "Sincronizacion Drive solicitada.");
-          return payload;
-        }catch(error){
-          console.error("[drive-invoices-sync] No se pudo lanzar la sincronizacion", error);
-          AppSyncStatus.setError();
-          toast("No se pudo sincronizar Drive. Revisa env vars del webhook.");
-          return null;
-        }
-      }
       const previousHandleAction = handleAction;
       handleAction = function(action, id, kind){
         if(action === "download-invoice-pdf") return downloadInvoicePdf(id).catch(() => toast("No se pudo generar el PDF"));
@@ -2780,7 +2436,6 @@
         if(action === "drive-disconnect") return disconnectDriveFromSettings();
         if(action === "sync-purchase-registry") return syncPurchaseRegistryFromSettings();
         if(action === "repair-local-sync") return repairLocalSyncFromSupabase();
-        if(action === "sync-drive-invoices-now") return syncDriveInvoicesNow();
         if(action === "upload-invoice-drive") return beginDriveInvoiceUploadFromClick(id).catch(error => reportDriveFailure("upload-invoice", error, "No se pudo subir la factura a Google Drive"));
         if(action === "upload-state-drive") return beginDriveStateUploadFromClick().catch(error => reportDriveFailure("upload-state", error, "No se pudo subir la copia a Google Drive"));
         if(action === "download-state-drive") return beginDriveStateDownloadFromClick().catch(error => reportDriveFailure("download-state", error, "No se pudo traer la copia desde Google Drive"));
@@ -3402,17 +3057,6 @@
             AppSyncStatus.setSynced();
           }
         });
-      }
-      if(typeof AppDriveAgent !== "undefined" && state.settings.legacyDriveAgentAutoSync === true){
-        AppDriveAgent.scheduleDriveAgent(
-          state.settings.driveRootFolderName || "apPatatas",
-          async (purchase) => {
-            store.saveEntity("purchases", purchase, purchase.id);
-            syncState();
-            renderAll();
-            await savePrimaryCollectionToSupabase("purchases", purchase);
-          }
-        );
       }
         function scheduleDailyDriveBackup(){
           return;

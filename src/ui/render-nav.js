@@ -12,7 +12,7 @@
   const VIEW_GROUPS = {
     dashboard:  new Set(["dashboard"]),
     billing:    new Set(["billing"]),
-    operations: new Set(["operations","wallet","scanner","exports"]),
+    operations: new Set(["operations","wallet","exports"]),
     catalog:    new Set(["catalog","clients"]),
     settings:   new Set(["settings","about"])
   };

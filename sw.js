@@ -1,4 +1,4 @@
-const CACHE_VERSION = "2026-05-17-night-run";
+const CACHE_VERSION = "2026-06-01-remove-scanner-ocr";
 const CACHE = `factupapa-${CACHE_VERSION}`;
 const APP_SHELL = [
   "./",

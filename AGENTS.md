@@ -42,7 +42,6 @@ Mandatory tabs:
 * Inicio
 * Facturas
 * Gastos
-* Escáner
 * Productos
 * Otros
 
@@ -50,7 +49,7 @@ Mandatory tabs:
 
 * Invoices with serious UX and PDF/export/email readiness
 * Expenses and purchases with attachments
-* Scanner with image archive and future OCR architecture
+* Purchases imported from the external Drive -> agent -> Google Sheets registry
 * Products with stock
 * Customers and suppliers
 * Templates and template-field customization
@@ -191,37 +190,11 @@ A task is not complete unless:
 * Do not degrade mobile UX
 * Do not silently change data structures without migration planning
 * Do not mix multiple major phases into one step
-* \## Future scanner requirements
-* The scanner must behave like a real document scanner, not like a simple photo capture tool.
-* 
-* \### Scanner quality standard
-* The scanner must aim for a real Adobe-Scan-like workflow:
-* \- live camera preview
-* \- document edge detection
-* \- perspective correction
-* \- automatic crop with manual adjustment
-* \- shadow/glare reduction when feasible
-* \- contrast enhancement for readable documents
-* \- black-and-white / grayscale / color modes if feasible
-* \- multi-page scan flow
-* \- export to PDF
-* \- keep original image plus processed scan
-* \- archive every scan in the app
-* \- allow rescanning, recropping, rotating, and reordering pages
-* \- allow assigning scans to expenses, purchases, invoices, customers, suppliers, or uncategorized documents
-* 
-* \### OCR requirements
-* The scanner architecture must support OCR and searchable document output:
-* \- extract text from scanned documents
-* \- detect date, supplier/customer name, totals, invoice number, tax values when possible
-* \- allow review/correction before saving structured data
-* \- preserve the scanned file even when OCR fails
-* 
-* \### Technical expectations
-* \- Do not implement the scanner as a naive photo upload flow
-* \- Prefer real camera capture with document-oriented processing
-* \- The scanner must prioritize document readability and structured capture, not just image storage
-* \- Prepare the architecture so the scanner can evolve into a true document-processing module
+* \## Scanner and AI invoice reading (removed)
+* The in-app scanner module and the AI/OCR invoice-reading flow (Anthropic + Tesseract) have been removed.
+* Purchases are now imported from the external Drive -> agent -> Google Sheets registry and synced into the app.
+* Documents remain as a simple manual attachment archive (no camera capture, no OCR).
+* Do not reintroduce in-app camera scanning or AI/OCR invoice reading unless explicitly requested.
 * \## Form default behavior rules
 * 
 * \- All form fields must be blank by default to avoid accidental data reuse
