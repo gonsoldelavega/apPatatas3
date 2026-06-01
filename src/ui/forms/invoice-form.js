@@ -16,6 +16,11 @@
       return ctx.composeInvoiceNumber(Math.max(configuredNext, existingMax + 1, MIN_NEXT_INVOICE_NUMBER + 1));
     }
 
+    function existingMeta(source){
+      return (source?.lines || []).find(line => line && line._invoiceMeta)?._invoiceMeta || {};
+    }
+
+    const meta = existingMeta(baseInvoice || preset || {});
     const previewNumber = isNewInvoice ? computePreviewInvoiceNumber() : "";
 
     const defaultInvoice = {
@@ -38,21 +43,28 @@
       id:ctx.uid("fac"),
       number:previewNumber,
       issueDate:ctx.today(),
-      periodStart:ctx.today(),
-      periodEnd:ctx.today(),
+      periodStart:(preset?.periodStart || meta.periodStart || ctx.today()),
+      periodEnd:(preset?.periodEnd || meta.periodEnd || ctx.today()),
       amountPaid:"",
       paidDate:"",
       paymentDate:"",
       paymentMethod:"",
-      paymentNote:"",
+      paymentNote:preset?.paymentNote || meta.paymentNote || "",
       status:"pending",
-      sendStatus:"",
+      sendStatus:preset?.sendStatus || meta.sendStatus || "",
       internalNote:"",
+      showPaymentTerms:preset?.showPaymentTerms ?? meta.showPaymentTerms ?? "",
       lines:(preset?.lines || defaultInvoice.lines).map(line => ({
         ...line,
         deliveryDate:ctx.today()
       }))
     };
+    invoice.periodStart = invoice.periodStart || meta.periodStart || invoice.issueDate || ctx.today();
+    invoice.periodEnd = invoice.periodEnd || meta.periodEnd || invoice.periodStart || ctx.today();
+    invoice.showPaymentTerms = invoice.showPaymentTerms === true || invoice.showPaymentTerms === "true" || meta.showPaymentTerms === true;
+    invoice.sendStatus = invoice.sendStatus || meta.sendStatus || "";
+    invoice.paymentNote = invoice.paymentNote || meta.paymentNote || "";
+
     const defaultDeliveryDate = invoice.issueDate || ctx.today();
     const invoiceLines = (invoice.lines?.length ? invoice.lines : [ctx.blankLine()]).map(line => ({
       ...line,
@@ -93,7 +105,7 @@
         <div class="sheet-grid invoice-step-grid">
           <div class="field"><label>Estado de envío interno</label><select name="sendStatus"><option value="">Sin estado</option>${["pendiente","enviada","revisar"].map(s => `<option value="${s}" ${invoice.sendStatus === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
           <div class="field"><label>Importe cobrado</label><input name="amountPaid" type="number" step="0.01" value="${ctx.esc(invoice.amountPaid)}"></div>
-          <div class="field"><label>Mostrar cláusula legal</label><select name="showPaymentTerms" id="invoiceTerms"><option value="">Sin definir</option><option value="false" ${invoice.showPaymentTerms === false || invoice.showPaymentTerms === "false" ? "selected" : ""}>No</option><option value="true" ${invoice.showPaymentTerms === true || invoice.showPaymentTerms === "true" ? "selected" : ""}>Sí</option></select></div>
+          <div class="field"><label>Mostrar cláusula legal</label><select name="showPaymentTerms" id="invoiceTerms"><option value="false" ${invoice.showPaymentTerms ? "" : "selected"}>No</option><option value="true" ${invoice.showPaymentTerms ? "selected" : ""}>Sí</option></select></div>
           <div class="field" style="grid-column:1/-1;"><label>Nota interna</label><textarea name="internalNote">${ctx.esc(invoice.internalNote)}</textarea></div>
         </div>
       </section>
@@ -123,16 +135,29 @@
       function getFormData(){
         const data = Object.fromEntries(new FormData(form).entries());
         if(isNewInvoice) data.number = computePreviewInvoiceNumber();
+        data.showPaymentTerms = data.showPaymentTerms === "true";
         return data;
+      }
+
+      function attachInvoiceMeta(lines, data){
+        const invoiceMeta = {
+          periodStart:data.periodStart,
+          periodEnd:data.periodEnd,
+          showPaymentTerms:data.showPaymentTerms === true,
+          sendStatus:data.sendStatus || "",
+          paymentNote:invoice.paymentNote || ""
+        };
+        return lines.map((line, index) => index === 0 ? { ...line, _invoiceMeta:invoiceMeta } : line);
       }
 
       function validateInvoiceData(data, lines){
         if(!data.clientId) return "Selecciona un cliente para la factura.";
         if(!data.number || !ctx.parseInvoiceNumber(data.number)) return "Número de factura inválido. Usa algo como FAC-100/2026.";
         if(!isValidDate(data.issueDate)) return "Indica una fecha de emisión válida.";
-        if(data.periodStart && !isValidDate(data.periodStart)) return "Indica una fecha de inicio de periodo válida.";
-        if(data.periodEnd && !isValidDate(data.periodEnd)) return "Indica una fecha de fin de periodo válida.";
+        if(!isValidDate(data.periodStart)) return "Indica una fecha de inicio de periodo válida.";
+        if(!isValidDate(data.periodEnd)) return "Indica una fecha de fin de periodo válida.";
         if(data.periodStart && data.periodEnd && data.periodStart > data.periodEnd) return "El inicio del periodo no puede ser posterior al final.";
+        if(typeof data.showPaymentTerms !== "boolean") return "Indica si quieres mostrar la cláusula legal: Sí o No.";
         if(!lines.length) return "Añade al menos una línea a la factura.";
         const invalidLineIndex = lines.findIndex(line =>
           ctx.n(line.quantity) <= 0 ||
@@ -157,8 +182,9 @@
       async function saveInvoice(btn){
         const originalLabel = btn?.textContent || "Guardar factura";
         try{
-          const lines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
+          const rawLines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
           const data = getFormData();
+          const lines = attachInvoiceMeta(rawLines, data);
           const validationError = validateInvoiceData(data, lines);
           if(validationError){
             ctx.toast(validationError);
@@ -173,8 +199,10 @@
             ...data,
             id:invoice.id,
             number:data.number,
+            periodStart:data.periodStart,
+            periodEnd:data.periodEnd,
             amountPaid:ctx.n(data.amountPaid),
-            showPaymentTerms:data.showPaymentTerms === "true",
+            showPaymentTerms:data.showPaymentTerms === true,
             lines
           };
           await Promise.resolve(ctx.saveEntity("invoices", payload, id));
