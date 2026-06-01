@@ -40,6 +40,57 @@ const GONSOL_MONTHS = [
   '12_DICIEMBRE'
 ];
 
+/**
+ * NIF(s) del propio negocio (aparecen como CLIENTE en las facturas de compra).
+ * Se excluyen al buscar el NIF del proveedor para no confundirlos.
+ */
+const GONSOL_CLIENT_NIFS = ['45313973V'];
+
+/**
+ * Perfiles de proveedores habituales. Permiten extraer proveedor, NIF y numero
+ * de factura de forma determinista en lugar de depender de heuristicas genericas.
+ */
+const GONSOL_SUPPLIERS = [
+  {
+    key: 'GAYCA',
+    name: 'FRUTAS Y PATATAS GAYCA, S.A.',
+    nif: 'A04037677',
+    defaultConcept: 'PATATAS AGRIA',
+    defaultCategory: 'Materia prima',
+    defaultIva: 4,
+    detect: function(upper, upperFileName) {
+      return /GAYCA|FRUTAS\s+Y\s+PATATAS/.test(upper)
+        || /A04037677/.test(upper)
+        || /GAYCA/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: FV006-00000996. El prefijo FV evita capturar el vendedor ("6 - VENTA ALMACEN").
+      var match = upper.match(/FV\s*\d{2,4}\s*[-\/]?\s*\d{4,}/);
+      return match ? match[0].replace(/\s+/g, '') : '';
+    }
+  },
+  {
+    key: 'FRUTCAYCAZ',
+    name: 'J. EXPOSITO CAZORLA E HIJOS, S.L.',
+    nif: 'B04854154',
+    defaultConcept: '',
+    defaultCategory: 'Materia prima',
+    defaultIva: 4,
+    detect: function(upper, upperFileName) {
+      return /FRUT[A-Z]*CAYCAZ|FRUT[A-Z]*GAYCAZ|EXPOSITO|CAZORLA\s+E\s+HIJOS/.test(upper)
+        || /B04854154/.test(upper)
+        || /FRUT[A-Z]*CAYCAZ|FRUT[A-Z]*GAYCAZ/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: 26004132. Numero numerico, preferimos el que va junto a "FACTURA".
+      var near = upper.match(/FACTURA[^\d]{0,20}(\d{6,9})/);
+      if (near) return near[1];
+      var loose = upper.match(/\b(2[5-9]\d{6})\b/);
+      return loose ? loose[1] : '';
+    }
+  }
+];
+
 function processPurchaseInvoicesDaily() {
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
   const reviewFolder = getOrCreateChildFolder_(inputFolder, GONSOL_CONFIG.reviewFolderName);
@@ -172,25 +223,48 @@ function ocrFileToText_(file) {
 function extractPurchaseInvoiceData_(text, originalFileName) {
   const clean = normalizeText_(text);
   const upper = clean.toUpperCase();
+  const profile = detectSupplier_(upper, originalFileName);
+
   const date = extractDate_(clean, originalFileName);
   const total = extractTotal_(clean);
-  const tax = extractTax_(clean, total);
-  const provider = extractProvider_(clean, upper, originalFileName);
-  const nif = extractNif_(upper);
-  const invoiceNumber = extractInvoiceNumber_(clean, upper);
-  const concept = extractConcept_(upper);
-  const category = classifyPurchaseCategory_(upper);
+  const tax = extractTax_(clean, total, profile ? profile.defaultIva : '');
+  const provider = profile ? profile.name : extractProvider_(clean, upper, originalFileName);
+  const nif = extractSupplierNif_(upper, profile);
+  const invoiceNumber = extractInvoiceNumber_(clean, upper, profile);
+
+  let concept = extractConcept_(upper);
+  if ((!concept || concept === 'Compra') && profile && profile.defaultConcept) {
+    concept = profile.defaultConcept;
+  }
+  let category = classifyPurchaseCategory_(upper);
+  if (!category && profile && profile.defaultCategory) {
+    category = profile.defaultCategory;
+  }
+
   const year = date ? String(date.getFullYear()) : '';
   const month = date ? GONSOL_MONTHS[date.getMonth()] : '';
   const quarter = date ? 'T' + (Math.floor(date.getMonth() / 3) + 1) : '';
 
+  const supplierKnown = !!profile;
   const missing = [];
   if (!date) missing.push('fecha');
   if (!provider) missing.push('proveedor');
   if (!invoiceNumber) missing.push('numero');
   if (!total) missing.push('total');
 
-  const confidence = calculateConfidence_(missing, nif, tax.base, category);
+  // Para proveedores conocidos basta con fecha + total para registrar:
+  // el numero puede faltar (se marca en observaciones) y aun asi entra en la hoja.
+  const requiresReview = supplierKnown ? (!date || !total) : (missing.length > 0);
+
+  const confidence = calculateConfidence_(missing, nif, tax.base, category, supplierKnown);
+
+  let observations = '';
+  if (missing.length) {
+    observations = 'Faltan datos: ' + missing.join(', ');
+  }
+  if (supplierKnown && !requiresReview && missing.length) {
+    observations = 'Proveedor reconocido (' + profile.key + '). Revisar: ' + missing.join(', ');
+  }
 
   return {
     date: date,
@@ -212,12 +286,45 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
     quarter: quarter,
     year: year,
     confidence: confidence,
-    requiresReview: missing.length > 0,
-    observations: missing.length ? 'Faltan datos: ' + missing.join(', ') : ''
+    requiresReview: requiresReview,
+    observations: observations
   };
 }
 
+function detectSupplier_(upper, fileName) {
+  const upperFileName = String(fileName || '').toUpperCase();
+  for (let i = 0; i < GONSOL_SUPPLIERS.length; i++) {
+    const supplier = GONSOL_SUPPLIERS[i];
+    if (supplier.detect(upper, upperFileName)) return supplier;
+  }
+  return null;
+}
+
+function extractSupplierNif_(upper, profile) {
+  // Si conocemos el proveedor, su NIF es la fuente mas fiable.
+  if (profile && profile.nif) return profile.nif;
+
+  const found = [];
+  const regex = /\b([ABCDEFGHJKLMNPQRSUVW]\d{7}[0-9A-J]|\d{8}[A-Z])\b/g;
+  let match;
+  while ((match = regex.exec(upper)) !== null) {
+    found.push(match[1]);
+  }
+  // Descarta los NIF propios (cliente) para no confundirlos con el proveedor.
+  const filtered = found.filter(function(nif) {
+    return GONSOL_CLIENT_NIFS.indexOf(nif) === -1;
+  });
+  return filtered[0] || found[0] || '';
+}
+
 function extractDate_(text, fileName) {
+  // Preferimos la fecha de emision (junto a "FECHA"), no la de vencimiento o lote.
+  const near = text.match(/FECHA[^\d]{0,15}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})/i);
+  if (near) {
+    const issueDate = new Date(Number(near[3]), Number(near[2]) - 1, Number(near[1]));
+    if (isValidDate_(issueDate)) return issueDate;
+  }
+
   const candidates = [];
   const sources = [text, fileName || ''];
   sources.forEach(function(source) {
@@ -250,10 +357,15 @@ function extractTotal_(text) {
   return maxMoneyMatch_(text, patterns);
 }
 
-function extractTax_(text, total) {
+function extractTax_(text, total, defaultIvaPercent) {
   let ivaPercent = extractIvaPercent_(text);
   let ivaAmount = extractIvaAmount_(text);
   let base = extractBase_(text);
+
+  // Para alimentacion el IVA habitual es 4%: si no se lee, usamos el del proveedor.
+  if (ivaPercent === '' && defaultIvaPercent !== '' && defaultIvaPercent != null) {
+    ivaPercent = defaultIvaPercent;
+  }
 
   if (!base && total && ivaPercent !== '') {
     base = roundMoney_(Number(total) / (1 + Number(ivaPercent) / 100));
@@ -328,7 +440,13 @@ function extractNif_(upper) {
   return match ? match[1] : '';
 }
 
-function extractInvoiceNumber_(text, upper) {
+function extractInvoiceNumber_(text, upper, profile) {
+  // Extractor especifico del proveedor (mas fiable que las reglas genericas).
+  if (profile && typeof profile.invoiceNumber === 'function') {
+    const specific = profile.invoiceNumber(text, upper);
+    if (specific) return sanitizeInvoiceNumber_(specific);
+  }
+
   const patterns = [
     /(?:FACTURA|N[ºO]\s*FACTURA|NUM(?:ERO)?\s*FACTURA|SERIE\s*\/?\s*N[ºO])[:\s#-]{0,12}([A-Z0-9][A-Z0-9\/._-]{3,})/i,
     /\b(FV[A-Z0-9\/._-]{4,})\b/i,
@@ -678,12 +796,14 @@ function monthNameToNumber_(name) {
   return names.indexOf(normalized.slice(0, 3));
 }
 
-function calculateConfidence_(missing, nif, base, category) {
+function calculateConfidence_(missing, nif, base, category, supplierKnown) {
   let confidence = 1;
   confidence -= missing.length * 0.18;
   if (!nif) confidence -= 0.07;
   if (!base) confidence -= 0.08;
   if (!category) confidence -= 0.05;
+  // Proveedor reconocido: proveedor y NIF son fiables, sube la confianza.
+  if (supplierKnown) confidence += 0.2;
   return Math.max(0, Math.min(1, roundMoney_(confidence)));
 }
 
