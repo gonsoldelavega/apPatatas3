@@ -9,15 +9,19 @@
     return "";
   }
 
+  function hasExplicitBool(value){
+    return value === true || value === false || value === "true" || value === "false";
+  }
+
   function normalizeInvoiceMetadata(snapshot){
     if(!snapshot || !Array.isArray(snapshot.invoices)) return snapshot;
     snapshot.invoices = snapshot.invoices.map(invoice => {
       if(!invoice) return invoice;
       const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
       const meta = lines.find(line => line && line._invoiceMeta)?._invoiceMeta || {};
-      const periodStart = isDateLike(invoice.periodStart) ? invoice.periodStart : isDateLike(meta.periodStart) ? meta.periodStart : invoice.issueDate || invoice.date || "";
-      const periodEnd = isDateLike(invoice.periodEnd) ? invoice.periodEnd : isDateLike(meta.periodEnd) ? meta.periodEnd : periodStart;
-      const showPaymentTerms = boolOrEmpty(invoice.showPaymentTerms) !== "" ? boolOrEmpty(invoice.showPaymentTerms) : boolOrEmpty(meta.showPaymentTerms);
+      const periodStart = isDateLike(meta.periodStart) ? meta.periodStart : isDateLike(invoice.periodStart) ? invoice.periodStart : invoice.issueDate || invoice.date || "";
+      const periodEnd = isDateLike(meta.periodEnd) ? meta.periodEnd : isDateLike(invoice.periodEnd) ? invoice.periodEnd : periodStart;
+      const showPaymentTerms = hasExplicitBool(meta.showPaymentTerms) ? boolOrEmpty(meta.showPaymentTerms) : boolOrEmpty(invoice.showPaymentTerms);
       const sendStatus = invoice.sendStatus || meta.sendStatus || "";
       const paymentNote = invoice.paymentNote || meta.paymentNote || "";
       const nextMeta = {
