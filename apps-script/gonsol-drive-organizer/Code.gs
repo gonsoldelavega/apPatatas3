@@ -88,6 +88,24 @@ const GONSOL_SUPPLIERS = [
       var loose = upper.match(/\b(2[5-9]\d{6})\b/);
       return loose ? loose[1] : '';
     }
+  },
+  {
+    key: 'HIGIENLAB',
+    name: 'HIGIENLAB 2020 S.L.',
+    nif: 'B42743211',
+    defaultConcept: '',
+    defaultCategory: 'Envases',
+    defaultIva: 21,
+    detect: function(upper, upperFileName) {
+      return /HIGIENLAB/.test(upper)
+        || /B42743211/.test(upper)
+        || /HIGIENLAB/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: 26F00973
+      var match = upper.match(/\b(\d{2}F\d{4,7})\b/);
+      return match ? match[1] : '';
+    }
   }
 ];
 
@@ -196,6 +214,99 @@ function rebuildPurchaseMonthlySummary() {
     throw new Error('No existe la hoja ' + GONSOL_CONFIG.registrySheetName);
   }
   rebuildMonthlyPurchasesSummary_(registrySheet);
+}
+
+/**
+ * Recuperacion puntual de compras del 2T 2026 que no estaban en el registro.
+ * Datos leidos manualmente del PDF (precisos). Cada factura entra en SU mes.
+ * Se puede ejecutar varias veces: no duplica (control por proveedor+numero+total).
+ * Cuando ya esten registradas, esta funcion se puede borrar.
+ */
+function importBacklogT2_2026() {
+  const sheet = SpreadsheetApp
+    .openById(GONSOL_CONFIG.masterSpreadsheetId)
+    .getSheetByName(GONSOL_CONFIG.registrySheetName);
+  if (!sheet) {
+    throw new Error('No existe la hoja ' + GONSOL_CONFIG.registrySheetName);
+  }
+
+  const backlog = [
+    {
+      fileId: '1OAsstG-W7REl9ccb9puitzW0JQEZHn-a',
+      date: '2026-04-25',
+      number: '26003435',
+      provider: 'J. EXPOSITO CAZORLA E HIJOS, S.L.',
+      nif: 'B04854154',
+      concept: 'LECHUGA B.2UND.LUCAS',
+      category: 'Materia prima',
+      base: 14.00,
+      ivaPercent: 4,
+      ivaAmount: 0.56,
+      total: 14.56
+    },
+    {
+      fileId: '1HMz692UXG4IRy0fru5kq9B-RPeAtTu2h',
+      date: '2026-04-30',
+      number: '26003572',
+      provider: 'J. EXPOSITO CAZORLA E HIJOS, S.L.',
+      nif: 'B04854154',
+      concept: 'PATATA AGRIA NUEVA',
+      category: 'Materia prima',
+      base: 63.00,
+      ivaPercent: 4,
+      ivaAmount: 2.52,
+      total: 65.52
+    }
+  ];
+
+  const duplicateIndex = buildDuplicateIndex_(sheet);
+  const now = new Date();
+  const results = [];
+
+  backlog.forEach(function(item) {
+    const key = makeDuplicateKey_(item.provider, item.number, item.total);
+    if (duplicateIndex[key]) {
+      results.push({ number: item.number, status: 'ya_existe' });
+      return;
+    }
+    const parts = item.date.split('-');
+    const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const data = {
+      dateText: item.date,
+      type: 'compra',
+      subtype: 'factura',
+      invoiceNumber: item.number,
+      provider: item.provider,
+      nif: item.nif,
+      concept: item.concept,
+      category: item.category,
+      base: item.base,
+      ivaPercent: item.ivaPercent,
+      ivaAmount: item.ivaAmount,
+      total: item.total,
+      status: GONSOL_CONFIG.paidStatus,
+      paymentMethod: '',
+      month: GONSOL_MONTHS[dateObj.getMonth()],
+      quarter: 'T' + (Math.floor(dateObj.getMonth() / 3) + 1),
+      year: String(dateObj.getFullYear()),
+      observations: ''
+    };
+
+    let file;
+    try {
+      file = DriveApp.getFileById(item.fileId);
+    } catch (error) {
+      file = { getUrl: function() { return ''; }, getName: function() { return item.number + '.pdf'; } };
+    }
+
+    appendRegistryRow_(sheet, buildRegistryRow_(data, file, now, 'sí', 'Recuperada manualmente (no estaba en el registro)'));
+    duplicateIndex[key] = true;
+    results.push({ number: item.number, status: 'anadida' });
+  });
+
+  rebuildMonthlyPurchasesSummary_(sheet);
+  console.log(JSON.stringify(results, null, 2));
+  return results;
 }
 
 function ocrFileToText_(file) {
@@ -350,6 +461,13 @@ function extractDate_(text, fileName) {
 }
 
 function extractTotal_(text) {
+  // Preferimos el importe etiquetado como TOTAL FACTURA / TOTAL A PAGAR
+  // (evita coger por error el numero de unidades o el "Bruto").
+  const labeled = text.match(/(?:TOTAL\s*FACTURA|IMPORTE\s*TOTAL|TOTAL\s*A\s*PAGAR)[^\d]{0,30}(\d{1,6}(?:[.,]\d{3})*[.,]\d{2})/i);
+  if (labeled) {
+    const labeledValue = parseMoney_(labeled[1]);
+    if (labeledValue !== '') return labeledValue;
+  }
   const patterns = [
     /(?:TOTAL\s*(?:FACTURA)?|IMPORTE\s*TOTAL|TOTAL\s*A\s*PAGAR)[^\d]{0,30}(\d{1,6}(?:[.,]\d{3})*[.,]\d{2})/gi,
     /(\d{1,6}(?:[.,]\d{3})*[.,]\d{2})\s*(?:EUR|EUROS|€)/gi
