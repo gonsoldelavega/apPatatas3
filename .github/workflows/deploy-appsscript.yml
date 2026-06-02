@@ -46,6 +46,7 @@ jobs:
           if [ -z "$SCRIPT_ID" ]; then echo "Falta el secreto SCRIPT_ID"; exit 1; fi
 
       - name: Escribir credenciales de clasp
+        working-directory: apps-script/gonsol-drive-organizer
         env:
           CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
           CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
@@ -54,12 +55,9 @@ jobs:
           RT="$(printf '%s' "$CLASP_REFRESH_TOKEN" | tr -d '[:space:]')"
           CID="$(printf '%s' "$CLASP_CLIENT_ID" | tr -d '[:space:]')"
           CS="$(printf '%s' "$CLASP_CLIENT_SECRET" | tr -d '[:space:]')"
-          jq -n \
-            --arg rt "$RT" \
-            --arg cid "$CID" \
-            --arg cs "$CS" \
-            '{token:{access_token:"",refresh_token:$rt,scope:"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments",token_type:"Bearer",expiry_date:1},oauth2ClientSettings:{clientId:$cid,clientSecret:$cs,redirectUri:"https://developers.google.com/oauthplayground"},isLocalCreds:false}' \
-            > "$HOME/.clasprc.json"
+          CREDS='{token:{access_token:"",refresh_token:$rt,scope:"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments",token_type:"Bearer",expiry_date:1},oauth2ClientSettings:{clientId:$cid,clientSecret:$cs,redirectUri:"https://developers.google.com/oauthplayground"},isLocalCreds:true}'
+          jq -n --arg rt "$RT" --arg cid "$CID" --arg cs "$CS" "$CREDS" > .clasprc.json
+          jq -n --arg rt "$RT" --arg cid "$CID" --arg cs "$CS" "$CREDS" > "$HOME/.clasprc.json"
 
       - name: Configurar .clasp.json
         working-directory: apps-script/gonsol-drive-organizer
