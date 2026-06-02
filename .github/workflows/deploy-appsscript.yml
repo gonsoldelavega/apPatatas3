@@ -67,6 +67,21 @@ jobs:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
 
+      - name: Diagnostico de credenciales
+        env:
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+        run: |
+          RT="$(printf '%s' "$CLASP_REFRESH_TOKEN" | tr -d '[:space:]')"
+          CID="$(printf '%s' "$CLASP_CLIENT_ID" | tr -d '[:space:]')"
+          CS="$(printf '%s' "$CLASP_CLIENT_SECRET" | tr -d '[:space:]')"
+          echo "client_id termina en: ...${CID: -16}"
+          echo "client_id longitud: ${#CID}  client_secret longitud: ${#CS}  refresh_token longitud: ${#RT}"
+          RESP="$(curl -s -X POST https://oauth2.googleapis.com/token -d grant_type=refresh_token -d client_id="$CID" -d client_secret="$CS" -d refresh_token="$RT")"
+          echo "Respuesta de Google:"
+          echo "$RESP" | grep -o '"error[^,}]*' || echo "TOKEN OK (sin error de credenciales)"
+
       - name: Push a Apps Script
         working-directory: apps-script/gonsol-drive-organizer
         run: clasp push --force
