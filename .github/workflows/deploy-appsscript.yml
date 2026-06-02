@@ -35,16 +35,28 @@ jobs:
 
       - name: Comprobar secretos
         env:
-          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: |
-          if [ -z "$CLASPRC_JSON" ]; then echo "Falta el secreto CLASPRC_JSON"; exit 1; fi
+          if [ -z "$CLASP_REFRESH_TOKEN" ]; then echo "Falta el secreto CLASP_REFRESH_TOKEN"; exit 1; fi
+          if [ -z "$CLASP_CLIENT_ID" ]; then echo "Falta el secreto CLASP_CLIENT_ID"; exit 1; fi
+          if [ -z "$CLASP_CLIENT_SECRET" ]; then echo "Falta el secreto CLASP_CLIENT_SECRET"; exit 1; fi
           if [ -z "$SCRIPT_ID" ]; then echo "Falta el secreto SCRIPT_ID"; exit 1; fi
 
       - name: Escribir credenciales de clasp
         env:
-          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-        run: printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+        run: |
+          jq -n \
+            --arg rt "$CLASP_REFRESH_TOKEN" \
+            --arg cid "$CLASP_CLIENT_ID" \
+            --arg cs "$CLASP_CLIENT_SECRET" \
+            '{token:{access_token:"",refresh_token:$rt,scope:"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments",token_type:"Bearer",expiry_date:1},oauth2ClientSettings:{clientId:$cid,clientSecret:$cs,redirectUri:"https://developers.google.com/oauthplayground"},isLocalCreds:false}' \
+            > "$HOME/.clasprc.json"
 
       - name: Configurar .clasp.json
         working-directory: apps-script/gonsol-drive-organizer
