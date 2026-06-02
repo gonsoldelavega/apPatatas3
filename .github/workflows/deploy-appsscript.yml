@@ -51,10 +51,13 @@ jobs:
           CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
           CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
         run: |
+          RT="$(printf '%s' "$CLASP_REFRESH_TOKEN" | tr -d '[:space:]')"
+          CID="$(printf '%s' "$CLASP_CLIENT_ID" | tr -d '[:space:]')"
+          CS="$(printf '%s' "$CLASP_CLIENT_SECRET" | tr -d '[:space:]')"
           jq -n \
-            --arg rt "$CLASP_REFRESH_TOKEN" \
-            --arg cid "$CLASP_CLIENT_ID" \
-            --arg cs "$CLASP_CLIENT_SECRET" \
+            --arg rt "$RT" \
+            --arg cid "$CID" \
+            --arg cs "$CS" \
             '{token:{access_token:"",refresh_token:$rt,scope:"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments",token_type:"Bearer",expiry_date:1},oauth2ClientSettings:{clientId:$cid,clientSecret:$cs,redirectUri:"https://developers.google.com/oauthplayground"},isLocalCreds:false}' \
             > "$HOME/.clasprc.json"
 
