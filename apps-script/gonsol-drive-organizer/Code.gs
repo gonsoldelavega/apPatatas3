@@ -147,9 +147,45 @@ function processPurchaseInvoicesDaily() {
   }
 
   rebuildMonthlyPurchasesSummary_(sheet);
+  reorganizePurchasesByMonth_();
 
   console.log(JSON.stringify(results, null, 2));
   return results;
+}
+
+/**
+ * Mueve a su subcarpeta de mes las facturas que hayan quedado sueltas
+ * directamente dentro de un trimestre (02_COMPRAS/<anio>/T#/<archivo>).
+ * El mes se deduce del prefijo de fecha del nombre (AAAA-MM-DD_...).
+ * Se ejecuta cada dia (auto-reparacion) y tambien se puede lanzar a mano.
+ */
+function reorganizePurchasesByMonth_() {
+  const root = DriveApp.getFolderById(GONSOL_CONFIG.purchasesRootFolderId);
+  const moved = [];
+  const years = root.getFolders();
+  while (years.hasNext()) {
+    const yearFolder = years.next();
+    const quarters = yearFolder.getFolders();
+    while (quarters.hasNext()) {
+      const quarterFolder = quarters.next();
+      if (!/^T[1-4]$/.test(quarterFolder.getName())) continue;
+      const looseFiles = [];
+      const files = quarterFolder.getFiles();
+      while (files.hasNext()) looseFiles.push(files.next());
+      looseFiles.forEach(function(file) {
+        const match = file.getName().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return;
+        const monthIndex = Number(match[2]) - 1;
+        if (monthIndex < 0 || monthIndex > 11) return;
+        const monthName = GONSOL_MONTHS[monthIndex];
+        const monthFolder = getOrCreateChildFolder_(quarterFolder, monthName);
+        file.moveTo(monthFolder);
+        moved.push({ file: file.getName(), to: monthName });
+      });
+    }
+  }
+  if (moved.length) console.log('Reorganizadas por mes: ' + JSON.stringify(moved, null, 2));
+  return moved;
 }
 
 function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, duplicateFolder) {
@@ -169,7 +205,7 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
     return { fileName: file.getName(), status: 'duplicate', duplicateKey: duplicateKey };
   }
 
-  const destination = getDestinationFolder_(extracted.year, extracted.quarter);
+  const destination = getDestinationFolder_(extracted.year, extracted.quarter, extracted.month);
   const newName = buildPurchaseFileName_(extracted);
   file.setName(newName);
   moveFileToFolder_(file, destination);
@@ -752,10 +788,12 @@ function makeDuplicateKey_(provider, invoiceNumber, total) {
   ].join('|');
 }
 
-function getDestinationFolder_(year, quarter) {
+function getDestinationFolder_(year, quarter, month) {
   const purchasesRoot = DriveApp.getFolderById(GONSOL_CONFIG.purchasesRootFolderId);
   const yearFolder = getOrCreateChildFolder_(purchasesRoot, String(year));
-  return getOrCreateChildFolder_(yearFolder, quarter);
+  const quarterFolder = getOrCreateChildFolder_(yearFolder, quarter);
+  if (!month) return quarterFolder;
+  return getOrCreateChildFolder_(quarterFolder, month);
 }
 
 function getOrCreateChildFolder_(parentFolder, childName) {

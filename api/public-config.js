@@ -1,5 +1,5 @@
 export default function handler(request, response) {
-  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
   response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Content-Type", "application/json; charset=utf-8");
