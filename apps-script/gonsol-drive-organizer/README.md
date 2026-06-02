@@ -53,10 +53,26 @@ setupDailyPurchaseInvoiceTrigger()
 processPurchaseInvoicesDaily()
 ```
 
+## Proveedores reconocidos (parsers dedicados)
+
+Para los proveedores habituales se extraen proveedor, NIF y numero de factura de
+forma determinista (no por heuristica), lo que reduce errores y revisiones:
+
+- **GAYCA** — `FRUTAS Y PATATAS GAYCA, S.A.` (NIF `A04037677`). Numero tipo `FV006-00000996`. IVA 4%.
+- **FRUTCAYCAZ** — `J. EXPOSITO CAZORLA E HIJOS, S.L.` (NIF `B04854154`). Numero numerico tipo `26004132`. IVA 4%.
+
+El NIF del propio negocio (`45313973V`, que aparece como cliente) se excluye para
+no confundirlo con el del proveedor. Para anadir un proveedor nuevo, copia un bloque
+de `GONSOL_SUPPLIERS` en `Code.gs` con su `detect`, `nif` y `invoiceNumber`.
+
 ## Comportamiento
 
 - Todas las facturas entran como `pagado`.
-- Si falta fecha, proveedor, numero o total, va a `REVISAR_MANUALMENTE`.
+- Proveedor reconocido: basta con `fecha + total` para registrar. Si falta el numero,
+  se registra igualmente y se anota en `observaciones` (no se manda a revision por eso).
+- Proveedor desconocido: si falta fecha, proveedor, numero o total, va a `REVISAR_MANUALMENTE`.
+- El IVA de alimentacion (4%) se asume cuando el proveedor es conocido y no se lee en el texto.
+- Se prefiere la fecha junto a la palabra `FECHA` (emision) en vez de la primera fecha del documento.
 - Si ya existe `proveedor + numero + total`, se aparta a `REVISAR_MANUALMENTE/DUPLICADOS` y no se registra.
 - Si se clasifica bien, se mueve a `02_COMPRAS/<ANIO>/<T1..T4>`.
 - Renombra con la regla `AAAA-MM-DD_FACTURA_COMPRA_PROVEEDOR_NUMERO_TOTAL.pdf`.

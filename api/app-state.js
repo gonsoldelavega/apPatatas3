@@ -5,7 +5,7 @@ const SYNC_VERSION = 1;
 const COLLECTION_KEYS = ["templates","clients","suppliers","products","purchases","expenses","walletMovements","deliveryNotes","invoices","documents"];
 
 function setCors(response) {
-  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Sync-Token, If-None-Match");
   response.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS");
   response.setHeader("Cache-Control", "no-store");
@@ -22,12 +22,6 @@ function logInvalidTimestamp(field, rawValue) {
 function checkToken(request) {
   const expected = process.env.APP_SYNC_TOKEN;
   const provided = request.headers["x-sync-token"];
-  log("auth-debug", {
-    envTokenPresent: !!expected,
-    envTokenLength: expected ? expected.length : 0,
-    headerPresent: !!provided,
-    headerLength: provided ? provided.length : 0
-  });
   if (!expected) return { ok: false, status: "missing-secret" };
   if (!provided) return { ok: false, status: "missing-header" };
   if (provided !== expected) return { ok: false, status: "mismatch" };

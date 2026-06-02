@@ -2588,14 +2588,6 @@
           "x-sync-token": runtimeToken,
           ...headers
         };
-        syncLog("auth-debug-request", {
-          url:backendUrl,
-          method,
-          tokenPresent:!!runtimeToken,
-          tokenLength:runtimeToken ? runtimeToken.length : 0,
-          headerAttached:Object.prototype.hasOwnProperty.call(syncHeaders, "x-sync-token"),
-          headerLength:typeof syncHeaders["x-sync-token"] === "string" ? syncHeaders["x-sync-token"].length : 0
-        });
         if(!runtimeToken) throw new Error("backend-token-missing");
         syncLog(`${method}-start`, { url:backendUrl, tokenPresent:true });
         const response = await fetch(backendUrl, {

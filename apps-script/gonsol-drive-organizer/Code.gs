@@ -40,6 +40,75 @@ const GONSOL_MONTHS = [
   '12_DICIEMBRE'
 ];
 
+/**
+ * NIF(s) del propio negocio (aparecen como CLIENTE en las facturas de compra).
+ * Se excluyen al buscar el NIF del proveedor para no confundirlos.
+ */
+const GONSOL_CLIENT_NIFS = ['45313973V'];
+
+/**
+ * Perfiles de proveedores habituales. Permiten extraer proveedor, NIF y numero
+ * de factura de forma determinista en lugar de depender de heuristicas genericas.
+ */
+const GONSOL_SUPPLIERS = [
+  {
+    key: 'GAYCA',
+    name: 'FRUTAS Y PATATAS GAYCA, S.A.',
+    nif: 'A04037677',
+    defaultConcept: 'PATATAS AGRIA',
+    defaultCategory: 'Materia prima',
+    defaultIva: 4,
+    detect: function(upper, upperFileName) {
+      return /GAYCA|FRUTAS\s+Y\s+PATATAS/.test(upper)
+        || /A04037677/.test(upper)
+        || /GAYCA/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: FV006-00000996. El prefijo FV evita capturar el vendedor ("6 - VENTA ALMACEN").
+      var match = upper.match(/FV\s*\d{2,4}\s*[-\/]?\s*\d{4,}/);
+      return match ? match[0].replace(/\s+/g, '') : '';
+    }
+  },
+  {
+    key: 'FRUTCAYCAZ',
+    name: 'J. EXPOSITO CAZORLA E HIJOS, S.L.',
+    nif: 'B04854154',
+    defaultConcept: '',
+    defaultCategory: 'Materia prima',
+    defaultIva: 4,
+    detect: function(upper, upperFileName) {
+      return /FRUT[A-Z]*CAYCAZ|FRUT[A-Z]*GAYCAZ|EXPOSITO|CAZORLA\s+E\s+HIJOS/.test(upper)
+        || /B04854154/.test(upper)
+        || /FRUT[A-Z]*CAYCAZ|FRUT[A-Z]*GAYCAZ/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: 26004132. Numero numerico, preferimos el que va junto a "FACTURA".
+      var near = upper.match(/FACTURA[^\d]{0,20}(\d{6,9})/);
+      if (near) return near[1];
+      var loose = upper.match(/\b(2[5-9]\d{6})\b/);
+      return loose ? loose[1] : '';
+    }
+  },
+  {
+    key: 'HIGIENLAB',
+    name: 'HIGIENLAB 2020 S.L.',
+    nif: 'B42743211',
+    defaultConcept: '',
+    defaultCategory: 'Envases',
+    defaultIva: 21,
+    detect: function(upper, upperFileName) {
+      return /HIGIENLAB/.test(upper)
+        || /B42743211/.test(upper)
+        || /HIGIENLAB/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: 26F00973
+      var match = upper.match(/\b(\d{2}F\d{4,7})\b/);
+      return match ? match[1] : '';
+    }
+  }
+];
+
 function processPurchaseInvoicesDaily() {
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
   const reviewFolder = getOrCreateChildFolder_(inputFolder, GONSOL_CONFIG.reviewFolderName);
@@ -78,9 +147,45 @@ function processPurchaseInvoicesDaily() {
   }
 
   rebuildMonthlyPurchasesSummary_(sheet);
+  reorganizePurchasesByMonth_();
 
   console.log(JSON.stringify(results, null, 2));
   return results;
+}
+
+/**
+ * Mueve a su subcarpeta de mes las facturas que hayan quedado sueltas
+ * directamente dentro de un trimestre (02_COMPRAS/<anio>/T#/<archivo>).
+ * El mes se deduce del prefijo de fecha del nombre (AAAA-MM-DD_...).
+ * Se ejecuta cada dia (auto-reparacion) y tambien se puede lanzar a mano.
+ */
+function reorganizePurchasesByMonth_() {
+  const root = DriveApp.getFolderById(GONSOL_CONFIG.purchasesRootFolderId);
+  const moved = [];
+  const years = root.getFolders();
+  while (years.hasNext()) {
+    const yearFolder = years.next();
+    const quarters = yearFolder.getFolders();
+    while (quarters.hasNext()) {
+      const quarterFolder = quarters.next();
+      if (!/^T[1-4]$/.test(quarterFolder.getName())) continue;
+      const looseFiles = [];
+      const files = quarterFolder.getFiles();
+      while (files.hasNext()) looseFiles.push(files.next());
+      looseFiles.forEach(function(file) {
+        const match = file.getName().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return;
+        const monthIndex = Number(match[2]) - 1;
+        if (monthIndex < 0 || monthIndex > 11) return;
+        const monthName = GONSOL_MONTHS[monthIndex];
+        const monthFolder = getOrCreateChildFolder_(quarterFolder, monthName);
+        file.moveTo(monthFolder);
+        moved.push({ file: file.getName(), to: monthName });
+      });
+    }
+  }
+  if (moved.length) console.log('Reorganizadas por mes: ' + JSON.stringify(moved, null, 2));
+  return moved;
 }
 
 function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, duplicateFolder) {
@@ -100,7 +205,7 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
     return { fileName: file.getName(), status: 'duplicate', duplicateKey: duplicateKey };
   }
 
-  const destination = getDestinationFolder_(extracted.year, extracted.quarter);
+  const destination = getDestinationFolder_(extracted.year, extracted.quarter, extracted.month);
   const newName = buildPurchaseFileName_(extracted);
   file.setName(newName);
   moveFileToFolder_(file, destination);
@@ -147,6 +252,99 @@ function rebuildPurchaseMonthlySummary() {
   rebuildMonthlyPurchasesSummary_(registrySheet);
 }
 
+/**
+ * Recuperacion puntual de compras del 2T 2026 que no estaban en el registro.
+ * Datos leidos manualmente del PDF (precisos). Cada factura entra en SU mes.
+ * Se puede ejecutar varias veces: no duplica (control por proveedor+numero+total).
+ * Cuando ya esten registradas, esta funcion se puede borrar.
+ */
+function importBacklogT2_2026() {
+  const sheet = SpreadsheetApp
+    .openById(GONSOL_CONFIG.masterSpreadsheetId)
+    .getSheetByName(GONSOL_CONFIG.registrySheetName);
+  if (!sheet) {
+    throw new Error('No existe la hoja ' + GONSOL_CONFIG.registrySheetName);
+  }
+
+  const backlog = [
+    {
+      fileId: '1OAsstG-W7REl9ccb9puitzW0JQEZHn-a',
+      date: '2026-04-25',
+      number: '26003435',
+      provider: 'J. EXPOSITO CAZORLA E HIJOS, S.L.',
+      nif: 'B04854154',
+      concept: 'LECHUGA B.2UND.LUCAS',
+      category: 'Materia prima',
+      base: 14.00,
+      ivaPercent: 4,
+      ivaAmount: 0.56,
+      total: 14.56
+    },
+    {
+      fileId: '1HMz692UXG4IRy0fru5kq9B-RPeAtTu2h',
+      date: '2026-04-30',
+      number: '26003572',
+      provider: 'J. EXPOSITO CAZORLA E HIJOS, S.L.',
+      nif: 'B04854154',
+      concept: 'PATATA AGRIA NUEVA',
+      category: 'Materia prima',
+      base: 63.00,
+      ivaPercent: 4,
+      ivaAmount: 2.52,
+      total: 65.52
+    }
+  ];
+
+  const duplicateIndex = buildDuplicateIndex_(sheet);
+  const now = new Date();
+  const results = [];
+
+  backlog.forEach(function(item) {
+    const key = makeDuplicateKey_(item.provider, item.number, item.total);
+    if (duplicateIndex[key]) {
+      results.push({ number: item.number, status: 'ya_existe' });
+      return;
+    }
+    const parts = item.date.split('-');
+    const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const data = {
+      dateText: item.date,
+      type: 'compra',
+      subtype: 'factura',
+      invoiceNumber: item.number,
+      provider: item.provider,
+      nif: item.nif,
+      concept: item.concept,
+      category: item.category,
+      base: item.base,
+      ivaPercent: item.ivaPercent,
+      ivaAmount: item.ivaAmount,
+      total: item.total,
+      status: GONSOL_CONFIG.paidStatus,
+      paymentMethod: '',
+      month: GONSOL_MONTHS[dateObj.getMonth()],
+      quarter: 'T' + (Math.floor(dateObj.getMonth() / 3) + 1),
+      year: String(dateObj.getFullYear()),
+      observations: ''
+    };
+
+    let file;
+    try {
+      file = DriveApp.getFileById(item.fileId);
+    } catch (error) {
+      file = { getUrl: function() { return ''; }, getName: function() { return item.number + '.pdf'; } };
+    }
+
+    appendRegistryRow_(sheet, buildRegistryRow_(data, file, now, 'sí', 'Recuperada manualmente (no estaba en el registro)'));
+    duplicateIndex[key] = true;
+    results.push({ number: item.number, status: 'anadida' });
+  });
+
+  rebuildMonthlyPurchasesSummary_(sheet);
+  console.log(JSON.stringify(results, null, 2));
+  return results;
+}
+
 function ocrFileToText_(file) {
   const tempName = 'OCR_TMP_' + file.getName() + '_' + new Date().getTime();
   const resource = {
@@ -172,25 +370,48 @@ function ocrFileToText_(file) {
 function extractPurchaseInvoiceData_(text, originalFileName) {
   const clean = normalizeText_(text);
   const upper = clean.toUpperCase();
+  const profile = detectSupplier_(upper, originalFileName);
+
   const date = extractDate_(clean, originalFileName);
   const total = extractTotal_(clean);
-  const tax = extractTax_(clean, total);
-  const provider = extractProvider_(clean, upper, originalFileName);
-  const nif = extractNif_(upper);
-  const invoiceNumber = extractInvoiceNumber_(clean, upper);
-  const concept = extractConcept_(upper);
-  const category = classifyPurchaseCategory_(upper);
+  const tax = extractTax_(clean, total, profile ? profile.defaultIva : '');
+  const provider = profile ? profile.name : extractProvider_(clean, upper, originalFileName);
+  const nif = extractSupplierNif_(upper, profile);
+  const invoiceNumber = extractInvoiceNumber_(clean, upper, profile);
+
+  let concept = extractConcept_(upper);
+  if ((!concept || concept === 'Compra') && profile && profile.defaultConcept) {
+    concept = profile.defaultConcept;
+  }
+  let category = classifyPurchaseCategory_(upper);
+  if (!category && profile && profile.defaultCategory) {
+    category = profile.defaultCategory;
+  }
+
   const year = date ? String(date.getFullYear()) : '';
   const month = date ? GONSOL_MONTHS[date.getMonth()] : '';
   const quarter = date ? 'T' + (Math.floor(date.getMonth() / 3) + 1) : '';
 
+  const supplierKnown = !!profile;
   const missing = [];
   if (!date) missing.push('fecha');
   if (!provider) missing.push('proveedor');
   if (!invoiceNumber) missing.push('numero');
   if (!total) missing.push('total');
 
-  const confidence = calculateConfidence_(missing, nif, tax.base, category);
+  // Para proveedores conocidos basta con fecha + total para registrar:
+  // el numero puede faltar (se marca en observaciones) y aun asi entra en la hoja.
+  const requiresReview = supplierKnown ? (!date || !total) : (missing.length > 0);
+
+  const confidence = calculateConfidence_(missing, nif, tax.base, category, supplierKnown);
+
+  let observations = '';
+  if (missing.length) {
+    observations = 'Faltan datos: ' + missing.join(', ');
+  }
+  if (supplierKnown && !requiresReview && missing.length) {
+    observations = 'Proveedor reconocido (' + profile.key + '). Revisar: ' + missing.join(', ');
+  }
 
   return {
     date: date,
@@ -212,12 +433,45 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
     quarter: quarter,
     year: year,
     confidence: confidence,
-    requiresReview: missing.length > 0,
-    observations: missing.length ? 'Faltan datos: ' + missing.join(', ') : ''
+    requiresReview: requiresReview,
+    observations: observations
   };
 }
 
+function detectSupplier_(upper, fileName) {
+  const upperFileName = String(fileName || '').toUpperCase();
+  for (let i = 0; i < GONSOL_SUPPLIERS.length; i++) {
+    const supplier = GONSOL_SUPPLIERS[i];
+    if (supplier.detect(upper, upperFileName)) return supplier;
+  }
+  return null;
+}
+
+function extractSupplierNif_(upper, profile) {
+  // Si conocemos el proveedor, su NIF es la fuente mas fiable.
+  if (profile && profile.nif) return profile.nif;
+
+  const found = [];
+  const regex = /\b([ABCDEFGHJKLMNPQRSUVW]\d{7}[0-9A-J]|\d{8}[A-Z])\b/g;
+  let match;
+  while ((match = regex.exec(upper)) !== null) {
+    found.push(match[1]);
+  }
+  // Descarta los NIF propios (cliente) para no confundirlos con el proveedor.
+  const filtered = found.filter(function(nif) {
+    return GONSOL_CLIENT_NIFS.indexOf(nif) === -1;
+  });
+  return filtered[0] || found[0] || '';
+}
+
 function extractDate_(text, fileName) {
+  // Preferimos la fecha de emision (junto a "FECHA"), no la de vencimiento o lote.
+  const near = text.match(/FECHA[^\d]{0,15}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})/i);
+  if (near) {
+    const issueDate = new Date(Number(near[3]), Number(near[2]) - 1, Number(near[1]));
+    if (isValidDate_(issueDate)) return issueDate;
+  }
+
   const candidates = [];
   const sources = [text, fileName || ''];
   sources.forEach(function(source) {
@@ -243,6 +497,13 @@ function extractDate_(text, fileName) {
 }
 
 function extractTotal_(text) {
+  // Preferimos el importe etiquetado como TOTAL FACTURA / TOTAL A PAGAR
+  // (evita coger por error el numero de unidades o el "Bruto").
+  const labeled = text.match(/(?:TOTAL\s*FACTURA|IMPORTE\s*TOTAL|TOTAL\s*A\s*PAGAR)[^\d]{0,30}(\d{1,6}(?:[.,]\d{3})*[.,]\d{2})/i);
+  if (labeled) {
+    const labeledValue = parseMoney_(labeled[1]);
+    if (labeledValue !== '') return labeledValue;
+  }
   const patterns = [
     /(?:TOTAL\s*(?:FACTURA)?|IMPORTE\s*TOTAL|TOTAL\s*A\s*PAGAR)[^\d]{0,30}(\d{1,6}(?:[.,]\d{3})*[.,]\d{2})/gi,
     /(\d{1,6}(?:[.,]\d{3})*[.,]\d{2})\s*(?:EUR|EUROS|€)/gi
@@ -250,10 +511,15 @@ function extractTotal_(text) {
   return maxMoneyMatch_(text, patterns);
 }
 
-function extractTax_(text, total) {
+function extractTax_(text, total, defaultIvaPercent) {
   let ivaPercent = extractIvaPercent_(text);
   let ivaAmount = extractIvaAmount_(text);
   let base = extractBase_(text);
+
+  // Para alimentacion el IVA habitual es 4%: si no se lee, usamos el del proveedor.
+  if (ivaPercent === '' && defaultIvaPercent !== '' && defaultIvaPercent != null) {
+    ivaPercent = defaultIvaPercent;
+  }
 
   if (!base && total && ivaPercent !== '') {
     base = roundMoney_(Number(total) / (1 + Number(ivaPercent) / 100));
@@ -328,7 +594,13 @@ function extractNif_(upper) {
   return match ? match[1] : '';
 }
 
-function extractInvoiceNumber_(text, upper) {
+function extractInvoiceNumber_(text, upper, profile) {
+  // Extractor especifico del proveedor (mas fiable que las reglas genericas).
+  if (profile && typeof profile.invoiceNumber === 'function') {
+    const specific = profile.invoiceNumber(text, upper);
+    if (specific) return sanitizeInvoiceNumber_(specific);
+  }
+
   const patterns = [
     /(?:FACTURA|N[ºO]\s*FACTURA|NUM(?:ERO)?\s*FACTURA|SERIE\s*\/?\s*N[ºO])[:\s#-]{0,12}([A-Z0-9][A-Z0-9\/._-]{3,})/i,
     /\b(FV[A-Z0-9\/._-]{4,})\b/i,
@@ -516,10 +788,12 @@ function makeDuplicateKey_(provider, invoiceNumber, total) {
   ].join('|');
 }
 
-function getDestinationFolder_(year, quarter) {
+function getDestinationFolder_(year, quarter, month) {
   const purchasesRoot = DriveApp.getFolderById(GONSOL_CONFIG.purchasesRootFolderId);
   const yearFolder = getOrCreateChildFolder_(purchasesRoot, String(year));
-  return getOrCreateChildFolder_(yearFolder, quarter);
+  const quarterFolder = getOrCreateChildFolder_(yearFolder, quarter);
+  if (!month) return quarterFolder;
+  return getOrCreateChildFolder_(quarterFolder, month);
 }
 
 function getOrCreateChildFolder_(parentFolder, childName) {
@@ -678,12 +952,14 @@ function monthNameToNumber_(name) {
   return names.indexOf(normalized.slice(0, 3));
 }
 
-function calculateConfidence_(missing, nif, base, category) {
+function calculateConfidence_(missing, nif, base, category, supplierKnown) {
   let confidence = 1;
   confidence -= missing.length * 0.18;
   if (!nif) confidence -= 0.07;
   if (!base) confidence -= 0.08;
   if (!category) confidence -= 0.05;
+  // Proveedor reconocido: proveedor y NIF son fiables, sube la confianza.
+  if (supplierKnown) confidence += 0.2;
   return Math.max(0, Math.min(1, roundMoney_(confidence)));
 }
 
