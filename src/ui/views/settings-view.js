@@ -138,6 +138,7 @@
             </div>
           </div>
           <p style="margin:14px 0 0;color:var(--muted);font-size:.88rem;line-height:1.55;">Los productos descuentan stock al facturarse y las compras lo incrementan. Los albaranes no afectan al stock. El backup JSON sirve como copia de seguridad completa.</p>
+          <p style="margin:10px 0 0;color:var(--muted-2);font-size:.78rem;">Versión: 2026-06-02d</p>
         </div>
       </div>
     </div>`;
