@@ -683,13 +683,16 @@
             loadSupabaseTableWithLogs("monedero", () => storageService.getWalletMovements())
           ]);
           store.updateState(current => {
-            current.clients = (clientsRows || []).map(mapClientFromSupabase);
-            current.suppliers = (suppliersRows || []).map(mapSupplierFromSupabase);
-            current.products = (productsRows || []).map(mapProductFromSupabase);
-            current.invoices = (invoicesRows || []).map(mapInvoiceFromSupabase);
-            current.expenses = (expensesRows || []).map(mapExpenseFromSupabase);
-            current.purchases = (purchasesRows || []).map(mapPurchaseFromSupabase);
-            current.walletMovements = (walletRows || []).map(mapWalletFromSupabase);
+            // Solo reemplazamos una coleccion si Supabase devuelve datos reales.
+            // Si esta vacia o la tabla no existe, conservamos la copia local
+            // para no machacar ediciones hechas desde la app.
+            if(clientsRows && clientsRows.length) current.clients = clientsRows.map(mapClientFromSupabase);
+            if(suppliersRows && suppliersRows.length) current.suppliers = suppliersRows.map(mapSupplierFromSupabase);
+            if(productsRows && productsRows.length) current.products = productsRows.map(mapProductFromSupabase);
+            if(invoicesRows && invoicesRows.length) current.invoices = invoicesRows.map(mapInvoiceFromSupabase);
+            if(expensesRows && expensesRows.length) current.expenses = expensesRows.map(mapExpenseFromSupabase);
+            if(purchasesRows && purchasesRows.length) current.purchases = purchasesRows.map(mapPurchaseFromSupabase);
+            if(walletRows && walletRows.length) current.walletMovements = walletRows.map(mapWalletFromSupabase);
           }, { persist:true, reason:"supabase:hydrate-primary" });
           syncState();
           supabaseHydrated = true;
