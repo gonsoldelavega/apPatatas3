@@ -20,16 +20,27 @@
         const data = Object.fromEntries(new FormData(form).entries());
         try{
           ctx.saveEntity("products", { ...product, ...data, stockGroup:data.stockGroup.trim(), price:ctx.n(data.price), iva:ctx.n(data.iva), stockBase:ctx.n(data.stockBase), stockMin:ctx.n(data.stockMin) }, id);
-          const saved = ctx.getProduct(id || product.id);
+          const usedId = id || product.id;
+          const saved = ctx.getProduct(usedId);
           global.AppUIModal.closeModal();
           ctx.toast("Producto guardado");
-          setTimeout(() => alert(
-            "DIAG guardado producto\n" +
-            "id usado: " + (id || product.id) + "\n" +
-            "precio escrito: " + ctx.n(data.price) + "\n" +
-            "precio en estado tras guardar: " + (saved ? saved.price : "PRODUCTO NO ENCONTRADO") + "\n" +
-            "nº productos: " + (ctx.state.products ? ctx.state.products.length : "?")
-          ), 150);
+          setTimeout(() => {
+            let domPrice = "?";
+            try{
+              const btn = document.querySelector('#views [data-action="edit-product"][data-id="' + usedId + '"]');
+              const card = btn ? btn.closest(".card") : null;
+              const priceEl = card ? card.querySelector(".price") : null;
+              domPrice = card ? (priceEl ? priceEl.textContent : "card sin .price") : "card NO encontrada";
+            }catch(e){ domPrice = "err:" + e.message; }
+            alert(
+              "DIAG guardado producto\n" +
+              "id usado: " + usedId + "\n" +
+              "precio escrito: " + ctx.n(data.price) + "\n" +
+              "precio en estado: " + (saved ? saved.price : "NO ENCONTRADO") + "\n" +
+              "precio PINTADO en la tarjeta: " + domPrice + "\n" +
+              "nº productos: " + (ctx.state.products ? ctx.state.products.length : "?")
+            );
+          }, 200);
         }catch(err){
           alert("DIAG ERROR al guardar: " + (err && err.message ? err.message : String(err)));
         }
