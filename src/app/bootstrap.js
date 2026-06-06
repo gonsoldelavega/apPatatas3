@@ -1355,12 +1355,7 @@
         renderViewsUI.renderViews(document.getElementById("views"), uiRenderContext());
         bindViewEvents();
       }
-      function renderAll(){
-        try{ renderNav(); }
-        catch(navErr){ if(!window.__diagShown){ window.__diagShown = true; alert("DIAG error renderNav: " + (navErr && navErr.message ? navErr.message : String(navErr))); } }
-        try{ renderViews(); }
-        catch(viewErr){ if(!window.__diagShown){ window.__diagShown = true; alert("DIAG error renderViews: " + (viewErr && viewErr.message ? viewErr.message : String(viewErr))); } }
-      }
+      function renderAll(){ renderNav(); renderViews(); }
 
 
       function bindViewEvents(){
