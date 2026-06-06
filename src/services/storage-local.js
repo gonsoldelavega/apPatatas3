@@ -27,8 +27,9 @@
     if(Object.prototype.hasOwnProperty.call(next, "id") && next.id){
       next[spec.primaryKey] = next.id;
     }
-    if(tableKey === "productos"){
+    if(tableKey === "productos" && Object.prototype.hasOwnProperty.call(next, "price")){
       next.precio = next.price;
+      delete next.price;
     }
     return next;
   }
@@ -92,7 +93,7 @@
     }
   }
 
-  async function saveRow(tableKey, scope, payload){
+  async function saveRow(tableKey, scope, payload, options = {}){
     try{
       const { getSupabaseClient } = await getSupabaseHelpers();
       const spec = REMOTE_SPECS[tableKey];
@@ -109,6 +110,7 @@
       return normalizeRow(tableKey, data?.[0]) || payload;
     }catch(error){
       logSupabaseError(scope, error);
+      if(options.throwOnError) throw error;
       return payload || null;
     }
   }
@@ -251,7 +253,7 @@
         return fetchAllRows("productos", "getProductos");
       },
       async saveProducto(producto){
-        return saveRow("productos", "saveProducto", producto);
+        return saveRow("productos", "saveProducto", producto, { throwOnError:true });
       },
       async deleteProducto(id){
         return deleteRow("productos", "deleteProducto", id);

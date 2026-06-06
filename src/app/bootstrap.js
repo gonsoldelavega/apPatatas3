@@ -838,16 +838,16 @@
         syncState();
         renderAll();
        AppSyncStatus.setSaving();
-        savePrimaryCollectionToSupabase(collection, entity)
-          .then(() => {
-            hideDataNotice();
-            AppSyncStatus.setSynced();
-          })
-          .catch(error => {
-            console.error(`[supabase] No se pudo guardar ${collection}. Se mantiene copia local temporal.`, error);
-            showDataNotice("No se pudo guardar en Supabase. Se ha conservado una copia local temporal.", "warn");
-            AppSyncStatus.setError();
-          });
+        try{
+          await savePrimaryCollectionToSupabase(collection, entity);
+          hideDataNotice();
+          AppSyncStatus.setSynced();
+        }catch(error){
+          console.error(`[supabase] No se pudo guardar ${collection}. Se mantiene copia local temporal.`, error);
+          showDataNotice("No se pudo guardar en Supabase. Se ha conservado una copia local temporal.", "warn");
+          AppSyncStatus.setError();
+          throw error;
+        }
       }
       function createWalletMovement(payload){
         const mode = payload?.mode || "out";
@@ -2123,7 +2123,7 @@
         driveStateSyncTimer = setTimeout(() => uploadStateToDrive(true).catch(() => {}), 1500);
       }
       saveEntity = function(collection, entity, id){
-        baseSaveEntity(collection, entity, id);
+        return baseSaveEntity(collection, entity, id);
       };
 
       const ensureExternalScript = src => new Promise((resolve, reject) => {
@@ -3004,7 +3004,7 @@
       };
       const previousSaveEntityWithDrive = saveEntity;
       saveEntity = function(collection, entity, id){
-        previousSaveEntityWithDrive(collection, entity, id);
+        return previousSaveEntityWithDrive(collection, entity, id);
       };
       const previousHandleActionWithDrive = handleAction;
       handleAction = function(action, id, kind){
