@@ -1984,8 +1984,13 @@
             }));
           }, [{ id:"close", label:"Cerrar", className:"ghost" }]);
         }
+        function setTheme(pref){
+          if(window.__factupapaTheme) window.__factupapaTheme.set(pref);
+          renderAll();
+        }
         function handleAction(action, id, kind){
-          ({ "open-action-sheet":openActionSheet, "new-quote":() => toast("Presupuestos: siguiente fase de producto"), "new-client":() => openClientForm(), "edit-client":() => openClientForm(id), "delete-client":() => removeEntity("clients", id, "¿Eliminar este cliente?"),
+          ({ "open-action-sheet":openActionSheet,
+            "theme-system":() => setTheme("system"), "theme-light":() => setTheme("light"), "theme-dark":() => setTheme("dark"), "new-quote":() => toast("Presupuestos: siguiente fase de producto"), "new-client":() => openClientForm(), "edit-client":() => openClientForm(id), "delete-client":() => removeEntity("clients", id, "¿Eliminar este cliente?"),
             "new-supplier":() => openSupplierForm(), "edit-supplier":() => openSupplierForm(id), "delete-supplier":() => removeEntity("suppliers", id, "¿Eliminar este proveedor?"),
             "new-product":() => openProductForm(), "edit-product":() => openProductForm(id), "delete-product":() => removeEntity("products", id, "¿Eliminar este producto?"), "edit-product-stock":() => openProductStockForm(id),
             "new-purchase":() => openPurchaseForm(), "edit-purchase":() => openPurchaseForm(id), "delete-purchase":() => removeEntity("purchases", id, "¿Eliminar esta compra? El stock se recalculara automáticamente."),

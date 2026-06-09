@@ -20,6 +20,7 @@
     const pendingInvoices = (ctx.state.invoices || []).filter(invoice => ctx.invoicePaymentStatus(invoice) !== "paid").length;
     const currentMonth = ctx.today().slice(0, 7);
     const monthInvoices = (ctx.state.invoices || []).filter(invoice => String(invoice.issueDate || "").startsWith(currentMonth)).length;
+    const themePref = (typeof window !== "undefined" && window.__factupapaTheme) ? window.__factupapaTheme.get() : "system";
 
     return `<div class="view-stack workspace-stack">
 
@@ -43,6 +44,17 @@
             ${hubCard("Productos", `${ctx.state.products.length} productos · ${ctx.state.suppliers.length} proveedores`, "catalog")}
             ${hubCard("Gestoría", "Exportaciones, fiscalidad y backup", "exports")}
             ${hubCard("Compras y gastos", "Operativa, escáner y documentos", "operations")}
+          </div>
+        </div>
+      </div>
+
+      <div class="panel soft-block">
+        <div class="panel-h"><div><h2>Apariencia</h2><p>Elige el tema de la app.</p></div></div>
+        <div class="panel-b">
+          <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button data-action="theme-system" class="${themePref === "system" ? "primary" : "ghost"}">🌓 Sistema</button>
+            <button data-action="theme-light" class="${themePref === "light" ? "primary" : "ghost"}">☀️ Claro</button>
+            <button data-action="theme-dark" class="${themePref === "dark" ? "primary" : "ghost"}">🌙 Oscuro</button>
           </div>
         </div>
       </div>

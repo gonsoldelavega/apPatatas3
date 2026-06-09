@@ -65,3 +65,48 @@
   --font-body:    'DM Sans', 'Helvetica Neue', Arial, sans-serif;
   --font-display: 'Lora', Georgia, 'Times New Roman', serif;
 }
+
+/* ============================================================
+   MODO OSCURO — paleta cálida oscura coherente con la marca.
+   Se activa con <html data-theme="dark"> (lo pone un script
+   temprano según la preferencia guardada o del sistema).
+   ============================================================ */
+[data-theme="dark"] {
+  --bg:   #17120E;
+  --bg-2: #1E1812;
+  --bg-3: #120D0A;
+
+  --panel:          #241C15;
+  --panel-2:        #241C15;
+  --panel-3:        #2C2219;
+  --panel-elevated: #2F2419;
+
+  --header-bg:      #120D0A;
+  --header-bg-2:    #2C2019;
+
+  --line:           rgba(245,232,214,.12);
+  --line-strong:    rgba(245,232,214,.22);
+
+  --text:    #F3E9DC;
+  --muted:   #BDAB95;
+  --muted-2: #8E7E68;
+  --text-inv:#1C1410;
+
+  --accent:      #D26E34;
+  --accent-2:    #B85827;
+  --accent-soft: rgba(210,110,52,.20);
+  --accent-inv:  #FFFFFF;
+
+  --olive:       #84AC55;
+  --olive-soft:  rgba(132,172,85,.18);
+  --olive-dark:  #5E823A;
+
+  --good:    #84AC55;
+  --warn:    #DBA23C;
+  --danger:  #E0625E;
+  --neutral: #8FB071;
+
+  --shadow:      0 10px 34px rgba(0,0,0,.46), 0 2px 8px rgba(0,0,0,.34);
+  --shadow-soft: 0 2px 12px rgba(0,0,0,.34);
+  --shadow-card: 0 1px 3px rgba(0,0,0,.30), 0 6px 18px rgba(0,0,0,.30);
+}
