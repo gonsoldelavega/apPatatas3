@@ -25,6 +25,67 @@ const GONSOL_CONFIG = {
   minConfidence: 0.8
 };
 
+/**
+ * Token opcional para el endpoint web (doGet). Si se deja vacio, el endpoint
+ * responde sin pedir clave (URL larga e impredecible). Si se pone un valor,
+ * habra que llamar con ?key=ESE_VALOR. Mantener en blanco salvo que se quiera
+ * endurecer; en ese caso, poner el mismo valor en Vercel/app.
+ */
+const REGISTRY_WEBAPP_TOKEN = '';
+
+/**
+ * Endpoint web: publica el registro maestro (REGISTRO!A2:V) como JSON para que
+ * la app lo lea sin necesidad de iniciar sesion de Google en el movil.
+ *
+ * Despliegue (una sola vez): Apps Script -> Implementar -> Nueva implementacion
+ * -> Aplicacion web -> Ejecutar como: Yo -> Quien tiene acceso: Cualquier usuario.
+ * Copiar la URL .../exec resultante.
+ *
+ * Devuelve: { ok:true, rows:[[...]], count, generatedAt }
+ */
+function doGet(e) {
+  try {
+    var params = (e && e.parameter) || {};
+    if (REGISTRY_WEBAPP_TOKEN && String(params.key || '') !== REGISTRY_WEBAPP_TOKEN) {
+      return jsonOutput_({ ok: false, error: 'unauthorized' });
+    }
+    var ss = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
+    var sheet = ss.getSheetByName(GONSOL_CONFIG.registrySheetName);
+    if (!sheet) {
+      return jsonOutput_({ ok: false, error: 'registry_sheet_not_found' });
+    }
+    var lastRow = sheet.getLastRow();
+    var rows = [];
+    if (lastRow >= 2) {
+      var values = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+      var tz = ss.getSpreadsheetTimeZone() || 'Europe/Madrid';
+      rows = values.map(function (row) {
+        return row.map(function (cell) {
+          if (cell instanceof Date) {
+            return Utilities.formatDate(cell, tz, 'yyyy-MM-dd');
+          }
+          return cell;
+        });
+      });
+    }
+    return jsonOutput_({
+      ok: true,
+      rows: rows,
+      count: rows.length,
+      source: 'apps-script-webapp',
+      generatedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    return jsonOutput_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+function jsonOutput_(payload) {
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 const GONSOL_MONTHS = [
   '01_ENERO',
   '02_FEBRERO',

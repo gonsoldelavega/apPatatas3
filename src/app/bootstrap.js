@@ -1439,7 +1439,8 @@
             driveStateAutoSync:data.driveStateAutoSync === "true",
             purchaseRegistryAutoSync:data.purchaseRegistryAutoSync !== "false",
             purchaseRegistrySpreadsheetId:String(data.purchaseRegistrySpreadsheetId || "").trim(),
-            purchaseRegistrySheetName:String(data.purchaseRegistrySheetName || "REGISTRO").trim() || "REGISTRO"
+            purchaseRegistrySheetName:String(data.purchaseRegistrySheetName || "REGISTRO").trim() || "REGISTRO",
+            purchaseRegistryWebAppUrl:String(data.purchaseRegistryWebAppUrl || "").trim()
           };
           store.updateState(current => {
             current.settings = { ...current.settings, ...normalizedSettings };

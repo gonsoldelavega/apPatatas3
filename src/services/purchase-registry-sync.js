@@ -414,6 +414,21 @@
       throw error;
     }
 
+    async function fetchWebAppRows(){
+      const url = String(settings().purchaseRegistryWebAppUrl || "").trim();
+      if(!url) return null;
+      const token = String(settings().purchaseRegistryWebAppToken || "").trim();
+      const finalUrl = token
+        ? `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(token)}`
+        : url;
+      const response = await fetch(finalUrl, { method:"GET", cache:"no-store", redirect:"follow" });
+      const payload = await response.json().catch(() => ({}));
+      if(response.ok && payload?.ok === true && Array.isArray(payload.rows)){
+        return { rows:payload.rows, source:"apps-script-webapp" };
+      }
+      throw new Error(payload?.error || `webapp-${response.status}`);
+    }
+
     async function fetchOAuthRows(interactive){
       const spreadsheetId = settings().purchaseRegistrySpreadsheetId || DEFAULT_SPREADSHEET_ID;
       const sheetName = settings().purchaseRegistrySheetName || DEFAULT_SHEET_NAME;
@@ -435,6 +450,16 @@
       if(server.rows){
         if(!silent) options.toast("Compras sincronizadas desde servidor");
         return server;
+      }
+      // Respaldo sin Google en el movil: app web del agente (si esta configurada en Ajustes).
+      try{
+        const webApp = await fetchWebAppRows();
+        if(webApp && webApp.rows){
+          if(!silent) options.toast("Compras sincronizadas desde el agente");
+          return webApp;
+        }
+      }catch(error){
+        console.warn("[purchase-registry-sync] App web del agente no accesible", error);
       }
       if(server.missingConfig){
         if(!silent) options.toast("Servidor de compras no configurado");
