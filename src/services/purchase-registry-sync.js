@@ -26,6 +26,40 @@
     observations:21
   };
 
+  // Parser CSV sencillo (maneja comillas dobles y comas/saltos dentro de comillas).
+  // Devuelve filas como arrays de strings, descartando la fila de cabecera.
+  function parseRegistryCsv(text){
+    const rows = [];
+    let field = "";
+    let row = [];
+    let inQuotes = false;
+    const src = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    for(let i = 0; i < src.length; i += 1){
+      const ch = src[i];
+      if(inQuotes){
+        if(ch === '"'){
+          if(src[i + 1] === '"'){ field += '"'; i += 1; }
+          else inQuotes = false;
+        }else{
+          field += ch;
+        }
+      }else if(ch === '"'){
+        inQuotes = true;
+      }else if(ch === ","){
+        row.push(field); field = "";
+      }else if(ch === "\n"){
+        row.push(field); field = "";
+        rows.push(row); row = [];
+      }else{
+        field += ch;
+      }
+    }
+    if(field.length || row.length){ row.push(field); rows.push(row); }
+    const nonEmpty = rows.filter(r => r.some(cell => String(cell).trim() !== ""));
+    // La primera fila del CSV publicado es la cabecera del REGISTRO.
+    return nonEmpty.slice(1);
+  }
+
   function normalizeText(value){
     return String(value || "")
       .normalize("NFD")
@@ -422,11 +456,23 @@
         ? `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(token)}`
         : url;
       const response = await fetch(finalUrl, { method:"GET", cache:"no-store", redirect:"follow" });
-      const payload = await response.json().catch(() => ({}));
-      if(response.ok && payload?.ok === true && Array.isArray(payload.rows)){
-        return { rows:payload.rows, source:"apps-script-webapp" };
+      const text = await response.text();
+      if(!response.ok) throw new Error(`webapp-${response.status}`);
+      // Soporta dos formatos: JSON del agente { rows } o CSV publicado de Google Sheets.
+      const looksJson = /^\s*[\{\[]/.test(text);
+      if(looksJson){
+        let payload = {};
+        try{ payload = JSON.parse(text); }catch(e){ payload = {}; }
+        if(payload?.ok === true && Array.isArray(payload.rows)){
+          return { rows:payload.rows, source:"apps-script-webapp" };
+        }
+        throw new Error(payload?.error || "webapp-bad-json");
       }
-      throw new Error(payload?.error || `webapp-${response.status}`);
+      const rows = parseRegistryCsv(text);
+      if(rows.length){
+        return { rows, source:"sheets-published-csv" };
+      }
+      throw new Error("webapp-empty-csv");
     }
 
     async function fetchOAuthRows(interactive){

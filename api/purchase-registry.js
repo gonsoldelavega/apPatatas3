@@ -46,16 +46,51 @@ function getWebAppConfig() {
   return { url, token };
 }
 
+function parseRegistryCsv(text) {
+  const rows = [];
+  let field = "";
+  let row = [];
+  let inQuotes = false;
+  const src = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i += 1; }
+        else inQuotes = false;
+      } else { field += ch; }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(field); field = "";
+    } else if (ch === "\n") {
+      row.push(field); field = ""; rows.push(row); row = [];
+    } else {
+      field += ch;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  const nonEmpty = rows.filter(r => r.some(cell => String(cell).trim() !== ""));
+  return nonEmpty.slice(1);
+}
+
 async function fetchFromWebApp(webApp) {
   const url = webApp.token
     ? `${webApp.url}${webApp.url.includes("?") ? "&" : "?"}key=${encodeURIComponent(webApp.token)}`
     : webApp.url;
   const response = await fetch(url, { redirect: "follow" });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.ok !== true || !Array.isArray(payload.rows)) {
-    throw new Error(payload?.error || `webapp_${response.status}`);
+  const text = await response.text();
+  if (!response.ok) throw new Error(`webapp_${response.status}`);
+  const looksJson = /^\s*[\{\[]/.test(text);
+  if (looksJson) {
+    let payload = {};
+    try { payload = JSON.parse(text); } catch (e) { payload = {}; }
+    if (payload?.ok === true && Array.isArray(payload.rows)) return payload.rows;
+    throw new Error(payload?.error || "webapp_bad_json");
   }
-  return payload.rows;
+  const rows = parseRegistryCsv(text);
+  if (rows.length) return rows;
+  throw new Error("webapp_empty_csv");
 }
 
 function createJwt(config) {
