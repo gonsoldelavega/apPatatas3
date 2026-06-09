@@ -1,0 +1,101 @@
+/* ============================================================
+   FACTUPAPA — Capa de MODO OSCURO
+   Se carga DESPUÉS de premium-studio para poder anular sus
+   valores claros fijos. Se activa con <html data-theme="dark">.
+   ============================================================ */
+
+[data-theme="dark"]{
+  --bg:#0E141B; --bg-2:#121A22; --bg-3:#0A0F15;
+  --panel:rgba(32,42,54,.88); --panel-2:rgba(36,47,60,.94); --panel-3:#1B2530; --panel-elevated:#222E3B;
+  --header-bg:#0A0F15; --header-bg-2:#16202B;
+  --line:rgba(232,238,244,.12); --line-strong:rgba(232,238,244,.22);
+  --text:#E9EFF5; --muted:#A6B2BE; --muted-2:#73828F; --text-inv:#0E141B;
+  --accent:#D8B26B; --accent-2:#B98A42; --accent-soft:rgba(216,178,107,.20); --accent-inv:#0E141B;
+  --olive:#5FA081; --olive-soft:rgba(95,160,129,.18); --olive-dark:#3F6E57;
+  --good:#5FA081; --warn:#D9A445; --danger:#DB6B6B; --neutral:#6F93AE;
+  --shadow:0 24px 70px rgba(0,0,0,.55), 0 6px 22px rgba(0,0,0,.40);
+  --shadow-soft:0 8px 28px rgba(0,0,0,.40);
+  --shadow-card:0 12px 34px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+[data-theme="dark"] html,
+[data-theme="dark"] body{ background:#0E141B!important; color:var(--text); }
+[data-theme="dark"] body{
+  background:
+    radial-gradient(circle at 10% 0%,rgba(185,138,66,.10) 0,transparent 32%),
+    radial-gradient(circle at 90% 6%,rgba(87,120,145,.14) 0,transparent 36%),
+    linear-gradient(150deg,#0E141B 0%,#0C1218 52%,#0A0F15 100%)!important;
+}
+
+/* Bordes claros sobre superficies oscuras (premium-studio los pone oscuros) */
+[data-theme="dark"] .panel,
+[data-theme="dark"] .card,
+[data-theme="dark"] .dashboard-block,
+[data-theme="dark"] .workspace-hero,
+[data-theme="dark"] .stat,
+[data-theme="dark"] .kpi-card,
+[data-theme="dark"] .summary,
+[data-theme="dark"] .balance-bars,
+[data-theme="dark"] .list-row,
+[data-theme="dark"] .rail-action,
+[data-theme="dark"] .hero-stat,
+[data-theme="dark"] .mini-stat{
+  border-color:rgba(232,238,244,.12)!important;
+}
+
+/* Botones secundarios y campos de formulario */
+[data-theme="dark"] button.ghost{
+  background:rgba(255,255,255,.06)!important;
+  color:var(--text)!important;
+  border-color:rgba(255,255,255,.14)!important;
+}
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea{
+  background:rgba(255,255,255,.05)!important;
+  border-color:rgba(255,255,255,.14)!important;
+  box-shadow:none!important;
+  color:var(--text)!important;
+}
+[data-theme="dark"] select option{ color:#111820; }
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder{ color:var(--muted-2)!important; }
+[data-theme="dark"] .field label{ color:var(--muted)!important; }
+
+/* Chips */
+[data-theme="dark"] .chip{
+  background:rgba(255,255,255,.06)!important;
+  color:#D6E0EA!important;
+  border-color:rgba(255,255,255,.10)!important;
+}
+
+/* Resúmenes, líneas, hojas modales y vacíos */
+[data-theme="dark"] .summary{
+  background:linear-gradient(180deg,rgba(32,42,54,.92),rgba(20,28,36,.92))!important;
+  border-color:rgba(216,178,107,.22)!important;
+}
+[data-theme="dark"] .summary-row.total{ border-top-color:rgba(255,255,255,.12)!important; }
+[data-theme="dark"] .line{
+  background:rgba(255,255,255,.045)!important;
+  border-color:rgba(255,255,255,.10)!important;
+}
+[data-theme="dark"] .sheet{
+  background:rgba(18,26,34,.97)!important;
+  border-color:rgba(255,255,255,.10)!important;
+}
+[data-theme="dark"] .sheet-actions{
+  background:linear-gradient(180deg,rgba(18,26,34,0),rgba(18,26,34,.96) 36%,#121A22 100%)!important;
+}
+[data-theme="dark"] .empty{
+  background:rgba(255,255,255,.04)!important;
+  border-color:rgba(255,255,255,.14)!important;
+}
+[data-theme="dark"] .hero-inline-stat{
+  background:rgba(255,255,255,.06)!important;
+  border-color:rgba(255,255,255,.12)!important;
+}
+
+/* Capas extra que también fijan blanco */
+[data-theme="dark"] .action-sheet-grid button{ background:rgba(255,255,255,.06)!important; }
+[data-theme="dark"] .search-shell,
+[data-theme="dark"] .search-row input{ background:rgba(255,255,255,.05)!important; }
