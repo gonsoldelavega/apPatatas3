@@ -99,6 +99,14 @@
     const raw = String(value || "").trim();
     if(!raw) return "";
     if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    // Formato que puede devolver la exportacion CSV de Google (gviz): Date(2026,5,8)
+    const gviz = raw.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+    if(gviz){
+      const year = gviz[1];
+      const month = String(Number(gviz[2]) + 1).padStart(2, "0");
+      const day = gviz[3].padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
     const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
     if(match){
       const year = match[3].length === 2 ? `20${match[3]}` : match[3];
