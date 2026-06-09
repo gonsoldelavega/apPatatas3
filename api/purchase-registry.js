@@ -34,6 +34,30 @@ function getConfig() {
   return { email, privateKey, spreadsheetId, sheetName };
 }
 
+// URL de la app web del agente (Apps Script) que publica el REGISTRO como JSON.
+// Se puede fijar por variable de entorno en Vercel; si no, se usa la constante.
+// Camino de respaldo cuando no hay service account configurada.
+const WEBAPP_FALLBACK_URL = "";
+
+function getWebAppConfig() {
+  const url = String(process.env.PURCHASE_REGISTRY_WEBAPP_URL || WEBAPP_FALLBACK_URL || "").trim();
+  const token = String(process.env.PURCHASE_REGISTRY_WEBAPP_TOKEN || "").trim();
+  if (!url) return null;
+  return { url, token };
+}
+
+async function fetchFromWebApp(webApp) {
+  const url = webApp.token
+    ? `${webApp.url}${webApp.url.includes("?") ? "&" : "?"}key=${encodeURIComponent(webApp.token)}`
+    : webApp.url;
+  const response = await fetch(url, { redirect: "follow" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok !== true || !Array.isArray(payload.rows)) {
+    throw new Error(payload?.error || `webapp_${response.status}`);
+  }
+  return payload.rows;
+}
+
 function createJwt(config) {
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: "RS256", typ: "JWT" };
@@ -72,7 +96,28 @@ export default async function handler(request, response) {
   if (request.method !== "GET") return response.status(405).json({ ok: false, error: "method_not_allowed" });
 
   const config = getConfig();
-  if (!config) return response.status(200).json({ ok: false, error: "missing_server_google_config" });
+  if (!config) {
+    // Sin service account: intentar leer la app web del agente (Apps Script).
+    const webApp = getWebAppConfig();
+    if (webApp) {
+      try {
+        const rows = await fetchFromWebApp(webApp);
+        return response.status(200).json({
+          ok: true,
+          rows,
+          source: "apps-script-webapp",
+          updatedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        return response.status(502).json({
+          ok: false,
+          error: "server_google_sheets_unavailable",
+          detail: error?.message || "webapp_unavailable"
+        });
+      }
+    }
+    return response.status(200).json({ ok: false, error: "missing_server_google_config" });
+  }
 
   try {
     const accessToken = await getAccessToken(config);

@@ -123,6 +123,7 @@
               <div class="field"><label>Compras desde registro</label><select name="purchaseRegistryAutoSync"><option value="true" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "" : "selected"}>Si</option><option value="false" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "selected" : ""}>No</option></select></div>
               <div class="field"><label>ID registro compras</label><input name="purchaseRegistrySpreadsheetId" value="${ctx.esc(ctx.state.settings.purchaseRegistrySpreadsheetId || "1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU")}"></div>
               <div class="field"><label>Hoja registro compras</label><input name="purchaseRegistrySheetName" value="${ctx.esc(ctx.state.settings.purchaseRegistrySheetName || "REGISTRO")}"></div>
+              <div class="field" style="grid-column:1/-1;"><label>URL del agente (app web)</label><input name="purchaseRegistryWebAppUrl" value="${ctx.esc(ctx.state.settings.purchaseRegistryWebAppUrl || "")}" placeholder="https://script.google.com/macros/s/.../exec"></div>
               <div class="field" style="grid-column:1/-1;"><button class="primary" type="submit">Guardar ajustes</button></div>
             </form>
             <div class="actions section-actions" style="margin-top:14px;">
