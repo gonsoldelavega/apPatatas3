@@ -354,6 +354,9 @@
 
       const itemFileId = item.sourceRegistryFileId || extractDriveFileId(item.driveLink || item.internalNote || "");
       if(itemFileId && purchaseFileId && itemFileId === purchaseFileId) return true;
+      // Si ambas tienen archivo de Drive y son distintos, son facturas diferentes:
+      // no fusionar aunque coincidan fecha y proveedor (p.ej. 2 facturas GAYCA el mismo dia).
+      if(itemFileId && purchaseFileId && itemFileId !== purchaseFileId) return false;
 
       const currentFileKey = itemFileKey(item);
       if(purchaseFileKey && currentFileKey && (currentFileKey.includes(purchaseFileKey) || purchaseFileKey.includes(currentFileKey))){
