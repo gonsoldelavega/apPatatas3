@@ -2,6 +2,10 @@
       const { getSupabaseClient } = await import("../services/supabase-client.js");
       const KEY = window.AppInitialState.STORAGE_KEY;
       const APP_VERSION = "2026.06.06-fix-productos";
+      // Supabase quedó sin las tablas de la app (productos, clientes, facturas...).
+      // La fuente real es localStorage + el registro de Google Sheets. Mantener en
+      // false evita lecturas/escrituras fallidas que revertían datos y mostraban errores.
+      const USE_SUPABASE = false;
       const APP_COMMIT = window.__APP_COMMIT__ || document.querySelector('meta[name="app-commit"]')?.content || "";
       const SYNC_TOKEN_KEY = "factupapa-sync-token";
       const SYNC_META_KEY = "factupapa-sync-meta-v1";
@@ -636,6 +640,7 @@
         }
       }
       async function hydrateSharedStateFromSupabase(){
+        if(!USE_SUPABASE) return false;
         try{
           const localSettingsSnapshot = normalizeSharedSettingsSnapshot(applyCanonicalSharedSettingsFixups(state.settings || {}));
           let [settingsRow, auxRow] = await Promise.all([
@@ -672,6 +677,7 @@
         }
       }
       async function hydratePrimaryEntitiesFromSupabase(){
+        if(!USE_SUPABASE) return false;
         try{
           const [clientsRows, suppliersRows, productsRows, invoicesRows, expensesRows, purchasesRows, walletRows] = await Promise.all([
             loadSupabaseTableWithLogs("clientes", () => storageService.getClientes()),
@@ -794,6 +800,7 @@
         }
       }
       async function savePrimaryCollectionToSupabase(collection, entity){
+        if(!USE_SUPABASE) return null;
         if(collection === "clients") return storageService.saveCliente(mapClientToSupabase(entity));
         if(collection === "suppliers") return storageService.saveProveedor(mapSupplierToSupabase(entity));
         if(collection === "products") return storageService.saveProducto(mapProductToSupabase(entity));
@@ -804,6 +811,7 @@
         return null;
       }
       async function deletePrimaryCollectionFromSupabase(collection, id){
+        if(!USE_SUPABASE) return false;
         if(collection === "clients") return storageService.deleteCliente(id);
         if(collection === "suppliers") return storageService.deleteProveedor(id);
         if(collection === "products") return storageService.deleteProducto(id);
@@ -814,9 +822,11 @@
         return false;
       }
       async function saveSharedSettingsToSupabase(nextSettings){
+        if(!USE_SUPABASE) return null;
         return storageService.saveSharedSettings(mapSharedSettingsToSupabase(nextSettings));
       }
       async function saveAuxCollectionsToSupabase(){
+        if(!USE_SUPABASE) return null;
         return storageService.saveAuxState(mapAuxStateToSupabase(state));
       }
       async function saveEntity(collection, entity, id){
@@ -1150,7 +1160,7 @@
           appCommit:APP_COMMIT,
           health:{
             lastSyncAt:syncMeta.lastSuccessAt || state.settings.lastSavedAt || "",
-            supabaseStatus:supabaseHydrated ? "Conectado" : "Pendiente o temporal",
+            supabaseStatus:USE_SUPABASE ? (supabaseHydrated ? "Conectado" : "Pendiente o temporal") : "Local (sin nube)",
             googleDriveStatus:driveTokenPresent ? "Conectado" : "Sin conectar",
             serviceWorkerStatus:serviceWorkerActive ? "Activo" : ("serviceWorker" in navigator ? "Registrable" : "No compatible"),
             pwaMode:standaloneMode ? "Instalada" : "Navegador",
@@ -1192,6 +1202,17 @@
       }
 
       async function reserveNextInvoiceNumber(){
+        // Numeración local: reserva el número actual e incrementa el contador.
+        // (Antes dependía de Supabase, que ya no tiene las tablas.)
+        if(!USE_SUPABASE){
+          const reservedLocal = Math.max(Number(state.settings.nextInvoiceNumber || 1), 1);
+          store.updateState(current => {
+            current.settings = { ...current.settings, nextInvoiceNumber:reservedLocal + 1 };
+          }, { persist:true, reason:"local:reserve-invoice-number" });
+          syncState();
+          return composeInvoiceNumber(reservedLocal);
+        }
+
         const result = await storageService.reserveInvoiceNumber(mapSharedSettingsToSupabase(state.settings));
 
         if(!result){
@@ -3023,15 +3044,17 @@
       });
       syncState();
       modalUI.bindModalChrome();
-      showDataNotice("Cargando datos principales desde Supabase...", "ok");
-      try{
-        await getSupabaseClient();
-      }catch(error){
-        console.error("[supabase] No se pudo inicializar el cliente", error);
-        showDataNotice("No se pudo cargar configuración de Supabase. Se usará la copia local temporal.", "warn");
+      if(USE_SUPABASE){
+        showDataNotice("Cargando datos principales desde Supabase...", "ok");
+        try{
+          await getSupabaseClient();
+        }catch(error){
+          console.error("[supabase] No se pudo inicializar el cliente", error);
+          showDataNotice("No se pudo cargar configuración de Supabase. Se usará la copia local temporal.", "warn");
+        }
+        await hydrateSharedStateFromSupabase();
+        await hydratePrimaryEntitiesFromSupabase();
       }
-      await hydrateSharedStateFromSupabase();
-      await hydratePrimaryEntitiesFromSupabase();
       await ensureMonthlyRecurringExpenses();
       if(typeof AppSplash !== "undefined") AppSplash.hide();
       renderAll();
@@ -3062,6 +3085,7 @@
           return;
         }
             async function activateRealtime() {
+      if(!USE_SUPABASE) return;
       try {
           const { getSupabaseClient: getSC } = await import("../services/supabase-client.js");
           const supabase = await getSC();
