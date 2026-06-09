@@ -37,7 +37,7 @@ function getConfig() {
 // URL de la app web del agente (Apps Script) que publica el REGISTRO como JSON.
 // Se puede fijar por variable de entorno en Vercel; si no, se usa la constante.
 // Camino de respaldo cuando no hay service account configurada.
-const WEBAPP_FALLBACK_URL = "";
+const WEBAPP_FALLBACK_URL = "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO";
 
 function getWebAppConfig() {
   const url = String(process.env.PURCHASE_REGISTRY_WEBAPP_URL || WEBAPP_FALLBACK_URL || "").trim();
