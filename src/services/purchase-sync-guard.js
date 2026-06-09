@@ -46,18 +46,9 @@
     setTimeout(() => toast.remove(), 4200);
   }
 
-  document.addEventListener("click", event => {
-    const button = event.target.closest('[data-action="sync-purchase-registry"]');
-    if(!button) return;
-
-    if(isMayAlreadyUpdated()){
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      showToast("Compras ya actualizadas: mayo suma 712,81 €. No hace falta abrir Google.");
-      return false;
-    }
-  }, true);
+  // Obsoleto: antes bloqueaba la sincronizacion si mayo sumaba 712,81 €. Ese total
+  // ya no es valido (mayo real = 1.022,11 €) y bloqueaba la carga de compras nuevas
+  // como las de junio. Se deja sin efecto a proposito; la sincronizacion siempre corre.
 
   global.FactupapaPurchaseSyncGuard = {
     currentPurchasesTotal,
