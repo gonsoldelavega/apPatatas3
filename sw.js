@@ -1,4 +1,4 @@
-const CACHE_VERSION = "2026-06-06d-localfirst";
+const CACHE_VERSION = "2026-06-06e-a11y";
 const CACHE = `factupapa-${CACHE_VERSION}`;
 const APP_SHELL = [
   "./",

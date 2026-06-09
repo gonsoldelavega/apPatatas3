@@ -4,13 +4,28 @@
     document.getElementById("modalSub").textContent = sub || "";
     document.getElementById("modalBody").innerHTML = body;
     document.getElementById("modalActions").innerHTML = actions.map(a => `<button class="${a.className || ""}" data-modal-action="${a.id}" type="${a.type || "button"}">${a.label}</button>`).join("");
-    document.getElementById("modal").classList.add("show");
+    const modal = document.getElementById("modal");
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
     document.querySelectorAll("[data-modal-action='cancel'],[data-modal-action='close']").forEach(btn => btn.addEventListener("click", closeModal));
     if(onMount) onMount(document.getElementById("modalBody"), document.getElementById("modalActions"));
+    // Foco automático en el primer campo (mejor en escritorio; en móvil no fuerza el teclado de golpe).
+    setTimeout(() => {
+      const first = document.querySelector("#modalBody input:not([type=hidden]), #modalBody select, #modalBody textarea");
+      if(first && typeof first.focus === "function"){ try { first.focus({ preventScroll:true }); } catch(e){ first.focus(); } }
+    }, 60);
+  }
+
+  function isOpen(){
+    const modal = document.getElementById("modal");
+    return !!modal && modal.classList.contains("show");
   }
 
   function closeModal(){
-    document.getElementById("modal").classList.remove("show");
+    const modal = document.getElementById("modal");
+    if(!modal) return;
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
   }
 
   function bindModalChrome(){
@@ -23,6 +38,10 @@
     if(modal && !modal.dataset.bound){
       modal.dataset.bound = "true";
       modal.addEventListener("click", e => { if(e.target.id === "modal") closeModal(); });
+    }
+    if(!global.__modalEscBound){
+      global.__modalEscBound = true;
+      document.addEventListener("keydown", e => { if(e.key === "Escape" && isOpen()) closeModal(); });
     }
   }
 
