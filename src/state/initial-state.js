@@ -42,6 +42,7 @@
       deliveryNotes:[],
       invoices:[],
       documents:[],
+      _deleted:{},
       _sync:{
         updatedAt:"",
         version:1

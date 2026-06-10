@@ -60,10 +60,19 @@
       </div>
 
       <div class="panel soft-block">
+        <div class="panel-h"><div><h2>Nube y dispositivos</h2><p>Sincroniza facturas, clientes, productos y todo entre tus dos móviles.</p></div></div>
+        <div class="panel-b">
+          <div class="hub-grid">
+            ${actionCard("Nube", "Conectar este móvil a la nube", "enable-cloud-sync", "primary")}
+            ${actionCard("Nube", "Sincronizar ahora", "sync-debug-force")}
+          </div>
+        </div>
+      </div>
+
+      <div class="panel soft-block">
         <div class="panel-h"><div><h2>Acciones útiles</h2><p>Procesos rápidos sin entrar en configuración técnica.</p></div></div>
         <div class="panel-b">
           <div class="hub-grid">
-            ${actionCard("Sincronización", "Reparar datos locales desde Supabase", "repair-local-sync")}
             ${actionCard("Compras", "Sincronizar compras del registro", "sync-purchase-registry")}
           </div>
         </div>

@@ -95,15 +95,18 @@
       },
       saveEntity(collection, entity, id){
         return this.updateState(current => {
+          const now = new Date().toISOString();
           const list = current[collection];
           const idx = list.findIndex(x => x.id === id);
-          if(idx >= 0) list[idx] = { ...list[idx], ...entity };
-          else list.unshift(entity);
+          if(idx >= 0) list[idx] = { ...list[idx], ...entity, updatedAt:now };
+          else list.unshift({ ...entity, updatedAt:now });
         }, { persist:true, reason:`saveEntity:${collection}` });
       },
       removeEntity(collection, id){
         return this.updateState(current => {
           current[collection] = current[collection].filter(x => x.id !== id);
+          if(!current._deleted || typeof current._deleted !== "object") current._deleted = {};
+          current._deleted[`${collection}:${id}`] = new Date().toISOString();
         }, { persist:true, reason:`removeEntity:${collection}` });
       }
     };

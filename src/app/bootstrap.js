@@ -2668,34 +2668,31 @@
           mergeSyncMeta({ lastError:message || "" });
         }
 
+          // Fusion por elemento (no reemplazo): junta local + remoto sin perder datos
+          // de ningun dispositivo. Si tras fusionar nuestra copia aportaba algo que el
+          // remoto no tenia, lo subimos para que el otro telefono lo reciba.
           async function applyRemoteState(nextState){
             if(!isStructurallyValidState(nextState)) return false;
             syncLog("remote-apply", { remoteTimestamp:syncStamp(nextState) });
+            const local = syncState();
+            const merged = window.AppStateMerge.mergeStates(local, nextState);
             suppressSyncPersistence = true;
             try{
-              if(supabaseHydrated){
-                const preserved = {
-                  clients:state.clients,
-                  products:state.products,
-                  invoices:state.invoices,
-                  expenses:state.expenses,
-                  purchases:state.purchases,
-                  walletMovements:state.walletMovements,
-                  suppliers:state.suppliers
-                };
-                store.replaceState({ ...nextState, ...preserved });
-              }else{
-                store.replaceState(nextState);
-              }
+              store.replaceState(merged);
               syncState();
               store.persist();
               syncState();
-          } finally {
-            suppressSyncPersistence = false;
+            } finally {
+              suppressSyncPersistence = false;
+            }
+            renderAll();
+            if(!window.AppStateMerge.statesEquivalent(merged, nextState)){
+              syncLog("remote-apply", { contributedLocal:true });
+              runtime.localStampAtLastPush = "";
+              await pushCurrentState(true, true);
+            }
+            return true;
           }
-          renderAll();
-          return true;
-        }
 
         async function requestRemote(method = "GET", body = null){
           const headers = runtime.lastRemoteEtag && method === "GET" ? { "If-None-Match":runtime.lastRemoteEtag } : {};
@@ -2825,35 +2822,18 @@
               setStatus("synced");
               return false;
             }
+            // Siempre fusionamos (union por elemento). Es seguro: nunca pierde datos
+            // de ningun lado y converge aunque el local sea mas nuevo.
             const local = syncState();
-            const remoteStamp = syncStamp(remote);
-            const localStamp = syncStamp(local);
-            const remoteScore = syncStampScore(syncStamp(remote));
-            const localScore = syncStampScore(syncStamp(local));
-            if(remoteScore === 0 && localScore === 0){
-              syncLog("pull-result", { status:"invalid-both-timestamps", remoteTimestamp:remoteStamp, localTimestamp:localStamp });
-              rememberOutcome("lastPullResult", "error:timestamps-inválidos");
-              rememberError("Timestamps de sync inválidos en local y remoto");
-              setStatus("error");
-              return false;
-            }
-            if(remoteScore > localScore || !hasSavedLocalState()){
-              syncLog("pull-result", { status:"applied", remoteTimestamp:syncStamp(remote), localTimestamp:syncStamp(local) });
-              rememberOutcome("lastPullResult", "aplicado");
-              rememberError("");
-              await applyRemoteState(remote);
-              runtime.localStampAtLastPush = syncStamp(remote);
-              if(!silent) toast("Datos actualizados desde la nube");
-              markSyncSuccess();
-              setStatus("synced");
-              return true;
-            }
-            syncLog("pull-result", { status:"skipped-local-newer", remoteTimestamp:syncStamp(remote), localTimestamp:syncStamp(local) });
-            rememberOutcome("lastPullResult", "ignorado:local-más-nuevo");
+            syncLog("pull-result", { status:"merge", remoteTimestamp:syncStamp(remote), localTimestamp:syncStamp(local) });
+            rememberOutcome("lastPullResult", "fusionado");
             rememberError("");
+            await applyRemoteState(remote);
+            runtime.localStampAtLastPush = "";
+            if(!silent) toast("Datos sincronizados con la nube");
             markSyncSuccess();
             setStatus("synced");
-            return false;
+            return true;
           }catch(error){
             console.warn("shared-sync-pull", error);
             syncLog("pull-error", { message:error?.message || String(error) });
@@ -2904,24 +2884,12 @@
             rememberRemoteTimestamp(remoteStamp);
 
             if(remoteValid){
-              if(remoteScore === 0 && localScore === 0){
-                syncLog("bootstrap-result", { status:"invalid-both-timestamps", remoteTimestamp:remoteStamp, localTimestamp:localStamp });
-                rememberOutcome("lastPullResult", "bootstrap:error-timestamps-inválidos");
-                rememberError("Timestamps de sync inválidos en local y remoto");
-                setStatus("error");
-                return;
-              }
-              if(remoteScore >= localScore || !hasSavedLocalState()){
-                syncLog("bootstrap-result", { status:"remote-applied", remoteTimestamp:syncStamp(remote), localTimestamp:syncStamp(local) });
-                rememberOutcome("lastPullResult", "bootstrap:remoto-aplicado");
-                rememberError("");
-                await applyRemoteState(remote);
-                runtime.localStampAtLastPush = syncStamp(remote);
-              }else if(localValid){
-                syncLog("bootstrap-result", { status:"seed-local-to-remote", localTimestamp:syncStamp(local), remoteTimestamp:syncStamp(remote) });
-                rememberOutcome("lastPushResult", "bootstrap:seed-local");
-                await pushCurrentState(true, true);
-              }
+              // Fusion por elemento (ya hubo adopcion inicial; aqui solo converge).
+              syncLog("bootstrap-result", { status:"merge", remoteTimestamp:syncStamp(remote), localTimestamp:syncStamp(local) });
+              rememberOutcome("lastPullResult", "bootstrap:fusionado");
+              rememberError("");
+              await applyRemoteState(remote);
+              runtime.localStampAtLastPush = "";
               markSyncSuccess();
               setStatus("synced");
               return;
@@ -3013,17 +2981,6 @@
           getLastSuccessAt:() => runtime.lastSuccessAt
         };
       })();
-      syncManager = {
-        onLocalPersist(){},
-        bootstrap:async () => false,
-        startAutoSync(){},
-        pushNow:async () => false,
-        pullNow:async () => false,
-        forceNow:async () => ({ disabled:true }),
-        clearLocalSyncCache(){},
-        getStatus:() => "disabled",
-        getLastSuccessAt:() => ""
-      };
       const previousSaveEntityWithDrive = saveEntity;
       saveEntity = function(collection, entity, id){
         return previousSaveEntityWithDrive(collection, entity, id);
@@ -3034,12 +2991,78 @@
         if(action === "new-wallet-out") return openWalletMovementForm("out");
         if(action === "new-wallet-adjust") return openWalletMovementForm("adjust");
         if(action === "delete-wallet-movement") return deleteWalletMovement(id);
-        if(action === "sync-backend-push" || action === "sync-backend-pull" || action === "sync-debug-force" || action === "sync-debug-clear-cache"){
-          toast("La sincronizacion antigua esta desactivada. Ahora la fuente unica es Supabase.");
-          return;
-        }
+        if(action === "sync-backend-push" || action === "sync-debug-force") return syncManager.forceNow();
+        if(action === "sync-backend-pull") return syncManager.pullNow(false);
+        if(action === "sync-debug-clear-cache") return syncManager.clearLocalSyncCache();
+        if(action === "enable-cloud-sync") return enableCloudSyncFromSettings();
         return previousHandleActionWithDrive(action, id, kind);
       };
+      function startCloudSync(){
+        if(!getRuntimeSyncToken()) return;
+        syncManager.startAutoSync();
+        syncManager.bootstrap().catch(error => syncLog("bootstrap-error", { message:error?.message || String(error) }));
+      }
+      function adoptRemoteReplace(remote){
+        suppressSyncPersistence = true;
+        try{
+          store.replaceState(remote);
+          syncState();
+          store.persist();
+          syncState();
+        } finally {
+          suppressSyncPersistence = false;
+        }
+        renderAll();
+      }
+      async function enableCloudSyncFromSettings(){
+        const stored = readDeviceLocal(SYNC_TOKEN_KEY).trim();
+        const provided = window.prompt("Pega el token de sincronización (la misma clave en tus dos móviles, la que pusiste en Vercel como APP_SYNC_TOKEN):", stored || "");
+        if(provided === null) return;
+        const token = provided.trim();
+        if(!token){ toast("Token vacío"); return; }
+        writeDeviceLocal(SYNC_TOKEN_KEY, token);
+        window.__SYNC_TOKEN__ = token;
+        store.updateState(cur => { cur.settings = { ...cur.settings, backendAutoSync:true }; }, { persist:true, reason:"enable-cloud-sync" });
+        syncState();
+        AppSyncStatus?.setSaving?.();
+        let remote = null;
+        try{
+          const res = await backendRequest("GET");
+          if(res.status !== 304){
+            const payload = await res.json();
+            remote = payload?.state ? migrate(payload.state) : null;
+          }
+        }catch(error){
+          AppSyncStatus?.setError?.();
+          if(error?.message === "backend-auth") return toast("Token incorrecto: no coincide con el de Vercel.");
+          if(error?.message === "missing_sync_token" || error?.message === "backend-500") return toast("En Vercel falta APP_SYNC_TOKEN o el almacén Blob.");
+          return toast("No se pudo conectar con la nube. Revisa el token y que el Blob esté creado.");
+        }
+        const local = syncState();
+        const localMeaningful = isMeaningfulState(local);
+        const remoteMeaningful = isMeaningfulState(remote);
+        const meta = readSyncMeta();
+        if(!meta.syncAdopted && remoteMeaningful && localMeaningful && !window.AppStateMerge.statesEquivalent(local, remote)){
+          const useCloud = window.confirm("Este móvil y la nube ya tienen datos.\n\nAceptar = TRAER los de la nube a este móvil (descarta los de aquí).\nCancelar = SUBIR los de este móvil a la nube (descarta los de la nube).");
+          if(useCloud){ adoptRemoteReplace(remote); }
+          else { await syncManager.pushNow(true); }
+        }else if(remoteMeaningful && (!localMeaningful || !window.AppStateMerge.statesEquivalent(local, remote))){
+          adoptRemoteReplace(remote);
+        }else if(localMeaningful){
+          await syncManager.pushNow(true);
+        }
+        mergeSyncMeta({ syncAdopted:true });
+        startCloudSync();
+        AppSyncStatus?.setSynced?.();
+        toast("Sincronización en la nube activada");
+        const settingsForm = document.getElementById("settingsForm");
+        if(settingsForm) renderSyncStatusPanel(settingsForm);
+      }
+      // Carga el token guardado (sin preguntar) para que el motor pueda arrancar solo.
+      if(!getRuntimeSyncToken()){
+        const savedToken = readDeviceLocal(SYNC_TOKEN_KEY).trim();
+        if(savedToken) window.__SYNC_TOKEN__ = savedToken;
+      }
       store.updateState(current => {
         current.products = current.products.map(product => ({ ...product, stockGroup:product.stockGroup || inferStockGroup(product) || "" }));
       });
@@ -3081,6 +3104,10 @@
             AppSyncStatus.setSynced();
           }
         });
+      }
+      // Sincronizacion en la nube: arranca sola si ya se conecto este dispositivo antes.
+      if(getRuntimeSyncToken() && readSyncMeta().syncAdopted){
+        startCloudSync();
       }
         function scheduleDailyDriveBackup(){
           return;
