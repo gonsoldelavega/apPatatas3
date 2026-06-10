@@ -5,7 +5,10 @@ const SYNC_VERSION = 1;
 const COLLECTION_KEYS = ["templates","clients","suppliers","products","purchases","expenses","walletMovements","deliveryNotes","invoices","documents"];
 
 function setCors(response) {
-  response.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
+  // Datos sensibles (PII): por defecto solo el propio dominio de la app, no "*".
+  // La app llama same-origin, asi que esto no la rompe; cierra lecturas cross-site.
+  response.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "https://ap-patatas3.vercel.app");
+  response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Sync-Token, If-None-Match");
   response.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS");
   response.setHeader("Cache-Control", "no-store");

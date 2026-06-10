@@ -63,13 +63,14 @@
     return base;
   }
 
-  function mergeSeedInvoices(next, seed, uid){
-    const seeded = applySeed(structuredClone(global.AppInitialState.createDefaultState()), seed, uid).invoices || [];
-    if(!seeded.length) return;
-    const existingNumbers = new Set((next.invoices || []).map(invoice => String(invoice.number || "").trim().toUpperCase()));
-    const missing = seeded.filter(invoice => !existingNumbers.has(String(invoice.number || "").trim().toUpperCase()));
-    if(missing.length){
-      next.invoices = [...(next.invoices || []), ...missing];
+  // Las facturas de ejemplo (formato INVxx) eran datos de demo. Nunca se siembran
+  // ni se reinyectan en datos reales; ademas se purgan si quedaron de versiones viejas.
+  function isDemoInvoice(invoice){
+    return /^INV\d+$/i.test(String(invoice && invoice.number || "").trim());
+  }
+  function purgeDemoInvoices(next){
+    if(Array.isArray(next.invoices)){
+      next.invoices = next.invoices.filter(invoice => !isDemoInvoice(invoice));
     }
   }
 
@@ -106,7 +107,7 @@
     next.settings.driveAutoUpload = next.settings.driveAutoUpload === true || next.settings.driveAutoUpload === "true";
     next.settings.driveStateFileName = next.settings.driveStateFileName || "apPatatas-state.json";
     next.settings.driveStateAutoSync = next.settings.driveStateAutoSync === true || next.settings.driveStateAutoSync === "true";
-    mergeSeedInvoices(next, options.seed, options.uid);
+    purgeDemoInvoices(next);
     return next;
   }
 
