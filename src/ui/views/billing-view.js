@@ -1,11 +1,18 @@
 (function(global){
   function invoiceSequence(invoice){
     const value = String(invoice?.number || "").trim();
-    const numericMatch = value.match(/(\d+)(?!.*\d)/);
-    const yearMatch = value.match(/(?:\/|-)(20\d{2})\b/) || value.match(/\b(20\d{2})\b/);
+    // Formato esperado: PREFIJO-SEQ/AÑO (p.ej. FAC-111/2026). La secuencia es el
+    // grupo de digitos justo antes de "/AÑO", no el ultimo numero (que es el año).
+    const full = value.match(/(\d+)\s*\/\s*(20\d{2})\b/);
+    if(full){
+      return { year:Number(full[2]), number:Number(full[1]), raw:value };
+    }
+    const yearMatch = value.match(/\b(20\d{2})\b/);
+    const year = yearMatch ? Number(yearMatch[1]) : 0;
+    const nums = (value.match(/\d+/g) || []).map(Number).filter(num => num !== year);
     return {
-      year:yearMatch ? Number(yearMatch[1]) : 0,
-      number:numericMatch ? Number(numericMatch[1]) : 0,
+      year,
+      number:nums.length ? nums[0] : 0,
       raw:value
     };
   }
