@@ -19,11 +19,13 @@
 
   function mergeTombstones(a, b){
     const out = {};
+    const cutoff = Date.now() - 1000 * 60 * 60 * 24 * 180; // poda > 180 dias
     [a || {}, b || {}].forEach(map => {
       Object.keys(map || {}).forEach(key => {
         if(ts(map[key]) >= ts(out[key])) out[key] = map[key];
       });
     });
+    Object.keys(out).forEach(key => { if(ts(out[key]) && ts(out[key]) < cutoff) delete out[key]; });
     return out;
   }
 
@@ -57,12 +59,18 @@
     const base = localNewer ? safeLocal : safeRemote;
 
     const merged = { ...safeRemote, ...safeLocal };
-    // Ajustes: del lado mas reciente, pero deviceId siempre el de este equipo.
+    // Ajustes: del lado mas reciente, pero con reglas especiales por campo.
     merged.settings = {
       ...(safeRemote.settings || {}),
       ...(localNewer ? (safeLocal.settings || {}) : (safeRemote.settings || {}))
     };
+    // deviceId es propio de cada equipo: nunca se sobrescribe con el del otro.
     if(safeLocal?.settings?.deviceId) merged.settings.deviceId = safeLocal.settings.deviceId;
+    // nextInvoiceNumber es monotono: el maximo de ambos, para que el contador NUNCA
+    // retroceda ni reutilice un numero ya emitido en el otro telefono.
+    const localNext = Number((safeLocal.settings || {}).nextInvoiceNumber) || 0;
+    const remoteNext = Number((safeRemote.settings || {}).nextInvoiceNumber) || 0;
+    merged.settings.nextInvoiceNumber = Math.max(localNext, remoteNext, 1);
 
     COLLECTION_KEYS.forEach(key => {
       merged[key] = mergeCollection(safeLocal[key], safeRemote[key], deleted, key);

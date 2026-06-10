@@ -2676,6 +2676,20 @@
             syncLog("remote-apply", { remoteTimestamp:syncStamp(nextState) });
             const local = syncState();
             const merged = window.AppStateMerge.mergeStates(local, nextState);
+            // Purga de facturas demo (INVxx) tambien sobre el resultado fusionado, para
+            // que no resuciten desde la nube. La diferencia con el remoto fuerza el push limpio.
+            merged.invoices = (merged.invoices || []).filter(x => !/^INV\d+$/i.test(String(x.number || "").trim()));
+            // Opcion B: tras fusionar, si dos facturas comparten numero (creadas en
+            // distintos moviles), se renumera la mas nueva al siguiente libre. Determinista.
+            let renumbered = [];
+            if(window.AppInvoiceNumbering){
+              const recon = window.AppInvoiceNumbering.reconcileInvoiceNumbers(merged.invoices, { prefix:(merged.settings || {}).invoicePrefix || "FAC" });
+              if(recon.changes.length){
+                merged.invoices = recon.invoices;
+                merged.settings = { ...merged.settings, nextInvoiceNumber:Math.max(Number(merged.settings.nextInvoiceNumber) || 1, recon.nextSeq) };
+                renumbered = recon.changes;
+              }
+            }
             suppressSyncPersistence = true;
             try{
               store.replaceState(merged);
@@ -2686,7 +2700,12 @@
               suppressSyncPersistence = false;
             }
             renderAll();
-            if(!window.AppStateMerge.statesEquivalent(merged, nextState)){
+            if(renumbered.length){
+              syncLog("remote-apply", { renumbered:renumbered.length });
+              const detail = renumbered.map(c => `${c.from}→${c.to}`).join(", ");
+              toast(`Se renumeraron ${renumbered.length} factura(s) duplicada(s): ${detail}`);
+            }
+            if(renumbered.length || !window.AppStateMerge.statesEquivalent(merged, nextState)){
               syncLog("remote-apply", { contributedLocal:true });
               runtime.localStampAtLastPush = "";
               await pushCurrentState(true, true);

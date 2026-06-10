@@ -1,6 +1,6 @@
 # apPatatas Operativa
 
-PWA mobile-first para facturacion, stock, compras, gastos, albaranes, documentos, OCR con IA y sincronizacion ligera en nube.
+PWA mobile-first para facturacion, stock, compras, gastos, albaranes y documentos, con sincronizacion en la nube entre dispositivos. Las compras entran por el flujo Drive -> agente (Google Apps Script) -> Google Sheets -> app. (La lectura de facturas por IA/OCR y el escaner se retiraron.)
 
 ## Estado actual
 
