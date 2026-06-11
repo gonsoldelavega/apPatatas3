@@ -6,7 +6,7 @@
 .invoice-filter-drawer{
   margin-bottom:16px;
   border-radius:22px;
-  border:1px solid rgba(17,24,32,.10);
+  border:1px solid rgba(18,43,33,.10);
   background:rgba(255,255,255,.70);
   box-shadow:var(--shadow-card);
   overflow:hidden;
@@ -39,7 +39,7 @@
   flex:0 0 auto;
 }
 .invoice-filter-drawer[open] summary{
-  border-bottom:1px solid rgba(17,24,32,.08);
+  border-bottom:1px solid rgba(18,43,33,.08);
 }
 .invoice-filter-content{
   padding:14px;
