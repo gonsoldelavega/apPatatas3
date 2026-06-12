@@ -45,9 +45,9 @@
         padding: 9px 10px !important;
         margin: 0 !important;
         border-radius: 28px !important;
-        background: rgba(17,24,32,.92) !important;
+        background: rgba(13,27,21,.93) !important;
         border: 1px solid rgba(255,255,255,.10) !important;
-        box-shadow: 0 22px 60px rgba(17,24,32,.34), inset 0 1px 0 rgba(255,255,255,.08) !important;
+        box-shadow: 0 22px 60px rgba(8,18,14,.40), inset 0 1px 0 rgba(255,255,255,.08) !important;
         backdrop-filter: blur(24px) saturate(1.25) !important;
         -webkit-backdrop-filter: blur(24px) saturate(1.25) !important;
         overflow: visible !important;
@@ -125,7 +125,7 @@
         padding: 0 !important;
         border-radius: 26px !important;
         transform: translateY(-20px) !important;
-        color: #111820 !important;
+        color: #122B21 !important;
         background: linear-gradient(145deg,#F1D18D 0%,#D8B26B 38%,#B98A42 100%) !important;
         box-shadow: 0 18px 38px rgba(185,138,66,.38), inset 0 1px 0 rgba(255,255,255,.55) !important;
         border: 1px solid rgba(255,255,255,.28) !important;

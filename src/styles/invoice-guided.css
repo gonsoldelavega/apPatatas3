@@ -14,9 +14,9 @@
   align-items:center;
   padding:16px;
   border-radius:24px;
-  background:linear-gradient(145deg,#111820 0%,#22303E 100%);
+  background:linear-gradient(145deg,#122B21 0%,#27493A 100%);
   color:#fff;
-  box-shadow:0 18px 44px rgba(17,24,32,.24);
+  box-shadow:0 18px 44px rgba(18,43,33,.24);
   border:1px solid rgba(255,255,255,.10);
 }
 .invoice-sticky-summary strong{
@@ -64,7 +64,7 @@
   padding:18px;
   border-radius:24px;
   background:rgba(255,255,255,.78);
-  border:1px solid rgba(17,24,32,.10);
+  border:1px solid rgba(18,43,33,.10);
   box-shadow:var(--shadow-card);
 }
 .invoice-step-head{
@@ -80,7 +80,7 @@
   place-items:center;
   border-radius:16px;
   background:linear-gradient(135deg,#F1D18D,#B98A42);
-  color:#111820;
+  color:#122B21;
   font-weight:900;
   box-shadow:0 10px 24px rgba(185,138,66,.22);
 }

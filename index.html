@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#2D5C43">
+  <meta name="theme-color" content="#122B21">
   <title>Factupapa</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./src/styles/tokens.css?v=20260609d">
-  <link rel="stylesheet" href="./src/styles/base.css?v=20260609d">
-  <link rel="stylesheet" href="./src/styles/layout.css?v=20260609d">
-  <link rel="stylesheet" href="./src/styles/components.css?v=20260609d">
-  <link rel="stylesheet" href="./src/styles/print.css?v=20260609d">
-  <link rel="stylesheet" href="./src/styles/themes.css?v=20260609d">
+  <link rel="stylesheet" href="./src/styles/tokens.css?v=20260611a">
+  <link rel="stylesheet" href="./src/styles/base.css?v=20260611a">
+  <link rel="stylesheet" href="./src/styles/layout.css?v=20260611a">
+  <link rel="stylesheet" href="./src/styles/components.css?v=20260611a">
+  <link rel="stylesheet" href="./src/styles/print.css?v=20260611a">
+  <link rel="stylesheet" href="./src/styles/themes.css?v=20260611a">
   <script>
     (function(){
       function apply(pref){
@@ -21,7 +21,7 @@
           : ((window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
         document.documentElement.setAttribute("data-theme", mode);
         var meta = document.querySelector('meta[name="theme-color"]');
-        if(meta) meta.setAttribute("content", mode === "dark" ? "#120D0A" : "#2D5C43");
+        if(meta) meta.setAttribute("content", mode === "dark" ? "#060C09" : "#122B21");
       }
       window.__factupapaTheme = {
         get: function(){ try { return localStorage.getItem("factupapa-theme") || "system"; } catch(e){ return "system"; } },
@@ -46,15 +46,15 @@
       padding: 10px 16px;
       padding-top: calc(10px + env(safe-area-inset-top, 0px));
       position: sticky; top:0; z-index:50;
-      background: rgba(42,31,26,.97);
+      background: rgba(18,43,33,.96);
       border-bottom: 1px solid rgba(255,255,255,.06);
-      box-shadow: 0 2px 12px rgba(26,15,8,.18);
+      box-shadow: 0 2px 12px rgba(8,18,14,.22);
       backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     ">
-      <span style="font-family:'Lora',Georgia,serif;font-size:1.25rem;font-weight:700;letter-spacing:-.03em;color:#FDF8F0;">Factu<span style="color:#C4602A;">papa</span></span>
+      <span style="font-family:'Bricolage Grotesque','Hanken Grotesk',sans-serif;font-size:1.25rem;font-weight:700;letter-spacing:-.03em;color:#F4F8F4;">Factu<span style="color:#D8B26B;">papa</span></span>
       <div style="display:flex;gap:8px;align-items:center;">
-        <div id="syncDot" role="status" aria-label="Estado de sincronización" style="width:7px;height:7px;border-radius:50%;background:#5A7A3A;" title="Sincronizado"></div>
-        <button class="icon ghost" id="installBtn" aria-label="Instalar la aplicación" style="min-height:36px;width:36px;min-width:36px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:rgba(253,248,240,.7);font-size:.75rem;font-weight:700;">App</button>
+        <div id="syncDot" role="status" aria-label="Estado de sincronización" style="width:7px;height:7px;border-radius:50%;background:#2E7D58;" title="Sincronizado"></div>
+        <button class="icon ghost" id="installBtn" aria-label="Instalar la aplicación" style="min-height:36px;width:36px;min-width:36px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);color:rgba(244,248,244,.72);font-size:.75rem;font-weight:700;">App</button>
       </div>
     </header>
     <nav class="tabs panel" id="tabs"></nav>
@@ -75,58 +75,58 @@
   </div>
   <div id="printRoot" class="hidden"></div>
   <div class="toast-wrap" id="toasts"></div>
-  <script src="./src/state/initial-state.js?v=20260609d"></script>
-  <script src="./src/state/migrations.js?v=20260609d"></script>
-  <script src="./src/services/storage-local.js?v=20260609d"></script>
-  <script src="./src/state/store.js?v=20260609d"></script>
-  <script src="./src/state/ui-state.js?v=20260609d"></script>
-  <script src="./src/state/selectors.js?v=20260609d"></script>
-  <script src="./src/utils/numbers.js?v=20260609d"></script>
-  <script src="./src/utils/strings.js?v=20260609d"></script>
-  <script src="./src/utils/ids.js?v=20260609d"></script>
-  <script src="./src/utils/dates.js?v=20260609d"></script>
-  <script src="./src/utils/format.js?v=20260609d"></script>
-  <script src="./src/domain/products.js?v=20260609d"></script>
-  <script src="./src/domain/stock.js?v=20260609d"></script>
-  <script src="./src/domain/invoices.js?v=20260609d"></script>
-  <script src="./src/domain/invoice-numbering.js?v=20260609d"></script>
-  <script src="./src/domain/purchases.js?v=20260609d"></script>
-  <script src="./src/domain/expenses.js?v=20260609d"></script>
-  <script src="./src/domain/fiscal.js?v=20260609d"></script>
-  <script src="./src/domain/documents.js?v=20260609d"></script>
-  <script src="./src/ui/cards/invoice-card.js?v=20260609d"></script>
-  <script src="./src/ui/cards/client-card.js?v=20260609d"></script>
-  <script src="./src/ui/cards/product-card.js?v=20260609d"></script>
-  <script src="./src/ui/cards/document-card.js?v=20260609d"></script>
-  <script src="./src/ui/components/modal.js?v=20260609d"></script>
-  <script src="./src/ui/components/line-editor.js?v=20260609d"></script>
-  <script src="./src/ui/forms/client-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/supplier-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/product-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/purchase-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/expense-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/wallet-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/invoice-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/document-form.js?v=20260609d"></script>
-  <script src="./src/ui/forms/delivery-note-form.js?v=20260609d"></script>
-  <script src="./src/ui/views/dashboard-view.js?v=20260609d"></script>
-  <script src="./src/ui/views/billing-view.js?v=20260609d"></script>
-  <script src="./src/ui/views/catalog-view.js?v=20260609d"></script>
-  <script src="./src/ui/views/operations-view.js?v=20260609d"></script>
-  <script src="./src/ui/views/wallet-view.js?v=20260609d"></script>
-  <script src="./src/ui/views/exports-view.js?v=20260609d"></script>
-  <script src="./src/ui/views/settings-view.js?v=20260609d"></script>
-  <script src="./src/ui/render-nav.js?v=20260609d"></script>
-  <script src="./src/ui/render-views.js?v=20260609d"></script>
-  <script src="./src/services/splash.js?v=20260609d"></script>
-  <script src="./src/services/alerts-panel.js?v=20260609d"></script>
-  <script src="./src/services/sync-status.js?v=20260609d"></script>
-  <script src="./src/services/supabase-realtime.js?v=20260609d"></script>
-  <script src="./src/services/state-merge.js?v=20260609d"></script>
-  <script src="./src/services/purchase-registry-sync.js?v=20260609d"></script>
-  <script src="./src/services/scroll-restoration.js?v=20260609d"></script>
-  <script src="./src/services/google-auth-hardener.js?v=20260609d"></script>
-  <script src="./src/services/purchase-sync-guard.js?v=20260609d"></script>
-  <script src="./src/app/bootstrap.js?v=20260609d"></script>
+  <script src="./src/state/initial-state.js?v=20260611a"></script>
+  <script src="./src/state/migrations.js?v=20260611a"></script>
+  <script src="./src/services/storage-local.js?v=20260611a"></script>
+  <script src="./src/state/store.js?v=20260611a"></script>
+  <script src="./src/state/ui-state.js?v=20260611a"></script>
+  <script src="./src/state/selectors.js?v=20260611a"></script>
+  <script src="./src/utils/numbers.js?v=20260611a"></script>
+  <script src="./src/utils/strings.js?v=20260611a"></script>
+  <script src="./src/utils/ids.js?v=20260611a"></script>
+  <script src="./src/utils/dates.js?v=20260611a"></script>
+  <script src="./src/utils/format.js?v=20260611a"></script>
+  <script src="./src/domain/products.js?v=20260611a"></script>
+  <script src="./src/domain/stock.js?v=20260611a"></script>
+  <script src="./src/domain/invoices.js?v=20260611a"></script>
+  <script src="./src/domain/invoice-numbering.js?v=20260611a"></script>
+  <script src="./src/domain/purchases.js?v=20260611a"></script>
+  <script src="./src/domain/expenses.js?v=20260611a"></script>
+  <script src="./src/domain/fiscal.js?v=20260611a"></script>
+  <script src="./src/domain/documents.js?v=20260611a"></script>
+  <script src="./src/ui/cards/invoice-card.js?v=20260611a"></script>
+  <script src="./src/ui/cards/client-card.js?v=20260611a"></script>
+  <script src="./src/ui/cards/product-card.js?v=20260611a"></script>
+  <script src="./src/ui/cards/document-card.js?v=20260611a"></script>
+  <script src="./src/ui/components/modal.js?v=20260611a"></script>
+  <script src="./src/ui/components/line-editor.js?v=20260611a"></script>
+  <script src="./src/ui/forms/client-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/supplier-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/product-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/purchase-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/expense-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/wallet-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/invoice-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/document-form.js?v=20260611a"></script>
+  <script src="./src/ui/forms/delivery-note-form.js?v=20260611a"></script>
+  <script src="./src/ui/views/dashboard-view.js?v=20260611a"></script>
+  <script src="./src/ui/views/billing-view.js?v=20260611a"></script>
+  <script src="./src/ui/views/catalog-view.js?v=20260611a"></script>
+  <script src="./src/ui/views/operations-view.js?v=20260611a"></script>
+  <script src="./src/ui/views/wallet-view.js?v=20260611a"></script>
+  <script src="./src/ui/views/exports-view.js?v=20260611a"></script>
+  <script src="./src/ui/views/settings-view.js?v=20260611a"></script>
+  <script src="./src/ui/render-nav.js?v=20260611a"></script>
+  <script src="./src/ui/render-views.js?v=20260611a"></script>
+  <script src="./src/services/splash.js?v=20260611a"></script>
+  <script src="./src/services/alerts-panel.js?v=20260611a"></script>
+  <script src="./src/services/sync-status.js?v=20260611a"></script>
+  <script src="./src/services/supabase-realtime.js?v=20260611a"></script>
+  <script src="./src/services/state-merge.js?v=20260611a"></script>
+  <script src="./src/services/purchase-registry-sync.js?v=20260611a"></script>
+  <script src="./src/services/scroll-restoration.js?v=20260611a"></script>
+  <script src="./src/services/google-auth-hardener.js?v=20260611a"></script>
+  <script src="./src/services/purchase-sync-guard.js?v=20260611a"></script>
+  <script src="./src/app/bootstrap.js?v=20260611a"></script>
 </body>
 </html>

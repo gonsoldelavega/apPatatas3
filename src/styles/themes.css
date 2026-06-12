@@ -2,7 +2,7 @@
 @import './mobile-studio-actions.css';
 @import './invoice-guided.css';
 @import './billing-compact.css';
-@import './dark.css?v=20260609d';
+@import './dark.css?v=20260611a';
 
 .panel,
 .card,
@@ -25,7 +25,7 @@
 
 .panel-h .actions .primary,
 .quick .primary{
-  box-shadow:0 10px 24px rgba(246,165,26,.18);
+  box-shadow:0 10px 24px rgba(185,138,66,.20);
 }
 
 .card:hover,
