@@ -1633,13 +1633,21 @@
         }, [{id:"cancel",label:"Cancelar",className:"ghost"},{id:"save",label:"Registrar cobro",className:"ghost"},{id:"mark-paid",label:"Marcar como pagada",className:"primary"}]);
       }
 
+      function invoiceLinesByDelivery(invoice){
+        return (invoice.lines || []).map(line => ({
+          ...line,
+          deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || invoice.issueDate || today()
+        })).sort((a, b) => {
+          const ta = Date.parse(a.deliveryDate);
+          const tb = Date.parse(b.deliveryDate);
+          if(Number.isFinite(ta) && Number.isFinite(tb)) return ta - tb;
+          return String(a.deliveryDate).localeCompare(String(b.deliveryDate));
+        });
+      }
       function buildInvoicePrint(invoice){
         const client = getClient(invoice.clientId) || {};
         const totals = invoiceTotals(invoice);
-        const lines = (invoice.lines || []).map(line => ({
-          ...line,
-          deliveryDate:line.deliveryDate || line.fechaEntrega || line.delivery_date || line.date || invoice.issueDate || today()
-        }));
+        const lines = invoiceLinesByDelivery(invoice);
         const deliveryDates = [...new Set(lines.map(line => line.deliveryDate).filter(Boolean))];
         const generalDeliveryDate = deliveryDates.length === 1 ? deliveryDates[0] : "";
         const showDeliveryDate = !generalDeliveryDate;
@@ -1928,7 +1936,7 @@
           ctx.fillStyle = "#111"; ctx.font = "22px Segoe UI"; ctx.fillText(client.name || "",96,302); ctx.fillText(client.address || "",96,334);
         const y0 = 404; ctx.fillStyle = "#f2f2f2"; ctx.fillRect(70,y0,1260,52); ctx.fillStyle = "#5d5d5d"; ctx.font = "700 18px Segoe UI"; [ ["Concepto",96], ["Cantidad",640], ["Precio",820], ["IVA",980], ["Total",1150] ].forEach(([t,x]) => ctx.fillText(t,x,y0+34));
         let y = y0 + 92; ctx.font = "20px Segoe UI";
-        invoice.lines.forEach(line => { ctx.fillText((line.description || getProduct(line.productId)?.name || "").slice(0,38),96,y); ctx.fillText(String(n(line.quantity)),660,y); ctx.fillText(money(line.price),820,y); ctx.fillText(n(line.iva) + "%",995,y); ctx.fillText(money(lineTotal(line)),1150,y); ctx.strokeStyle = "#ececec"; ctx.beginPath(); ctx.moveTo(70,y+26); ctx.lineTo(1330,y+26); ctx.stroke(); y += 58; });
+        invoiceLinesByDelivery(invoice).forEach(line => { ctx.fillText((line.description || getProduct(line.productId)?.name || "").slice(0,38),96,y); ctx.fillText(String(n(line.quantity)),660,y); ctx.fillText(money(line.price),820,y); ctx.fillText(n(line.iva) + "%",995,y); ctx.fillText(money(lineTotal(line)),1150,y); ctx.strokeStyle = "#ececec"; ctx.beginPath(); ctx.moveTo(70,y+26); ctx.lineTo(1330,y+26); ctx.stroke(); y += 58; });
         ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.strokeRect(960,y+30,370,130); ctx.font = "24px Segoe UI"; ctx.fillText("Base: " + money(totals.base),990,y+74); ctx.fillText("IVA: " + money(totals.vat),990,y+108); ctx.font = "700 30px Segoe UI"; ctx.fillText("TOTAL: " + money(totals.total),990,y+144); ctx.font = "22px Segoe UI"; ctx.fillText("Transferencia: " + state.settings.accountHolder,70,y+94); ctx.fillText("IBAN: " + state.settings.iban,70,y+132);
         canvas.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = invoice.number + ".png"; a.click(); setTimeout(() => URL.revokeObjectURL(url),1200); toast("PNG generado"); });
       }
