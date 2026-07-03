@@ -2,6 +2,14 @@
   function openModal(title, sub, body, onMount, actions = []){
     document.getElementById("modalTitle").textContent = title;
     document.getElementById("modalSub").textContent = sub || "";
+    // Los contenedores se sustituyen por clones para destruir cualquier listener
+    // que un formulario anterior dejara sobre ellos: un listener en el contenedor
+    // sobrevive a innerHTML y re-disparaba el guardado del formulario previo
+    // (p.ej. guardar un albarán volvía a guardar la última factura con otro número).
+    ["modalBody", "modalActions"].forEach(nodeId => {
+      const stale = document.getElementById(nodeId);
+      if(stale) stale.replaceWith(stale.cloneNode(false));
+    });
     document.getElementById("modalBody").innerHTML = body;
     document.getElementById("modalActions").innerHTML = actions.map(a => `<button class="${a.className || ""}" data-modal-action="${a.id}" type="${a.type || "button"}">${a.label}</button>`).join("");
     const modal = document.getElementById("modal");

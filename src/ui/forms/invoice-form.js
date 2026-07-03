@@ -180,6 +180,9 @@
       }
 
       async function saveInvoice(btn){
+        // Guardia anti-fantasma: si este formulario ya no está montado (se abrió otro
+        // modal encima), este cierre es obsoleto y no debe guardar nada.
+        if(!form.isConnected) return;
         const originalLabel = btn?.textContent || "Guardar factura";
         try{
           const rawLines = global.AppUILineEditor.collectLines(linesRoot, "invoice", ctx);
