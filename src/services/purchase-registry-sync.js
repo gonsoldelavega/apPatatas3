@@ -178,12 +178,36 @@
     return 21;
   }
 
+  // Proveedores habituales por NIF: el NIF es más fiable que el nombre extraído
+  // por OCR (a veces llega texto legal tipo "Empresa inscrita en el Registro...").
+  const KNOWN_SUPPLIERS_BY_NIF = {
+    "A04037677":"FRUTAS Y PATATAS GAYCA, S.A.",
+    "B04854154":"J. EXPÓSITO CAZORLA E HIJOS, S.L.",
+    "B42743211":"HIGIENLAB 2020 S.L."
+  };
+
+  function looksLikeJunkSupplierName(value){
+    const key = normalizeText(value);
+    return !key
+      || key.length < 3
+      || key.includes("inscrita")
+      || key.includes("registro mercantil")
+      || key.includes("factura")
+      || /^(tomo|folio|hoja|cif|nif)\b/.test(key);
+  }
+
   function normalizeSupplierName(row){
     const raw = String(row[COLUMNS.supplier] || "").trim();
+    const nif = String(row[COLUMNS.nif] || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+    if(KNOWN_SUPPLIERS_BY_NIF[nif] && (looksLikeJunkSupplierName(raw) || normalizeText(raw) !== normalizeText(KNOWN_SUPPLIERS_BY_NIF[nif]))){
+      // NIF conocido: usamos siempre el nombre canónico del proveedor.
+      return KNOWN_SUPPLIERS_BY_NIF[nif];
+    }
     const file = normalizeText(fileName(row));
     const supplier = normalizeText(raw);
-    if(file.includes("higienlab") || supplier.includes("higienlab")) return "HIGIENLAB";
+    if(file.includes("higienlab") || supplier.includes("higienlab")) return "HIGIENLAB 2020 S.L.";
     if(file.includes("gayca") || supplier.includes("gayca") || supplier.includes("frutas y patatas")) return "FRUTAS Y PATATAS GAYCA, S.A.";
+    if(file.includes("caycaz") || supplier.includes("exposito") || supplier.includes("cazorla")) return "J. EXPÓSITO CAZORLA E HIJOS, S.L.";
     return raw;
   }
 
