@@ -24,9 +24,18 @@ PWA mobile-first de facturación y gestión para un negocio pequeño (patatas/ho
 - Proveedores con parser propio: **GAYCA** (A04037677), **FRUTCAYCAZ/J. Expósito** (B04854154),
   **HIGIENLAB** (B42743211). NIF propio (cliente) a excluir: `45313973V`.
 - **Regla contable clave: cada factura va a SU mes. Nunca mezclar meses.**
-- Despliegue: lo hace el workflow `.github/workflows/deploy-appsscript.yml` al hacer push,
-  **si** existen los secretos `CLASPRC_JSON` y `SCRIPT_ID` en GitHub. Si no, hay que pegar
-  `Code.gs` a mano en el editor de Apps Script (no hay acceso a Apps Script desde aquí).
+- **Importación desde Gmail** (`importInvoicesFromGmail_`, config `GONSOL_GMAIL_IMPORT`):
+  coge los PDF de GAYCA del correo (posteriores a `after`, por defecto 2026/07/01),
+  los deja en la bandeja de Drive y etiqueta el hilo (`FACTURAS_IMPORTADAS`).
+  Desde que esté activo, **las facturas de GAYCA no se escanean a mano** (duplicarían).
+- Despliegue: workflow `.github/workflows/deploy-appsscript.yml` con secretos
+  `CLASP_REFRESH_TOKEN`/`CLASP_CLIENT_ID`/`CLASP_CLIENT_SECRET`/`SCRIPT_ID`.
+  **ROTO desde 2026-06-09** (`invalid_grant`: el refresh token caduca a los 7 días con
+  la app OAuth en modo "Prueba"). Arreglo pendiente del dueño: publicar la app OAuth a
+  Producción + regenerar refresh token en OAuth Playground + actualizar los 3 secretos.
+  Cambios en `Code.gs` posteriores al 2026-06-02 NO están en producción hasta entonces.
+  Tras el primer despliegue con el scope de Gmail, hay que abrir el editor de Apps
+  Script y ejecutar una función una vez para autorizar el permiso nuevo.
 
 ## Límites técnicos del entorno (para no prometer de más)
 

@@ -86,6 +86,56 @@ function jsonOutput_(payload) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * Importacion de facturas desde Gmail: GAYCA envia por email los mismos PDF que
+ * antes habia que escanear. El agente los coge del correo, los deja en la bandeja
+ * de Drive y el resto del flujo (OCR -> REGISTRO -> archivo por mes) sigue igual.
+ *
+ * - Solo correos posteriores a `after` (evita reimportar meses ya contabilizados).
+ * - Los hilos procesados se etiquetan (processedLabel) para no repetirlos.
+ * - IMPORTANTE: desde que esto este activo, las facturas de GAYCA NO se escanean
+ *   a mano (llegarian duplicadas: el numero FV del email no casa con el del escaneo).
+ * - Tras desplegar, hay que abrir el editor de Apps Script y ejecutar una funcion
+ *   una vez para autorizar el permiso nuevo de Gmail.
+ */
+const GONSOL_GMAIL_IMPORT = {
+  enabled: true,
+  processedLabel: 'FACTURAS_IMPORTADAS',
+  after: '2026/07/01',
+  senders: ['gayca@frutasypatatasgayca.com'],
+  maxThreadsPerRun: 20
+};
+
+function importInvoicesFromGmail_() {
+  if (!GONSOL_GMAIL_IMPORT.enabled) return [];
+  const label = GmailApp.getUserLabelByName(GONSOL_GMAIL_IMPORT.processedLabel)
+    || GmailApp.createLabel(GONSOL_GMAIL_IMPORT.processedLabel);
+  const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
+  const imported = [];
+  GONSOL_GMAIL_IMPORT.senders.forEach(function(sender) {
+    const query = 'from:' + sender
+      + ' has:attachment filename:pdf'
+      + ' after:' + GONSOL_GMAIL_IMPORT.after
+      + ' -label:' + GONSOL_GMAIL_IMPORT.processedLabel;
+    const threads = GmailApp.search(query, 0, GONSOL_GMAIL_IMPORT.maxThreadsPerRun);
+    threads.forEach(function(thread) {
+      thread.getMessages().forEach(function(message) {
+        message.getAttachments({ includeInlineImages: false, includeAttachments: true }).forEach(function(attachment) {
+          const name = attachment.getName();
+          if (!/\.pdf$/i.test(name)) return;
+          // No duplicar si el archivo ya esta en la bandeja de entrada.
+          if (inputFolder.getFilesByName(name).hasNext()) return;
+          inputFolder.createFile(attachment.copyBlob().setName(name));
+          imported.push(name);
+        });
+      });
+      thread.addLabel(label);
+    });
+  });
+  if (imported.length) console.log('Gmail import: ' + JSON.stringify(imported));
+  return imported;
+}
+
 const GONSOL_MONTHS = [
   '01_ENERO',
   '02_FEBRERO',
@@ -171,6 +221,13 @@ const GONSOL_SUPPLIERS = [
 ];
 
 function processPurchaseInvoicesDaily() {
+  // Primero trae las facturas nuevas que hayan llegado por email (GAYCA);
+  // despues se procesan junto con las escaneadas, por el mismo flujo.
+  try {
+    importInvoicesFromGmail_();
+  } catch (error) {
+    console.error('Gmail import fallo (se continua con la bandeja): ' + error);
+  }
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
   const reviewFolder = getOrCreateChildFolder_(inputFolder, GONSOL_CONFIG.reviewFolderName);
   const duplicateFolder = getOrCreateChildFolder_(reviewFolder, GONSOL_CONFIG.duplicatesFolderName);
