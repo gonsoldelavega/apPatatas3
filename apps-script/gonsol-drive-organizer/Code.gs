@@ -501,9 +501,13 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
 
 function detectSupplier_(upper, fileName) {
   const upperFileName = String(fileName || '').toUpperCase();
+  // Version compacta del texto (solo letras/numeros): el OCR a menudo devuelve el
+  // NIF con puntos, guiones o espacios ("B-42.743.211") y el test literal fallaba.
+  const compact = upper.replace(/[^A-Z0-9]/g, '');
   for (let i = 0; i < GONSOL_SUPPLIERS.length; i++) {
     const supplier = GONSOL_SUPPLIERS[i];
     if (supplier.detect(upper, upperFileName)) return supplier;
+    if (supplier.nif && compact.indexOf(supplier.nif) !== -1) return supplier;
   }
   return null;
 }
@@ -517,6 +521,13 @@ function extractSupplierNif_(upper, profile) {
   let match;
   while ((match = regex.exec(upper)) !== null) {
     found.push(match[1]);
+  }
+  // Segunda pasada sobre el texto compactado: captura NIF con separadores
+  // ("B-42.743.211", "B 42743211") que la primera pasada no ve.
+  const compact = upper.replace(/[^A-Z0-9]/g, '');
+  const compactRegex = /([ABCDEFGHJKLMNPQRSUVW]\d{7}[0-9A-J])/g;
+  while ((match = compactRegex.exec(compact)) !== null) {
+    if (found.indexOf(match[1]) === -1) found.push(match[1]);
   }
   // Descarta los NIF propios (cliente) para no confundirlos con el proveedor.
   const filtered = found.filter(function(nif) {
@@ -642,6 +653,9 @@ function extractProvider_(text, upper, fileName) {
   const lines = text.split('\n').map(function(line) { return line.trim(); }).filter(Boolean);
   for (let i = 0; i < Math.min(lines.length, 12); i++) {
     const line = lines[i];
+    // Se saltan las lineas de texto legal/registral que el OCR confunde con el nombre
+    // ("Empresa inscrita en el Registro Mercantil...", "Tomo... Folio... Hoja...").
+    if (/INSCRITA|REGISTRO\s+MERCANTIL|TOMO\s|FOLIO\s|HOJA\s|DOMICILIO\s+SOCIAL/i.test(line)) continue;
     if (line.length >= 4 && /[A-ZÁÉÍÓÚÑ]/.test(line) && !/FACTURA|ALBARAN|FECHA|NIF|CIF/i.test(line)) {
       return cleanName_(line);
     }
