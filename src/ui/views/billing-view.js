@@ -25,7 +25,69 @@
     return String(b.issueDate || "").localeCompare(String(a.issueDate || ""));
   }
 
+  function renderDeliveryCard(item, ctx){
+    const totals = ctx.invoiceTotals({ lines:item.lines || [], amountPaid:0 });
+    const valued = (item.lines || []).some(line => Number(line.price) > 0);
+    const statusClass = item.status === "firmado" ? "good" : item.status === "entregado" ? "good" : item.status === "pendiente" ? "warn" : "";
+    return `<article class="card card-tight invoice-card-strong">
+      <div class="invoice-card-top">
+        <div class="invoice-copy">
+          <p class="invoice-card-number">${ctx.esc(item.number)}</p>
+          <h3 class="list-row-title">${ctx.esc(ctx.getClient(item.clientId)?.name || "Cliente sin asignar")}</h3>
+        </div>
+        ${valued ? `<div class="price">${ctx.money(totals.total)}</div>` : ""}
+      </div>
+      <p class="invoice-card-dates">Fecha: ${ctx.date(item.date)}</p>
+      <div class="inline-summary invoice-meta-row">
+        <span class="chip ${statusClass}">${ctx.esc(item.status || "Sin estado")}</span>
+        <span class="chip">${(item.lines || []).length} línea(s)</span>
+        ${item.notes ? `<span class="chip">${ctx.esc(item.notes)}</span>` : ""}
+      </div>
+      <div class="card-actions">
+        <button data-action="preview-delivery-note" data-id="${item.id}">Ver</button>
+        <button data-action="edit-delivery-note" data-id="${item.id}">Editar</button>
+        <button data-action="download-delivery-pdf" data-id="${item.id}">PDF</button>
+        <button data-action="print-delivery-note" data-id="${item.id}">Imprimir</button>
+        <button data-action="share-delivery-whatsapp" data-id="${item.id}">WhatsApp</button>
+        <button data-action="share-delivery-email" data-id="${item.id}">Email</button>
+        <button class="danger" data-action="delete-delivery-note" data-id="${item.id}">Eliminar</button>
+      </div>
+    </article>`;
+  }
+
+  function renderDeliveryTab(ctx){
+    const notes = (ctx.state.deliveryNotes || [])
+      .filter(x => !ctx.ui.search.deliveryNotesClient || x.clientId === ctx.ui.search.deliveryNotesClient)
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    return `
+      <div class="search-shell"><div class="search-row"><select data-search="deliveryNotesClient"><option value="">Todos los clientes</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${ctx.ui.search.deliveryNotesClient === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div></div>
+      <div class="entity-stack">${notes.length ? notes.map(item => renderDeliveryCard(item, ctx)).join("") : '<div class="empty"><p>No hay albaranes todavía. Crea el primero con "Nuevo albarán".</p></div>'}</div>`;
+  }
+
   function renderBillingView(ctx){
+    const tab = ctx.ui.search.billingTab === "deliveryNotes" ? "deliveryNotes" : "invoices";
+    const tabsHtml = `<div class="filter-chip-row billing-tabs" style="margin-bottom:14px;">
+      <button type="button" class="filter-chip ${tab === "invoices" ? "active" : ""}" data-billing-tab="invoices">Facturas</button>
+      <button type="button" class="filter-chip ${tab === "deliveryNotes" ? "active" : ""}" data-billing-tab="deliveryNotes">Albaranes</button>
+      <button type="button" class="filter-chip" disabled style="opacity:.5;" title="Próximamente">Presupuestos · pronto</button>
+    </div>`;
+
+    if(tab === "deliveryNotes"){
+      return `<div class="panel billing-panel-compact">
+        <div class="panel-h billing-panel-head">
+          <div>
+            <h2>Albaranes</h2>
+            <div class="sub">Documentos de entrega, con o sin importes</div>
+          </div>
+          <div class="actions"><button class="primary" data-action="new-delivery-note">Nuevo albarán</button></div>
+        </div>
+        <div class="panel-b billing-panel-body">
+          ${tabsHtml}
+          ${renderDeliveryTab(ctx)}
+        </div>
+      </div>`;
+    }
+
     const query = String(ctx.ui.search.invoicesQuery || "").trim().toLowerCase();
     const statusFilter = ctx.ui.search.invoicesStatus || "";
     const hasActiveFilters = !!(query || ctx.ui.search.invoicesClient || ctx.ui.search.invoicesMonth || statusFilter);
@@ -68,6 +130,7 @@
         <div class="actions"><button class="primary" data-action="new-invoice">Nueva factura</button></div>
       </div>
       <div class="panel-b billing-panel-body">
+        ${tabsHtml}
         <details class="invoice-filter-drawer" ${hasActiveFilters ? "open" : ""}>
           <summary>
             <div>

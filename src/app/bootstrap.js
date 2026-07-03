@@ -1348,14 +1348,6 @@
           <div class="card-actions"><button data-action="edit-expense" data-id="${item.id}">Editar</button><button class="danger" data-action="delete-expense" data-id="${item.id}">Eliminar</button></div>
         </article>`;
       }
-      function deliveryCard(item){
-        return `<article class="card">
-          <div class="head"><div><h3>${esc(item.number)}</h3><p>${esc(getClient(item.clientId)?.name || "Cliente")} · ${date(item.date)}</p></div><span class="chip ${item.status === "firmado" ? "good" : item.status === "pendiente" ? "warn" : ""}">${esc(item.status)}</span></div>
-          <div class="meta"><span class="chip">${(item.lines || []).length} líneas</span>${item.notes ? `<span class="chip">${esc(item.notes)}</span>` : ""}</div>
-          <div class="card-actions"><button data-action="print-delivery-note" data-id="${item.id}">Imprimir</button><button data-action="edit-delivery-note" data-id="${item.id}">Editar</button><button class="danger" data-action="delete-delivery-note" data-id="${item.id}">Eliminar</button></div>
-        </article>`;
-      }
-
       function documentTypeLabel(type){ return documentsDomain.documentTypeLabel(type); }
       function relatedCollection(type){ return documentsDomain.relatedCollection(type); }
       function relatedEntity(type, id){
@@ -1414,9 +1406,16 @@
           ui.search.invoicesStatus = node.dataset.invoiceStatus || "";
           renderAll();
         }));
+        document.querySelectorAll("#views [data-billing-tab]").forEach(node => node.addEventListener("click", e => {
+          e.stopPropagation();
+          ui.search.billingTab = node.dataset.billingTab || "invoices";
+          renderAll();
+        }));
         document.querySelectorAll('#view-dashboard [data-dashboard-invoice]').forEach(node => {
           const openInvoiceActions = e => {
-            if(e.target.closest('[data-action="update-invoice-payment"]')) return;
+            // Cualquier boton dentro de la tarjeta tiene su propia accion; el tap en el
+            // resto de la tarjeta abre la vista previa.
+            if(e.target.closest("button")) return;
             e.preventDefault();
             e.stopPropagation();
             previewInvoice(node.dataset.dashboardInvoice);
@@ -1704,7 +1703,53 @@
       }
       function buildDeliveryPrint(item){
         const client = getClient(item.clientId) || {};
-        return `<div class="invoice-print"><div class="top"><div><h1>Albarán</h1><p><strong>${esc(item.number)}</strong></p><p>Fecha: ${esc(date(item.date))}</p></div><div class="meta-block"><p>${esc(state.settings.companyName)}</p><p>${esc(state.settings.companyPhone)}</p></div></div><div class="info"><div class="box"><h3>Cliente</h3><p>${esc(client.name || "")}</p><p>${esc(client.address || "")}</p></div><div class="box"><h3>Estado</h3><p>${esc(item.status)}</p><p>${esc(item.notes || "")}</p></div></div><table><thead><tr><th>Producto</th><th>Cantidad</th><th>Descripción</th></tr></thead><tbody>${item.lines.map(line => `<tr><td>${esc(getProduct(line.productId)?.name || line.description || "")}</td><td>${n(line.quantity)}</td><td>${esc(line.description || "")}</td></tr>`).join("")}</tbody></table></div>`;
+        const lines = item.lines || [];
+        // Albaran valorado: si alguna linea tiene precio, se muestran importes y totales.
+        // Los albaranes antiguos (sin precios) siguen imprimiendose como entrega simple.
+        const valued = lines.some(line => n(line.price) > 0);
+        const totals = invoiceTotals({ lines, amountPaid:0 });
+        const statusLabel = item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : "Sin estado";
+        const rows = lines.map(line => `<tr><td>${esc(line.description || getProduct(line.productId)?.name || "")}</td><td>${n(line.quantity)}</td>${valued ? `<td>${money(line.price)}</td><td>${n(line.iva)}%</td><td>${money(lineTotal(line))}</td>` : ""}</tr>`).join("");
+        return `<div class="invoice-print">
+          <div class="doc-head">
+            <div class="issuer">
+              <div class="issuer-kicker">Emisor</div>
+              <h1>${esc(state.settings.companyName)}</h1>
+              <p>${esc(state.settings.companyNif)}</p>
+              <p>${esc(state.settings.companyAddress)}</p>
+              <p>${esc(state.settings.companyPhone)} · ${esc(state.settings.companyEmail)}</p>
+            </div>
+            <div class="meta-block">
+              <h2>Albarán</h2>
+              <div class="meta-number">${esc(item.number)}</div>
+              <p>Fecha: ${esc(date(item.date))}</p>
+              <p>Estado: ${esc(statusLabel)}</p>
+            </div>
+          </div>
+          <div class="info">
+            <div class="box">
+              <h3>Cliente</h3>
+              <p>${esc(client.name || "")}</p>
+              <p>${esc(client.taxId || "")}</p>
+              <p>${esc(client.address || "")}</p>
+              <p>${esc(client.phone || "")}</p>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>Concepto</th><th>Cantidad</th>${valued ? "<th>Precio</th><th>IVA</th><th>Total</th>" : ""}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ${valued ? `<div class="totals"><div class="total-box"><p><span>Base imponible</span><span>${money(totals.base)}</span></p><p><span>IVA</span><span>${money(totals.vat)}</span></p><p><span>Total</span><strong>${money(totals.total)}</strong></p></div></div>` : ""}
+          ${item.notes ? `<div class="info"><div class="box"><h3>Notas</h3><p>${esc(item.notes)}</p></div></div>` : ""}
+          <div class="bank">
+            <div>
+              <h3>Recepción de la mercancía</h3>
+              <p>Nombre y firma:</p>
+              <br><br>
+            </div>
+            ${valued ? `<div class="bank-total"><p>Total albarán</p><p>${money(totals.total)}</p></div>` : ""}
+          </div>
+        </div>`;
       }
         function invoicePrintCss(){
           return `
@@ -1849,8 +1894,11 @@
         function popupPrint(title, html){
           const win = window.open("", "_blank");
           if(!win) return toast("El navegador bloqueó la ventana de impresión");
+          // Boton Cerrar visible en pantalla (oculto al imprimir): en la PWA instalada
+          // la ventana no tiene barra del navegador y sin esto no habia forma de salir.
+          const closeCss = `.print-close{position:fixed;top:14px;right:14px;z-index:99;padding:12px 20px;border-radius:999px;border:0;background:#122B21;color:#fff;font-weight:700;font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer}@media print{.print-close{display:none}}`;
           win.document.open();
-          win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${invoicePrintCss()}</style></head><body>${html}<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},250);});<\/script></body></html>`);
+          win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${invoicePrintCss()}${closeCss}</style></head><body><button class="print-close" onclick="window.close();">✕ Cerrar</button>${html}<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},250);});<\/script></body></html>`);
           win.document.close();
         }
       function previewInvoice(id){
@@ -1883,6 +1931,34 @@
       }
       function printInvoice(id){ const invoice = state.invoices.find(x => x.id === id); if(invoice) popupPrint(invoice.number, buildInvoicePrint(invoice)); }
       function printDeliveryNote(id){ const item = state.deliveryNotes.find(x => x.id === id); if(item) popupPrint(item.number, buildDeliveryPrint(item)); }
+      function previewDeliveryNote(id){
+        const item = state.deliveryNotes.find(x => x.id === id); if(!item) return;
+        const totals = invoiceTotals({ lines:item.lines || [], amountPaid:0 });
+        const valued = (item.lines || []).some(line => n(line.price) > 0);
+        openModal("Albarán", item.number || "Sin número", `<div class="sheet-grid">
+          <div class="summary" style="grid-column:1/-1;">
+            <div class="summary-row"><span>Cliente</span><strong>${esc(getClient(item.clientId)?.name || "Cliente sin asignar")}</strong></div>
+            <div class="summary-row"><span>Fecha</span><strong>${esc(date(item.date))}</strong></div>
+            <div class="summary-row"><span>Estado</span><strong>${esc(item.status || "Sin estado")}</strong></div>
+            ${valued ? `<div class="summary-row"><span>Total</span><strong>${money(totals.total)}</strong></div>` : ""}
+          </div>
+          <div style="grid-column:1/-1;background:#fff;border-radius:18px;overflow:auto">${buildDeliveryPrint(item)}</div>
+        </div>`, (_body, actions) => {
+          actions.querySelectorAll("[data-modal-action]").forEach(btn => btn.addEventListener("click", () => {
+            const action = btn.dataset.modalAction;
+            if(action === "close") return;
+            closeModal();
+            if(action === "print") return printDeliveryNote(id);
+            if(action === "edit") return openDeliveryNoteForm(id);
+            if(action === "delete") return removeEntity("deliveryNotes", id, "¿Eliminar este albarán?");
+          }));
+        }, [
+          {id:"close",label:"Cerrar",className:"ghost"},
+          {id:"print",label:"Imprimir",className:"ghost"},
+          {id:"edit",label:"Editar",className:"ghost"},
+          {id:"delete",label:"Eliminar",className:"danger"}
+        ]);
+      }
       function duplicateInvoice(id){
         const source = state.invoices.find(x => x.id === id);
         if(!source) return;
@@ -2025,7 +2101,7 @@
             "new-product":() => openProductForm(), "edit-product":() => openProductForm(id), "delete-product":() => removeEntity("products", id, "¿Eliminar este producto?"), "edit-product-stock":() => openProductStockForm(id),
             "new-purchase":() => openPurchaseForm(), "edit-purchase":() => openPurchaseForm(id), "delete-purchase":() => removeEntity("purchases", id, "¿Eliminar esta compra? El stock se recalculara automáticamente."),
           "new-expense":() => openExpenseForm(), "edit-expense":() => openExpenseForm(id), "delete-expense":() => removeEntity("expenses", id, "¿Eliminar este gasto?"),
-          "new-delivery-note":() => openDeliveryNoteForm(), "edit-delivery-note":() => openDeliveryNoteForm(id), "delete-delivery-note":() => removeEntity("deliveryNotes", id, "¿Eliminar este albarán?"), "print-delivery-note":() => printDeliveryNote(id),
+          "new-delivery-note":() => openDeliveryNoteForm(), "edit-delivery-note":() => openDeliveryNoteForm(id), "delete-delivery-note":() => removeEntity("deliveryNotes", id, "¿Eliminar este albarán?"), "print-delivery-note":() => printDeliveryNote(id), "preview-delivery-note":() => previewDeliveryNote(id), "download-delivery-pdf":() => downloadDeliveryPdf(id).catch(() => toast("No se pudo generar el PDF del albarán")), "share-delivery-whatsapp":() => shareDeliveryWhatsApp(id), "share-delivery-email":() => shareDeliveryEmail(id),
             "new-invoice":() => openInvoiceForm(), "edit-invoice":() => openInvoiceForm(id), "new-invoice-for-client":() => openInvoiceForm(null, { clientId:id }), "duplicate-invoice":() => duplicateInvoice(id), "delete-invoice":() => removeEntity("invoices", id, "¿Eliminar esta factura? Esto recalculara el stock."), "preview-invoice":() => previewInvoice(id), "print-invoice":() => printInvoice(id), "share-whatsapp":() => shareInvoiceWhatsApp(id), "share-email":() => shareInvoiceEmail(id), "export-invoice-png":() => printInvoice(id), "update-invoice-payment":() => openInvoicePaymentForm(id),
             "export-csv":() => exportCsv(kind), "export-json":exportJson, "import-json":importJson, "reset-storage":resetStorage }[action] || (() => {}))();
         }
@@ -2170,14 +2246,14 @@
         await ensureExternalScript("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js");
         await ensureExternalScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js");
       }
-      async function buildInvoicePdfBlob(invoice){
+      async function buildPdfBlobFromHtml(html){
         await ensurePdfStack();
         const host = document.createElement("div");
         host.style.position = "fixed";
         host.style.left = "-99999px";
         host.style.top = "0";
         host.style.width = "900px";
-        host.innerHTML = buildInvoicePrint(invoice);
+        host.innerHTML = html;
         document.body.appendChild(host);
         const target = host.firstElementChild;
         const canvas = await window.html2canvas(target, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
@@ -2200,6 +2276,9 @@
           heightLeft -= pageHeight;
         }
         return pdf.output("blob");
+      }
+      async function buildInvoicePdfBlob(invoice){
+        return buildPdfBlobFromHtml(buildInvoicePrint(invoice));
       }
       async function getInvoicePdfFile(id){
         const invoice = state.invoices.find(x => x.id === id); if(!invoice) throw new Error("Factura no encontrada");
@@ -2233,6 +2312,40 @@
       }
       shareInvoiceWhatsApp = id => shareInvoiceFile(id, "whatsapp").catch(() => toast("No se pudo compartir la factura"));
       shareInvoiceEmail = id => shareInvoiceFile(id, "email").catch(() => toast("No se pudo compartir la factura"));
+      async function getDeliveryPdfFile(id){
+        const item = state.deliveryNotes.find(x => x.id === id); if(!item) throw new Error("Albarán no encontrado");
+        const blob = await buildPdfBlobFromHtml(buildDeliveryPrint(item));
+        return new File([blob], `${item.number || "albaran"}.pdf`, { type: "application/pdf" });
+      }
+      async function downloadDeliveryPdf(id){
+        const file = await getDeliveryPdfFile(id);
+        downloadFile(file.name, file, "application/pdf");
+      }
+      async function shareDeliveryFile(id, channel){
+        const item = state.deliveryNotes.find(x => x.id === id); if(!item) return;
+        const client = getClient(item.clientId);
+        const totals = invoiceTotals({ lines:item.lines || [], amountPaid:0 });
+        const valued = (item.lines || []).some(line => n(line.price) > 0);
+        const amountText = valued ? ` por importe de ${money(totals.total)}` : "";
+        const file = await getDeliveryPdfFile(id);
+        const shareData = { title:`Albarán ${item.number}`, text:`Albarán ${item.number} - ${client?.name || ""}${valued ? ` - ${money(totals.total)}` : ""}`, files:[file] };
+        if(navigator.canShare && navigator.canShare({ files:[file] })){
+          await navigator.share(shareData);
+          return;
+        }
+        await downloadDeliveryPdf(id);
+        if(channel === "email"){
+          const subject = encodeURIComponent(`Albarán ${item.number}`);
+          const body = encodeURIComponent(`Hola ${client?.name || ""},\n\nTe envío el albarán ${item.number}${amountText}.\nFecha: ${date(item.date)}\n\nGracias.`);
+          window.location.href = `mailto:${client?.email || ""}?subject=${subject}&body=${body}`;
+        }else{
+          const text = encodeURIComponent(`Hola ${client?.name || ""}, te envío el albarán ${item.number}${amountText}. He descargado el PDF para adjuntarlo.`);
+          window.open("https://wa.me/?text=" + text, "_blank");
+        }
+        toast("Tu navegador no permite adjuntar el PDF automaticamente aqui. He descargado el archivo para adjuntarlo manualmente.");
+      }
+      const shareDeliveryWhatsApp = id => shareDeliveryFile(id, "whatsapp").catch(() => toast("No se pudo compartir el albarán"));
+      const shareDeliveryEmail = id => shareDeliveryFile(id, "email").catch(() => toast("No se pudo compartir el albarán"));
       let driveTokenClient = null;
       let driveAccessToken = readDeviceLocal(DRIVE_TOKEN_KEY).trim();
       let driveProfile = readDeviceJson(DRIVE_PROFILE_KEY);

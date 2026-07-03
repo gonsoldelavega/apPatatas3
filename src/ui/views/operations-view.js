@@ -68,36 +68,12 @@
     </article>`;
   }
 
-  function renderDeliveryCard(item, ctx){
-    return `<article class="card card-tight">
-      <div class="list-row-top">
-        <div>
-          <h3 class="list-row-title">${ctx.esc(item.number)}</h3>
-          <p class="list-row-sub">${ctx.esc(ctx.getClient(item.clientId)?.name || "Cliente")} · ${ctx.date(item.date)}</p>
-        </div>
-        <span class="chip ${item.status === "firmado" ? "good" : item.status === "pendiente" ? "warn" : ""}">${ctx.esc(item.status)}</span>
-      </div>
-      <div class="inline-summary">
-        <span class="chip">${(item.lines || []).length} líneas</span>
-        ${item.notes ? `<span class="chip">${ctx.esc(item.notes)}</span>` : ""}
-      </div>
-      <div class="card-actions">
-        <button data-action="print-delivery-note" data-id="${item.id}">Imprimir</button>
-        <button data-action="edit-delivery-note" data-id="${item.id}">Editar</button>
-        <button class="danger" data-action="delete-delivery-note" data-id="${item.id}">Eliminar</button>
-      </div>
-    </article>`;
-  }
-
   function renderOperationsView(ctx){
     const purchases = ctx.state.purchases
       .filter(x => !ctx.ui.search.purchasesSupplier || x.supplierId === ctx.ui.search.purchasesSupplier)
       .sort((a,b) => (b.date || "").localeCompare(a.date || ""));
     const expenses = ctx.state.expenses
       .filter(x => !ctx.ui.search.expensesCategory || x.category === ctx.ui.search.expensesCategory)
-      .sort((a,b) => (b.date || "").localeCompare(a.date || ""));
-    const notes = ctx.state.deliveryNotes
-      .filter(x => !ctx.ui.search.deliveryNotesClient || x.clientId === ctx.ui.search.deliveryNotesClient)
       .sort((a,b) => (b.date || "").localeCompare(a.date || ""));
     const documents = ctx.state.documents.filter(x => {
       const text = [x.title, x.notes, ctx.documentTypeLabel(x.type), ctx.getSupplier(x.supplierId)?.name, ctx.relatedLabel(x.relatedType, x.relatedId)].join(" ").toLowerCase();
@@ -124,17 +100,6 @@
         <div class="panel-b">
           <div class="search-shell"><div class="search-row"><select data-search="expensesCategory"><option value="">Todas las categorías</option>${["gasolina","agua","luz","bolsas","gestoria","autonomo","mantenimiento"].map(c => `<option value="${c}" ${ctx.ui.search.expensesCategory === c ? "selected" : ""}>${c}</option>`).join("")}</select></div></div>
           <div class="entity-stack">${expenses.length ? expenses.map(item => renderExpenseCard(item, ctx)).join("") : '<div class="empty"><p>No hay gastos registrados.</p></div>'}</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-h">
-          <div><h2>Albaranes</h2></div>
-          <div class="actions"><button class="primary" data-action="new-delivery-note">Nuevo</button></div>
-        </div>
-        <div class="panel-b">
-          <div class="search-shell"><div class="search-row"><select data-search="deliveryNotesClient"><option value="">Todos los clientes</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${ctx.ui.search.deliveryNotesClient === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div></div>
-          <div class="entity-stack">${notes.length ? notes.map(item => renderDeliveryCard(item, ctx)).join("") : '<div class="empty"><p>No hay albaranes todavía.</p></div>'}</div>
         </div>
       </div>
 
