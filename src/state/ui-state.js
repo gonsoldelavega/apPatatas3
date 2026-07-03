@@ -11,6 +11,7 @@
         invoicesQuery:"",
         invoicesMonth:"",
         invoicesStatus:"",
+        billingTab:"invoices",
         deliveryNotesClient:"",
         purchasesSupplier:"",
         expensesCategory:"",

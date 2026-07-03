@@ -1,6 +1,6 @@
 (function(global){
   function usesAmounts(mode){
-    return mode === "invoice" || mode === "purchase";
+    return mode === "invoice" || mode === "purchase" || mode === "delivery";
   }
 
   function renderLineItem(line, index, mode, ctx){
