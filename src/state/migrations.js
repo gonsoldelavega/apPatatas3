@@ -74,6 +74,41 @@
     }
   }
 
+  function invoiceSeq(number){
+    const match = String(number || "").match(/(\d+)\s*\/\s*20\d{2}/);
+    return match ? Number(match[1]) : 0;
+  }
+
+  // Repara duplicados patologicos: la MISMA factura (mismo id) dos veces en la lista.
+  // Los creaba un listener fantasma del formulario (guardar un albarán re-guardaba la
+  // última factura con un número recalculado). Se conserva la entrada con el numero
+  // mas bajo (la original: el fantasma siempre recibia un numero superior) y, por
+  // seguridad, el mayor importe cobrado registrado entre ambas.
+  function dedupeInvoicesById(next){
+    if(!Array.isArray(next.invoices)) return;
+    const indexById = new Map();
+    const result = [];
+    next.invoices.forEach(invoice => {
+      if(!invoice || invoice.id == null){ result.push(invoice); return; }
+      const existingIndex = indexById.get(invoice.id);
+      if(existingIndex === undefined){
+        indexById.set(invoice.id, result.length);
+        result.push(invoice);
+        return;
+      }
+      const current = result[existingIndex];
+      const currentSeq = invoiceSeq(current.number);
+      const incomingSeq = invoiceSeq(invoice.number);
+      const keep = (incomingSeq > 0 && (currentSeq === 0 || incomingSeq < currentSeq)) ? invoice : current;
+      const drop = keep === invoice ? current : invoice;
+      const paid = Math.max(Number(keep.amountPaid) || 0, Number(drop.amountPaid) || 0);
+      result[existingIndex] = paid > 0 ? { ...keep, amountPaid:paid } : keep;
+    });
+    if(result.length !== next.invoices.length){
+      next.invoices = result;
+    }
+  }
+
   function migrateState(saved, options){
     const next = structuredClone(options.createDefaultState());
     const savedSettings = saved.settings || {};
@@ -108,6 +143,7 @@
     next.settings.driveStateFileName = next.settings.driveStateFileName || "apPatatas-state.json";
     next.settings.driveStateAutoSync = next.settings.driveStateAutoSync === true || next.settings.driveStateAutoSync === "true";
     purgeDemoInvoices(next);
+    dedupeInvoicesById(next);
     return next;
   }
 
