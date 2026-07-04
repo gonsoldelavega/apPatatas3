@@ -46,6 +46,18 @@ PWA mobile-first de facturación y gestión para un negocio pequeño (patatas/ho
 
 ## Reglas de trabajo
 
-- Verifica la sintaxis antes de subir (`node --check`; para `.gs`, copiar a `.js` y comprobar).
+- Verifica antes de subir: `node scripts/check-syntax.mjs` + `npm test` (para `.gs`, copiar a `.js` y `node --check`).
 - Mantén el español en la UI y los textos de cara al usuario.
 - El usuario trabaja a menudo desde el móvil: explica los pasos manuales muy concretos.
+- **Desplegar SIEMPRE con `/desplegar`** (no repetir a mano el bump de caché `?v=`/`CACHE_VERSION`).
+- Chequeo de datos con `/revisar-datos`; cierre para la gestoría con `/cierre-mensual`.
+- Flujo git: commit en la rama de trabajo → merge `--no-ff` a `main` → push (con reintentos backoff). Nunca subir el token de sync a un archivo (repo público).
+- Proveedores conocidos por NIF: `A04037677` GAYCA · `B04854154` J. Expósito · `B42743211` Higienlab · Solred/Repsol (combustible).
+
+## Eficiencia (para no disparar el gasto de tokens)
+
+El coste crece con la LONGITUD del hilo: cada turno reenvía todo el historial. Por eso:
+- **Una conversación por tema.** Tema nuevo → chat nuevo. Cuando un hilo se alargue, usar `/compact` (resume y libera memoria sin perder el contexto). Este es el mayor ahorro.
+- **No volcar salidas grandes al contexto.** Filtrar siempre con `grep`/`python`/`head`; no imprimir listados enteros (deployments de Vercel, hilos de Gmail, JSON de estado completo, `index.html`).
+- **No leer archivos grandes enteros.** `bootstrap.js` (~3.200 líneas): usar Grep o lecturas con `offset/limit`, nunca de una vez.
+- **Respuestas al grano**, sin repetir lo ya dicho.
