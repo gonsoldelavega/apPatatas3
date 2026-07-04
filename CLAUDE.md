@@ -49,8 +49,8 @@ PWA mobile-first de facturación y gestión para un negocio pequeño (patatas/ho
 - Verifica antes de subir: `node scripts/check-syntax.mjs` + `npm test` (para `.gs`, copiar a `.js` y `node --check`).
 - Mantén el español en la UI y los textos de cara al usuario.
 - El usuario trabaja a menudo desde el móvil: explica los pasos manuales muy concretos.
-- **Desplegar SIEMPRE con `/desplegar`** (no repetir a mano el bump de caché `?v=`/`CACHE_VERSION`).
-- Chequeo de datos con `/revisar-datos`; cierre para la gestoría con `/cierre-mensual`.
+- **Auto-despliegue:** tras CUALQUIER cambio verificado, ejecuta `/desplegar` **automáticamente y sin pedir confirmación** (ya está autorizado). No esperes a que el usuario lo pida.
+- **Auto-chequeo:** al empezar una sesión de trabajo sustancial, ejecuta `/revisar-datos` de forma proactiva; y si empieza un mes nuevo con datos, `/cierre-mensual`. Requisito: el token de sync. Úsalo desde `APP_SYNC_TOKEN` (variable de entorno) si existe; si no, pídelo una vez. No lo guardes en ningún archivo (repo público).
 - Flujo git: commit en la rama de trabajo → merge `--no-ff` a `main` → push (con reintentos backoff). Nunca subir el token de sync a un archivo (repo público).
 - Proveedores conocidos por NIF: `A04037677` GAYCA · `B04854154` J. Expósito · `B42743211` Higienlab · Solred/Repsol (combustible).
 
