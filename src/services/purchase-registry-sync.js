@@ -208,6 +208,7 @@
     if(file.includes("higienlab") || supplier.includes("higienlab")) return "HIGIENLAB 2020 S.L.";
     if(file.includes("gayca") || supplier.includes("gayca") || supplier.includes("frutas y patatas")) return "FRUTAS Y PATATAS GAYCA, S.A.";
     if(file.includes("caycaz") || supplier.includes("exposito") || supplier.includes("cazorla")) return "J. EXPÓSITO CAZORLA E HIJOS, S.L.";
+    if(file.includes("solred") || file.includes("repsol") || supplier.includes("solred") || supplier.includes("repsol")) return "SOLRED, S.A. (Repsol)";
     return raw;
   }
 
@@ -217,6 +218,7 @@
     if(!raw || normalizeText(raw) === "compra"){
       if(haystack.includes("gayca") || haystack.includes("materia prima")) return "PATATAS AGRIA";
       if(haystack.includes("higienlab") || haystack.includes("envase")) return "ENVASES";
+      if(haystack.includes("solred") || haystack.includes("repsol") || haystack.includes("combustible")) return "COMBUSTIBLE";
       return "Factura de compra";
     }
     return raw;

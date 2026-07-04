@@ -102,7 +102,10 @@ const GONSOL_GMAIL_IMPORT = {
   enabled: true,
   processedLabel: 'FACTURAS_IMPORTADAS',
   after: '2026/07/01',
-  senders: ['gayca@frutasypatatasgayca.com'],
+  senders: [
+    'gayca@frutasypatatasgayca.com',
+    'facturaelectronicasolred@facturasolred.repsol.com'
+  ],
   maxThreadsPerRun: 20
 };
 
@@ -215,6 +218,22 @@ const GONSOL_SUPPLIERS = [
     invoiceNumber: function(text, upper) {
       // Ej: 26F00973
       var match = upper.match(/\b(\d{2}F\d{4,7})\b/);
+      return match ? match[1] : '';
+    }
+  },
+  {
+    key: 'SOLRED',
+    name: 'SOLRED, S.A. (Repsol)',
+    nif: '',
+    defaultConcept: 'Combustible',
+    defaultCategory: 'Combustible',
+    defaultIva: 21,
+    detect: function(upper, upperFileName) {
+      return /SOLRED|REPSOL|CAMPSA|PETRONOR/.test(upper)
+        || /SOLRED|REPSOL/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      var match = upper.match(/FACTURA[^\d]{0,20}(\d{6,})/);
       return match ? match[1] : '';
     }
   }
