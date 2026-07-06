@@ -109,6 +109,17 @@ const GONSOL_GMAIL_IMPORT = {
   maxThreadsPerRun: 20
 };
 
+/**
+ * Ejecutar UNA VEZ a mano tras desplegar con permisos nuevos: fuerza la pantalla
+ * de autorización (incluye Gmail y Drive). No modifica nada; solo pide los permisos.
+ */
+function autorizarPermisos() {
+  var gmailNoLeidos = GmailApp.getInboxUnreadCount();
+  var carpetaRaiz = DriveApp.getRootFolder().getName();
+  Logger.log('Autorización OK · Gmail no leídos: ' + gmailNoLeidos + ' · Drive raíz: ' + carpetaRaiz);
+  return { gmailNoLeidos: gmailNoLeidos, carpetaRaiz: carpetaRaiz };
+}
+
 function importInvoicesFromGmail_() {
   if (!GONSOL_GMAIL_IMPORT.enabled) return [];
   const label = GmailApp.getUserLabelByName(GONSOL_GMAIL_IMPORT.processedLabel)
