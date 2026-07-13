@@ -793,6 +793,9 @@
           if(duplicates.length){
             store.updateState(current => {
               current.expenses = current.expenses.filter(exp => !duplicates.some(dup => dup.id === exp.id));
+              if(!current._deleted || typeof current._deleted !== "object") current._deleted = {};
+              const deletedAt = new Date().toISOString();
+              duplicates.forEach(dup => { current._deleted[`expenses:${dup.id}`] = deletedAt; });
             }, { persist:true, reason:"expenses:dedupe-recurring" });
             syncState();
             renderAll();
@@ -891,6 +894,7 @@
         store.updateState(current => {
           let linkedType = "";
           let linkedId = "";
+          const createdAtIso = new Date().toISOString();
           if(mode === "out" && scope === "business" && registerAs === "expense"){
             const expense = {
               id:uid("exp"),
@@ -900,7 +904,8 @@
               concept:notes || "Salida de monedero",
               base:amount,
               iva:0,
-              notes:["Pagado desde monedero", notes].filter(Boolean).join(" · ")
+              notes:["Pagado desde monedero", notes].filter(Boolean).join(" · "),
+              updatedAt:createdAtIso
             };
             current.expenses.unshift(expense);
             createdExpense = expense;
@@ -919,7 +924,8 @@
               unitCost:safeQuantity > 0 ? amount / safeQuantity : amount,
               iva:0,
               notes:["Pagado desde monedero", notes].filter(Boolean).join(" · "),
-              attachment:null
+              attachment:null,
+              updatedAt:createdAtIso
             };
             current.purchases.unshift(purchase);
             createdPurchase = purchase;
@@ -941,7 +947,8 @@
             quantity,
             linkedType,
             linkedId,
-            notes
+            notes,
+            updatedAt:createdAtIso
           };
           current.walletMovements.unshift(createdWalletMovement);
         }, { persist:true, reason:`wallet:${mode}` });
@@ -993,13 +1000,20 @@
         store.updateState(current => {
           const target = current.walletMovements.find(x => x.id === id);
           if(!target) return;
+          // Lapidas de borrado: sin ellas la fusion entre moviles resucitaba
+          // el movimiento (y el gasto/compra vinculados) desde el otro telefono.
+          if(!current._deleted || typeof current._deleted !== "object") current._deleted = {};
+          const deletedAt = new Date().toISOString();
           if(target.linkedType === "expense" && target.linkedId){
             current.expenses = current.expenses.filter(x => x.id !== target.linkedId);
+            current._deleted[`expenses:${target.linkedId}`] = deletedAt;
           }
           if(target.linkedType === "purchase" && target.linkedId){
             current.purchases = current.purchases.filter(x => x.id !== target.linkedId);
+            current._deleted[`purchases:${target.linkedId}`] = deletedAt;
           }
           current.walletMovements = current.walletMovements.filter(x => x.id !== id);
+          current._deleted[`walletMovements:${id}`] = deletedAt;
         }, { persist:true, reason:"wallet:delete" });
         syncState();
         renderAll();
@@ -1499,6 +1513,7 @@
               if(btn.dataset.modalAction === "zero") currentProduct.stockBase = n(currentProduct.stockBase) - current;
               if(btn.dataset.modalAction === "apply-exact") currentProduct.stockBase = n(data.exactStock) - (current - n(currentProduct.stockBase));
               if(btn.dataset.modalAction === "apply-delta") currentProduct.stockBase = n(currentProduct.stockBase) + n(data.deltaStock);
+              currentProduct.updatedAt = new Date().toISOString();
             }, { persist:true });
             syncState(); renderAll(); closeModal(); toast("Stock actualizado");
           }));
@@ -1607,6 +1622,9 @@
                   target.paidDate = form.elements.paidDate.value || today();
                   target.paymentMethod = form.elements.paymentMethod.value || "";
                   target.paymentNote = form.elements.paymentNote.value || "";
+                  // Sin esto, la fusion entre moviles (que decide por updatedAt)
+                  // conservaba la copia antigua "pendiente" del otro telefono.
+                  target.updatedAt = new Date().toISOString();
                 }, { persist:true });
                 const updatedInvoice1 = store.getState().invoices.find(x => x.id === id);
                 if(updatedInvoice1) savePrimaryCollectionToSupabase("invoices", updatedInvoice1).catch(console.error);
@@ -1626,6 +1644,7 @@
                 target.paidDate = addedPaid > 0 ? (form.elements.paidDate.value || today()) : (target.paidDate || "");
                 target.paymentMethod = form.elements.paymentMethod.value || "";
                 target.paymentNote = form.elements.paymentNote.value || "";
+                target.updatedAt = new Date().toISOString();
               }, { persist:true });
               const updatedInvoice2 = store.getState().invoices.find(x => x.id === id);
               if(updatedInvoice2) savePrimaryCollectionToSupabase("invoices", updatedInvoice2).catch(console.error);
