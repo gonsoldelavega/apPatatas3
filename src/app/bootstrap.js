@@ -1,5 +1,8 @@
 ﻿  (async () => {
-      const { getSupabaseClient } = await import("../services/supabase-client.js");
+      // OJO: no importar supabase-client aqui arriba. Ese modulo trae supabase-js
+      // desde un CDN (esm.sh) y, si el CDN no responde (movil sin cobertura, CDN
+      // caido), el import rechaza y la app entera se quedaba clavada en el splash.
+      // Se importa perezosamente solo cuando USE_SUPABASE esta activo.
       const KEY = window.AppInitialState.STORAGE_KEY;
       const APP_VERSION = "2026.06.06-fix-productos";
       // Supabase quedó sin las tablas de la app (productos, clientes, facturas...).
@@ -774,7 +777,7 @@
           };
           if(!matches.length){
             await persistRecurringExpense(canonicalExpense, item.id);
-            return;
+            continue;
           }
           const primary = matches.find(exp => exp.id === item.id) || matches[0];
           if(
@@ -2201,10 +2204,6 @@
       const baseBindViewEvents = bindViewEvents;
         bindViewEvents = function(){
           baseBindViewEvents();
-        document.querySelectorAll("#views [data-view]").forEach(btn => btn.addEventListener("click", () => {
-          ui.activeView = btn.dataset.view;
-          renderAll();
-        }));
         const settingsForm = document.getElementById("settingsForm");
           renderDriveStatusPanel(settingsForm);
           settingsForm?.querySelectorAll('#driveStatusPanel [data-action]').forEach(node => node.addEventListener("click", e => {
@@ -2984,6 +2983,13 @@
             return false;
           }finally{
             runtime.inFlight = false;
+            // Si durante la fusion quedo un push pendiente (aporte local que el remoto
+            // no tenia), se encola aqui; dentro del pull siempre estaba "in-flight" y
+            // ese push no llegaba a dispararse nunca.
+            if(runtime.pendingPush){
+              runtime.pendingPush = false;
+              queuePush();
+            }
           }
         }
 
@@ -3211,6 +3217,7 @@
       if(USE_SUPABASE){
         showDataNotice("Cargando datos principales desde Supabase...", "ok");
         try{
+          const { getSupabaseClient } = await import("../services/supabase-client.js");
           await getSupabaseClient();
         }catch(error){
           console.error("[supabase] No se pudo inicializar el cliente", error);
@@ -3312,4 +3319,18 @@
         } catch (err) {
           console.error("[realtime] no se pudo activar:", err);
         }
-      }})();
+      }})().catch(error => {
+        // Red de seguridad: si el arranque falla por lo que sea, no dejar al usuario
+        // mirando el splash infinito. Se quita el splash y se avisa.
+        console.error("[bootstrap] La app no pudo arrancar", error);
+        try{ if(typeof AppSplash !== "undefined") AppSplash.hide(); }catch(e){}
+        try{ document.getElementById("factupapa-splash")?.remove(); }catch(e){}
+        const views = document.getElementById("views");
+        if(views && !views.childElementCount){
+          views.innerHTML = '<div class="panel" style="margin:16px;padding:16px;border-radius:16px;">'
+            + '<h2 style="margin:0 0 8px;">No se pudo cargar la app</h2>'
+            + '<p style="margin:0 0 12px;color:#666;">Comprueba la conexión y vuelve a intentarlo.</p>'
+            + '<button onclick="window.location.reload()" style="padding:10px 18px;border-radius:999px;border:0;background:#122B21;color:#fff;font-weight:700;">Reintentar</button>'
+            + '</div>';
+        }
+      });

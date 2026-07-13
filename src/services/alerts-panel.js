@@ -6,8 +6,19 @@
 
 (function(global){
 
+  function escText(value){
+    return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+  }
+
+  function addDays(dateText, days){
+    const parsed = new Date(String(dateText || "") + "T00:00:00");
+    if(Number.isNaN(parsed.getTime())) return "";
+    const shifted = new Date(parsed.getTime() + days * 24 * 60 * 60 * 1000);
+    return shifted.toISOString().slice(0, 10);
+  }
+
   function buildAlerts(state, helpers){
-    const { n, money, date, today, invoiceTotals, invoiceIsOverdue } = helpers;
+    const { n, money, date, today, invoiceTotals } = helpers;
     const alerts = [];
     const todayStr = today();
     const currentMonth = todayStr.slice(0, 7);
@@ -16,6 +27,12 @@
     /* ── Utilidades ── */
     function invoiceMonth(inv){ return (inv.issueDate || inv.date || "").slice(0, 7); }
     function invoiceTotal(inv){ return n(invoiceTotals ? invoiceTotals(inv).total : (inv.total || 0)); }
+    // Pendiente real por importes (total - cobrado); el campo status puede quedar
+    // desactualizado cuando el cobro se registra solo con amountPaid.
+    function invoicePending(inv){
+      const pending = invoiceTotal(inv) - n(inv.amountPaid);
+      return pending > 0.009 ? pending : 0;
+    }
     function sum(list, fn){ return list.reduce((acc, x) => acc + fn(x), 0); }
 
     /* ── 1. Comparativa ventas mes actual vs anterior ── */
@@ -53,12 +70,9 @@
       });
     }
 
-    /* ── 2. Facturas pendientes de cobro ── */
-    const pendingInvoices = (state.invoices || []).filter(inv => {
-      const status = inv.status || "pending";
-      return status === "pending" || status === "partial";
-    });
-    const pendingTotal = sum(pendingInvoices, invoiceTotal);
+    /* ── 2. Facturas pendientes de cobro (por importe pendiente real) ── */
+    const pendingInvoices = (state.invoices || []).filter(inv => invoicePending(inv) > 0);
+    const pendingTotal = sum(pendingInvoices, invoicePending);
 
     if(pendingInvoices.length > 0){
       alerts.push({
@@ -69,16 +83,17 @@
       });
     }
 
-    /* ── 3. Facturas vencidas (dueDate < hoy y no pagadas) ── */
+    /* ── 3. Facturas vencidas: sin cobrar y pasado el vencimiento. Si no hay
+       dueDate, se aplica el plazo legal propio de 72h desde la emisión. ── */
     const overdueInvoices = (state.invoices || []).filter(inv => {
-      if(inv.status === "paid") return false;
-      const due = inv.dueDate || inv.issueDate || "";
+      if(invoicePending(inv) <= 0) return false;
+      const due = inv.dueDate || addDays(inv.issueDate, 3);
       if(!due) return false;
       return due < todayStr;
     });
 
     if(overdueInvoices.length > 0){
-      const overdueTotal = sum(overdueInvoices, invoiceTotal);
+      const overdueTotal = sum(overdueInvoices, invoicePending);
       alerts.push({
         type: "danger",
         icon: "⚠️",
@@ -88,13 +103,14 @@
     }
 
     /* ── 4. Balance del mes (gastos vs ingresos) ── */
+    // El IVA de los gastos es un porcentaje, no un importe: usar expenseTotal.
     const expensesThis = sum(
       (state.expenses || []).filter(e => (e.date || "").slice(0, 7) === currentMonth),
-      e => n(e.base) + n(e.iva)
+      e => helpers.expenseTotal ? n(helpers.expenseTotal(e)) : n(e.base) * (1 + n(e.iva) / 100)
     );
     const purchasesThis = sum(
       (state.purchases || []).filter(p => (p.date || "").slice(0, 7) === currentMonth),
-      p => n(p.total || p.totalAmount || 0)
+      p => helpers.purchaseTotal ? n(helpers.purchaseTotal(p)) : n(p.totalAmount || p.total || 0)
     );
     const totalCostsThis = expensesThis + purchasesThis;
     const balance = salesThis - totalCostsThis;
@@ -134,10 +150,7 @@
     /* ── 6. Clientes con deuda acumulada ── */
     const clientDebt = {};
     (state.invoices || []).forEach(inv => {
-      if(inv.status === "paid") return;
-      const total = invoiceTotal(inv);
-      const paid = n(inv.amountPaid);
-      const pending = total - paid;
+      const pending = invoicePending(inv);
       if(pending > 0.01 && inv.clientId){
         clientDebt[inv.clientId] = (clientDebt[inv.clientId] || 0) + pending;
       }
@@ -209,12 +222,12 @@
               color: ${c.text};
               line-height: 1.3;
               letter-spacing: -.01em;
-            ">${alert.title}</strong>
+            ">${escText(alert.title)}</strong>
             <span style="
               font-size: .80rem;
               color: var(--muted);
               line-height: 1.4;
-            ">${alert.detail}</span>
+            ">${escText(alert.detail)}</span>
           </div>
         </div>
       `;
