@@ -7,9 +7,13 @@
 (function(global){
 
   let _splashEl = null;
+  // Si hide() llega antes de que el splash se haya pintado (show espera a
+  // DOMContentLoaded y el arranque puede terminar antes), ya no se muestra:
+  // sin esta marca el splash aparecia despues de hide() y se quedaba fijo.
+  let _hidden = false;
 
   function showSplash(){
-    if(_splashEl) return;
+    if(_splashEl || _hidden) return;
 
     const el = document.createElement("div");
     el.id = "factupapa-splash";
@@ -107,6 +111,7 @@
   }
 
   function hideSplash(){
+    _hidden = true;
     if(!_splashEl) return;
     _splashEl.classList.add("hiding");
     setTimeout(() => {

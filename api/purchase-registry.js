@@ -3,7 +3,9 @@ import crypto from "node:crypto";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
 
 function setCors(response) {
-  response.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
+  // Mismo criterio que /api/app-state: por defecto solo el dominio de la app.
+  response.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "https://ap-patatas3.vercel.app");
+  response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Cache-Control", "no-store");

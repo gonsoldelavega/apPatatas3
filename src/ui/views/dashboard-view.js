@@ -38,7 +38,9 @@
           date: ctx.date,
           today: ctx.today,
           invoiceTotals: ctx.invoiceTotals,
-          invoiceIsOverdue: ctx.invoiceIsOverdue
+          invoiceIsOverdue: ctx.invoiceIsOverdue,
+          expenseTotal: ctx.expenseTotal,
+          purchaseTotal: ctx.purchaseTotal
         })
       : "";
 
