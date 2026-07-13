@@ -44,6 +44,7 @@
             ${hubCard("Productos", `${ctx.state.products.length} productos · ${ctx.state.suppliers.length} proveedores`, "catalog")}
             ${hubCard("Gestoría", "Exportaciones, fiscalidad y backup", "exports")}
             ${hubCard("Compras y gastos", "Operativa, escáner y documentos", "operations")}
+            ${hubCard("Monedero", "Saldo y movimientos de efectivo", "wallet")}
           </div>
         </div>
       </div>
