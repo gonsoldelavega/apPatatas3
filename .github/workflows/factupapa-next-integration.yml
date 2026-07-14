@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout isolated branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -48,7 +48,7 @@ jobs:
           docker compose version
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -141,6 +141,37 @@ jobs:
           wait_for_healthy redis
           wait_for_healthy minio
           wait_for_healthy api
+
+      - name: Run authentication integration tests
+        working-directory: factupapa-next/apps/api
+        run: |
+          set -euo pipefail
+          set -a
+          source ../../infrastructure/.env
+          set +a
+          export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}"
+          integration_log="${RUNNER_TEMP}/factupapa-next-integration.tap"
+          set +e
+          npm run test:integration 2>&1 | tee "${integration_log}"
+          test_status="${PIPESTATUS[0]}"
+          set -e
+          if [ "${test_status}" -ne 0 ]; then
+            failure_names="$(
+              grep -E '^[[:space:]]*(not ok [0-9]+ - |error:|code:)' "${integration_log}" \
+                | sed -E 's#postgresql://[^[:space:]@]+@#postgresql://[redacted]@#g' \
+                | head -n 15 \
+                || true
+            )"
+            if [ -z "${failure_names}" ]; then
+              failure_names="Pruebas de integración fallidas; consulte el log autenticado del job"
+            fi
+            while IFS= read -r failure_name; do
+              echo "::error title=Authentication integration test failed::${failure_name}"
+            done <<< "${failure_names}"
+            exit "${test_status}"
+          fi
+          rm -f "${integration_log}"
+          unset DATABASE_URL POSTGRES_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD S3_SECRET_KEY JWT_SECRET
 
       - name: Verify API endpoints
         run: |

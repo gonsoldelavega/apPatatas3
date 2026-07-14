@@ -3,9 +3,32 @@ import { afterEach, test } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createApp } from "../src/app.js";
+import type { AuthApplication } from "../src/auth/service.js";
 import type { DatabaseProbe } from "../src/database/client.js";
 
 const servers: Server[] = [];
+
+const auth: AuthApplication = {
+  login: async () => ({ accessToken: "access", refreshToken: "refresh", tokenType: "Bearer", expiresIn: 900 }),
+  refresh: async () => ({ accessToken: "access", refreshToken: "refresh", tokenType: "Bearer", expiresIn: 900 }),
+  authenticate: async () => ({
+    userId: "user",
+    companyId: "company",
+    familyId: "family",
+    email: "test@example.com",
+    displayName: "Test",
+    companyName: "Test Company",
+    role: "owner",
+  }),
+  logout: async () => undefined,
+  me: async () => ({
+    id: "user",
+    email: "test@example.com",
+    displayName: "Test",
+    company: { id: "company", name: "Test Company" },
+    membership: { role: "owner" },
+  }),
+};
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
@@ -14,6 +37,7 @@ afterEach(async () => {
 async function request(database: DatabaseProbe, path: string) {
   const server = createApp({
     database,
+    auth,
     version: "test",
     now: () => new Date("2026-07-14T10:00:00.000Z"),
   });

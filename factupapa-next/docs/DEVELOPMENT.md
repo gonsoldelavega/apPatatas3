@@ -36,7 +36,7 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
    docker compose exec postgres psql -U factupapa -d factupapa_next -c "select filename, applied_at from schema_migrations order by filename;"
    ```
 
-   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista `0000_extensions.sql` y `0001_initial.sql`.
+   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista las migraciones `0000`, `0001` y `0002`.
 
 5. Revisar logs si algún servicio no está sano:
 
@@ -63,6 +63,46 @@ npm run migrate
 npm run dev
 ```
 
+## Bootstrap del primer usuario
+
+No existe registro público ni usuario predeterminado. El bootstrap solo funciona si no hay ninguna empresa ni usuario y nunca actualiza una contraseña existente.
+
+Con el entorno Docker levantado, suministrar los valores mediante variables de la sesión actual. La contraseña se lee sin eco y no forma parte del comando ni del historial:
+
+```bash
+cd factupapa-next/infrastructure
+read -r -p "Empresa: " BOOTSTRAP_COMPANY_NAME
+read -r -p "Email: " BOOTSTRAP_USER_EMAIL
+read -r -p "Nombre visible: " BOOTSTRAP_USER_NAME
+read -r -s -p "Contraseña inicial: " BOOTSTRAP_USER_PASSWORD && printf '\n'
+export BOOTSTRAP_COMPANY_NAME BOOTSTRAP_USER_EMAIL BOOTSTRAP_USER_NAME BOOTSTRAP_USER_PASSWORD
+cleanup_bootstrap_env() {
+  unset BOOTSTRAP_COMPANY_NAME BOOTSTRAP_USER_EMAIL BOOTSTRAP_USER_NAME BOOTSTRAP_USER_PASSWORD
+}
+trap cleanup_bootstrap_env EXIT
+
+docker compose run --rm \
+  -e BOOTSTRAP_COMPANY_NAME \
+  -e BOOTSTRAP_USER_EMAIL \
+  -e BOOTSTRAP_USER_NAME \
+  -e BOOTSTRAP_USER_PASSWORD \
+  api npm run bootstrap:prod
+
+cleanup_bootstrap_env
+trap - EXIT
+```
+
+La contraseña debe tener entre 14 y 128 caracteres. El comando solo informa de éxito o error y no imprime email, contraseña, hash ni tokens.
+
+## API de autenticación
+
+- `POST /auth/login` con `email` y `password`.
+- `POST /auth/refresh` con `refreshToken`.
+- `POST /auth/logout` con Bearer access token y `refreshToken`.
+- `GET /me` con Bearer access token.
+
+Los clientes deben mantener access y refresh tokens en almacenamiento seguro del sistema operativo. No deben guardarlos en logs, analítica ni URLs.
+
 ## Pruebas y controles
 
 ```bash
@@ -73,7 +113,13 @@ npm test
 npm run build
 ```
 
-Las pruebas básicas cubren la configuración, el healthcheck, la disponibilidad con PostgreSQL conectado o caído, las rutas inexistentes y la compatibilidad del migrador con los SQL iniciales. La prueba completa de migraciones requiere Docker/PostgreSQL; se verifica con la consulta a `schema_migrations` indicada arriba.
+Con PostgreSQL migrado disponible:
+
+```bash
+npm run test:integration
+```
+
+Las pruebas unitarias cubren configuración, healthchecks, Argon2id, firma de access tokens, generación de refresh tokens, rate limiting y migraciones. La integración PostgreSQL cubre bootstrap, login, errores no enumerables, `/me`, rotación, reutilización, logout y auditoría.
 
 Antes de entregar cambios, ejecutar también desde la raíz:
 

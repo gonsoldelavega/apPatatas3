@@ -1,10 +1,20 @@
 import { createApp } from "./app.js";
+import { AuthRepository } from "./auth/repository.js";
+import { AuthService } from "./auth/service.js";
 import { loadConfig } from "./config.js";
 import { createDatabaseProbe } from "./database/client.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
-const server = createApp({ database, version: config.appVersion });
+const auth = await AuthService.create({
+  repository: new AuthRepository(database.pool),
+  jwtSecret: config.jwtSecret,
+  accessTokenTtlSeconds: config.accessTokenTtlSeconds,
+  refreshTokenTtlDays: config.refreshTokenTtlDays,
+  loginRateLimitMax: config.loginRateLimitMax,
+  loginRateLimitWindowMs: config.loginRateLimitWindowMs,
+});
+const server = createApp({ database, auth, version: config.appVersion });
 
 server.listen(config.port, config.host, () => {
   console.log(`FactuPapa Next API escuchando en http://${config.host}:${config.port}`);

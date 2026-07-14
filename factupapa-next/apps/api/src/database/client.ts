@@ -5,7 +5,11 @@ export interface DatabaseProbe {
   close(): Promise<void>;
 }
 
-export function createDatabaseProbe(connectionString: string): DatabaseProbe {
+export interface Database extends DatabaseProbe {
+  pool: Pool;
+}
+
+export function createDatabaseProbe(connectionString: string): Database {
   const pool = new Pool({
     connectionString,
     max: 5,
@@ -14,6 +18,7 @@ export function createDatabaseProbe(connectionString: string): DatabaseProbe {
   });
 
   return {
+    pool,
     async check() {
       await pool.query("select 1");
     },

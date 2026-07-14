@@ -42,7 +42,7 @@ factupapa-next/
 - PostgreSQL: datos económicos y operativos.
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
-- API TypeScript: healthcheck y comprobación de PostgreSQL en esta primera base.
+- API TypeScript: healthcheck, disponibilidad y autenticación inicial segura.
 - Migrador: aplica y registra cambios de esquema antes de arrancar la API.
 - Worker: previsto para trabajos asíncronos; todavía no implementado.
 
@@ -53,6 +53,8 @@ factupapa-next/
 3. Sustituir las contraseñas de ejemplo y mantener coherentes `POSTGRES_PASSWORD` y `DATABASE_URL`.
 4. Ejecutar `docker compose up --build -d`.
 5. Verificar `http://localhost:4100/health` y `http://localhost:4100/ready`.
+
+La API incorpora login por email y contraseña, rotación de refresh tokens, logout y `GET /me`. No existe registro público: el primer usuario y su empresa se crean exclusivamente mediante el comando de bootstrap documentado en la guía de desarrollo.
 
 La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decisiones y límites actuales están en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

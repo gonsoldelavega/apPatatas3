@@ -11,12 +11,17 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
+    "bootstrap": "tsx src/auth/bootstrap.ts",
+    "bootstrap:prod": "node dist/auth/bootstrap.js",
     "migrate": "tsx src/database/migrate.ts",
     "migrate:prod": "node dist/database/migrate.js",
     "test": "tsx --test test/*.test.ts",
+    "test:integration": "tsx --test --test-reporter=tap test/integration/*.test.ts",
     "typecheck": "tsc -p tsconfig.typecheck.json"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "jose": "^6.2.3",
     "pg": "^8.16.3"
   },
   "devDependencies": {
