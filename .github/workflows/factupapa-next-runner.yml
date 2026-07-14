@@ -1,0 +1,59 @@
+name: FactuPapa Next VPS
+
+on:
+  push:
+    branches:
+      - design/factupapa-full-prototype
+    paths:
+      - 'factupapa-next/**'
+      - 'docs/factupapa-next/**'
+      - 'prototype/factupapa-v2/**'
+      - '.github/workflows/factupapa-next-runner.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factupapa-next-vps
+  cancel-in-progress: false
+
+jobs:
+  sync-and-audit:
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: design/factupapa-full-prototype
+          persist-credentials: false
+
+      - name: Verify execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = "factupapa"
+          test "${GITHUB_REF_NAME}" = "design/factupapa-full-prototype"
+          echo "Runner user: $(id -un)"
+          echo "Commit: ${GITHUB_SHA}"
+
+      - name: Sync FactuPapa Next workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$HOME/workspace/apPatatas3"
+          mkdir -p "$target"
+          find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          cp -a "$GITHUB_WORKSPACE"/. "$target"/
+          printf '%s\n' "$GITHUB_SHA" > "$target/.deployed-commit"
+
+      - name: Run repository audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f factupapa-next/scripts/audit.sh ]; then
+            bash factupapa-next/scripts/audit.sh
+          else
+            echo "No audit script found; sync completed."
+          fi
