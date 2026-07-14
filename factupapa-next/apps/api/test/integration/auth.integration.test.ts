@@ -122,7 +122,7 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
   await context.test("todas las tablas empresariales tienen RLS forzado y políticas", async () => {
     const protectedTables = [
       "companies", "users", "memberships", "contacts", "products", "invoices", "invoice_lines",
-      "payments", "documents", "audit_events", "import_batches", "auth_sessions",
+      "payments", "documents", "audit_events", "import_batches", "auth_sessions", "contact_product_prices",
     ];
     const result = await adminDatabase.pool.query<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>(
       `select relname, relrowsecurity, relforcerowsecurity

@@ -36,7 +36,7 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
    docker compose exec postgres psql -U factupapa -d factupapa_next -c "select filename, applied_at from schema_migrations order by filename;"
    ```
 
-   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista las migraciones `0000`, `0001`, `0002` y `0003`.
+   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista las migraciones `0000` a `0004`.
 
 5. Revisar logs si algún servicio no está sano:
 
@@ -105,6 +105,50 @@ El bootstrap es una excepción administrativa explícita a RLS y solo debe ejecu
 
 Los clientes deben mantener access y refresh tokens en almacenamiento seguro del sistema operativo. No deben guardarlos en logs, analítica ni URLs.
 
+## API de contactos, productos y precios
+
+Todos estos endpoints exigen Bearer access token:
+
+- `POST /contacts`, `GET /contacts`, `GET /contacts/:id`, `PATCH /contacts/:id`, `DELETE /contacts/:id`.
+- `POST /products`, `GET /products`, `GET /products/:id`, `PATCH /products/:id`, `DELETE /products/:id`.
+- `PUT` y `DELETE /contacts/:contactId/products/:productId/price`.
+- `GET /contacts/:contactId/products` para catálogo con precio efectivo.
+
+Los listados aceptan `page`, `pageSize` —máximo 100—, `search`, `sort`, `order` e `isActive`; contactos también acepta `type`. El orden siempre usa `id` como desempate.
+
+Ejemplo ficticio de contacto:
+
+```json
+{
+  "type": "both",
+  "legalName": "Empresa de ejemplo",
+  "taxId": "TEST-B-0001",
+  "email": "contacto@example.test",
+  "phone": "+34 600 000 000",
+  "address": { "city": "Madrid", "country": "ES" },
+  "notes": "Dato ficticio para desarrollo"
+}
+```
+
+Ejemplo ficticio de producto y precio:
+
+```json
+{
+  "name": "Producto de ejemplo",
+  "sku": "TEST-SKU-001",
+  "unit": "kg",
+  "salePrice": "12.3400",
+  "estimatedCost": "8.1100",
+  "taxRate": "4"
+}
+```
+
+```json
+{ "price": "9.8765", "validFrom": "2026-07-14", "isActive": true }
+```
+
+Los importes deben enviarse como cadenas decimales. `DELETE` realiza baja lógica y devuelve `204`; un UUID inexistente o perteneciente a otra empresa devuelve el mismo `404`. `company_id` nunca forma parte del contrato de entrada y cualquier clave desconocida provoca `400`.
+
 ## Pruebas y controles
 
 ```bash
@@ -121,7 +165,7 @@ Con PostgreSQL migrado disponible y ambas URLs separadas:
 npm run test:integration
 ```
 
-Las pruebas unitarias cubren configuración, healthchecks, contexto/rollback transaccional, Argon2id, firma de access tokens, generación de refresh tokens, rate limiting y migraciones. La integración PostgreSQL cubre bootstrap, login, errores no enumerables, `/me`, rotación, reutilización, logout, auditoría y aislamiento RLS entre dos empresas.
+Las pruebas unitarias cubren configuración, healthchecks, contexto/rollback transaccional, validación de dominio, precisión decimal, Argon2id, firma de tokens, rate limiting y migraciones. La integración PostgreSQL cubre autenticación, CRUD, conflictos, búsqueda, paginación, bajas lógicas, precios efectivos, auditoría y aislamiento RLS entre dos empresas.
 
 ## Verificación manual de RLS
 

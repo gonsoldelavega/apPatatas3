@@ -3,6 +3,12 @@ import { AuthRepository } from "./auth/repository.js";
 import { AuthService } from "./auth/service.js";
 import { loadConfig } from "./config.js";
 import { createDatabaseProbe } from "./database/client.js";
+import { ContactService } from "./contacts/service.js";
+import { createContactRoutes } from "./contacts/routes.js";
+import { ProductService } from "./products/service.js";
+import { createProductRoutes } from "./products/routes.js";
+import { PricingService } from "./pricing/service.js";
+import { createPricingRoutes } from "./pricing/routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -14,7 +20,15 @@ const auth = await AuthService.create({
   loginRateLimitMax: config.loginRateLimitMax,
   loginRateLimitWindowMs: config.loginRateLimitWindowMs,
 });
-const server = createApp({ database, auth, version: config.appVersion });
+const contacts = new ContactService(database.pool);
+const products = new ProductService(database.pool);
+const pricing = new PricingService(database.pool);
+const server = createApp({
+  database,
+  auth,
+  version: config.appVersion,
+  routes: [createPricingRoutes(auth, pricing), createContactRoutes(auth, contacts), createProductRoutes(auth, products)],
+});
 
 server.listen(config.port, config.host, () => {
   console.log(`FactuPapa Next API escuchando en http://${config.host}:${config.port}`);

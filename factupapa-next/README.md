@@ -6,7 +6,7 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 
 - Rama de trabajo: `design/factupapa-full-prototype`
 - Producción actual: intocable
-- Objetivo inmediato: infraestructura local/autohospedada, núcleo de facturación y almacenamiento documental propio
+- Objetivo inmediato: catálogo de contactos/productos y preparación del núcleo de facturación
 - Primera beta: uso exclusivo de Nando
 - Arquitectura: preparada para evolucionar a producto multiempresa y móvil
 - Aislamiento: RLS forzado y validado entre dos empresas con un rol API no propietario
@@ -43,7 +43,7 @@ factupapa-next/
 - PostgreSQL: datos económicos y operativos.
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
-- API TypeScript: healthcheck, disponibilidad y autenticación inicial segura.
+- API TypeScript: healthcheck, autenticación, contactos, productos y precios específicos.
 - Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.
 - Provisionador: asigna en cada arranque la contraseña local al rol limitado `factupapa_api`.
 - Worker: previsto para trabajos asíncronos; todavía no implementado.
@@ -57,6 +57,8 @@ factupapa-next/
 5. Verificar `http://localhost:4100/health` y `http://localhost:4100/ready`.
 
 La API incorpora login por email y contraseña, rotación de refresh tokens, logout y `GET /me`. No existe registro público: el primer usuario y su empresa se crean exclusivamente mediante el comando de bootstrap documentado en la guía de desarrollo.
+
+El primer dominio funcional incluye contactos de tipo cliente, proveedor o ambos; productos con unidades `kg`, `g`, `unit`, `box` y `custom`; y precios vigentes específicos por cliente con fallback automático al precio general. Las bajas son lógicas y todos los cambios se auditan. Los valores monetarios viajan como cadenas decimales y se almacenan como `numeric`, nunca como coma flotante.
 
 Las consultas autenticadas se ejecutan en una transacción que fija `app.current_company_id` y `app.current_user_id` con alcance local. PostgreSQL aplica RLS incluso al propietario de las tablas; el rol conectado por la API no puede omitir ni desactivar esas políticas.
 

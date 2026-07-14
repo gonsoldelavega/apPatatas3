@@ -56,8 +56,35 @@ Rutas disponibles:
 - `POST /auth/refresh`: rotación de refresh token.
 - `POST /auth/logout`: revocación de la familia de sesión.
 - `GET /me`: identidad, empresa y rol de la sesión activa.
+- CRUD autenticado `/contacts` para clientes y proveedores.
+- CRUD autenticado `/products` para productos.
+- `/contacts/:contactId/products` y `/contacts/:contactId/products/:productId/price` para precios efectivos.
 
-No existen todavía endpoints económicos.
+No existen todavía endpoints de facturas, pagos, stock u otros movimientos económicos.
+
+## Primer dominio funcional
+
+La API separa transporte, validación, servicio, repositorio y tipos en `contacts/`, `products/` y `pricing/`. `app.ts` solo compone rutas, healthchecks y errores comunes. Cada ruta autentica el access token y el servicio abre una nueva `withTenantTransaction`; ningún repositorio de dominio recibe ni usa el pool directamente.
+
+### Contactos
+
+`contacts.kind` distingue `customer`, `supplier` y `both`. El modelo incluye nombre legal, nombre comercial, NIF opcional, email, teléfono, dirección JSON estructurada, notas y `is_active`. Un índice único parcial normaliza mayúsculas y espacios externos del NIF dentro de cada empresa. La búsqueda abarca nombres, NIF, email y teléfono, y todo orden añade el UUID como desempate estable.
+
+La dirección admite exclusivamente `street`, `line2`, `postalCode`, `city`, `province` y `country`; PostgreSQL comprueba que siempre sea un objeto JSON y la API valida claves y longitudes.
+
+### Productos y precisión monetaria
+
+Los productos admiten `kg`, `g`, `unit`, `box` y `custom`. `sale_price` y `estimated_cost` son `numeric(14,4)`; `tax_rate` es `numeric(6,3)`. La API exige cadenas decimales para evitar que JSON/JavaScript convierta importes a coma flotante. El SKU es único por empresa sin distinguir mayúsculas ni espacios externos.
+
+El margen no se almacena. La respuesta lo calcula con enteros escalados a partir del precio y coste devueltos por PostgreSQL, incluyendo importe y porcentaje; si no existe coste, el margen es `null`.
+
+### Precios específicos y bajas
+
+`contact_product_prices` relaciona empresa, cliente y producto mediante FKs tenant compuestas. Mantiene precio `numeric(14,4)`, `valid_from`, `is_active` y timestamps. Solo puede existir una configuración actual por pareja. El precio efectivo es el específico cuando está activo y vigente; en cualquier otro caso es `products.sale_price`.
+
+Los `DELETE` de contactos, productos y precios son bajas lógicas (`is_active = false`). No se destruyen filas ni referencias. Un trigger compartido establece `updated_at = now()` en cualquier actualización de contactos, productos o precios, incluso si una futura operación no pasa por la API.
+
+Altas, actualizaciones, bajas y cambios de precio se escriben en `audit_events` dentro de la misma transacción que el dato modificado.
 
 ## Autenticación inicial
 
@@ -113,7 +140,7 @@ El atacante considerado puede controlar parámetros HTTP y tokens propios, pero 
 - `factupapa_migrator` es `NOLOGIN`, posee tablas, tipos y funciones y tiene `BYPASSRLS` únicamente para migraciones y las tres funciones preautenticadas revisadas. Las migraciones futuras ejecutan `SET LOCAL ROLE factupapa_migrator`.
 - `factupapa_api` tiene `LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOINHERIT` y `NOBYPASSRLS`. No posee tablas y no puede desactivar RLS. Su contraseña se provisiona desde el entorno después de migrar.
 
-Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches` y `auth_sessions`.
+Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `contact_product_prices`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches` y `auth_sessions`.
 
 `companies` compara su `id` con la empresa actual. `users` compara su `id` con el usuario actual. `memberships` y `auth_sessions` exigen simultáneamente empresa y usuario. El resto compara `company_id`. Cada política incluye `USING` y `WITH CHECK`, por lo que también impide mover una fila a otra empresa mediante `UPDATE`.
 

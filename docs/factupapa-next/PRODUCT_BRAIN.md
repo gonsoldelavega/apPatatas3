@@ -576,7 +576,9 @@ La base técnica aislada de FactuPapa Next ya incluye:
 
 El aislamiento multiempresa ya está aplicado en PostgreSQL mediante RLS forzado, un rol de API sin privilegios de propietario ni `BYPASSRLS` y contexto local por transacción. Las pruebas de integración enfrentan dos empresas y demuestran que lecturas, inserciones, cambios de empresa y borrados cruzados quedan bloqueados.
 
-El siguiente objetivo recomendado es documentar la infraestructura disponible en la VPS de Hetzner y diseñar el primer módulo económico sobre la abstracción transaccional protegida, sin modificar la aplicación actual ni desplegar en producción.
+El primer dominio funcional de contactos, productos y precios específicos por cliente ya está construido sobre la abstracción transaccional protegida. No incluye todavía facturas, stock ni movimientos económicos.
+
+El siguiente objetivo recomendado es validar este catálogo con el flujo móvil y diseñar clientes/productos importables antes de iniciar facturas, sin modificar la aplicación actual ni desplegar en producción.
 
 ### Estado del primer entregable técnico
 
@@ -585,6 +587,7 @@ El siguiente objetivo recomendado es documentar la infraestructura disponible en
 - Almacenamiento de archivos: MinIO preparado; integración desde la API pendiente.
 - Autenticación de un solo usuario: implementada con bootstrap seguro, Argon2id, sesiones rotatorias y pruebas de integración PostgreSQL.
 - Aislamiento multiempresa: RLS activado y forzado en identidad, sesiones, auditoría y todas las tablas empresariales existentes.
+- Contactos y productos: API autenticada con CRUD, búsqueda, paginación, baja lógica, auditoría y precios específicos por cliente.
 - Página de estado: endpoints de vida y disponibilidad preparados.
 - Copia automática: pendiente.
 
