@@ -20,15 +20,15 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 6. No se usan credenciales reales dentro del repositorio.
 7. Las migraciones hacia FactuPapa Next siempre son copiadas y reversibles; nunca destructivas.
 
-## Estructura prevista
+## Estructura actual y prevista
 
 ```text
 factupapa-next/
 ├── apps/
-│   ├── api/          API central
-│   ├── web/          panel web y PWA
-│   ├── mobile/       aplicación iOS/Android futura
-│   └── worker/       OCR y procesos en segundo plano
+│   ├── api/          API central mínima (actual)
+│   ├── web/          panel web y PWA (futuro)
+│   ├── mobile/       aplicación iOS/Android (futuro)
+│   └── worker/       procesos en segundo plano (futuro)
 ├── packages/
 │   ├── database/     esquema y migraciones
 │   ├── contracts/    tipos compartidos
@@ -42,15 +42,18 @@ factupapa-next/
 - PostgreSQL: datos económicos y operativos.
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
-- API TypeScript: autenticación, facturas, clientes, compras y documentos.
-- Worker OCR: extracción de proveedor, NIF, fecha, base, IVA y total.
+- API TypeScript: healthcheck y comprobación de PostgreSQL en esta primera base.
+- Migrador: aplica y registra cambios de esquema antes de arrancar la API.
+- Worker: previsto para trabajos asíncronos; todavía no implementado.
 
 ## Primer arranque técnico
 
-1. Copiar `.env.example` a `.env`.
-2. Sustituir las contraseñas de ejemplo.
-3. Ejecutar `docker compose up -d` dentro de `infrastructure`.
-4. Comprobar PostgreSQL, Redis y MinIO.
-5. Levantar la API y verificar `/health`.
+1. Entrar en `factupapa-next/infrastructure`.
+2. Copiar `.env.example` a `.env`.
+3. Sustituir las contraseñas de ejemplo y mantener coherentes `POSTGRES_PASSWORD` y `DATABASE_URL`.
+4. Ejecutar `docker compose up --build -d`.
+5. Verificar `http://localhost:4100/health` y `http://localhost:4100/ready`.
+
+La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decisiones y límites actuales están en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Este proyecto todavía no está conectado a ningún dato real ni a la aplicación productiva.

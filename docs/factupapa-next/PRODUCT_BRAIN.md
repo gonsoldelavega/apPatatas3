@@ -567,16 +567,23 @@ No se dependerá de recordar conversaciones extensas.
 
 ### Siguiente objetivo recomendado
 
-Crear FactuPapa Next como proyecto técnicamente independiente y documentar la infraestructura disponible en la VPS de Hetzner, sin modificar la aplicación actual.
+La base técnica aislada de FactuPapa Next ya incluye:
 
-El primer entregable técnico deberá ser un entorno aislado que incluya:
+- Entorno Docker de desarrollo definido con PostgreSQL, Redis, MinIO, migrador y API, pendiente de validación integral en un host con Docker.
+- Backend TypeScript mínimo con endpoints de vida y disponibilidad.
+- Migraciones iniciales versionadas con comprobación de integridad.
+- Pruebas básicas y documentación de arquitectura, arranque y verificación.
 
-- Backend mínimo.
-- Base de datos PostgreSQL.
-- Almacenamiento de archivos.
-- Autenticación de un solo usuario.
-- Página de estado.
-- Copia automática.
+El siguiente objetivo recomendado es validar el Compose completo en un host con Docker, documentar la infraestructura disponible en la VPS de Hetzner y diseñar la autenticación inicial de usuario único, sin modificar la aplicación actual ni desplegar en producción.
+
+### Estado del primer entregable técnico
+
+- Backend mínimo: preparado.
+- Base de datos PostgreSQL: preparada mediante Docker.
+- Almacenamiento de archivos: MinIO preparado; integración desde la API pendiente.
+- Autenticación de un solo usuario: pendiente.
+- Página de estado: endpoints de vida y disponibilidad preparados.
+- Copia automática: pendiente.
 
 Todavía no se migrarán datos reales ni se sustituirá ninguna función de producción.
 
