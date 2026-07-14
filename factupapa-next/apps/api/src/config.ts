@@ -11,6 +11,7 @@ export interface AppConfig {
   importMaximumBytes: number;
   importMaximumRows: number;
   importPreviewRows: number;
+  corsAllowedOrigins: string[];
 }
 
 function readPort(value: string | undefined): number {
@@ -27,6 +28,23 @@ function readPositiveInteger(name: string, value: string | undefined, fallback: 
     throw new Error(`${name} debe ser un entero positivo`);
   }
   return parsed;
+}
+
+function readCorsOrigins(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  const origins = [...new Set(value.split(",").map((origin) => origin.trim()).filter(Boolean))];
+  for (const origin of origins) {
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new Error("CORS_ALLOWED_ORIGINS debe contener orígenes HTTP(S) exactos separados por comas");
+    }
+    if (origin === "*" || (parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.origin !== origin) {
+      throw new Error("CORS_ALLOWED_ORIGINS debe contener orígenes HTTP(S) exactos separados por comas");
+    }
+  }
+  return origins;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -52,5 +70,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     importMaximumBytes: readPositiveInteger("IMPORT_MAX_BYTES", env.IMPORT_MAX_BYTES, 1_048_576),
     importMaximumRows: readPositiveInteger("IMPORT_MAX_ROWS", env.IMPORT_MAX_ROWS, 1_000),
     importPreviewRows: readPositiveInteger("IMPORT_PREVIEW_ROWS", env.IMPORT_PREVIEW_ROWS, 50),
+    corsAllowedOrigins: readCorsOrigins(env.CORS_ALLOWED_ORIGINS),
   };
 }

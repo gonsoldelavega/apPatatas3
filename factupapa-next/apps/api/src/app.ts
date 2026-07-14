@@ -12,12 +12,30 @@ interface AppDependencies {
   version: string;
   routes?: RouteHandler[];
   now?: () => Date;
+  corsAllowedOrigins?: string[];
 }
 
 export function createApp(dependencies: AppDependencies): Server {
   const handlers = [createAuthRoutes(dependencies.auth), ...(dependencies.routes ?? [])];
   return createServer((request, response) => {
     void (async () => {
+      const origin = request.headers.origin;
+      if (origin && dependencies.corsAllowedOrigins?.includes(origin)) {
+        response.setHeader("Access-Control-Allow-Origin", origin);
+        response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Max-Age", "600");
+        response.setHeader("Vary", "Origin");
+      }
+      if (request.method === "OPTIONS") {
+        if (!origin || !dependencies.corsAllowedOrigins?.includes(origin)) {
+          json(response, 403, { error: "origin_not_allowed" });
+          return;
+        }
+        response.writeHead(204);
+        response.end();
+        return;
+      }
       const url = new URL(request.url ?? "/", "http://localhost");
       if (request.method === "GET" && url.pathname === "/health") {
         json(response, 200, {

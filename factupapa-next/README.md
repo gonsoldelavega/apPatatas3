@@ -6,7 +6,7 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 
 - Rama de trabajo: `design/factupapa-full-prototype`
 - Producción actual: intocable
-- Objetivo inmediato: validar importaciones ficticias de catálogo antes de usar datos reales
+- Objetivo inmediato: validar la primera PWA móvil contra la API y datos exclusivamente ficticios
 - Primera beta: uso exclusivo de Nando
 - Arquitectura: preparada para evolucionar a producto multiempresa y móvil
 - Aislamiento: RLS forzado y validado entre dos empresas con un rol API no propietario
@@ -27,7 +27,7 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 factupapa-next/
 ├── apps/
 │   ├── api/          API central mínima (actual)
-│   ├── web/          panel web y PWA (futuro)
+│   ├── web/          PWA React/Vite mobile-first (actual)
 │   ├── mobile/       aplicación iOS/Android (futuro)
 │   └── worker/       procesos en segundo plano (futuro)
 ├── packages/
@@ -44,6 +44,7 @@ factupapa-next/
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
 - API TypeScript: healthcheck, autenticación, contactos, productos, precios específicos e importaciones validadas.
+- Web React/TypeScript: PWA instalable con login, catálogo, precios e importación supervisada.
 - Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.
 - Provisionador: asigna en cada arranque la contraseña local al rol limitado `factupapa_api`.
 - Worker: previsto para trabajos asíncronos; todavía no implementado.
@@ -54,7 +55,15 @@ factupapa-next/
 2. Copiar `.env.example` a `.env`.
 3. Sustituir todas las cadenas `CAMBIAR_...`. `DATABASE_ADMIN_URL` usa `POSTGRES_PASSWORD`; `DATABASE_URL` usa la contraseña distinta `API_DATABASE_PASSWORD`.
 4. Ejecutar `docker compose up --build -d`.
-5. Verificar `http://localhost:4100/health` y `http://localhost:4100/ready`.
+5. Verificar `http://127.0.0.1:4100/health`, `http://127.0.0.1:4100/ready` y `http://127.0.0.1:4173`.
+
+## Aplicación web móvil
+
+`apps/web` es la primera interfaz funcional de FactuPapa Next. Usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil ofrece Inicio, Catálogo, Nuevo, Importar y Más; el alcance actual se limita a contactos, proveedores, productos, precios específicos e importaciones. No contiene facturas ni métricas económicas inventadas.
+
+La PWA es instalable desde el navegador y dispone de manifest, icono, service worker y shell offline. Los datos de la API no se cachean en el service worker. La URL se configura con `VITE_API_BASE_URL`; no hay URLs privadas ni secretos en el bundle.
+
+El access token permanece solo en memoria. El refresh token rotatorio se guarda en `sessionStorage`, nunca en `localStorage`, y se elimina al cerrar sesión. Esta solución conserva la compatibilidad con la API actual, pero sigue siendo legible por JavaScript ante un XSS: la evolución prevista es una cookie `HttpOnly`, `Secure` y `SameSite` emitida por el backend. Una renovación concurrente se comparte entre peticiones; las mutaciones no se reenvían automáticamente tras un 401 para evitar duplicados.
 
 La API incorpora login por email y contraseña, rotación de refresh tokens, logout y `GET /me`. No existe registro público: el primer usuario y su empresa se crean exclusivamente mediante el comando de bootstrap documentado en la guía de desarrollo.
 

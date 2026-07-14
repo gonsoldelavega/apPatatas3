@@ -1,7 +1,7 @@
 # FactuPapa Next — Product Brain
 
 **Versión:** 1.0  
-**Fecha:** 14 de julio de 2026  
+**Fecha:** 15 de julio de 2026
 **Estado:** Documento rector del proyecto  
 **Rama de trabajo inicial:** `design/factupapa-full-prototype`
 
@@ -184,6 +184,10 @@ La sección “Más” incluirá inicialmente:
 - Papelera.
 
 Esta estructura podrá ajustarse tras probarla con uso real, pero no debe llenarse la barra principal con demasiadas secciones.
+
+### Navegación vigente de la primera PWA
+
+Mientras no existen facturas ni movimientos económicos, la validación funcional usa `Inicio`, `Catálogo`, `Nuevo`, `Importar` y `Más`. `Nuevo` ofrece exclusivamente cliente, proveedor y producto. Esta adaptación evita presentar flujos falsos; la navegación objetivo de ventas se activará cuando esos dominios estén implementados de extremo a extremo.
 
 ---
 
@@ -580,7 +584,9 @@ El primer dominio funcional de contactos, productos y precios específicos por c
 
 El catálogo ya dispone de importación segura en dos fases para CSV UTF-8 y JSON: validación sin escritura, previsualización, detección de duplicados/conflictos, confirmación transaccional y cancelación. Los lotes y sus filas temporales están aislados mediante RLS y todavía solo se han probado con datos ficticios.
 
-El siguiente objetivo recomendado es validar las plantillas y estrategias de importación con copias ficticias representativas y diseñar el flujo móvil de revisión antes de autorizar cualquier dato real o iniciar facturas, sin modificar la aplicación actual ni desplegar en producción.
+La primera PWA funcional ya conecta login, sesión rotatoria, dashboard operativo, contactos, productos, precios específicos e importaciones con la API real. Es mobile-first, instalable, accesible y se valida junto al backend en Compose rootless. No contiene facturas ni métricas económicas ficticias, no usa datos reales y no está desplegada públicamente.
+
+El siguiente objetivo recomendado es realizar validación de uso con conjuntos exclusivamente ficticios y representativos, completar mapeo de columnas y endurecer la sesión con refresh cookie HttpOnly antes de autorizar datos reales o iniciar el dominio de facturas, sin modificar la aplicación actual ni desplegar en producción.
 
 ### Estado del primer entregable técnico
 
@@ -591,6 +597,7 @@ El siguiente objetivo recomendado es validar las plantillas y estrategias de imp
 - Aislamiento multiempresa: RLS activado y forzado en identidad, sesiones, auditoría y todas las tablas empresariales existentes.
 - Contactos y productos: API autenticada con CRUD, búsqueda, paginación, baja lógica, auditoría y precios específicos por cliente.
 - Importaciones: CSV/JSON con límites configurables, checksum, previsualización, estrategias explícitas y rollback integral.
+- Aplicación web/PWA: login, inicio, catálogo, altas, edición, bajas lógicas, precios por cliente e importaciones conectados a la API.
 - Página de estado: endpoints de vida y disponibilidad preparados.
 - Copia automática: pendiente.
 

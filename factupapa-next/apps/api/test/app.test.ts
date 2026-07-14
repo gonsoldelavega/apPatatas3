@@ -47,6 +47,14 @@ async function request(database: DatabaseProbe, path: string) {
   return fetch(`http://127.0.0.1:${port}${path}`);
 }
 
+async function corsRequest(origin: string) {
+  const server = createApp({ database: healthyDatabase, auth, version: "test", corsAllowedOrigins: ["http://127.0.0.1:4173"] });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return fetch(`http://127.0.0.1:${port}/contacts`, { method: "OPTIONS", headers: { Origin: origin, "Access-Control-Request-Method": "GET" } });
+}
+
 const healthyDatabase: DatabaseProbe = {
   check: async () => undefined,
   close: async () => undefined,
@@ -83,4 +91,13 @@ test("las rutas desconocidas responden 404", async () => {
   const response = await request(healthyDatabase, "/desconocida");
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { error: "not_found" });
+});
+
+test("CORS permite solo los orígenes configurados", async () => {
+  const allowed = await corsRequest("http://127.0.0.1:4173");
+  assert.equal(allowed.status, 204);
+  assert.equal(allowed.headers.get("access-control-allow-origin"), "http://127.0.0.1:4173");
+  const blocked = await corsRequest("https://example.invalid");
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.headers.get("access-control-allow-origin"), null);
 });

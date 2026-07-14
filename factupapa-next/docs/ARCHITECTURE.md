@@ -15,7 +15,7 @@ La base existente es coherente con el documento de producto:
 ## Componentes actuales
 
 ```text
-cliente futuro
+PWA React/TypeScript
     |
     v
 API Node.js/TypeScript -- PostgreSQL
@@ -25,7 +25,7 @@ API Node.js/TypeScript -- PostgreSQL
           +------------ MinIO
 ```
 
-El Compose de desarrollo levanta siete servicios:
+El Compose de desarrollo levanta ocho servicios:
 
 1. `postgres`: PostgreSQL 16 con volumen persistente y healthcheck.
 2. `redis`: Redis 7 con contraseña y persistencia AOF.
@@ -34,6 +34,7 @@ El Compose de desarrollo levanta siete servicios:
 5. `migrate`: aplica una sola vez cada migración pendiente y termina.
 6. `provision-api-role`: establece la credencial local del rol PostgreSQL limitado sin imprimirla.
 7. `api`: arranca únicamente después de migrar y provisionar el rol limitado.
+8. `web`: compila la PWA y la sirve con Nginx solo en `127.0.0.1`, después del healthcheck de la API.
 
 Los puertos de desarrollo se publican solo en `127.0.0.1`. Esta configuración no es una receta de producción: no incluye proxy HTTPS, copias externas, observabilidad ni endurecimiento del host.
 
@@ -62,6 +63,24 @@ Rutas disponibles:
 - `/imports/validate`, `/imports`, `/imports/:id`, `/imports/:id/confirm` y `/imports/:id/cancel` para importación en dos fases.
 
 No existen todavía endpoints de facturas, pagos, stock u otros movimientos económicos.
+
+## Cliente web y límites de confianza
+
+`apps/web` se organiza por límites explícitos: `api/` centraliza transporte y contratos; `auth/` mantiene la sesión; `pages/` compone flujos; `layout/`, `ui/`, `forms/`, `pricing/` e `imports/` contienen piezas reutilizables. Las páginas se cargan de forma diferida y TanStack Query gestiona exclusivamente estado remoto. No se ha copiado lógica del prototipo ni de producción.
+
+El frontend nunca acepta ni envía `company_id`: la empresa procede del access token y PostgreSQL mantiene RLS como barrera definitiva. Los tipos de respuesta tampoco exponen `company_id`, de modo que una respuesta accidental no se representa en pantalla. Al iniciar o cerrar sesión se vacía por completo la caché remota para impedir que datos de una empresa anterior sobrevivan a un cambio de identidad futuro. El cliente aplica timeout con `AbortController`, normaliza 400/401/404/409/413 y no registra tokens ni payloads sensibles.
+
+Los importes siguen siendo strings decimales hasta su presentación. El formateador agrupa la parte entera mediante `BigInt` y conserva hasta cuatro decimales sin pasar por `Number`. La PWA solo precachea sus recursos estáticos; nunca guarda respuestas autenticadas de la API.
+
+### Sesión del navegador
+
+El access token vive en memoria. El refresh rotatorio usa `sessionStorage` como compromiso temporal: sobrevive a una recarga en la misma pestaña y desaparece al terminar la sesión del navegador, pero un XSS podría leerlo. No se usa `localStorage`. La solución final deberá mover el refresh a una cookie `HttpOnly`, `Secure`, `SameSite` y con alcance restringido, además de incorporar una defensa CSRF acorde.
+
+Solo existe una promesa de refresh concurrente. Después de renovar, el cliente puede repetir GET/HEAD/OPTIONS; nunca repite POST/PUT/PATCH/DELETE, porque podría duplicar un alta o confirmación. En ese caso informa de que la sesión se renovó y exige repetir conscientemente la acción.
+
+### CORS
+
+La API compara `Origin` contra la lista exacta `CORS_ALLOWED_ORIGINS`. No acepta `*`, rutas ni patrones. Los preflight no permitidos reciben 403 y no incluyen cabeceras CORS. El Compose de integración autoriza únicamente `http://127.0.0.1:4173`; cualquier despliegue futuro deberá declarar su origen HTTPS exacto.
 
 ## Primer dominio funcional
 

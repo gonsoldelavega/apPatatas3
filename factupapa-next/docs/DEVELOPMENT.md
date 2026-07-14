@@ -3,7 +3,7 @@
 ## Requisitos
 
 - Docker Engine con Docker Compose v2 para ejecutar el sistema completo.
-- Node.js 22 o superior y npm para trabajar con la API fuera de Docker.
+- Node.js 22 o superior y npm para trabajar con la API o la web fuera de Docker.
 
 Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indique lo contrario.
 
@@ -28,20 +28,22 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
    docker compose ps
    ```
 
-4. Verificar la API y PostgreSQL:
+4. Verificar la API, la web y PostgreSQL:
 
    ```bash
-   curl http://localhost:4100/health
-   curl http://localhost:4100/ready
+   curl http://127.0.0.1:4100/health
+   curl http://127.0.0.1:4100/ready
+   curl http://127.0.0.1:4173/healthz
+   curl http://127.0.0.1:4173
    docker compose exec postgres psql -U factupapa -d factupapa_next -c "select filename, applied_at from schema_migrations order by filename;"
    ```
 
-   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista las migraciones `0000` a `0004`.
+   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready`, la web y `/healthz` devuelven HTTP 200 y PostgreSQL lista las migraciones `0000` a `0005`.
 
 5. Revisar logs si algún servicio no está sano:
 
    ```bash
-   docker compose logs migrate api postgres
+   docker compose logs migrate api web postgres
    ```
 
 6. Detener sin borrar datos:
@@ -62,6 +64,27 @@ npm ci
 npm run migrate
 npm run dev
 ```
+
+## Web fuera de Docker
+
+```bash
+cd factupapa-next/apps/web
+cp .env.example .env.local
+npm ci
+npm run dev
+```
+
+`VITE_API_BASE_URL` debe apuntar a la API local, normalmente `http://127.0.0.1:4100`. Añadir exactamente el origen mostrado por Vite a `CORS_ALLOWED_ORIGINS` de la API, por ejemplo `http://127.0.0.1:5173`; no usar `*`. Ninguna variable `VITE_` debe contener secretos porque forma parte del bundle público.
+
+La aplicación usa access token en memoria y refresh token rotatorio en `sessionStorage`. Al recargar intenta un único refresh y recupera `/me`. Un 401 en una lectura segura se renueva y repite una vez; una mutación no se repite automáticamente. Cerrar sesión revoca la familia en la API y borra el estado local. `sessionStorage` reduce persistencia, pero no protege frente a XSS; la cookie HttpOnly descrita en arquitectura sigue pendiente.
+
+### Instalación PWA
+
+Generar primero un build (`npm run build`) o usar el servicio `web` de Compose. En Chrome/Edge elegir “Instalar FactuPapa Next”; en Safari iOS usar Compartir → “Añadir a pantalla de inicio”. La instalación requiere un contexto seguro salvo `localhost`. El service worker cachea únicamente el shell estático, no las respuestas autenticadas.
+
+### Validación móvil manual
+
+Comprobar login, navegación inferior, apertura de “Nuevo”, formularios, teclado, búsqueda, confirmaciones, precios e importaciones en 360×800, 390×844 y 430×932, además de un escritorio básico. Revisar modo claro/oscuro del sistema, orientación vertical, safe areas de iPhone, zoom al 200 %, navegación por teclado y `prefers-reduced-motion`. Los objetivos táctiles deben mantener al menos 44 px y ningún botón principal debe quedar oculto por la barra inferior o el teclado.
 
 ## Bootstrap del primer usuario
 
@@ -216,7 +239,7 @@ Procedimiento manual en un entorno vacío y ficticio:
 6. repetir el mismo contenido y comprobar que retorna el mismo lote y que una nueva confirmación responde `409`;
 7. crear otro lote y cancelarlo, comprobando que ya no puede confirmarse.
 
-Antes de importar datos reales siguen pendientes una interfaz móvil de mapeo/revisión, plantillas validadas con copias anonimizadas, política de retención/borrado de filas temporales, exportación neutralizada, copia/restauración, métricas y autorización operativa expresa. Excel no está implementado. No debe ampliarse `IMPORT_MAX_BYTES` o `IMPORT_MAX_ROWS` sin medir memoria y duración transaccional.
+Antes de importar datos reales siguen pendientes mapeo manual de columnas, plantillas validadas con copias anonimizadas, política de retención/borrado de filas temporales, exportación neutralizada, copia/restauración, métricas y autorización operativa expresa. La PWA ya permite revisión móvil, estrategia explícita, confirmación y cancelación. Excel no está implementado. No debe ampliarse `IMPORT_MAX_BYTES` o `IMPORT_MAX_ROWS` sin medir memoria y duración transaccional.
 
 ## Pruebas y controles
 
@@ -235,6 +258,18 @@ npm run test:integration
 ```
 
 Las pruebas unitarias cubren configuración, healthchecks, contexto/rollback transaccional, validación de dominio, precisión decimal, Argon2id, firma de tokens, rate limiting, migraciones, CSV/JSON, UTF-8, binarios, límites y neutralización de fórmulas. La integración PostgreSQL cubre autenticación, CRUD, importación por estrategias, checksum, cancelación, doble confirmación, rollback integral, precios exactos, auditoría y aislamiento RLS entre dos empresas.
+
+Para la web:
+
+```bash
+cd factupapa-next/apps/web
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+Las pruebas web cubren login válido/inválido, almacenamiento de sesión, refresh concurrente, expiración, logout, rutas protegidas, códigos 400/401/404/409/413, pérdida de conexión, prohibición de repetir mutaciones, estados vacíos, labels y confirmación explícita de importaciones. El workflow añade build de ambos proyectos, Compose rootless, healthchecks, bootstrap ficticio temporal y smoke de página, login, `/me` y logout. Los artefactos `dist/`, `.env` y credenciales temporales no se versionan.
 
 ## Verificación manual de RLS
 

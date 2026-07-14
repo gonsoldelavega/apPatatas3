@@ -34,6 +34,7 @@ const server = createApp({
   database,
   auth,
   version: config.appVersion,
+  corsAllowedOrigins: config.corsAllowedOrigins,
   routes: [createImportRoutes(auth, imports), createPricingRoutes(auth, pricing), createContactRoutes(auth, contacts), createProductRoutes(auth, products)],
 });
 

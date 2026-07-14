@@ -52,10 +52,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: factupapa-next/apps/api/package-lock.json
+          cache-dependency-path: |
+            factupapa-next/apps/api/package-lock.json
+            factupapa-next/apps/web/package-lock.json
 
       - name: Validate API
         working-directory: factupapa-next/apps/api
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Validate web
+        working-directory: factupapa-next/apps/web
         run: |
           set -euo pipefail
           npm ci
@@ -144,6 +155,7 @@ jobs:
           wait_for_healthy redis
           wait_for_healthy minio
           wait_for_healthy api
+          wait_for_healthy web
 
       - name: Run authentication integration tests
         working-directory: factupapa-next/apps/api
@@ -189,6 +201,35 @@ jobs:
           echo "API health: HTTP ${health_status}"
           echo "API ready: HTTP ${ready_status}"
 
+      - name: Smoke test web and authenticated load
+        working-directory: factupapa-next/apps/web
+        run: |
+          set -euo pipefail
+          smoke_email="smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.test"
+          smoke_password="$(openssl rand -base64 36 | tr -d '\n')"
+
+          (
+            cd ../../infrastructure
+            BOOTSTRAP_COMPANY_NAME="Empresa de validación" \
+            BOOTSTRAP_USER_EMAIL="${smoke_email}" \
+            BOOTSTRAP_USER_NAME="Cuenta de validación" \
+            BOOTSTRAP_USER_PASSWORD="${smoke_password}" \
+            docker compose --profile tools run --rm \
+              -e BOOTSTRAP_COMPANY_NAME \
+              -e BOOTSTRAP_USER_EMAIL \
+              -e BOOTSTRAP_USER_NAME \
+              -e BOOTSTRAP_USER_PASSWORD \
+              bootstrap
+          )
+
+          WEB_URL="http://127.0.0.1:4173" \
+          API_URL="http://127.0.0.1:4100" \
+          SMOKE_EMAIL="${smoke_email}" \
+          SMOKE_PASSWORD="${smoke_password}" \
+          npm run smoke
+
+          unset smoke_email smoke_password
+
       - name: Show service status
         working-directory: factupapa-next/infrastructure
         run: docker compose ps
@@ -198,7 +239,7 @@ jobs:
         working-directory: factupapa-next/infrastructure
         run: |
           docker compose ps || true
-          docker compose logs --no-color --tail=200 postgres redis minio create-buckets migrate provision-api-role api || true
+          docker compose logs --no-color --tail=200 postgres redis minio create-buckets migrate provision-api-role api web || true
 
       - name: Clean integration environment
         if: always()

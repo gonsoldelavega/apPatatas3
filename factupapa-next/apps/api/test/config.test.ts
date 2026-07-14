@@ -27,7 +27,18 @@ test("la configuración aplica valores predeterminados seguros", () => {
     importMaximumBytes: 1_048_576,
     importMaximumRows: 1_000,
     importPreviewRows: 50,
+    corsAllowedOrigins: [],
   });
+});
+
+test("la configuración acepta únicamente orígenes CORS exactos", () => {
+  const config = loadConfig({
+    DATABASE_URL: "postgresql://localhost/test",
+    JWT_SECRET: "x".repeat(32),
+    CORS_ALLOWED_ORIGINS: "http://127.0.0.1:5173,https://app.example.test,http://127.0.0.1:5173",
+  });
+  assert.deepEqual(config.corsAllowedOrigins, ["http://127.0.0.1:5173", "https://app.example.test"]);
+  assert.throws(() => loadConfig({ DATABASE_URL: "postgresql://localhost/test", JWT_SECRET: "x".repeat(32), CORS_ALLOWED_ORIGINS: "*" }), /orígenes HTTP/);
 });
 
 test("la configuración rechaza un secreto JWT débil", () => {
