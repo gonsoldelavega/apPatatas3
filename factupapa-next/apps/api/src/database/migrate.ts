@@ -53,6 +53,9 @@ export async function runMigrations(
 
       await client.query("begin");
       try {
+        if (filename > "0003_row_level_security.sql") {
+          await client.query("set local role factupapa_migrator");
+        }
         await client.query(executableSql);
         await client.query("insert into schema_migrations(filename, checksum) values ($1, $2)", [filename, checksum]);
         await client.query("commit");

@@ -574,7 +574,9 @@ La base técnica aislada de FactuPapa Next ya incluye:
 - Migraciones iniciales versionadas con comprobación de integridad.
 - Pruebas básicas y documentación de arquitectura, arranque y verificación.
 
-El siguiente objetivo recomendado es documentar la infraestructura disponible en la VPS de Hetzner y preparar las políticas RLS antes de exponer datos económicos, sin modificar la aplicación actual ni desplegar en producción.
+El aislamiento multiempresa ya está aplicado en PostgreSQL mediante RLS forzado, un rol de API sin privilegios de propietario ni `BYPASSRLS` y contexto local por transacción. Las pruebas de integración enfrentan dos empresas y demuestran que lecturas, inserciones, cambios de empresa y borrados cruzados quedan bloqueados.
+
+El siguiente objetivo recomendado es documentar la infraestructura disponible en la VPS de Hetzner y diseñar el primer módulo económico sobre la abstracción transaccional protegida, sin modificar la aplicación actual ni desplegar en producción.
 
 ### Estado del primer entregable técnico
 
@@ -582,6 +584,7 @@ El siguiente objetivo recomendado es documentar la infraestructura disponible en
 - Base de datos PostgreSQL: preparada mediante Docker.
 - Almacenamiento de archivos: MinIO preparado; integración desde la API pendiente.
 - Autenticación de un solo usuario: implementada con bootstrap seguro, Argon2id, sesiones rotatorias y pruebas de integración PostgreSQL.
+- Aislamiento multiempresa: RLS activado y forzado en identidad, sesiones, auditoría y todas las tablas empresariales existentes.
 - Página de estado: endpoints de vida y disponibilidad preparados.
 - Copia automática: pendiente.
 

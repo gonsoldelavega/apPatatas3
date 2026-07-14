@@ -9,6 +9,7 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 - Objetivo inmediato: infraestructura local/autohospedada, núcleo de facturación y almacenamiento documental propio
 - Primera beta: uso exclusivo de Nando
 - Arquitectura: preparada para evolucionar a producto multiempresa y móvil
+- Aislamiento: RLS forzado y validado entre dos empresas con un rol API no propietario
 
 ## Principios
 
@@ -43,18 +44,21 @@ factupapa-next/
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
 - API TypeScript: healthcheck, disponibilidad y autenticación inicial segura.
-- Migrador: aplica y registra cambios de esquema antes de arrancar la API.
+- Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.
+- Provisionador: asigna en cada arranque la contraseña local al rol limitado `factupapa_api`.
 - Worker: previsto para trabajos asíncronos; todavía no implementado.
 
 ## Primer arranque técnico
 
 1. Entrar en `factupapa-next/infrastructure`.
 2. Copiar `.env.example` a `.env`.
-3. Sustituir las contraseñas de ejemplo y mantener coherentes `POSTGRES_PASSWORD` y `DATABASE_URL`.
+3. Sustituir todas las cadenas `CAMBIAR_...`. `DATABASE_ADMIN_URL` usa `POSTGRES_PASSWORD`; `DATABASE_URL` usa la contraseña distinta `API_DATABASE_PASSWORD`.
 4. Ejecutar `docker compose up --build -d`.
 5. Verificar `http://localhost:4100/health` y `http://localhost:4100/ready`.
 
 La API incorpora login por email y contraseña, rotación de refresh tokens, logout y `GET /me`. No existe registro público: el primer usuario y su empresa se crean exclusivamente mediante el comando de bootstrap documentado en la guía de desarrollo.
+
+Las consultas autenticadas se ejecutan en una transacción que fija `app.current_company_id` y `app.current_user_id` con alcance local. PostgreSQL aplica RLS incluso al propietario de las tablas; el rol conectado por la API no puede omitir ni desactivar esas políticas.
 
 La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decisiones y límites actuales están en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

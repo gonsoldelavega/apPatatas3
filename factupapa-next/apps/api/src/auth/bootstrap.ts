@@ -71,8 +71,8 @@ export async function bootstrapInitialAccount(pool: Pool, rawInput: BootstrapInp
 }
 
 async function main(): Promise<void> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL es obligatoria");
+  const databaseUrl = process.env.DATABASE_ADMIN_URL;
+  if (!databaseUrl) throw new Error("DATABASE_ADMIN_URL es obligatoria");
   const required = ["BOOTSTRAP_COMPANY_NAME", "BOOTSTRAP_USER_EMAIL", "BOOTSTRAP_USER_NAME", "BOOTSTRAP_USER_PASSWORD"] as const;
   for (const name of required) {
     if (!process.env[name]) throw new Error(`${name} es obligatoria`);

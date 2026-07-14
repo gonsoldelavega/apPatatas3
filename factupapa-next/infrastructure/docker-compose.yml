@@ -74,11 +74,30 @@ services:
     command: ["npm", "run", "migrate:prod"]
     restart: "no"
     environment:
-      DATABASE_URL: ${DATABASE_URL:?Define DATABASE_URL in .env}
+      DATABASE_URL: ${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL in .env}
       MIGRATIONS_DIR: /app/migrations
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [factupapa]
+
+  provision-api-role:
+    image: postgres:16-alpine
+    command: ["sh", "/opt/factupapa/provision-api-role.sh"]
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-factupapa_next}
+      PGUSER: ${POSTGRES_USER:-factupapa}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in .env}
+      API_DATABASE_USER: ${API_DATABASE_USER:-factupapa_api}
+      API_DATABASE_PASSWORD: ${API_DATABASE_PASSWORD:?Define API_DATABASE_PASSWORD in .env}
+    volumes:
+      - ./postgres/provision-api-role.sh:/opt/factupapa/provision-api-role.sh:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks: [factupapa]
 
   api:
@@ -100,7 +119,7 @@ services:
     ports:
       - "127.0.0.1:${APP_PORT:-4100}:4100"
     depends_on:
-      migrate:
+      provision-api-role:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
@@ -108,6 +127,20 @@ services:
       timeout: 5s
       retries: 10
       start_period: 5s
+    networks: [factupapa]
+
+  bootstrap:
+    profiles: [tools]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["npm", "run", "bootstrap:prod"]
+    restart: "no"
+    environment:
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL in .env}
+    depends_on:
+      provision-api-role:
+        condition: service_completed_successfully
     networks: [factupapa]
 
 networks:

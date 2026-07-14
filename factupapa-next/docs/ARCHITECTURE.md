@@ -25,14 +25,15 @@ API Node.js/TypeScript -- PostgreSQL
           +------------ MinIO
 ```
 
-El Compose de desarrollo levanta seis servicios:
+El Compose de desarrollo levanta siete servicios:
 
 1. `postgres`: PostgreSQL 16 con volumen persistente y healthcheck.
 2. `redis`: Redis 7 con contraseña y persistencia AOF.
 3. `minio`: almacenamiento de objetos con volumen persistente.
 4. `create-buckets`: crea de forma idempotente el bucket privado inicial.
 5. `migrate`: aplica una sola vez cada migración pendiente y termina.
-6. `api`: arranca únicamente después de una migración correcta.
+6. `provision-api-role`: establece la credencial local del rol PostgreSQL limitado sin imprimirla.
+7. `api`: arranca únicamente después de migrar y provisionar el rol limitado.
 
 Los puertos de desarrollo se publican solo en `127.0.0.1`. Esta configuración no es una receta de producción: no incluye proxy HTTPS, copias externas, observabilidad ni endurecimiento del host.
 
@@ -68,7 +69,7 @@ El modelo de identidad está preparado para varias empresas aunque la primera be
 - `auth_sessions`: cadenas de refresh tokens, siempre almacenados como SHA-256.
 - `audit_events`: eventos UUID; `company_id` puede ser nulo cuando un login fallido no identifica empresa.
 
-La migración `0002_authentication.sql` renombra las tablas iniciales `organizations` y `organization_members` sin perder datos y añade constraints compuestas por `company_id` a las relaciones existentes.
+La migración `0002_authentication.sql` renombra las tablas iniciales `organizations` y `organization_members` sin perder datos y añade constraints compuestas por `company_id` a las relaciones existentes. La migración aditiva `0003_row_level_security.sql` separa roles, activa RLS y crea las políticas de aislamiento.
 
 ### Decisiones de seguridad
 
@@ -98,14 +99,58 @@ Una migración ya aplicada no se repite. Si su contenido cambia, el proceso fall
 - Integración real de documentos con MinIO.
 - Copias, restauración, HTTPS, métricas y logs estructurados antes de cualquier uso real.
 
-## Plan exacto para Row Level Security
+## Aislamiento multiempresa con Row-Level Security
 
-RLS no se activa en esta fase para no mezclar el primer login con cambios de rol de base de datos. Se añadirá antes de exponer endpoints económicos siguiendo estos pasos:
+### Modelo de amenazas
 
-1. Crear un rol propietario de migraciones sin login y un rol de API sin `BYPASSRLS`; la API no será propietaria de tablas.
-2. Tras validar el access token, abrir una transacción y ejecutar `select set_config('app.user_id', $1, true)` y `select set_config('app.company_id', $1, true)` con parámetros UUID; el tercer argumento limita ambos valores a la transacción.
-3. Activar y forzar RLS (`enable row level security` y `force row level security`) en toda tabla con `company_id`.
-4. Crear políticas `using` y `with check` que exijan `company_id = current_setting('app.company_id', true)::uuid`.
-5. En tablas vinculadas a usuario, exigir además una membership activa para `current_setting('app.user_id', true)::uuid`.
-6. Encapsular login y rotación —donde todavía no se conoce `company_id`— en funciones `security definer` mínimas, con `search_path` fijo y permisos de ejecución exclusivos para el rol API.
-7. Añadir pruebas negativas entre dos empresas que demuestren que lectura, escritura, relaciones y auditoría cruzadas son imposibles.
+RLS es una segunda barrera frente a un filtro omitido, un UUID manipulado, la reutilización incorrecta de una conexión del pool o un error futuro en un repositorio. No protege frente a quien obtenga credenciales administrativas, comprometa el host o modifique migraciones; esas credenciales nunca se entregan al proceso API y requieren protección operativa separada.
+
+El atacante considerado puede controlar parámetros HTTP y tokens propios, pero no el secreto JWT ni las credenciales PostgreSQL administrativas. Aunque una consulta omita `where company_id = ...`, PostgreSQL debe ocultar filas ajenas y rechazar escrituras cruzadas.
+
+### Roles PostgreSQL
+
+- El usuario definido por `POSTGRES_USER` administra el contenedor y conecta exclusivamente al migrador y al bootstrap. No llega al servicio API.
+- `factupapa_migrator` es `NOLOGIN`, posee tablas, tipos y funciones y tiene `BYPASSRLS` únicamente para migraciones y las tres funciones preautenticadas revisadas. Las migraciones futuras ejecutan `SET LOCAL ROLE factupapa_migrator`.
+- `factupapa_api` tiene `LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOINHERIT` y `NOBYPASSRLS`. No posee tablas y no puede desactivar RLS. Su contraseña se provisiona desde el entorno después de migrar.
+
+Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches` y `auth_sessions`.
+
+`companies` compara su `id` con la empresa actual. `users` compara su `id` con el usuario actual. `memberships` y `auth_sessions` exigen simultáneamente empresa y usuario. El resto compara `company_id`. Cada política incluye `USING` y `WITH CHECK`, por lo que también impide mover una fila a otra empresa mediante `UPDATE`.
+
+`schema_migrations` es la única tabla global sin RLS: contiene checksums técnicos, no datos empresariales, y el rol API no tiene permisos sobre ella.
+
+### Contexto por transacción
+
+`withTenantTransaction` obtiene una conexión, inicia `BEGIN` y ejecuta:
+
+```sql
+select
+  set_config('app.current_company_id', $1::uuid::text, true),
+  set_config('app.current_user_id', $2::uuid::text, true);
+```
+
+El tercer argumento `true` hace ambos valores locales a la transacción. La abstracción confirma al terminar, revierte ante cualquier error y siempre libera la conexión. No se usa `SET` persistente ni estado de sesión; fuera de una transacción contextual las políticas devuelven cero filas o rechazan escrituras.
+
+### Excepciones de autenticación
+
+Antes de validar credenciales o un refresh token todavía no existe un contexto confiable. El rol API solo puede ejecutar tres funciones `SECURITY DEFINER`, con `search_path` fijo, parámetros y privilegios revocados a `PUBLIC`:
+
+- `auth_lookup_user`: lookup de login necesario para verificar Argon2id.
+- `auth_resolve_refresh_tenant`: resuelve solo empresa y usuario a partir del hash del refresh; inmediatamente después la misma transacción fija el contexto y vuelve a leer/bloquear la sesión bajo RLS antes de modificarla.
+- `auth_record_anonymous_login_failure`: registra un fallo sin empresa cuando el email es desconocido.
+
+Bootstrap y migraciones usan `DATABASE_ADMIN_URL` fuera del proceso API. `/health` no consulta datos y `/ready` solo ejecuta `select 1`; ambas son operaciones globales justificadas. Login, refresh, logout, comprobación de sesión y `/me` conservan su comportamiento, pero todas las operaciones que ya conocen identidad usan contexto local.
+
+### Regla para tablas futuras
+
+Toda migración que añada una tabla empresarial debe:
+
+1. usar UUID y un `company_id uuid not null` con FK a `companies`;
+2. incorporar `company_id` en claves únicas, índices y FKs compuestas que crucen tablas;
+3. cambiar el propietario a `factupapa_migrator` y conceder solo las operaciones necesarias a `factupapa_api`;
+4. activar y forzar RLS;
+5. crear una política con `USING` y `WITH CHECK` contra `app.current_company_id` y, si procede, `app.current_user_id`;
+6. acceder desde la API exclusivamente mediante `withTenantTransaction`;
+7. añadir pruebas negativas con dos empresas para `SELECT`, `INSERT`, `UPDATE` y `DELETE`.
+
+No se aprobará un endpoint económico que consulte el pool directamente.

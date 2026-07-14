@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import { setTenantContext, withTenantTransaction } from "../database/client.js";
 
 export interface UserContext {
   userId: string;
@@ -20,6 +21,11 @@ interface SessionRow extends QueryResultRow, SessionIdentity {
   refreshTokenHash: string;
   expiresAt: Date;
   revokedAt: Date | null;
+}
+
+interface RefreshTenantRow extends QueryResultRow {
+  companyId: string;
+  userId: string;
 }
 
 interface AuditInput {
@@ -49,19 +55,14 @@ export class AuthRepository {
   async findUserByEmail(email: string): Promise<UserContext | null> {
     const result = await this.pool.query<UserContext & QueryResultRow>(
       `select
-         user_account.id as "userId",
-         membership.company_id as "companyId",
-         user_account.email::text as email,
-         user_account.display_name as "displayName",
-         user_account.password_hash as "passwordHash",
-         company.name as "companyName",
-         membership.role
-       from users as user_account
-       join memberships as membership on membership.user_id = user_account.id
-       join companies as company on company.id = membership.company_id
-       where user_account.email = $1 and user_account.is_active = true and user_account.password_hash is not null
-       order by membership.company_id
-       limit 2`,
+         user_id as "userId",
+         company_id as "companyId",
+         email,
+         display_name as "displayName",
+         password_hash as "passwordHash",
+         company_name as "companyName",
+         membership_role as role
+       from auth_lookup_user($1)`,
       [email],
     );
     return result.rowCount === 1 ? result.rows[0] ?? null : null;
@@ -72,10 +73,8 @@ export class AuthRepository {
     refreshTokenHash: string,
     expiresAt: Date,
   ): Promise<SessionIdentity> {
-    const client = await this.pool.connect();
     const familyId = randomUUID();
-    try {
-      await client.query("begin");
+    return withTenantTransaction(this.pool, user, async (client) => {
       await client.query(
         `insert into auth_sessions(family_id, company_id, user_id, refresh_token_hash, expires_at)
          values ($1, $2, $3, $4, $5)`,
@@ -88,24 +87,24 @@ export class AuthRepository {
         entityId: familyId,
         action: "auth.login_succeeded",
       });
-      await client.query("commit");
       const { passwordHash: _passwordHash, ...identity } = user;
       return { ...identity, familyId };
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async recordLoginFailure(entityId: string, reason: string, user?: UserContext): Promise<void> {
-    await insertAudit(this.pool, {
-      ...(user ? { companyId: user.companyId } : {}),
-      entityId,
-      action: "auth.login_failed",
-      metadata: { reason },
-    });
+    if (!user) {
+      await this.pool.query("select auth_record_anonymous_login_failure($1, $2)", [entityId, reason]);
+      return;
+    }
+    await withTenantTransaction(this.pool, user, (client) =>
+      insertAudit(client, {
+        companyId: user.companyId,
+        entityId,
+        action: "auth.login_failed",
+        metadata: { reason },
+      }),
+    );
   }
 
   async rotateRefreshToken(
@@ -116,6 +115,17 @@ export class AuthRepository {
     const client = await this.pool.connect();
     try {
       await client.query("begin");
+      const tenantResult = await client.query<RefreshTenantRow>(
+        `select company_id as "companyId", user_id as "userId"
+         from auth_resolve_refresh_tenant($1)`,
+        [currentHash],
+      );
+      const tenant = tenantResult.rows[0];
+      if (!tenant) {
+        await client.query("rollback");
+        return { status: "invalid" };
+      }
+      await setTenantContext(client, tenant);
       const result = await client.query<SessionRow>(
         `select
            session.id as "sessionId",
@@ -143,7 +153,6 @@ export class AuthRepository {
         await client.query("rollback");
         return { status: "invalid" };
       }
-
       if (session.revokedAt) {
         await client.query(
           `update auth_sessions
@@ -198,36 +207,36 @@ export class AuthRepository {
   }
 
   async findActiveIdentity(userId: string, companyId: string, familyId: string): Promise<SessionIdentity | null> {
-    const result = await this.pool.query<SessionIdentity & QueryResultRow>(
-      `select
-         user_account.id as "userId",
-         company.id as "companyId",
-         session.family_id as "familyId",
-         user_account.email::text as email,
-         user_account.display_name as "displayName",
-         company.name as "companyName",
-         membership.role
-       from users as user_account
-       join memberships as membership on membership.user_id = user_account.id
-       join companies as company on company.id = membership.company_id
-       join auth_sessions as session
-         on session.user_id = user_account.id and session.company_id = company.id
-       where user_account.id = $1
-         and company.id = $2
-         and session.family_id = $3
-         and session.revoked_at is null
-         and session.expires_at > now()
-         and user_account.is_active = true
-       limit 1`,
-      [userId, companyId, familyId],
-    );
-    return result.rows[0] ?? null;
+    return withTenantTransaction(this.pool, { userId, companyId }, async (client) => {
+      const result = await client.query<SessionIdentity & QueryResultRow>(
+        `select
+           user_account.id as "userId",
+           company.id as "companyId",
+           session.family_id as "familyId",
+           user_account.email::text as email,
+           user_account.display_name as "displayName",
+           company.name as "companyName",
+           membership.role
+         from users as user_account
+         join memberships as membership on membership.user_id = user_account.id
+         join companies as company on company.id = membership.company_id
+         join auth_sessions as session
+           on session.user_id = user_account.id and session.company_id = company.id
+         where user_account.id = $1
+           and company.id = $2
+           and session.family_id = $3
+           and session.revoked_at is null
+           and session.expires_at > now()
+           and user_account.is_active = true
+         limit 1`,
+        [userId, companyId, familyId],
+      );
+      return result.rows[0] ?? null;
+    });
   }
 
   async logout(identity: SessionIdentity, refreshTokenHash: string): Promise<boolean> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("begin");
+    return withTenantTransaction(this.pool, identity, async (client) => {
       const token = await client.query<{ familyId: string } & QueryResultRow>(
         `select family_id as "familyId"
          from auth_sessions
@@ -236,7 +245,6 @@ export class AuthRepository {
         [refreshTokenHash, identity.userId, identity.companyId],
       );
       if (token.rows[0]?.familyId !== identity.familyId) {
-        await client.query("rollback");
         return false;
       }
       await client.query(
@@ -251,13 +259,7 @@ export class AuthRepository {
         entityId: identity.familyId,
         action: "auth.logout_succeeded",
       });
-      await client.query("commit");
       return true;
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

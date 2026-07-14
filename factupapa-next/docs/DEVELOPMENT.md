@@ -18,7 +18,7 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
 
    En PowerShell puede usarse `Copy-Item .env.example .env`.
 
-2. Cambiar todas las cadenas `CAMBIAR_...`. La contraseña incluida en `DATABASE_URL` debe coincidir con `POSTGRES_PASSWORD`; si contiene caracteres reservados de URL, deben codificarse.
+2. Cambiar todas las cadenas `CAMBIAR_...`. `DATABASE_ADMIN_URL` debe usar `POSTGRES_PASSWORD`; `DATABASE_URL` debe usar la credencial distinta `API_DATABASE_PASSWORD`. Si contienen caracteres reservados de URL, deben codificarse.
 
 3. Validar y arrancar:
 
@@ -36,7 +36,7 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
    docker compose exec postgres psql -U factupapa -d factupapa_next -c "select filename, applied_at from schema_migrations order by filename;"
    ```
 
-   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista las migraciones `0000`, `0001` y `0002`.
+   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready` y PostgreSQL lista las migraciones `0000`, `0001`, `0002` y `0003`.
 
 5. Revisar logs si algún servicio no está sano:
 
@@ -54,7 +54,7 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
 
 ## API fuera de Docker
 
-Con PostgreSQL disponible y `DATABASE_URL` definida:
+Con PostgreSQL disponible, `DATABASE_URL` debe pertenecer a `factupapa_api`. Las migraciones y el bootstrap usan por separado `DATABASE_ADMIN_URL`:
 
 ```bash
 cd factupapa-next/apps/api
@@ -86,13 +86,15 @@ docker compose run --rm \
   -e BOOTSTRAP_USER_EMAIL \
   -e BOOTSTRAP_USER_NAME \
   -e BOOTSTRAP_USER_PASSWORD \
-  api npm run bootstrap:prod
+  bootstrap
 
 cleanup_bootstrap_env
 trap - EXIT
 ```
 
 La contraseña debe tener entre 14 y 128 caracteres. El comando solo informa de éxito o error y no imprime email, contraseña, hash ni tokens.
+
+El bootstrap es una excepción administrativa explícita a RLS y solo debe ejecutarse desde un entorno controlado con `DATABASE_ADMIN_URL`; esa variable nunca se entrega al contenedor `api`.
 
 ## API de autenticación
 
@@ -113,13 +115,42 @@ npm test
 npm run build
 ```
 
-Con PostgreSQL migrado disponible:
+Con PostgreSQL migrado disponible y ambas URLs separadas:
 
 ```bash
 npm run test:integration
 ```
 
-Las pruebas unitarias cubren configuración, healthchecks, Argon2id, firma de access tokens, generación de refresh tokens, rate limiting y migraciones. La integración PostgreSQL cubre bootstrap, login, errores no enumerables, `/me`, rotación, reutilización, logout y auditoría.
+Las pruebas unitarias cubren configuración, healthchecks, contexto/rollback transaccional, Argon2id, firma de access tokens, generación de refresh tokens, rate limiting y migraciones. La integración PostgreSQL cubre bootstrap, login, errores no enumerables, `/me`, rotación, reutilización, logout, auditoría y aislamiento RLS entre dos empresas.
+
+## Verificación manual de RLS
+
+Con Compose levantado, obtener únicamente para esta sesión los UUID ficticios creados en un entorno de prueba. Conectar como `factupapa_api`, iniciar una transacción y fijar contexto local:
+
+```sql
+begin;
+select set_config('app.current_company_id', '<UUID_EMPRESA_A>', true);
+select set_config('app.current_user_id', '<UUID_USUARIO_A>', true);
+select id, company_id from contacts;
+select id, company_id from contacts where company_id = '<UUID_EMPRESA_B>';
+rollback;
+```
+
+La primera consulta solo puede mostrar la empresa A y la segunda debe devolver cero filas. Dentro de otra transacción con contexto A, este intento debe fallar con una violación de RLS:
+
+```sql
+insert into contacts(company_id, kind, legal_name)
+values ('<UUID_EMPRESA_B>', 'customer', 'Prueba bloqueada');
+```
+
+Confirmar además el rol real:
+
+```sql
+select current_user, rolsuper, rolbypassrls
+from pg_roles where rolname = current_user;
+```
+
+Debe devolver `factupapa_api`, `false`, `false`. `alter table contacts disable row level security` debe ser rechazado por falta de propiedad. Sin `BEGIN` y `set_config(..., true)`, `select * from contacts` debe devolver cero filas.
 
 Antes de entregar cambios, ejecutar también desde la raíz:
 
