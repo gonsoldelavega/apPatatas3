@@ -1,0 +1,173 @@
+name: FactuPapa Next Integration
+
+on:
+  push:
+    branches:
+      - design/factupapa-full-prototype
+    paths:
+      - 'factupapa-next/**'
+      - '.github/workflows/factupapa-next-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factupapa-next-integration
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    if: github.ref == 'refs/heads/design/factupapa-full-prototype'
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 20
+    env:
+      DOCKER_HOST: unix:///run/user/1001/docker.sock
+      COMPOSE_PROJECT_NAME: factupapa_next_ci_${{ github.run_id }}_${{ github.run_attempt }}
+      COMPOSE_FILE: docker-compose.yml:docker-compose.integration.yml
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify rootless Docker context
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = "refs/heads/design/factupapa-full-prototype"
+          test "$(id -u)" = "1001"
+          test "${DOCKER_HOST}" = "unix:///run/user/1001/docker.sock"
+          test -S /run/user/1001/docker.sock
+          test "$(stat -c '%u' /run/user/1001/docker.sock)" = "1001"
+          docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
+          docker version
+          docker compose version
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: factupapa-next/apps/api/package-lock.json
+
+      - name: Validate API
+        working-directory: factupapa-next/apps/api
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Create temporary integration environment
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+          umask 077
+          cp .env.example .env
+
+          postgres_password="$(openssl rand -hex 32)"
+          redis_password="$(openssl rand -hex 32)"
+          minio_password="$(openssl rand -hex 32)"
+          jwt_secret="$(openssl rand -hex 64)"
+
+          sed -i \
+            -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${postgres_password}|" \
+            -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${redis_password}|" \
+            -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=${minio_password}|" \
+            -e "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://factupapa:${postgres_password}@postgres:5432/factupapa_next|" \
+            -e "s|^S3_SECRET_KEY=.*|S3_SECRET_KEY=${minio_password}|" \
+            -e "s|^JWT_SECRET=.*|JWT_SECRET=${jwt_secret}|" \
+            .env
+
+          ! grep -q 'CAMBIAR_' .env
+          test "$(stat -c '%a' .env)" = "600"
+
+          cat > docker-compose.integration.yml <<EOF
+          networks:
+            factupapa:
+              name: ${COMPOSE_PROJECT_NAME}_network
+          EOF
+
+          unset postgres_password redis_password minio_password jwt_secret
+
+      - name: Validate Docker Compose configuration
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+          docker compose config --quiet
+
+      - name: Start integration services
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+          docker compose up --build -d
+
+      - name: Wait for required services
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+
+          wait_for_healthy() {
+            local service="$1"
+            local container_id=""
+            local status=""
+
+            for _ in $(seq 1 60); do
+              container_id="$(docker compose ps -a -q "${service}")"
+              if [ -n "${container_id}" ]; then
+                status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}")"
+                if [ "${status}" = "healthy" ]; then
+                  echo "${service}: healthy"
+                  return 0
+                fi
+                if [ "${status}" = "unhealthy" ] || [ "${status}" = "exited" ] || [ "${status}" = "dead" ]; then
+                  echo "${service}: ${status}" >&2
+                  return 1
+                fi
+              fi
+              sleep 2
+            done
+
+            echo "Timeout esperando a ${service} (último estado: ${status:-sin contenedor})" >&2
+            return 1
+          }
+
+          wait_for_healthy postgres
+          wait_for_healthy redis
+          wait_for_healthy minio
+          wait_for_healthy api
+
+      - name: Verify API endpoints
+        run: |
+          set -euo pipefail
+
+          health_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/health)"
+          ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready)"
+
+          test "${health_status}" = "200"
+          test "${ready_status}" = "200"
+          echo "API health: HTTP ${health_status}"
+          echo "API ready: HTTP ${ready_status}"
+
+      - name: Show service status
+        working-directory: factupapa-next/infrastructure
+        run: docker compose ps
+
+      - name: Show diagnostics on failure
+        if: failure()
+        working-directory: factupapa-next/infrastructure
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color --tail=200 postgres redis minio create-buckets migrate api || true
+
+      - name: Clean integration environment
+        if: always()
+        working-directory: factupapa-next/infrastructure
+        run: |
+          docker compose down -v --remove-orphans || true
+          rm -f .env docker-compose.integration.yml
