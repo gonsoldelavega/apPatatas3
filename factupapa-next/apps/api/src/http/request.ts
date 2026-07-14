@@ -2,17 +2,18 @@ import type { IncomingMessage } from "node:http";
 import { AuthError } from "../auth/service.js";
 import { HttpError } from "./errors.js";
 
-export async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
+export async function readJson(request: IncomingMessage, maximumBytes = 16_384): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 16_384) throw new HttpError("invalid_request", 400);
+    if (size > maximumBytes) throw new HttpError("payload_too_large", 413);
     chunks.push(buffer);
   }
   try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+    const parsed: unknown = JSON.parse(decoded);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new HttpError("invalid_request", 400);
     return parsed as Record<string, unknown>;
   } catch (error) {

@@ -8,6 +8,9 @@ export interface AppConfig {
   refreshTokenTtlDays: number;
   loginRateLimitMax: number;
   loginRateLimitWindowMs: number;
+  importMaximumBytes: number;
+  importMaximumRows: number;
+  importPreviewRows: number;
 }
 
 function readPort(value: string | undefined): number {
@@ -46,5 +49,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     refreshTokenTtlDays: readPositiveInteger("REFRESH_TOKEN_TTL_DAYS", env.REFRESH_TOKEN_TTL_DAYS, 30),
     loginRateLimitMax: readPositiveInteger("LOGIN_RATE_LIMIT_MAX", env.LOGIN_RATE_LIMIT_MAX, 5),
     loginRateLimitWindowMs: readPositiveInteger("LOGIN_RATE_LIMIT_WINDOW_MS", env.LOGIN_RATE_LIMIT_WINDOW_MS, 60_000),
+    importMaximumBytes: readPositiveInteger("IMPORT_MAX_BYTES", env.IMPORT_MAX_BYTES, 1_048_576),
+    importMaximumRows: readPositiveInteger("IMPORT_MAX_ROWS", env.IMPORT_MAX_ROWS, 1_000),
+    importPreviewRows: readPositiveInteger("IMPORT_PREVIEW_ROWS", env.IMPORT_PREVIEW_ROWS, 50),
   };
 }

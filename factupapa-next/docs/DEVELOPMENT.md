@@ -149,6 +149,75 @@ Ejemplo ficticio de producto y precio:
 
 Los importes deben enviarse como cadenas decimales. `DELETE` realiza baja lógica y devuelve `204`; un UUID inexistente o perteneciente a otra empresa devuelve el mismo `404`. `company_id` nunca forma parte del contrato de entrada y cualquier clave desconocida provoca `400`.
 
+## API de importaciones
+
+Todos los endpoints exigen Bearer access token:
+
+- `POST /imports/validate`: parsea, normaliza y crea una previsualización sin modificar el catálogo.
+- `GET /imports?page=1&pageSize=25`: lista lotes de la empresa autenticada.
+- `GET /imports/:id`: devuelve resumen, errores, warnings, acciones y una muestra limitada.
+- `POST /imports/:id/confirm`: confirma con una estrategia explícita.
+- `POST /imports/:id/cancel`: cancela un lote pendiente o validado; el cuerpo es `{}`.
+
+La petición de validación usa `entityType` (`contacts`, `products` o `contact_product_prices`), `sourceFormat` (`csv` o `json`) y exactamente uno de `content` o `contentBase64`. Base64 existe para transportar bytes y poder rechazar UTF-8 inválido; no cambia el formato declarado. Ejemplo ficticio:
+
+```json
+{
+  "entityType": "products",
+  "sourceFormat": "json",
+  "content": "[{\"name\":\"Producto ficticio\",\"sku\":\"TEST-IMPORT-001\",\"unit\":\"kg\",\"salePrice\":\"12.3456\",\"taxRate\":\"4\"}]"
+}
+```
+
+La confirmación usa una de estas estrategias:
+
+```json
+{ "strategy": "skip_existing" }
+```
+
+- `skip_existing`: crea filas nuevas y omite coincidencias existentes.
+- `update_existing`: crea nuevas y sobrescribe coincidencias identificadas por NIF o SKU con los valores normalizados del lote.
+- `fail_on_conflict`: no escribe nada si existe una posible actualización.
+
+Un lote con filas `duplicate`, `conflict` o `error` no se puede confirmar. La respuesta de validación distingue filas nuevas, posibles actualizaciones, duplicados internos, conflictos y errores; incluye una muestra limitada, no el archivo original. Repetir exactamente contenido, entidad y formato reutiliza el lote vigente mediante su checksum. Un lote completado o en curso no genera una segunda importación, y `FOR UPDATE` impide confirmaciones simultáneas.
+
+### Plantillas CSV UTF-8
+
+Las cabeceras son exactas, sensibles a guiones bajos y no admiten columnas desconocidas:
+
+```csv
+type,legal_name,trade_name,tax_id,email,phone,address_street,address_line2,postal_code,city,province,country,notes,is_active
+customer,Cliente ficticio,,TEST-C-001,cliente@example.test,+34600000000,Calle de prueba 1,,28000,Madrid,Madrid,ES,Dato ficticio,true
+```
+
+```csv
+name,description,sku,unit,sale_price,estimated_cost,tax_rate,is_active
+Producto ficticio,Dato ficticio,TEST-P-001,kg,12.3456,8.0001,4,true
+```
+
+```csv
+tax_id,sku,price,valid_from,is_active
+TEST-C-001,TEST-P-001,9.8765,2026-07-15,true
+```
+
+En JSON se usan los nombres camelCase de la API: `legalName`, `tradeName`, `taxId`, `salePrice`, `estimatedCost`, `taxRate` y `validFrom`. La dirección es el mismo objeto estructurado de `/contacts`. Las unidades válidas son `kg`, `g`, `unit`, `box` y `custom`. Precios, costes e impuestos deben ser strings decimales; los números JSON se rechazan para impedir coma flotante binaria.
+
+### Límites y prueba manual
+
+Los valores predeterminados son 1 MiB, 1.000 filas y 50 filas de muestra. Se configuran mediante `IMPORT_MAX_BYTES`, `IMPORT_MAX_ROWS` e `IMPORT_PREVIEW_ROWS`. El límite HTTP incluye un margen exclusivamente para el sobre JSON/base64; el contenido decodificado vuelve a comprobarse contra `IMPORT_MAX_BYTES`.
+
+Procedimiento manual en un entorno vacío y ficticio:
+
+1. autenticar un usuario de pruebas y conservar el access token fuera de logs y URLs;
+2. enviar una plantilla a `/imports/validate` y comprobar que el catálogo no cambia;
+3. revisar resumen, errores, warnings y acciones propuestas en `/imports/:id`;
+4. confirmar con `fail_on_conflict` para altas nuevas o elegir conscientemente otra estrategia;
+5. verificar catálogo y eventos `import.validated`/`import.confirmed`;
+6. repetir el mismo contenido y comprobar que retorna el mismo lote y que una nueva confirmación responde `409`;
+7. crear otro lote y cancelarlo, comprobando que ya no puede confirmarse.
+
+Antes de importar datos reales siguen pendientes una interfaz móvil de mapeo/revisión, plantillas validadas con copias anonimizadas, política de retención/borrado de filas temporales, exportación neutralizada, copia/restauración, métricas y autorización operativa expresa. Excel no está implementado. No debe ampliarse `IMPORT_MAX_BYTES` o `IMPORT_MAX_ROWS` sin medir memoria y duración transaccional.
+
 ## Pruebas y controles
 
 ```bash
@@ -165,7 +234,7 @@ Con PostgreSQL migrado disponible y ambas URLs separadas:
 npm run test:integration
 ```
 
-Las pruebas unitarias cubren configuración, healthchecks, contexto/rollback transaccional, validación de dominio, precisión decimal, Argon2id, firma de tokens, rate limiting y migraciones. La integración PostgreSQL cubre autenticación, CRUD, conflictos, búsqueda, paginación, bajas lógicas, precios efectivos, auditoría y aislamiento RLS entre dos empresas.
+Las pruebas unitarias cubren configuración, healthchecks, contexto/rollback transaccional, validación de dominio, precisión decimal, Argon2id, firma de tokens, rate limiting, migraciones, CSV/JSON, UTF-8, binarios, límites y neutralización de fórmulas. La integración PostgreSQL cubre autenticación, CRUD, importación por estrategias, checksum, cancelación, doble confirmación, rollback integral, precios exactos, auditoría y aislamiento RLS entre dos empresas.
 
 ## Verificación manual de RLS
 

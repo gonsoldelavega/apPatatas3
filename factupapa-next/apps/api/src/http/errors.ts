@@ -1,7 +1,7 @@
 export class HttpError extends Error {
   constructor(
-    readonly code: "invalid_request" | "not_found" | "conflict",
-    readonly status: 400 | 404 | 409,
+    readonly code: "invalid_request" | "not_found" | "conflict" | "payload_too_large",
+    readonly status: 400 | 404 | 409 | 413,
   ) {
     super(code);
   }

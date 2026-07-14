@@ -59,6 +59,7 @@ Rutas disponibles:
 - CRUD autenticado `/contacts` para clientes y proveedores.
 - CRUD autenticado `/products` para productos.
 - `/contacts/:contactId/products` y `/contacts/:contactId/products/:productId/price` para precios efectivos.
+- `/imports/validate`, `/imports`, `/imports/:id`, `/imports/:id/confirm` y `/imports/:id/cancel` para importación en dos fases.
 
 No existen todavía endpoints de facturas, pagos, stock u otros movimientos económicos.
 
@@ -85,6 +86,16 @@ El margen no se almacena. La respuesta lo calcula con enteros escalados a partir
 Los `DELETE` de contactos, productos y precios son bajas lógicas (`is_active = false`). No se destruyen filas ni referencias. Un trigger compartido establece `updated_at = now()` en cualquier actualización de contactos, productos o precios, incluso si una futura operación no pasa por la API.
 
 Altas, actualizaciones, bajas y cambios de precio se escriben en `audit_events` dentro de la misma transacción que el dato modificado.
+
+## Importación segura en dos fases
+
+`imports/` separa parser, normalización, validación, repositorio, servicio, rutas y tipos. El parser acepta exclusivamente CSV UTF-8 o JSON estructurado, usa decodificación UTF-8 fatal, rechaza controles binarios y limita bytes y filas antes de persistir. Las claves desconocidas y cualquier `company_id` o `companyId` quedan fuera del contrato.
+
+La validación calcula SHA-256 sobre entidad, formato y bytes exactos, normaliza cada fila, detecta duplicados internos y consulta conflictos bajo `withTenantTransaction`. `import_batches` contiene estado, autor, checksum y resumen; `import_batch_rows` conserva solo la representación normalizada, errores y warnings necesarios para confirmar. Ambas tablas están ligadas por `company_id`, usan RLS forzado y no guardan el archivo completo.
+
+Una fila queda clasificada como `new`, `possible_update`, `duplicate`, `conflict` o `error`. La confirmación bloquea el lote con `FOR UPDATE` y admite `skip_existing`, `update_existing` o `fail_on_conflict`. Todo el catálogo se modifica en una única transacción: un error revierte todas las filas y una transacción tenant separada conserva el estado `failed` y un diagnóstico no sensible. El mismo lote nunca puede confirmarse dos veces, aunque lleguen dos peticiones concurrentes.
+
+Los contactos se resuelven por NIF normalizado; los productos, por SKU; y los precios, por la pareja NIF/SKU. Un precio exige un contacto cliente o mixto. Los importes siguen siendo strings decimales hasta PostgreSQL. Las previsualizaciones anteponen un apóstrofo a valores que parecen fórmulas para que una futura exportación no los ejecute; el backend nunca evalúa fórmulas.
 
 ## Autenticación inicial
 
@@ -121,7 +132,7 @@ Una migración ya aplicada no se repite. Si su contenido cambia, el proceso fall
 ## Decisiones pendientes
 
 - Recuperación y cambio de contraseña, segundo factor y gestión de dispositivos.
-- API de dominio para clientes, productos, facturas y cobros.
+- API de dominio para facturas y cobros; clientes, productos, precios e importación ya están aislados.
 - Worker de colas y contratos de trabajos asíncronos.
 - Integración real de documentos con MinIO.
 - Copias, restauración, HTTPS, métricas y logs estructurados antes de cualquier uso real.
@@ -140,7 +151,7 @@ El atacante considerado puede controlar parámetros HTTP y tokens propios, pero 
 - `factupapa_migrator` es `NOLOGIN`, posee tablas, tipos y funciones y tiene `BYPASSRLS` únicamente para migraciones y las tres funciones preautenticadas revisadas. Las migraciones futuras ejecutan `SET LOCAL ROLE factupapa_migrator`.
 - `factupapa_api` tiene `LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOINHERIT` y `NOBYPASSRLS`. No posee tablas y no puede desactivar RLS. Su contraseña se provisiona desde el entorno después de migrar.
 
-Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `contact_product_prices`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches` y `auth_sessions`.
+Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `contact_product_prices`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches`, `import_batch_rows` y `auth_sessions`.
 
 `companies` compara su `id` con la empresa actual. `users` compara su `id` con el usuario actual. `memberships` y `auth_sessions` exigen simultáneamente empresa y usuario. El resto compara `company_id`. Cada política incluye `USING` y `WITH CHECK`, por lo que también impide mover una fila a otra empresa mediante `UPDATE`.
 

@@ -9,6 +9,8 @@ import { ProductService } from "./products/service.js";
 import { createProductRoutes } from "./products/routes.js";
 import { PricingService } from "./pricing/service.js";
 import { createPricingRoutes } from "./pricing/routes.js";
+import { ImportService } from "./imports/service.js";
+import { createImportRoutes } from "./imports/routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -23,11 +25,16 @@ const auth = await AuthService.create({
 const contacts = new ContactService(database.pool);
 const products = new ProductService(database.pool);
 const pricing = new PricingService(database.pool);
+const imports = new ImportService(database.pool, {
+  maximumBytes: config.importMaximumBytes,
+  maximumRows: config.importMaximumRows,
+  previewRows: config.importPreviewRows,
+});
 const server = createApp({
   database,
   auth,
   version: config.appVersion,
-  routes: [createPricingRoutes(auth, pricing), createContactRoutes(auth, contacts), createProductRoutes(auth, products)],
+  routes: [createImportRoutes(auth, imports), createPricingRoutes(auth, pricing), createContactRoutes(auth, contacts), createProductRoutes(auth, products)],
 });
 
 server.listen(config.port, config.host, () => {

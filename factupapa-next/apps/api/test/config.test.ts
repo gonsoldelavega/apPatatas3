@@ -24,6 +24,9 @@ test("la configuración aplica valores predeterminados seguros", () => {
     refreshTokenTtlDays: 30,
     loginRateLimitMax: 5,
     loginRateLimitWindowMs: 60_000,
+    importMaximumBytes: 1_048_576,
+    importMaximumRows: 1_000,
+    importPreviewRows: 50,
   });
 });
 

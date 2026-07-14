@@ -578,7 +578,9 @@ El aislamiento multiempresa ya está aplicado en PostgreSQL mediante RLS forzado
 
 El primer dominio funcional de contactos, productos y precios específicos por cliente ya está construido sobre la abstracción transaccional protegida. No incluye todavía facturas, stock ni movimientos económicos.
 
-El siguiente objetivo recomendado es validar este catálogo con el flujo móvil y diseñar clientes/productos importables antes de iniciar facturas, sin modificar la aplicación actual ni desplegar en producción.
+El catálogo ya dispone de importación segura en dos fases para CSV UTF-8 y JSON: validación sin escritura, previsualización, detección de duplicados/conflictos, confirmación transaccional y cancelación. Los lotes y sus filas temporales están aislados mediante RLS y todavía solo se han probado con datos ficticios.
+
+El siguiente objetivo recomendado es validar las plantillas y estrategias de importación con copias ficticias representativas y diseñar el flujo móvil de revisión antes de autorizar cualquier dato real o iniciar facturas, sin modificar la aplicación actual ni desplegar en producción.
 
 ### Estado del primer entregable técnico
 
@@ -588,6 +590,7 @@ El siguiente objetivo recomendado es validar este catálogo con el flujo móvil 
 - Autenticación de un solo usuario: implementada con bootstrap seguro, Argon2id, sesiones rotatorias y pruebas de integración PostgreSQL.
 - Aislamiento multiempresa: RLS activado y forzado en identidad, sesiones, auditoría y todas las tablas empresariales existentes.
 - Contactos y productos: API autenticada con CRUD, búsqueda, paginación, baja lógica, auditoría y precios específicos por cliente.
+- Importaciones: CSV/JSON con límites configurables, checksum, previsualización, estrategias explícitas y rollback integral.
 - Página de estado: endpoints de vida y disponibilidad preparados.
 - Copia automática: pendiente.
 
