@@ -102,6 +102,24 @@ if (pdfPath) {
   await writeFile(pdfPath, pdfBuffer);
 }
 
+await api(`/invoices/${invoice.id}/cancel`, { method: "POST", body: "{}" });
+const reopenedNote = await (await api(`/delivery-notes/${draft.id}`)).json();
+if (reopenedNote.status !== "issued")
+  throw new Error("Cancelar la factura no reabrió su albarán");
+
+const replacementResponse = await api("/invoices/from-delivery-notes", {
+  method: "POST",
+  body: JSON.stringify({
+    deliveryNoteIds: [draft.id],
+    series: "SMOKE-REOPENED",
+    issueDate,
+    notes: "Refacturación ficticia tras cancelación",
+  }),
+});
+const replacement = await replacementResponse.json();
+if (replacement.sourceType !== "delivery_notes")
+  throw new Error("El albarán reabierto no pudo volver a facturarse");
+
 const logout = await fetch(`${apiUrl}/auth/logout`, {
   method: "POST",
   headers: {
@@ -118,5 +136,5 @@ if (!logout.headers.get("set-cookie")?.includes("Max-Age=0"))
   throw new Error("Logout no eliminó la cookie");
 
 console.log(
-  "Smoke web + sesión + catálogo + albarán + factura + PDF + logout: correcto",
+  "Smoke web + sesión + albarán + factura + PDF + cancelación transaccional + logout: correcto",
 );

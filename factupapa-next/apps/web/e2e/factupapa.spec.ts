@@ -75,6 +75,53 @@ test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
     );
   expect(undersized).toBe(0);
 });
+test("escritura, emisión, conversión, PDF y cancelación reabren el albarán", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const series = `E2E-${testInfo.project.name}`.slice(0, 20);
+  await page.goto("/ventas/nuevo/albaran");
+  await page.getByLabel("Cliente").selectOption({ index: 1 });
+  await page.getByLabel("Serie").fill(series);
+  await page.getByLabel("Producto").selectOption({ index: 1 });
+  await page.getByLabel("Cantidad").fill("2,5");
+  await page.getByRole("button", { name: "Crear borrador" }).click();
+  await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
+  const deliveryNoteUrl = page.url();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Emitir documento" }).click();
+  await expect(page.locator(".status")).toHaveText("issued");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Convertir en factura" }).click();
+  await expect(page).toHaveURL(/\/ventas\/facturas\//);
+  await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Emitir documento" }).click();
+  await expect(page.locator(".status")).toHaveText("issued");
+
+  const pdfResponsePromise = page.waitForResponse(
+    (response) => response.url().endsWith("/pdf") && response.status() === 200,
+  );
+  await page.getByRole("button", { name: "Ver PDF" }).click();
+  const pdfResponse = await pdfResponsePromise;
+  expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
+  expect(Number(pdfResponse.headers()["content-length"])).toBeGreaterThan(
+    1_000,
+  );
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await expect(page.locator(".status")).toHaveText("cancelled");
+
+  await page.goto(deliveryNoteUrl);
+  await expect(page.locator(".status")).toHaveText("issued");
+  await expect(
+    page.getByRole("button", { name: "Convertir en factura" }),
+  ).toBeVisible();
+});
 test("catálogo, importación cancelada y dos pestañas", async ({
   page,
   context,

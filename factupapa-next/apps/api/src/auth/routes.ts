@@ -74,8 +74,16 @@ export function createAuthRoutes(
     }
     if (request.method === "POST" && url.pathname === "/auth/logout") {
       const token = cookieValue(request.headers.cookie, cookie.name);
-      if (token) await auth.logout(token).catch(() => undefined);
-      noContent(response, { "set-cookie": refreshCookie(cookie) });
+      const clearCookie = refreshCookie(cookie);
+      response.setHeader("set-cookie", clearCookie);
+      if (token) {
+        try {
+          await auth.logout(token);
+        } catch (error) {
+          if (!(error instanceof AuthError) || error.status !== 401) throw error;
+        }
+      }
+      noContent(response, { "set-cookie": clearCookie });
       return true;
     }
     if (request.method === "GET" && url.pathname === "/me") {

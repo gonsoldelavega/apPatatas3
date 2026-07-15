@@ -61,20 +61,34 @@ async function main() {
       [ids.company, ids.customer, ids.product],
     );
     await client.query(
-      `insert into delivery_notes(id,company_id,contact_id,number,series,issue_date,status,subtotal,tax_total,total,created_by_user_id,issued_at) values($1,$2,$3,1,'DEMO',current_date,'issued',19.7530,0.7901,20.5431,$4,now()) on conflict(id) do nothing`,
+      `insert into delivery_notes(id,company_id,contact_id,series,issue_date,status,subtotal,tax_total,total,created_by_user_id) values($1,$2,$3,'DEMO',current_date,'draft',19.7530,0.7901,20.5431,$4) on conflict(id) do nothing`,
       [ids.delivery, ids.company, ids.customer, ids.user],
     );
     await client.query(
-      `insert into delivery_note_lines(id,company_id,delivery_note_id,product_id,description,quantity,unit,unit_price,tax_rate,line_subtotal,line_tax,line_total,position) values($1,$2,$3,$4,'Producto Demo Ficticio',2,'kg',9.8765,4,19.7530,0.7901,20.5431,1) on conflict(id) do nothing`,
+      `insert into delivery_note_lines(id,company_id,delivery_note_id,product_id,description,quantity,unit,unit_price,tax_rate,line_subtotal,line_tax,line_total,position)
+       select $1,$2,$3,$4,'Producto Demo Ficticio',2,'kg',9.8765,4,19.7530,0.7901,20.5431,1
+       where not exists (select 1 from delivery_note_lines where id=$1)`,
       [ids.deliveryLine, ids.company, ids.delivery, ids.product],
     );
     await client.query(
-      `insert into invoices(id,company_id,contact_id,direction,series,number,issue_date,status,subtotal,tax_total,total,notes,source,source_type,created_by_user_id,issued_at,contact_legal_name,contact_tax_id,contact_address,issuer_legal_name,issuer_tax_id,issuer_address) values($1,$2,$3,'sale','DEMO',1,current_date,'issued',19.7530,0.7901,20.5431,'Factura ficticia','native','manual',$4,now(),'Cliente Demo Ficticio','TEST-C-0001','{"city":"Ciudad Ficticia","country":"ES"}','Empresa Demo Ficticia','TEST-DEMO-000','{"city":"Ciudad Ficticia","country":"ES"}') on conflict(id) do nothing`,
+      `update delivery_notes set number=1,status='issued',issued_at=now()
+       where id=$1 and status='draft'`,
+      [ids.delivery],
+    );
+    await client.query(
+      `insert into invoices(id,company_id,contact_id,direction,series,issue_date,status,subtotal,tax_total,total,notes,source,source_type,created_by_user_id,contact_legal_name,contact_tax_id,contact_address,issuer_legal_name,issuer_tax_id,issuer_address) values($1,$2,$3,'sale','DEMO',current_date,'draft',19.7530,0.7901,20.5431,'Factura ficticia','native','manual',$4,'Cliente Demo Ficticio','TEST-C-0001','{"city":"Ciudad Ficticia","country":"ES"}','Empresa Demo Ficticia','TEST-DEMO-000','{"city":"Ciudad Ficticia","country":"ES"}') on conflict(id) do nothing`,
       [ids.invoice, ids.company, ids.customer, ids.user],
     );
     await client.query(
-      `insert into invoice_lines(id,company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,line_subtotal,line_tax,line_total,position) values($1,$2,$3,$4,'Producto Demo Ficticio',2,'kg',9.8765,4,0,19.7530,0.7901,20.5431,1) on conflict(id) do nothing`,
+      `insert into invoice_lines(id,company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,line_subtotal,line_tax,line_total,position)
+       select $1,$2,$3,$4,'Producto Demo Ficticio',2,'kg',9.8765,4,0,19.7530,0.7901,20.5431,1
+       where not exists (select 1 from invoice_lines where id=$1)`,
       [ids.invoiceLine, ids.company, ids.invoice, ids.product],
+    );
+    await client.query(
+      `update invoices set number=1,status='issued',issued_at=now()
+       where id=$1 and status='draft'`,
+      [ids.invoice],
     );
     await client.query(
       `insert into document_sequences(company_id,document_type,series,next_number)

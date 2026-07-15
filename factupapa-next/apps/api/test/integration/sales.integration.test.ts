@@ -113,6 +113,26 @@ test("albarán aplica precio específico, snapshot, numeración, bloqueo y aisla
     (error: unknown) => error instanceof HttpError && error.status === 409,
   );
   await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_notes set notes='Mutación SQL no permitida' where id=$1",
+          [draft!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_note_lines set quantity=99 where delivery_note_id=$1",
+          [draft!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
     () => delivery.get(other, draft!.id),
     (error: unknown) => error instanceof HttpError && error.status === 404,
   );
@@ -152,13 +172,48 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   );
   const issued = await invoices.issue(identity, invoice!.id);
   assert.equal(issued?.status, "issued");
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update invoices set notes='Mutación SQL' where id=$1", [
+          invoice!.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "delete from invoice_lines where invoice_id=$1",
+          [invoice!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  const cancelled = await invoices.cancel(identity, invoice!.id);
+  assert.equal(cancelled?.status, "cancelled");
+  assert.deepEqual(
+    await Promise.all(
+      numbered.map(
+        async (note) => (await delivery.get(identity, note!.id)).status,
+      ),
+    ),
+    ["issued", "issued"],
+  );
+  const replacement = await invoices.fromDeliveryNotes(identity, {
+    deliveryNoteIds: numbered.map((note) => note!.id),
+    series: "F-REOPENED",
+    issueDate: "2026-07-15",
+  });
+  assert.equal(replacement?.deliveryNoteIds.length, 2);
   const events = await withTenantTransaction(api.pool, identity, (client) =>
     client.query(
       `select action from audit_events where entity_id=any($1::text[])`,
-      [[...numbered.map((note) => note!.id), invoice!.id]],
+      [[...numbered.map((note) => note!.id), invoice!.id, replacement!.id]],
     ),
   );
-  assert.ok(events.rows.length >= 5);
+  assert.ok(events.rows.length >= 8);
 });
 
 test("cancelación, snapshots fiscales y rollback rechazan cruces inválidos", async () => {

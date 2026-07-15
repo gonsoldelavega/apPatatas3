@@ -3,7 +3,7 @@ import { afterEach, test } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createApp } from "../src/app.js";
-import type { AuthApplication } from "../src/auth/service.js";
+import { AuthError, type AuthApplication } from "../src/auth/service.js";
 import type { DatabaseProbe } from "../src/database/client.js";
 
 const servers: Server[] = [];
@@ -105,6 +105,32 @@ async function loginRequest(origin?: string) {
   });
 }
 
+async function logoutRequest(logout: AuthApplication["logout"], origin?: string) {
+  const server = createApp({
+    database: healthyDatabase,
+    auth: { ...auth, logout },
+    version: "test",
+    corsAllowedOrigins: ["http://127.0.0.1:4173"],
+    authCookie: {
+      name: "factupapa_refresh",
+      secure: true,
+      maxAgeSeconds: 600,
+    },
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return fetch(`http://127.0.0.1:${port}/auth/logout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: "factupapa_refresh=expired-token",
+      ...(origin ? { Origin: origin } : {}),
+    },
+    body: "{}",
+  });
+}
+
 const healthyDatabase: DatabaseProbe = {
   check: async () => undefined,
   close: async () => undefined,
@@ -178,4 +204,34 @@ test("login exige Origin exacto y emite refresh solo como cookie HttpOnly", asyn
   assert.equal("refreshToken" in body, false);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
+});
+
+test("logout exige Origin y elimina la cookie aunque la sesión haya expirado", async () => {
+  assert.equal(
+    (await logoutRequest(async () => undefined)).status,
+    403,
+  );
+  const response = await logoutRequest(
+    async () => {
+      throw new AuthError("unauthorized", 401);
+    },
+    "http://127.0.0.1:4173",
+  );
+  assert.equal(response.status, 204);
+  const cookie = response.headers.get("set-cookie") ?? "";
+  assert.match(cookie, /Max-Age=0/);
+  assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /SameSite=Strict/);
+  assert.match(cookie, /Secure/);
+});
+
+test("logout no oculta fallos internos y aun así ordena borrar la cookie", async () => {
+  const response = await logoutRequest(
+    async () => {
+      throw new Error("database unavailable");
+    },
+    "http://127.0.0.1:4173",
+  );
+  assert.equal(response.status, 500);
+  assert.match(response.headers.get("set-cookie") ?? "", /Max-Age=0/);
 });
