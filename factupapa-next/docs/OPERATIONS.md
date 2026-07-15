@@ -15,6 +15,10 @@ Clasificación:
 
 `GET /health` solo confirma que vive el proceso. `GET /ready` aplica un timeout corto y devuelve estados sanitizados de PostgreSQL, migraciones, rol API, Redis, MinIO, bucket y configuración. Nunca incluye hosts, URLs ni secretos.
 
+Las migraciones se ejecutan en una ventana de mantenimiento, antes de iniciar la API. El orden de Compose (`migrate` → `provision-api-role` → `api`) es obligatorio; no se debe lanzar el migrador manualmente mientras exista una API atendiendo emisiones. Readiness carga el manifiesto `NNNN_*.sql` incluido en la imagen y compara todos sus nombres y SHA-256 con `schema_migrations`: cualquier archivo pendiente, inesperado o con checksum distinto mantiene PostgreSQL en estado `incomplete`.
+
+La migración histórica `0009` toca facturas y secuencias. El runner adquiere primero `invoices` y después `document_sequences`, el mismo orden que la emisión, y usa un `lock_timeout` corto para fallar de forma recuperable si la ventana no está realmente libre.
+
 ## Logs y request IDs
 
 Cada respuesta incluye `X-Request-Id`. La API acepta uno entrante solo si usa caracteres seguros y no supera 64; en caso contrario genera UUID. Los logs son una línea JSON con timestamp, level, requestId, método, ruta normalizada, estado, duración, identidad tenant cuando exista, código de error y versión.

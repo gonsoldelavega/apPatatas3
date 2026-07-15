@@ -1,8 +1,11 @@
-import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { Client } from "pg";
+import {
+  defaultMigrationsDirectory,
+  loadMigrationManifest,
+} from "./migration-state.js";
 
 const advisoryLockId = 1_407_202_026;
 
@@ -11,9 +14,22 @@ export function removeTransactionWrapper(sql: string): string {
   return withoutBegin.replace(/\s*commit\s*;\s*$/i, "");
 }
 
+export interface MigrationLock {
+  table: string;
+  mode: "ACCESS EXCLUSIVE" | "SHARE ROW EXCLUSIVE";
+}
+
+export function migrationLockPlan(filename: string): MigrationLock[] {
+  if (filename !== "0009_sales_document_state_machine.sql") return [];
+  return [
+    { table: "public.invoices", mode: "ACCESS EXCLUSIVE" },
+    { table: "public.document_sequences", mode: "SHARE ROW EXCLUSIVE" },
+  ];
+}
+
 export async function runMigrations(
   connectionString = process.env.DATABASE_URL,
-  migrationsDirectory = process.env.MIGRATIONS_DIR ?? path.resolve(process.cwd(), "../../packages/database"),
+  migrationsDirectory = defaultMigrationsDirectory(),
 ) {
   if (!connectionString) throw new Error("DATABASE_URL es obligatoria para ejecutar migraciones");
 
@@ -30,14 +46,11 @@ export async function runMigrations(
       )
     `);
 
-    const filenames = (await readdir(migrationsDirectory))
-      .filter((filename) => /^\d{4}_[a-z0-9_]+\.sql$/.test(filename))
-      .sort();
+    const migrations = await loadMigrationManifest(migrationsDirectory);
 
-    for (const filename of filenames) {
+    for (const { filename, checksum } of migrations) {
       const sql = await readFile(path.join(migrationsDirectory, filename), "utf8");
       const executableSql = removeTransactionWrapper(sql);
-      const checksum = createHash("sha256").update(sql).digest("hex");
       const applied = await client.query<{ checksum: string }>(
         "select checksum from schema_migrations where filename = $1",
         [filename],
@@ -55,6 +68,13 @@ export async function runMigrations(
       try {
         if (filename > "0003_row_level_security.sql") {
           await client.query("set local role factupapa_migrator");
+        }
+        const lockPlan = migrationLockPlan(filename);
+        if (lockPlan.length) {
+          await client.query("set local lock_timeout = '5s'");
+          for (const lock of lockPlan) {
+            await client.query(`lock table ${lock.table} in ${lock.mode} mode`);
+          }
         }
         await client.query(executableSql);
         await client.query("insert into schema_migrations(filename, checksum) values ($1, $2)", [filename, checksum]);

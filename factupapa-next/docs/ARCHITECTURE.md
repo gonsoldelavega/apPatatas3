@@ -148,7 +148,7 @@ El secreto JWT debe tener al menos 32 bytes y solo se suministra mediante entorn
 
 ## Migraciones
 
-El migrador busca nombres con formato `NNNN_nombre.sql`, calcula SHA-256 y registra cada archivo en `schema_migrations`. Cada migración nueva se aplica dentro de una transacción y bajo un bloqueo asesor de PostgreSQL para evitar ejecuciones concurrentes.
+El migrador busca nombres con formato `NNNN_nombre.sql`, calcula SHA-256 y registra cada archivo en `schema_migrations`. Cada migración nueva se aplica dentro de una transacción y bajo un bloqueo asesor de PostgreSQL para evitar ejecuciones concurrentes. Se ejecuta antes de arrancar la API; `0009` preadquiere `invoices` y luego `document_sequences`, en el orden de la emisión, con timeout corto para evitar una espera o inversión de locks.
 
 Una migración ya aplicada no se repite. Si su contenido cambia, el proceso falla: los cambios de esquema deben añadirse en un archivo nuevo, nunca reescribiendo el historial aplicado.
 
@@ -178,7 +178,7 @@ Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL 
 
 `companies` compara su `id` con la empresa actual. `users` compara su `id` con el usuario actual. `memberships` y `auth_sessions` exigen simultáneamente empresa y usuario. El resto compara `company_id`. Cada política incluye `USING` y `WITH CHECK`, por lo que también impide mover una fila a otra empresa mediante `UPDATE`.
 
-`schema_migrations` es la única tabla global sin RLS: contiene checksums técnicos, no datos empresariales, y el rol API no tiene permisos sobre ella.
+`schema_migrations` es la única tabla global sin RLS: contiene checksums técnicos, no datos empresariales. El rol API solo puede leer nombres y checksums para comparar dinámicamente el manifiesto incluido en la imagen durante readiness.
 
 ### Contexto por transacción
 
@@ -200,7 +200,7 @@ Antes de validar credenciales o un refresh token todavía no existe un contexto 
 - `auth_resolve_refresh_tenant`: resuelve solo empresa y usuario a partir del hash del refresh; inmediatamente después la misma transacción fija el contexto y vuelve a leer/bloquear la sesión bajo RLS antes de modificarla.
 - `auth_record_anonymous_login_failure`: registra un fallo sin empresa cuando el email es desconocido.
 
-Bootstrap y migraciones usan `DATABASE_ADMIN_URL` fuera del proceso API. `/health` no consulta datos y `/ready` solo ejecuta `select 1`; ambas son operaciones globales justificadas. Login, refresh, logout, comprobación de sesión y `/me` conservan su comportamiento, pero todas las operaciones que ya conocen identidad usan contexto local.
+Bootstrap y migraciones usan `DATABASE_ADMIN_URL` fuera del proceso API. `/health` no consulta datos y `/ready` comprueba conectividad, rol y el manifiesto técnico de migraciones; ambas son operaciones globales justificadas. Login, refresh, logout, comprobación de sesión y `/me` conservan su comportamiento, pero todas las operaciones que ya conocen identidad usan contexto local.
 
 ### Regla para tablas futuras
 

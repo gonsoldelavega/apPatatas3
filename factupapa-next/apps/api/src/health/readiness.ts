@@ -36,7 +36,7 @@ export function createReadiness(options: {
       ["redis", options.redisUrl ? redisPing(options.redisUrl, options.timeoutMs) : Promise.reject(new Error("not configured"))],
       ["minio", s3 && options.s3 ? s3.send(new HeadBucketCommand({ Bucket: options.s3.bucket }), { abortSignal: minioAbort.signal }) : Promise.reject(new Error("not configured")), () => minioAbort.abort()],
     ];
-    await Promise.all(probes.map(async ([name, probe, abort]) => { try { await deadline(probe, options.timeoutMs, abort); state[name] = "ok"; } catch (error) { state[name] = error instanceof Error && error.message === "migration_incomplete" ? "incomplete" : "unavailable"; } }));
+    await Promise.all(probes.map(async ([name, probe, abort]) => { try { await deadline(probe, options.timeoutMs, abort); state[name] = "ok"; } catch (error) { state[name] = error instanceof Error && error.message.startsWith("migration_") ? "incomplete" : "unavailable"; } }));
     return state;
   }};
 }

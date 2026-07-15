@@ -15,6 +15,7 @@ export async function backupAndVerifyObjects() {
   const requiredBucket = process.env.S3_BUCKET ?? "factupapa-documents";
   if (!endpoint || !accessKeyId || !secretAccessKey) throw new Error("Configuración S3 incompleta");
   const client = new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true, credentials: { accessKeyId, secretAccessKey } });
+  try {
   const root = path.resolve(process.env.OBJECT_BACKUP_DIRECTORY ?? "../../infrastructure/.object-backups");
   const backupId = `${new Date().toISOString().replace(/[-:.]/g, "")}-${randomBytes(4).toString("hex")}`;
   const directory = path.join(root, backupId); await mkdir(directory, { recursive: true, mode: 0o700 }); await chmod(directory, 0o700);
@@ -49,12 +50,26 @@ export async function backupAndVerifyObjects() {
       if (restoredBytes.length !== item.size || createHash("sha256").update(restoredBytes).digest("hex") !== item.checksum) throw new Error("object_restore_verification_failed");
       await client.send(new HeadObjectCommand({ Bucket: temporaryBucket, Key: item.key }));
     }
-    process.stdout.write(`${JSON.stringify({ status: "verified", manifest: manifestPath, buckets: buckets.length, objects: inventory.length })}\n`);
+    await new Promise<void>((resolve, reject) => {
+      process.stdout.write(
+        `${JSON.stringify({ status: "verified", manifest: manifestPath, buckets: buckets.length, objects: inventory.length })}\n`,
+        (error) => (error ? reject(error) : resolve()),
+      );
+    });
   } finally {
     for (const item of inventory) await client.send(new DeleteObjectCommand({ Bucket: temporaryBucket, Key: item.key })).catch(() => undefined);
     await client.send(new DeleteBucketCommand({ Bucket: temporaryBucket })).catch(() => undefined);
     if (process.argv.includes("--discard-copy")) await rm(directory, { recursive: true, force: true });
   }
+  } finally {
+    client.destroy();
+  }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) backupAndVerifyObjects().catch((error) => { process.stderr.write(`${JSON.stringify({ status:"failed", error:error instanceof Error ? error.message.replace(/[\r\n]/g," ").slice(0,200):"object_backup_failed" })}\n`); process.exitCode=1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  backupAndVerifyObjects()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      process.stderr.write(`${JSON.stringify({ status:"failed", error:error instanceof Error ? error.message.replace(/[\r\n]/g," ").slice(0,200):"object_backup_failed" })}\n`);
+      process.exitCode=1;
+    });

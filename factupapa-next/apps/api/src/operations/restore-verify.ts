@@ -52,4 +52,14 @@ export async function verifyRestore() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) verifyRestore().catch(async (error) => { await reportOperation("restore", "failed"); process.stderr.write(`${JSON.stringify({ status: "failed", error: error instanceof Error ? error.message.replace(/[\r\n]/g," ").slice(0,240) : "restore_failed" })}\n`); process.exitCode=1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  verifyRestore().catch(async (error) => {
+    await reportOperation("restore", "failed");
+    await new Promise<void>((resolve) => {
+      process.stderr.write(
+        `${JSON.stringify({ status: "failed", error: error instanceof Error ? error.message.replace(/[\r\n]/g," ").slice(0,240) : "restore_failed" })}\n`,
+        () => resolve(),
+      );
+    });
+    process.exit(1);
+  });

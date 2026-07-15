@@ -76,4 +76,14 @@ async function rotate(directory: string, currentDump: string, currentManifest: s
   await stat(currentDump); await stat(currentManifest);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) backupDatabase().catch(async (error) => { await reportOperation("backup", "failed"); process.stderr.write(`${JSON.stringify({ status: "failed", error: error instanceof Error ? error.message.replace(/[\r\n]/g," ").slice(0,240) : "backup_failed" })}\n`); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  backupDatabase().catch(async (error) => {
+    await reportOperation("backup", "failed");
+    await new Promise<void>((resolve) => {
+      process.stderr.write(
+        `${JSON.stringify({ status: "failed", error: error instanceof Error ? error.message.replace(/[\r\n]/g," ").slice(0,240) : "backup_failed" })}\n`,
+        () => resolve(),
+      );
+    });
+    process.exit(1);
+  });

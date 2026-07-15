@@ -18,7 +18,9 @@ let admin: Database,
   identity: SessionIdentity,
   other: SessionIdentity,
   customerId: string,
-  productId: string;
+  productId: string,
+  otherCustomerId: string,
+  otherProductId: string;
 let delivery: DeliveryNoteService, invoices: InvoiceService;
 
 async function createIssuedNote(series: string) {
@@ -94,6 +96,23 @@ before(async () => {
       return { customerId: c.rows[0]!.id, productId: p.rows[0]!.id };
     },
   ));
+  ({ customerId: otherCustomerId, productId: otherProductId } =
+    await withTenantTransaction(api.pool, other, async (client) => {
+      const c = await client.query<{ id: string }>(
+        `insert into contacts(company_id,kind,legal_name,tax_id,address)
+         values($1,'customer','Cliente Ficticio B','TEST-SALES-B-C','{}') returning id`,
+        [other.companyId],
+      );
+      const p = await client.query<{ id: string }>(
+        `insert into products(company_id,name,sku,unit,sale_price,tax_rate)
+         values($1,'Producto Ficticio B','TEST-SALES-B-P','unit',2,21) returning id`,
+        [other.companyId],
+      );
+      return {
+        customerId: c.rows[0]!.id,
+        productId: p.rows[0]!.id,
+      };
+    }));
   delivery = new DeliveryNoteService(api.pool);
   invoices = new InvoiceService(api.pool);
 });
@@ -389,7 +408,114 @@ test("transiciones SQL desde borrador exigen el ciclo de vida y no alteran impor
   await reject(
     "update invoices set number=900001,status='issued',issued_at=now(),total=99 where id=$1",
   );
+  await reject(
+    "update invoices set number=900001,status='issued',issued_at=now(),issuer_tax_id='SNAPSHOT-MUTADO' where id=$1",
+  );
   assert.equal((await invoices.get(identity, draft.id)).status, "draft");
+});
+
+test("transiciones SQL inválidas de albarán desde draft son rechazadas", async () => {
+  const draft = await delivery.create(identity, {
+    contactId: customerId,
+    series: "STATE-DN",
+    issueDate: "2026-07-15",
+  });
+  await delivery.addLine(identity, draft!.id, { productId, quantity: "1" });
+  const reject = (query: string) =>
+    assert.rejects(
+      () =>
+        withTenantTransaction(api.pool, identity, (client) =>
+          client.query(query, [draft!.id]),
+        ),
+      (error: unknown) => (error as { code?: string }).code === "55000",
+    );
+
+  await reject("update delivery_notes set status='issued' where id=$1");
+  await reject(
+    "update delivery_notes set number=900001,status='issued' where id=$1",
+  );
+  await reject("update delivery_notes set status='invoiced' where id=$1");
+  await reject(
+    "update delivery_notes set status='cancelled',cancelled_at=now() where id=$1",
+  );
+  await reject(
+    "update delivery_notes set number=900001,status='issued',issued_at=now(),total=99 where id=$1",
+  );
+  assert.equal((await delivery.get(identity, draft!.id)).status, "draft");
+});
+
+test("company_id de líneas no puede cruzar empresas ni entre borradores", async () => {
+  const invoiceA = await invoices.create(identity, {
+    contactId: customerId,
+    series: "TENANT-INV-A",
+    issueDate: "2026-07-15",
+  });
+  const linedInvoiceA = await invoices.line(identity, invoiceA.id, undefined, {
+    productId,
+    quantity: "1",
+  });
+  const invoiceB = await invoices.create(other, {
+    contactId: otherCustomerId,
+    series: "TENANT-INV-B",
+    issueDate: "2026-07-15",
+  });
+  const noteA = await delivery.create(identity, {
+    contactId: customerId,
+    series: "TENANT-DN-A",
+    issueDate: "2026-07-15",
+  });
+  const linedNoteA = await delivery.addLine(identity, noteA!.id, {
+    productId,
+    quantity: "1",
+  });
+  const noteB = await delivery.create(other, {
+    contactId: otherCustomerId,
+    series: "TENANT-DN-B",
+    issueDate: "2026-07-15",
+  });
+  await delivery.addLine(other, noteB!.id, {
+    productId: otherProductId,
+    quantity: "1",
+  });
+
+  const attempts = [
+    {
+      sql: "update invoice_lines set company_id=$2,invoice_id=$3 where id=$1",
+      values: [linedInvoiceA!.lines[0]!.id, other.companyId, invoiceB.id],
+    },
+    {
+      sql: "update delivery_note_lines set company_id=$2,delivery_note_id=$3 where id=$1",
+      values: [linedNoteA!.lines[0]!.id, other.companyId, noteB!.id],
+    },
+  ];
+
+  for (const attempt of attempts) {
+    await assert.rejects(
+      () =>
+        withTenantTransaction(api.pool, identity, (client) =>
+          client.query(attempt.sql, attempt.values),
+        ),
+      (error: unknown) => (error as { code?: string }).code === "55000",
+    );
+
+    const client = await admin.pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("set local role factupapa_migrator");
+      await client.query(
+        `select set_config('app.current_company_id',$1,true),
+                set_config('app.current_user_id',$2,true)`,
+        [identity.companyId, identity.userId],
+      );
+      await assert.rejects(
+        () => client.query(attempt.sql, attempt.values),
+        (error: unknown) => (error as { code?: string }).code === "55000",
+      );
+    } finally {
+      await client.query("rollback").catch(() => undefined);
+      client.release();
+    }
+  }
 });
 
 test("dos cancelaciones concurrentes liberan una sola vez", async () => {
@@ -600,6 +726,16 @@ test("cancelación, snapshots fiscales y rollback rechazan cruces inválidos", a
   });
   const emitted = await invoices.issue(identity, manual.id);
   assert.ok(emitted);
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, other, (client) =>
+        client.query("select public.cancel_sales_invoice($1::uuid)", [
+          emitted.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  assert.equal((await invoices.get(identity, emitted.id)).status, "issued");
   await admin.pool.query(
     "update companies set name='Empresa modificada después' where id=$1",
     [identity.companyId],
