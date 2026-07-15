@@ -20,7 +20,7 @@ jobs:
   integration:
     if: github.ref == 'refs/heads/design/factupapa-full-prototype'
     runs-on: [self-hosted, linux, x64, factupapa-next]
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       DOCKER_HOST: unix:///run/user/1001/docker.sock
       COMPOSE_PROJECT_NAME: factupapa_next_ci_${{ github.run_id }}_${{ github.run_attempt }}
@@ -58,9 +58,21 @@ jobs:
 
       - name: Validate API
         working-directory: factupapa-next/apps/api
+        env:
+          APP_ENV: integration
+          DATABASE_URL: postgresql://factupapa_api:fictitious-api-password-2026@postgres:5432/factupapa_next
+          DATABASE_ADMIN_URL: postgresql://factupapa:fictitious-admin-password-2026@postgres:5432/factupapa_next
+          JWT_SECRET: fictitious-integration-jwt-secret-with-more-than-sixty-four-characters-2026
+          REDIS_URL: redis://:fictitious-redis-password-2026@redis:6379
+          S3_ENDPOINT: http://minio:9000
+          S3_ACCESS_KEY: factupapa_storage
+          S3_SECRET_KEY: fictitious-object-password-2026
+          AUTH_COOKIE_SECURE: 'false'
+          CORS_ALLOWED_ORIGINS: http://127.0.0.1:4173
         run: |
           set -euo pipefail
           npm ci
+          npm run config:check
           npm run typecheck
           npm test
           npm run build
@@ -73,7 +85,13 @@ jobs:
           npm run typecheck
           npm test
           npm run build
-          npm run playwright:install
+          npm exec -- playwright install chromium
+
+      - name: Scan repository for secrets and local paths
+        run: |
+          set -euo pipefail
+          ! git grep -nE 'BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{20,}' -- factupapa-next .github
+          ! git grep -nE '/(Users|home|root|workspace)/' -- factupapa-next .github
 
       - name: Create temporary integration environment
         working-directory: factupapa-next/infrastructure
@@ -87,16 +105,21 @@ jobs:
           redis_password="$(openssl rand -hex 32)"
           minio_password="$(openssl rand -hex 32)"
           jwt_secret="$(openssl rand -hex 64)"
+          metrics_token="$(openssl rand -hex 48)"
 
           sed -i \
+            -e "s|^APP_ENV=.*|APP_ENV=integration|" \
             -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${postgres_password}|" \
             -e "s|^API_DATABASE_PASSWORD=.*|API_DATABASE_PASSWORD=${api_database_password}|" \
             -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${redis_password}|" \
+            -e "s|^REDIS_URL=.*|REDIS_URL=redis://:${redis_password}@redis:6379|" \
             -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=${minio_password}|" \
             -e "s|^DATABASE_ADMIN_URL=.*|DATABASE_ADMIN_URL=postgresql://factupapa:${postgres_password}@postgres:5432/factupapa_next|" \
             -e "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://factupapa_api:${api_database_password}@postgres:5432/factupapa_next|" \
             -e "s|^S3_SECRET_KEY=.*|S3_SECRET_KEY=${minio_password}|" \
             -e "s|^JWT_SECRET=.*|JWT_SECRET=${jwt_secret}|" \
+            -e "s|^INTERNAL_METRICS_TOKEN=.*|INTERNAL_METRICS_TOKEN=${metrics_token}|" \
+            -e "s|^INTERNAL_METRICS_ALLOW_REMOTE=.*|INTERNAL_METRICS_ALLOW_REMOTE=true|" \
             .env
 
           ! grep -q 'CAMBIAR_' .env
@@ -108,7 +131,7 @@ jobs:
               name: ${COMPOSE_PROJECT_NAME}_network
           EOF
 
-          unset postgres_password api_database_password redis_password minio_password jwt_secret
+          unset postgres_password api_database_password redis_password minio_password jwt_secret metrics_token
 
       - name: Validate Docker Compose configuration
         working-directory: factupapa-next/infrastructure
@@ -191,16 +214,23 @@ jobs:
           unset DATABASE_ADMIN_URL DATABASE_URL POSTGRES_PASSWORD API_DATABASE_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD S3_SECRET_KEY JWT_SECRET
 
       - name: Verify API endpoints
+        working-directory: factupapa-next/infrastructure
         run: |
           set -euo pipefail
+          set -a
+          source .env
+          set +a
 
           health_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/health)"
           ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready)"
 
           test "${health_status}" = "200"
           test "${ready_status}" = "200"
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/internal/metrics)" = "404"
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -H "X-Operations-Token: ${INTERNAL_METRICS_TOKEN}" http://127.0.0.1:4100/internal/metrics)" = "200"
           echo "API health: HTTP ${health_status}"
           echo "API ready: HTTP ${ready_status}"
+          unset INTERNAL_METRICS_TOKEN
 
       - name: Smoke test web and authenticated load
         working-directory: factupapa-next/apps/web
@@ -230,6 +260,105 @@ jobs:
 
           unset smoke_email smoke_password
 
+      - name: Verify retention, database backup, objects and isolated restore
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+          set -a
+          source .env
+          set +a
+          artifacts="${RUNNER_TEMP}/factupapa-operational-artifacts"
+          export OPERATIONS_METRICS_URL="http://127.0.0.1:${APP_PORT:-4100}"
+          mkdir -p "${artifacts}"
+          chmod 700 "${artifacts}"
+
+          company_id="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from companies order by created_at limit 1"')"
+          user_id="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from users order by created_at limit 1"')"
+          (
+            cd ../apps/api
+            export DATABASE_URL="postgresql://${API_DATABASE_USER}:${API_DATABASE_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}"
+            CLEANUP_COMPANY_ID="${company_id}" CLEANUP_USER_ID="${user_id}" npm run cleanup:imports -- --dry-run
+            CLEANUP_COMPANY_ID="${company_id}" CLEANUP_USER_ID="${user_id}" npm run cleanup:imports
+          )
+
+          docker compose run --rm --entrypoint sh create-buckets -c 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; printf "%s" "fictitious-object" | mc pipe local/factupapa-documents/ci/fictitious.txt >/dev/null'
+          (
+            cd ../apps/api
+            BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${artifacts}" npm run --silent backup:database | tee "${artifacts}/backup.log"
+            S3_ENDPOINT="http://127.0.0.1:${MINIO_API_PORT}" OBJECT_BACKUP_DIRECTORY="${artifacts}/objects" npm run --silent backup:objects | tee "${artifacts}/objects.log"
+          )
+          dump="$(node -e 'const fs=require("fs"); const lines=fs.readFileSync(process.argv[1],"utf8").trim().split(/\n/); const x=JSON.parse(lines.at(-1)); process.stdout.write(x.dump)' "${artifacts}/backup.log")"
+          (
+            cd ../apps/api
+            RESTORE_DUMP="${dump}" RESTORE_ENVIRONMENT=integration RESTORE_TARGET=ci RESTORE_REPORT_DIRECTORY="${artifacts}" npm run --silent restore:verify -- --confirm-isolated-restore
+          )
+
+          cp "${dump}" "${artifacts}/tampered.dump"
+          cp "${dump}.manifest.json" "${artifacts}/tampered.dump.manifest.json"
+          cp "${dump}.sha256" "${artifacts}/tampered.dump.sha256"
+          printf 'x' >> "${artifacts}/tampered.dump"
+          if (cd ../apps/api && RESTORE_DUMP="${artifacts}/tampered.dump" RESTORE_ENVIRONMENT=integration RESTORE_TARGET=tampered npm run --silent restore:verify -- --confirm-isolated-restore); then
+            echo "Una copia manipulada fue aceptada" >&2
+            exit 1
+          fi
+          cp "${dump}" "${artifacts}/incomplete.dump"
+          if (cd ../apps/api && RESTORE_DUMP="${artifacts}/incomplete.dump" RESTORE_ENVIRONMENT=integration RESTORE_TARGET=incomplete npm run --silent restore:verify -- --confirm-isolated-restore); then
+            echo "Una copia incompleta fue aceptada" >&2
+            exit 1
+          fi
+          if (cd ../apps/api && BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY=/proc/factupapa-backup-impossible npm run --silent backup:database); then
+            echo "El fallo controlado de backup no fue detectado" >&2
+            exit 1
+          fi
+
+          (cd ../apps/api && BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${artifacts}/concurrent" npm run --silent backup:database) & first=$!
+          (cd ../apps/api && BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${artifacts}/concurrent" npm run --silent backup:database) & second=$!
+          wait "${first}"
+          wait "${second}"
+          metrics_json="$(curl --silent --show-error --fail -H "X-Operations-Token: ${INTERNAL_METRICS_TOKEN}" "${OPERATIONS_METRICS_URL}/internal/metrics")"
+          node -e 'const value=JSON.parse(process.argv[1]); if(value.backupFailures<1 || value.restoreFailures<2) process.exit(1)' "${metrics_json}"
+
+          cp "${dump}.manifest.json" "${artifacts}/database-backup.manifest.json"
+          find "${artifacts}/objects" -name manifest.json -exec cp {} "${artifacts}/object-backup.manifest.json" \;
+          rm -f "${artifacts}"/*.dump "${artifacts}"/*.dump.manifest.json "${artifacts}"/*.dump.sha256
+          rm -rf "${artifacts}/concurrent" "${artifacts}/objects"
+          unset POSTGRES_PASSWORD API_DATABASE_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD S3_SECRET_KEY JWT_SECRET INTERNAL_METRICS_TOKEN OPERATIONS_METRICS_URL
+
+      - name: Controlled dependency failures and recovery
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+          for dependency in redis minio postgres; do
+            docker compose stop "${dependency}"
+            for _ in $(seq 1 15); do
+              status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready || true)"
+              [ "${status}" = "503" ] && break
+              sleep 1
+            done
+            test "${status}" = "503"
+            docker compose start "${dependency}"
+            for _ in $(seq 1 30); do
+              status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready || true)"
+              [ "${status}" = "200" ] && break
+              sleep 1
+            done
+            test "${status}" = "200"
+          done
+          docker compose logs --no-color api > "${RUNNER_TEMP}/factupapa-operational-artifacts/api-sanitized.log"
+          ! grep -Eqi 'authorization|factupapa_refresh=|Bearer [A-Za-z0-9]|password|refreshToken|accessToken' "${RUNNER_TEMP}/factupapa-operational-artifacts/api-sanitized.log"
+
+      - name: Full destructive recovery rehearsal with fictitious data
+        working-directory: factupapa-next/infrastructure
+        run: |
+          set -euo pipefail
+          set -a
+          source .env
+          set +a
+          export DEMO_USER_EMAIL="recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.test"
+          export DEMO_USER_PASSWORD="$(openssl rand -base64 36 | tr -d '\n')"
+          ../scripts/disaster-recovery.sh | tee "${RUNNER_TEMP}/factupapa-operational-artifacts/recovery.log"
+          unset DEMO_USER_EMAIL DEMO_USER_PASSWORD
+
       - name: Show service status
         working-directory: factupapa-next/infrastructure
         run: docker compose ps
@@ -243,6 +372,9 @@ jobs:
             factupapa-next/apps/web/test-artifacts
             factupapa-next/apps/web/test-results
             factupapa-next/apps/web/playwright-report
+            ${{ runner.temp }}/factupapa-operational-artifacts/*.manifest.json
+            ${{ runner.temp }}/factupapa-operational-artifacts/restore-*.json
+            ${{ runner.temp }}/factupapa-operational-artifacts/*.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -260,3 +392,4 @@ jobs:
           docker compose down -v --remove-orphans || true
           rm -f .env docker-compose.integration.yml
           rm -rf ../apps/web/test-artifacts ../apps/web/test-results ../apps/web/playwright-report
+          rm -rf "${RUNNER_TEMP}/factupapa-operational-artifacts"

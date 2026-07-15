@@ -7,6 +7,7 @@ import {
   safePreview,
   validateImportRequest,
 } from "../src/imports/validation.js";
+import { applyMapping, detectColumns, normalizeMapping } from "../src/imports/mapping.js";
 
 const limits = { maximumBytes: 512, maximumRows: 2, previewRows: 1 };
 
@@ -169,4 +170,22 @@ test("la previsualización neutraliza fórmulas sin alterar el dato normalizado"
     nested: ["'+SUM(1,1)"],
   });
   assert.equal(value.legalName, "=CMD()");
+});
+
+test("detecta cabeceras y propone mapeo automático sin conservar el archivo", () => {
+  const result = detectColumns({ entityType: "products", sourceFormat: "csv", content: "Producto,Unidad,Precio,IVA\nPatata,kg,1.2500,4\n" });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.proposedMapping, { name: "Producto", unit: "Unidad", salePrice: "Precio", taxRate: "IVA" });
+});
+
+test("el mapeo manual rechaza obligatorios y columnas duplicadas", () => {
+  assert.throws(() => normalizeMapping("products", ["Nombre"], { name: "Nombre" }), (error) => error instanceof HttpError && error.code === "missing_required_mapping");
+  assert.throws(() => normalizeMapping("products", ["Nombre", "Unidad", "Precio", "IVA"], { name: "Nombre", unit: "Unidad", salePrice: "Precio", taxRate: "Precio" }), (error) => error instanceof HttpError && error.code === "invalid_mapping");
+  assert.deepEqual(applyMapping([{ Nombre: "Patata", Precio: "1.2000" }], { name: "Nombre", salePrice: "Precio" }), [{ name: "Patata", salePrice: "1.2000" }]);
+});
+
+test("la detección informa cabeceras duplicadas y ambigüedades", () => {
+  const result = detectColumns({ entityType: "contacts", sourceFormat: "csv", content: "tipo,nombre,nombre\ncustomer,A,B\n" });
+  assert.deepEqual(result.duplicateColumns, ["nombre"]);
+  assert.equal(result.valid, false);
 });

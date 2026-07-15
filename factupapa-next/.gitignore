@@ -1,4 +1,10 @@
 infrastructure/.env
+infrastructure/.backups/
+infrastructure/.object-backups/
+*.dump
+*.dump.sha256
+*.dump.manifest.json
+restore-*.json
 apps/api/node_modules/
 apps/api/dist/
 apps/api/coverage/

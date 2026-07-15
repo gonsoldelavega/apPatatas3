@@ -184,6 +184,18 @@ h2 { font-size: 1.25rem; }
 .price-dialog .button { margin-top: 8px; }
 
 .upload-card, .review-card { padding: 20px; }
+.import-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin: 0 0 14px; padding: 0; list-style: none; }
+.import-steps li { min-width: 0; color: var(--muted); font-size: .62rem; text-align: center; }
+.import-steps li span { display: grid; width: 25px; height: 25px; place-items: center; margin: 0 auto 4px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); }
+.import-steps li.is-active { color: var(--ink); font-weight: 700; }
+.import-steps li.is-active span { border-color: var(--gold); color: var(--gold); }
+.mapping-grid { display: grid; gap: 12px; margin: 16px 0; }
+.mapping-grid label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: .76rem; }
+.mapping-grid select { width: 100%; min-height: 45px; padding: 0 12px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: var(--surface); }
+.mapping-grid select.field-invalid { border-color: var(--error); }
+.mapping-grid small { color: var(--error); }
+.check-row { display: flex; align-items: center; gap: 9px; margin: 14px 0; font-size: .8rem; }
+.confirm-label { margin-top: 18px; }
 .drop-zone { width: 100%; min-height: 155px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin: 5px 0 16px; padding: 20px; border: 1px dashed var(--gold); border-radius: 16px; color: var(--ink); background: rgb(214 166 73 / 6%); cursor: pointer; }
 .drop-zone svg { color: var(--gold); }
 .drop-zone span { color: var(--muted); font-size: .77rem; text-align: center; }

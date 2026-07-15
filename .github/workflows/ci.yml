@@ -1,13 +1,14 @@
 name: CI
 
-# Verifica sintaxis y tests en cada push/PR. Sin dependencias externas:
+# Verifica sintaxis y tests en cada push. Sin dependencias externas:
 # usa node --check (via scripts/check-syntax.mjs) y el runner nativo node --test.
 
 on:
   push:
     branches: ["**"]
-  pull_request:
-    branches: ["**"]
+
+permissions:
+  contents: read
 
 jobs:
   verify:

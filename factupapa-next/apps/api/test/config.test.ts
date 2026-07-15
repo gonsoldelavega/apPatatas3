@@ -19,12 +19,28 @@ test("la configuración rechaza puertos no válidos", () => {
 });
 
 test("la configuración aplica valores predeterminados seguros", () => {
-  assert.deepEqual(
-    loadConfig({
+  const config = loadConfig({
       DATABASE_URL: "postgresql://localhost/test",
       JWT_SECRET: "x".repeat(32),
-    }),
+    });
+  assert.deepEqual(
     {
+      host: config.host,
+      port: config.port,
+      databaseUrl: config.databaseUrl,
+      appVersion: config.appVersion,
+      jwtSecret: config.jwtSecret,
+      accessTokenTtlSeconds: config.accessTokenTtlSeconds,
+      refreshTokenTtlDays: config.refreshTokenTtlDays,
+      loginRateLimitMax: config.loginRateLimitMax,
+      loginRateLimitWindowMs: config.loginRateLimitWindowMs,
+      importMaximumBytes: config.importMaximumBytes,
+      importMaximumRows: config.importMaximumRows,
+      importPreviewRows: config.importPreviewRows,
+      corsAllowedOrigins: config.corsAllowedOrigins,
+      authCookieSecure: config.authCookieSecure,
+      authCookieName: config.authCookieName,
+    }, {
       host: "0.0.0.0",
       port: 4100,
       databaseUrl: "postgresql://localhost/test",
@@ -42,6 +58,8 @@ test("la configuración aplica valores predeterminados seguros", () => {
       authCookieName: "factupapa_refresh",
     },
   );
+  assert.equal(config.internalMetricsAllowRemote, false);
+  assert.deepEqual(config.importRetentionDays, { completed: 30, cancelled: 7, failed: 14 });
 });
 
 test("la configuración acepta únicamente orígenes CORS exactos", () => {
@@ -100,4 +118,11 @@ test("la configuración rechaza un secreto JWT débil", () => {
       }),
     /JWT_SECRET debe tener al menos 32 bytes/,
   );
+});
+
+test("producción rechaza placeholders, dependencias ausentes y rol API igual al migrador", () => {
+  assert.throws(() => loadConfig({ DATABASE_URL: "postgresql://api:changeme@db/app", JWT_SECRET: "x".repeat(40) }), /placeholder/);
+  assert.throws(() => loadConfig({ DATABASE_URL: "postgresql://api:strong-password@db/app", DATABASE_ADMIN_URL: "postgresql://api:other-password@db/app", JWT_SECRET: "x".repeat(40) }), /rol API/);
+  assert.throws(() => loadConfig({ APP_ENV: "production", DATABASE_URL: "postgresql://api:strong-password@db/app", JWT_SECRET: "x".repeat(40), AUTH_COOKIE_SECURE: "true" }), /Redis y MinIO/);
+  assert.throws(() => loadConfig({ DATABASE_URL: "postgresql://api:strong-password@db/app", JWT_SECRET: "x".repeat(40), S3_ACCESS_KEY: "minioadmin" }), /S3_ACCESS_KEY/);
 });

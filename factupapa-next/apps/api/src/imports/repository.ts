@@ -12,6 +12,7 @@ const batchProjection = `
   duplicate_rows as "duplicateRows",
   checksum,
   validation_summary as "validationSummary",
+  mapping_used as "mappingUsed",
   created_at as "createdAt",
   validated_at as "validatedAt",
   completed_at as "completedAt",
@@ -86,7 +87,7 @@ export class ImportRepository {
 
   async createBatch(
     client: PoolClient,
-    input: { companyId: string; userId: string; entityType: ImportEntityType; sourceFormat: ImportSourceFormat; checksum: string; rows: ImportRowDraft[] },
+    input: { companyId: string; userId: string; entityType: ImportEntityType; sourceFormat: ImportSourceFormat; checksum: string; mapping: Record<string, string>; rows: ImportRowDraft[] },
   ): Promise<ImportBatch> {
     const validRows = input.rows.filter((row) => row.classification === "new" || row.classification === "possible_update").length;
     const duplicateRows = input.rows.filter((row) => row.classification === "duplicate").length;
@@ -101,10 +102,10 @@ export class ImportRepository {
     const result = await client.query<ImportBatch & QueryResultRow>(
       `insert into import_batches(
          company_id, created_by_user_id, entity_type, source_format, status, total_rows, valid_rows,
-         invalid_rows, duplicate_rows, checksum, validation_summary, validated_at
-       ) values ($1, $2, $3, $4, 'validated', $5, $6, $7, $8, $9, $10, now())
+         invalid_rows, duplicate_rows, checksum, validation_summary, mapping_used, validated_at
+       ) values ($1, $2, $3, $4, 'validated', $5, $6, $7, $8, $9, $10, $11, now())
        returning ${batchProjection}`,
-      [input.companyId, input.userId, input.entityType, input.sourceFormat, input.rows.length, validRows, invalidRows, duplicateRows, input.checksum, summary],
+      [input.companyId, input.userId, input.entityType, input.sourceFormat, input.rows.length, validRows, invalidRows, duplicateRows, input.checksum, summary, input.mapping],
     );
     const batch = result.rows[0]!;
     for (const row of input.rows) {

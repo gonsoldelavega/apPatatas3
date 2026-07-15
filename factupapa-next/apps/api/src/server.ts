@@ -15,6 +15,10 @@ import { DeliveryNoteService } from "./delivery-notes/service.js";
 import { createDeliveryNoteRoutes } from "./delivery-notes/routes.js";
 import { InvoiceService } from "./invoices/service.js";
 import { createInvoiceRoutes } from "./invoices/routes.js";
+import { ImportMappingService } from "./imports/mappings.js";
+import { createImportMappingRoutes } from "./imports/mapping-routes.js";
+import { createReadiness } from "./health/readiness.js";
+import { log } from "./observability/logger.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -34,6 +38,7 @@ const imports = new ImportService(database.pool, {
   maximumRows: config.importMaximumRows,
   previewRows: config.importPreviewRows,
 });
+const importMappings = new ImportMappingService(database.pool);
 const deliveryNotes = new DeliveryNoteService(database.pool);
 const invoices = new InvoiceService(database.pool);
 const server = createApp({
@@ -46,9 +51,17 @@ const server = createApp({
     secure: config.authCookieSecure,
     maxAgeSeconds: config.refreshTokenTtlDays * 86_400,
   },
+  readiness: createReadiness({
+    database,
+    timeoutMs: config.dependencyTimeoutMs,
+    ...(config.redisUrl ? { redisUrl: config.redisUrl } : {}),
+    ...(config.s3Endpoint && config.s3AccessKey && config.s3SecretKey ? { s3: { endpoint: config.s3Endpoint, bucket: config.s3Bucket, accessKey: config.s3AccessKey, secretKey: config.s3SecretKey } } : {}),
+  }),
+  metrics: { allowRemote: config.internalMetricsAllowRemote, pool: database.pool, ...(config.internalMetricsToken ? { token: config.internalMetricsToken } : {}) },
   routes: [
     createInvoiceRoutes(auth, invoices),
     createDeliveryNoteRoutes(auth, deliveryNotes),
+    createImportMappingRoutes(auth, importMappings),
     createImportRoutes(auth, imports),
     createPricingRoutes(auth, pricing),
     createContactRoutes(auth, contacts),
@@ -57,13 +70,11 @@ const server = createApp({
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(
-    `FactuPapa Next API escuchando en http://${config.host}:${config.port}`,
-  );
+  log("info", { event: "service.started", host: config.host, port: config.port, serviceVersion: config.appVersion });
 });
 
 async function shutdown(signal: string) {
-  console.log(`Cierre solicitado por ${signal}`);
+  log("info", { event: "service.stopping", signal, serviceVersion: config.appVersion });
   server.close(async () => {
     await database.close();
     process.exit(0);

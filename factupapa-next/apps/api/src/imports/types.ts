@@ -15,11 +15,24 @@ export interface ValidateImportInput {
   sourceFormat: ImportSourceFormat;
   content?: string;
   contentBase64?: string;
+  mappingId?: string;
+  mapping?: Record<string, string>;
 }
 
 export interface ParsedImport {
   bytes: Buffer;
   rows: Record<string, unknown>[];
+  columns: string[];
+}
+
+export interface ImportMapping {
+  id: string;
+  name: string;
+  entityType: ImportEntityType;
+  sourceFormat: ImportSourceFormat;
+  mapping: Record<string, string>;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ImportRowDraft {
@@ -42,6 +55,7 @@ export interface ImportBatch {
   duplicateRows: number;
   checksum: string;
   validationSummary: Record<string, unknown>;
+  mappingUsed: Record<string, string>;
   createdAt: Date;
   validatedAt: Date | null;
   completedAt: Date | null;

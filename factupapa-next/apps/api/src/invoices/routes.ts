@@ -4,6 +4,10 @@ import { bearerToken, readJson, requireUuid } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
 import { createInvoicePdf } from "./pdf.js";
+
+export function assertPdfSize(buffer: Buffer): void {
+  if (buffer.length > 5_000_000) throw new HttpError("payload_too_large", 413);
+}
 import { InvoiceService } from "./service.js";
 import {
   validateFromDeliveryNotes,
@@ -72,8 +76,7 @@ export function createInvoiceRoutes(
         taxId: invoice.issuerTaxId,
         address: invoice.issuerAddress,
       });
-      if (buffer.length > 5_000_000)
-        throw new HttpError("payload_too_large", 413);
+      assertPdfSize(buffer);
       response.writeHead(200, {
         "content-type": "application/pdf",
         "content-disposition": `inline; filename="factura-${invoice.series}-${invoice.number}.pdf"`,

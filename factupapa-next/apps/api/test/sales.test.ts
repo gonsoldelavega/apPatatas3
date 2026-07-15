@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lineAmounts, sumAmounts } from "../src/sales/money.js";
 import { createInvoicePdf } from "../src/invoices/pdf.js";
+import { assertPdfSize } from "../src/invoices/routes.js";
 
 test("los totales usan enteros escalados y redondeo decimal exacto", () => {
   assert.deepEqual(lineAmounts("2.0000", "9.8765", "4"), {
@@ -68,4 +69,9 @@ test("el PDF emitido es A4, acotado y reproducible desde el snapshot", async () 
   assert.equal(first.subarray(0, 4).toString(), "%PDF");
   assert.ok(first.length > 1_000 && first.length < 5_000_000);
   assert.deepEqual(first, second);
+});
+
+test("rechaza un PDF que excede el límite operacional", () => {
+  assert.throws(() => assertPdfSize(Buffer.alloc(5_000_001)), (error) => error instanceof Error && "code" in error && error.code === "payload_too_large");
+  assert.doesNotThrow(() => assertPdfSize(Buffer.alloc(5_000_000)));
 });

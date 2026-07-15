@@ -115,6 +115,7 @@ export interface ImportBatch {
   invalidRows: number;
   duplicateRows: number;
   validationSummary: Record<string, unknown>;
+  mappingUsed?: Record<string, string>;
   createdAt: string;
   validatedAt: string | null;
   completedAt: string | null;
@@ -124,6 +125,27 @@ export interface ImportBatch {
 export interface ImportPreview extends ImportBatch {
   rows: ImportRow[];
   reused: boolean;
+}
+
+export interface ImportColumnDetection {
+  columns: string[];
+  proposedMapping: Record<string, string>;
+  requiredFields: string[];
+  fields: { key: string; label: string; required: boolean }[];
+  duplicateColumns: string[];
+  unknownColumns: string[];
+  ambiguities: string[];
+  valid: boolean;
+}
+
+export interface ImportMapping {
+  id: string;
+  name: string;
+  entityType: ImportEntityType;
+  sourceFormat: ImportSourceFormat;
+  mapping: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SalesLine {

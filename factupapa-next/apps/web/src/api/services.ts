@@ -11,6 +11,8 @@ import type {
   ImportPreview,
   ImportSourceFormat,
   ImportStrategy,
+  ImportColumnDetection,
+  ImportMapping,
   Invoice,
   Page,
   Product,
@@ -109,6 +111,8 @@ export const importsApi = {
     entityType: ImportEntityType;
     sourceFormat: ImportSourceFormat;
     content: string;
+    mappingId?: string;
+    mapping?: Record<string, string>;
   }) =>
     apiClient.request<ImportPreview>("/imports/validate", {
       method: "POST",
@@ -131,6 +135,12 @@ export const importsApi = {
       method: "POST",
       body: "{}",
     }),
+  detectColumns: (input: { entityType: ImportEntityType; sourceFormat: ImportSourceFormat; content: string }) =>
+    apiClient.request<ImportColumnDetection>("/imports/detect-columns", { method: "POST", body: JSON.stringify(input), timeoutMs: 30_000 }),
+  mappings: (entityType: ImportEntityType) => apiClient.request<{ items: ImportMapping[] }>(`/import-mappings${queryString({ entityType })}`),
+  saveMapping: (input: { name: string; entityType: ImportEntityType; sourceFormat: ImportSourceFormat; mapping: Record<string,string> }) =>
+    apiClient.request<ImportMapping>("/import-mappings", { method: "POST", body: JSON.stringify(input) }),
+  deleteMapping: (id: string) => apiClient.request<void>(`/import-mappings/${id}`, { method: "DELETE" }),
 };
 
 export const deliveryNotesApi = {

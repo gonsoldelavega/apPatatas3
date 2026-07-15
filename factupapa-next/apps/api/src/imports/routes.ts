@@ -31,6 +31,7 @@ export function createImportRoutes(auth: AuthApplication, imports: ImportService
       json(response, 200, await imports.list(identity, query.page, query.pageSize));
       return true;
     }
+    if (url.pathname === "/imports/detect-columns") return false;
     const match = url.pathname.match(/^\/imports\/([^/]+)(?:\/(confirm|cancel))?$/);
     if (!match) return false;
     const id = requireUuid(match[1]);

@@ -4,6 +4,8 @@ import { recordAudit } from "../database/audit.js";
 import { withTenantTransaction } from "../database/client.js";
 import { HttpError } from "../http/errors.js";
 import { parseImport } from "./parser.js";
+import { applyMapping, normalizeMapping, proposeMapping } from "./mapping.js";
+import { ImportMappingService } from "./mappings.js";
 import { ImportRepository } from "./repository.js";
 import type { ImportBatchDetail, ImportLimits, ImportStrategy, ValidateImportInput } from "./types.js";
 import { checksum, normalizeRows, safePreview } from "./validation.js";
@@ -21,13 +23,21 @@ export class ImportService {
     private readonly pool: Pool,
     readonly limits: ImportLimits,
     private readonly repository = new ImportRepository(),
+    private readonly mappings = new ImportMappingService(pool),
   ) {}
 
   async validate(identity: SessionIdentity, input: ValidateImportInput) {
     const parsed = parseImport(input, this.limits);
-    const digest = checksum(input.entityType, input.sourceFormat, parsed.bytes);
-    const normalized = normalizeRows(input.entityType, input.sourceFormat, parsed.rows);
     return withTenantTransaction(this.pool, identity, async (client) => {
+      const proposed = proposeMapping(input.entityType, parsed.columns).mapping;
+      const selectedMapping = input.mappingId
+        ? await this.mappings.resolve(client, input.mappingId, input.entityType, input.sourceFormat, parsed.columns)
+        : input.mapping
+          ? normalizeMapping(input.entityType, parsed.columns, input.mapping)
+          : normalizeMapping(input.entityType, parsed.columns, proposed);
+      const rows = input.mappingId || input.mapping ? applyMapping(parsed.rows, selectedMapping) : parsed.rows;
+      const normalized = normalizeRows(input.entityType, input.mappingId || input.mapping ? "json" : input.sourceFormat, rows);
+      const digest = checksum(input.entityType, input.sourceFormat, parsed.bytes, selectedMapping);
       const existing = await this.repository.findByChecksum(client, input.entityType, digest);
       if (existing && existing.status !== "cancelled" && existing.status !== "failed") {
         const detail = await this.repository.detail(client, existing.id, this.limits.previewRows);
@@ -41,6 +51,7 @@ export class ImportService {
         entityType: input.entityType,
         sourceFormat: input.sourceFormat,
         checksum: digest,
+        mapping: selectedMapping,
         rows: normalized,
       });
       await recordAudit(client, {
@@ -71,6 +82,7 @@ export class ImportService {
         const batch = await this.repository.detail(client, id, 0, true);
         if (!batch) throw new HttpError("not_found", 404);
         if (batch.status !== "validated") throw new HttpError("conflict", 409);
+        if (Object.keys(batch.mappingUsed).length === 0) throw new HttpError("invalid_mapping", 400);
         if (batch.invalidRows > 0) throw new HttpError("invalid_request", 400);
         const rows = await this.repository.allRows(client, id);
         if (strategy === "fail_on_conflict" && rows.some((row) => row.classification === "possible_update")) {

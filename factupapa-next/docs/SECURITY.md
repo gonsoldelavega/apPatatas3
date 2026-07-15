@@ -6,4 +6,6 @@ Login, refresh y logout rechazan un `Origin` ausente o distinto de `CORS_ALLOWED
 
 API y Nginx añaden CSP sin `unsafe-inline` ni `unsafe-eval`, `nosniff`, política de referrer, permisos vacíos y prohibición de framing. El build no genera sourcemaps y el service worker no cachea API ni respuestas autenticadas.
 
-Antes de producción siguen siendo obligatorios HTTPS, `AUTH_COOKIE_SECURE=true`, secretos externos, copias, observabilidad y revisión de seguridad.
+La configuración de producción rechaza cookie insegura, CORS wildcard, secretos débiles o placeholder, roles DB iguales y dependencias operativas ausentes. Los logs omiten material sensible y normalizan request IDs/rutas. Métricas no son públicas y requieren token operacional fuera de loopback.
+
+Existen copias y observabilidad verificables para ensayos ficticios, pero antes de producción siguen siendo obligatorios HTTPS, secretos externos, copia cifrada fuera de zona, alertas persistentes y revisión independiente de seguridad.

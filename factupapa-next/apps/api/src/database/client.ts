@@ -41,6 +41,7 @@ export interface DatabaseProbe {
 
 export interface Database extends DatabaseProbe {
   pool: Pool;
+  readiness(): Promise<void>;
 }
 
 export function createDatabaseProbe(connectionString: string): Database {
@@ -55,6 +56,16 @@ export function createDatabaseProbe(connectionString: string): Database {
     pool,
     async check() {
       await pool.query("select 1");
+    },
+    async readiness() {
+      const result = await pool.query<{ latest: string | null; bypass: boolean; role: string }>(
+        `select (select max(filename) from schema_migrations) as latest,
+                rolbypassrls as bypass, current_user as role
+         from pg_roles where rolname=current_user`,
+      );
+      const state = result.rows[0];
+      if (!state || state.latest !== "0008_import_mapping_and_retention.sql") throw new Error("migration_incomplete");
+      if (state.bypass || state.role === "factupapa_migrator") throw new Error("api_role_invalid");
     },
     async close() {
       await pool.end();

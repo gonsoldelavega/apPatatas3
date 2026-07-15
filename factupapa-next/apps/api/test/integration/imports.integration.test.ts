@@ -15,6 +15,9 @@ import {
 } from "../../src/database/client.js";
 import { createImportRoutes } from "../../src/imports/routes.js";
 import { ImportService } from "../../src/imports/service.js";
+import { ImportMappingService } from "../../src/imports/mappings.js";
+import { createImportMappingRoutes } from "../../src/imports/mapping-routes.js";
+import { cleanupImports } from "../../src/imports/cleanup.js";
 import { createPricingRoutes } from "../../src/pricing/routes.js";
 import { PricingService } from "../../src/pricing/service.js";
 import { createProductRoutes } from "../../src/products/routes.js";
@@ -129,6 +132,7 @@ before(async () => {
     maximumRows: 100,
     previewRows: 10,
   });
+  const mappings = new ImportMappingService(apiDatabase.pool);
   const contacts = new ContactService(apiDatabase.pool);
   const products = new ProductService(apiDatabase.pool);
   const pricing = new PricingService(apiDatabase.pool);
@@ -139,6 +143,7 @@ before(async () => {
     corsAllowedOrigins: ["http://integration.test"],
     routes: [
       createImportRoutes(auth, imports),
+      createImportMappingRoutes(auth, mappings),
       createPricingRoutes(auth, pricing),
       createContactRoutes(auth, contacts),
       createProductRoutes(auth, products),
@@ -487,6 +492,53 @@ test("importación segura tenant de contactos, productos y precios", async (cont
         (detail.validationSummary as Entity).failure,
         "transaction_rolled_back",
       );
+    },
+  );
+
+  await context.test(
+    "cleanup no compite con confirmación y dos ejecuciones no duplican borrados",
+    async () => {
+      const me = (await (await request("GET", "/me", undefined, tokenA)).json()) as Entity;
+      const identity = { companyId: (me.company as Entity).id as string, userId: me.id, retention: { completed: 1, cancelled: 1, failed: 1 }, limit: 10, dryRun: false };
+      const batch = await validate("products", "json", JSON.stringify([{ name: "Retención ficticia", sku: "RETENTION-1", unit: "unit", salePrice: "1.0000", taxRate: "21" }]));
+      await adminDatabase.pool.query("update import_batches set created_at=now()-interval '20 days' where id=$1", [batch.id]);
+      const [cleanup, confirmation] = await Promise.all([
+        cleanupImports(apiDatabase.pool, identity),
+        request("POST", `/imports/${batch.id}/confirm`, { strategy: "fail_on_conflict" }, tokenA),
+      ]);
+      assert.equal(cleanup.batches, 0);
+      assert.equal(confirmation.status, 200);
+      await adminDatabase.pool.query("update import_batches set completed_at=now()-interval '20 days' where id=$1", [batch.id]);
+      const outcomes = await Promise.allSettled([cleanupImports(apiDatabase.pool, identity), cleanupImports(apiDatabase.pool, identity)]);
+      const deleted = outcomes.flatMap((outcome) => outcome.status === "fulfilled" ? [outcome.value.batches] : []).reduce((sum, value) => sum + value, 0);
+      assert.equal(deleted, 1);
+      const lock = await adminDatabase.pool.query<{ locked: boolean }>("select pg_try_advisory_lock(hashtextextended($1,0)) as locked", [`import-cleanup:${identity.companyId}`]);
+      assert.equal(lock.rows[0]?.locked, true);
+      await adminDatabase.pool.query("select pg_advisory_unlock(hashtextextended($1,0))", [`import-cleanup:${identity.companyId}`]);
+    },
+  );
+
+  await context.test(
+    "plantillas de mapeo son reutilizables y quedan aisladas por empresa",
+    async () => {
+      const createdResponse = await request("POST", "/import-mappings", {
+        name: "Productos proveedor ficticio",
+        entityType: "products",
+        sourceFormat: "csv",
+        mapping: { name: "Articulo", unit: "Medida", salePrice: "Tarifa", taxRate: "IVA" },
+      }, tokenA);
+      assert.equal(createdResponse.status, 201);
+      const template = (await createdResponse.json()) as Entity;
+      assert.equal((await request("GET", `/import-mappings/${template.id}`, undefined, tokenB)).status, 404);
+      const detection = await request("POST", "/imports/detect-columns", { entityType: "products", sourceFormat: "csv", content: "Articulo,Medida,Tarifa,IVA\nMapeado,kg,4.3210,4\n" }, tokenA);
+      assert.equal(detection.status, 200);
+      const validation = await request("POST", "/imports/validate", { entityType: "products", sourceFormat: "csv", content: "Articulo,Medida,Tarifa,IVA\nMapeado,kg,4.3210,4\n", mappingId: template.id }, tokenA);
+      assert.equal(validation.status, 201);
+      const validationBody = (await validation.json()) as Entity;
+      assert.equal(((validationBody.rows as Entity[])[0]?.normalizedData as Entity).salePrice, "4.3210");
+      assert.equal((await request("GET", `/import-mappings/${template.id}`, undefined, tokenA)).status, 200);
+      assert.equal((await request("DELETE", `/import-mappings/${template.id}`, undefined, tokenA)).status, 204);
+      assert.equal((await request("GET", `/import-mappings/${template.id}`, undefined, tokenA)).status, 404);
     },
   );
 

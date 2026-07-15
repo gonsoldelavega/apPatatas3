@@ -20,18 +20,22 @@ const jsonFields = {
 } as const;
 
 export function validateImportRequest(body: Record<string, unknown>): ValidateImportInput {
-  assertAllowedKeys(body, ["entityType", "sourceFormat", "content", "contentBase64"]);
+  assertAllowedKeys(body, ["entityType", "sourceFormat", "content", "contentBase64", "mappingId", "mapping"]);
   const entityType = body.entityType;
   if (entityType !== "contacts" && entityType !== "products" && entityType !== "contact_product_prices") {
     throw new HttpError("invalid_request", 400);
   }
   if (body.content !== undefined && typeof body.content !== "string") throw new HttpError("invalid_request", 400);
   if (body.contentBase64 !== undefined && typeof body.contentBase64 !== "string") throw new HttpError("invalid_request", 400);
+  if (body.mappingId !== undefined && (typeof body.mappingId !== "string" || body.mapping !== undefined)) throw new HttpError("invalid_request", 400);
+  if (body.mapping !== undefined && (!body.mapping || typeof body.mapping !== "object" || Array.isArray(body.mapping))) throw new HttpError("invalid_request", 400);
   return {
     entityType,
     sourceFormat: sourceFormat(body.sourceFormat),
     ...(body.content === undefined ? {} : { content: body.content }),
     ...(body.contentBase64 === undefined ? {} : { contentBase64: body.contentBase64 }),
+    ...(body.mappingId === undefined ? {} : { mappingId: body.mappingId }),
+    ...(body.mapping === undefined ? {} : { mapping: body.mapping as Record<string, string> }),
   };
 }
 
@@ -72,7 +76,13 @@ function product(row: Record<string, unknown>, format: ImportSourceFormat): Reco
   const isActive = bool(format === "csv" ? row.is_active : row.isActive);
   delete mapped.isActive;
   const value = validateProductCreate(mapped);
-  return { ...value, isActive: isActive ?? true };
+  return {
+    ...value,
+    salePrice: mapped.salePrice as string,
+    ...(typeof mapped.estimatedCost === "string" ? { estimatedCost: mapped.estimatedCost } : {}),
+    taxRate: mapped.taxRate as string,
+    isActive: isActive ?? true,
+  };
 }
 
 function price(row: Record<string, unknown>, format: ImportSourceFormat): Record<string, unknown> {
@@ -84,7 +94,7 @@ function price(row: Record<string, unknown>, format: ImportSourceFormat): Record
   if (!taxId) throw new HttpError("invalid_request", 400);
   if (typeof mapped.sku !== "string" || !mapped.sku.trim() || mapped.sku.trim().length > 64) throw new HttpError("invalid_request", 400);
   const validated = validatePrice({ price: mapped.price, validFrom: mapped.validFrom, isActive: mapped.isActive });
-  return { taxId, sku: mapped.sku.trim(), ...validated, isActive: validated.isActive ?? true };
+  return { taxId, sku: mapped.sku.trim(), ...validated, price: mapped.price as string, isActive: validated.isActive ?? true };
 }
 
 export function normalizeRows(entityType: ImportEntityType, format: ImportSourceFormat, rows: Record<string, unknown>[]): ImportRowDraft[] {
@@ -113,8 +123,8 @@ export function normalizeRows(entityType: ImportEntityType, format: ImportSource
   });
 }
 
-export function checksum(entityType: ImportEntityType, format: ImportSourceFormat, bytes: Buffer): string {
-  return createHash("sha256").update(entityType).update("\0").update(format).update("\0").update(bytes).digest("hex");
+export function checksum(entityType: ImportEntityType, format: ImportSourceFormat, bytes: Buffer, mapping: Record<string, string> = {}): string {
+  return createHash("sha256").update(entityType).update("\0").update(format).update("\0").update(JSON.stringify(mapping)).update("\0").update(bytes).digest("hex");
 }
 
 export function importStrategy(value: unknown): ImportStrategy {

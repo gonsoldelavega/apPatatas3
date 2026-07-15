@@ -1,6 +1,6 @@
 # Pruebas E2E
 
-Playwright se ejecuta contra Compose completo con seed ficticio. Los proyectos cubren 360×800, 390×844, 430×932 y 1280×900. Comprueban autenticación, restauración, logout, dos pestañas, catálogo, validación y cancelación de importación, consola, overflow, targets táctiles y ventas. El smoke previo recorre además catálogo → albarán → emisión → factura → emisión → PDF.
+Playwright se ejecuta contra Compose completo con seed ficticio. Los proyectos cubren 360×800, 390×844, 430×932 y 1280×900. Comprueban autenticación, restauración, logout, dos pestañas, catálogo, mapeo automático/manual, obligatorios, duplicados, plantillas, cancelación/confirmación, error de red, consola, overflow, targets táctiles y ventas. El smoke recorre catálogo → albarán → emisión → factura → emisión → PDF.
 
 La versión de Playwright está fijada exactamente en `package.json` y
 `package-lock.json`. La instalación reproducible del Chromium correspondiente
@@ -11,6 +11,8 @@ cd factupapa-next/apps/web
 npm ci
 npm run playwright:install
 ```
+
+La dependencia `@playwright/test` está fijada exactamente y Chromium se instala desde esa versión después de `npm ci`; CI no usa un Playwright global.
 
 ```bash
 cd factupapa-next/apps/web

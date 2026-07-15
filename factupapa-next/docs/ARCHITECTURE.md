@@ -12,6 +12,10 @@ La base existente es coherente con el documento de producto:
 - La API es el único punto de entrada previsto para clientes web y móvil.
 - Las migraciones SQL son explícitas, ordenadas y registradas.
 
+La capa operativa añade logs JSON y métricas internas en memoria, probes acotados para PostgreSQL/Redis/MinIO y herramientas explícitas de backup. `0008` incorpora plantillas de mapeo multiempresa con baja lógica y `FORCE RLS`; los lotes solo conservan su mapping y datos normalizados, no el archivo fuente.
+
+El límite de confianza sigue siendo la API. MinIO no es accesible desde frontend, métricas usan control operacional separado, el migrador y `factupapa_api` son roles distintos y el rol API permanece `NOBYPASSRLS`.
+
 ## Componentes actuales
 
 ```text

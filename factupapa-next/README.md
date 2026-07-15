@@ -10,12 +10,17 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 - Primera beta: uso exclusivo de Nando
 - Arquitectura: preparada para evolucionar a producto multiempresa y móvil
 - Aislamiento: RLS forzado y validado entre dos empresas con un rol API no propietario
+- Preparación beta: backup/restore verificable, observabilidad, retención y mapeo manual, todavía solo con datos ficticios
 
 ## Principios
 
 1. Ningún cambio de esta carpeta debe modificar el funcionamiento de la aplicación actual.
 2. Todo servicio debe poder ejecutarse de forma aislada con Docker.
 3. Los datos se almacenan en PostgreSQL y los documentos en almacenamiento S3 compatible.
+
+## Operación previa a beta
+
+La migración aditiva actual es `0008_import_mapping_and_retention.sql`; no altera `0000`–`0007`. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
 4. El OCR funciona como proceso separado para no bloquear la aplicación.
 5. La aplicación móvil y la aplicación web comparten API y modelos de datos.
 6. No se usan credenciales reales dentro del repositorio.

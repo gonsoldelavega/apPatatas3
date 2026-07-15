@@ -7,6 +7,10 @@
 
 Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indique lo contrario.
 
+Antes de arrancar, ejecute `npm ci && npm run config:check` en `apps/api`. La configuración de integración debe usar valores ficticios no predeterminados y servicios internos. Los comandos operativos y sus variables están descritos en `BACKUP_AND_RESTORE.md` y `OPERATIONS.md`.
+
+El ensayo destructivo solo se permite con un nombre de proyecto Compose aislado que contenga `ci`, `test` o `recovery`. Nunca se debe reutilizar el proyecto ni los volúmenes de otro entorno.
+
 ## Arranque completo con Docker
 
 1. Crear la configuración local:

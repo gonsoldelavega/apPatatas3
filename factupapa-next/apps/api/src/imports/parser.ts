@@ -10,14 +10,14 @@ function decodeBase64(value: string): Buffer {
   return bytes;
 }
 
-function sourceBytes(input: ValidateImportInput): Buffer {
+export function sourceBytes(input: Pick<ValidateImportInput, "content" | "contentBase64">): Buffer {
   if ((input.content === undefined) === (input.contentBase64 === undefined)) {
     throw new HttpError("invalid_request", 400);
   }
   return input.content !== undefined ? Buffer.from(input.content, "utf8") : decodeBase64(input.contentBase64!);
 }
 
-function decodeUtf8(bytes: Buffer): string {
+export function decodeUtf8(bytes: Buffer): string {
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     if (text.includes("\0") || /[\x01-\x08\x0B\x0C\x0E-\x1F]/.test(text)) {
@@ -29,7 +29,7 @@ function decodeUtf8(bytes: Buffer): string {
   }
 }
 
-function parseCsvRecords(text: string): string[][] {
+export function parseCsvRecords(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -64,19 +64,20 @@ function parseCsvRecords(text: string): string[][] {
   return rows;
 }
 
-function parseCsv(text: string): Record<string, unknown>[] {
+function parseCsv(text: string): { rows: Record<string, unknown>[]; columns: string[] } {
   const records = parseCsvRecords(text);
   const headers = records.shift()?.map((header) => header.trim());
   if (!headers?.length || headers.some((header) => !header) || new Set(headers).size !== headers.length) {
     throw new HttpError("invalid_request", 400);
   }
-  return records.map((values) => {
+  const rows = records.map((values) => {
     if (values.length !== headers.length) throw new HttpError("invalid_request", 400);
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
   });
+  return { rows, columns: headers };
 }
 
-function parseJson(text: string): Record<string, unknown>[] {
+function parseJson(text: string): { rows: Record<string, unknown>[]; columns: string[] } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -91,7 +92,8 @@ function parseJson(text: string): Record<string, unknown>[] {
   if (!Array.isArray(rows) || rows.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
     throw new HttpError("invalid_request", 400);
   }
-  return rows as Record<string, unknown>[];
+  const objectRows = rows as Record<string, unknown>[];
+  return { rows: objectRows, columns: [...new Set(objectRows.flatMap((row) => Object.keys(row)))] };
 }
 
 export function parseImport(input: ValidateImportInput, limits: ImportLimits): ParsedImport {
@@ -99,11 +101,12 @@ export function parseImport(input: ValidateImportInput, limits: ImportLimits): P
   if (bytes.length === 0) throw new HttpError("invalid_request", 400);
   if (bytes.length > limits.maximumBytes) throw new HttpError("payload_too_large", 413);
   const text = decodeUtf8(bytes);
-  const rows = input.sourceFormat === "csv" ? parseCsv(text) : parseJson(text);
+  const parsed = input.sourceFormat === "csv" ? parseCsv(text) : parseJson(text);
+  const rows = parsed.rows;
   if (rows.length === 0 || rows.length > limits.maximumRows) {
     throw new HttpError(rows.length > limits.maximumRows ? "payload_too_large" : "invalid_request", rows.length > limits.maximumRows ? 413 : 400);
   }
-  return { bytes, rows };
+  return { bytes, rows, columns: parsed.columns };
 }
 
 export function sourceFormat(value: unknown): ImportSourceFormat {

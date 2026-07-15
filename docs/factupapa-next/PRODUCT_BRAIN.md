@@ -11,6 +11,10 @@
 
 Crear una aplicación móvil de gestión y facturación extremadamente sencilla, elegante y profesional, capaz de convertirse en la herramienta principal de trabajo de un autónomo.
 
+### Puerta operativa para beta privada
+
+La beta no admite datos reales hasta verificar copias PostgreSQL custom y objetos, restauración aislada, retención tenant, readiness de PostgreSQL/Redis/MinIO, logs sanitizados, métricas internas protegidas y ensayo de desastre rootless. El RPO/RTO provisional es 24 h/4 h y deberá aprobarse antes de convertirse en compromiso. El mapeador manual permite importar sin adaptar previamente las cabeceras y conserva solo mapping y filas normalizadas.
+
 La primera beta será exclusiva para el negocio de Nando y estará optimizada para su operativa real. Sin embargo, la arquitectura interna debe quedar preparada desde el primer día para evolucionar hacia un producto genérico utilizable por autónomos de distintos sectores.
 
 La aplicación debe permitir gestionar el negocio desde el móvil con rapidez, claridad y confianza: facturar, cobrar, registrar compras y gastos, organizar documentos, consultar rentabilidad, controlar clientes y tomar decisiones.

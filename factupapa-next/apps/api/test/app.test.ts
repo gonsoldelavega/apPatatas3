@@ -169,6 +169,32 @@ test("GET /ready responde 503 cuando PostgreSQL no está disponible", async () =
   });
 });
 
+test("readiness devuelve estados parciales sanitizados", async () => {
+  const server = createApp({
+    database: healthyDatabase,
+    auth,
+    version: "test",
+    readiness: { check: async () => ({ configuration: "ok", postgresql: "ok", redis: "unavailable", minio: "ok" }) },
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  const response = await fetch(`http://127.0.0.1:${port}/ready`);
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { status: "not_ready", dependencies: { configuration: "ok", postgresql: "ok", redis: "unavailable", minio: "ok" } });
+});
+
+test("request ID se valida, devuelve y no permite inyección", async () => {
+  const server = createApp({ database: healthyDatabase, auth, version: "test" });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  const accepted = await fetch(`http://127.0.0.1:${port}/health`, { headers: { "X-Request-Id": "e2e-safe_123" } });
+  assert.equal(accepted.headers.get("x-request-id"), "e2e-safe_123");
+  const rejected = await fetch(`http://127.0.0.1:${port}/health`, { headers: { "X-Request-Id": "not safe" } });
+  assert.match(rejected.headers.get("x-request-id") ?? "", /^[0-9a-f-]{36}$/);
+});
+
 test("las rutas desconocidas responden 404", async () => {
   const response = await request(healthyDatabase, "/desconocida");
   assert.equal(response.status, 404);

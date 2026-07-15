@@ -1,6 +1,6 @@
 export class HttpError extends Error {
   constructor(
-    readonly code: "invalid_request" | "not_found" | "conflict" | "payload_too_large",
+    readonly code: "invalid_request" | "invalid_mapping" | "missing_required_mapping" | "not_found" | "conflict" | "payload_too_large",
     readonly status: 400 | 404 | 409 | 413,
   ) {
     super(code);

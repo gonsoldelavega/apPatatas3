@@ -1,4 +1,4 @@
-name: FactuPapa Next VPS
+name: FactuPapa Next Rootless Audit
 
 on:
   push:
@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync-and-audit:
+  rootless-audit:
     runs-on: [self-hosted, linux, x64, factupapa-next]
     timeout-minutes: 15
     steps:
@@ -38,16 +38,6 @@ jobs:
           echo "Runner user: $(id -un)"
           echo "Commit: ${GITHUB_SHA}"
 
-      - name: Sync FactuPapa Next workspace
-        shell: bash
-        run: |
-          set -euo pipefail
-          target="$HOME/workspace/apPatatas3"
-          mkdir -p "$target"
-          find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-          cp -a "$GITHUB_WORKSPACE"/. "$target"/
-          printf '%s\n' "$GITHUB_SHA" > "$target/.deployed-commit"
-
       - name: Run repository audit
         shell: bash
         run: |
@@ -55,5 +45,5 @@ jobs:
           if [ -f factupapa-next/scripts/audit.sh ]; then
             bash factupapa-next/scripts/audit.sh
           else
-            echo "No audit script found; sync completed."
+            echo "No audit script found; checkout audit completed."
           fi
