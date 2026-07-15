@@ -75,7 +75,7 @@ test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
     );
   expect(undersized).toBe(0);
 });
-test("escritura, emisión, conversión, PDF y cancelación reabren el albarán", async ({
+test("emisión, conversión, PDF, cancelación y refacturación completa", async ({
   page,
 }, testInfo) => {
   await login(page);
@@ -121,6 +121,15 @@ test("escritura, emisión, conversión, PDF y cancelación reabren el albarán",
   await expect(
     page.getByRole("button", { name: "Convertir en factura" }),
   ).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Convertir en factura" }).click();
+  await expect(page).toHaveURL(/\/ventas\/facturas\//);
+  await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Emitir documento" }).click();
+  await expect(page.locator(".status")).toHaveText("issued");
 });
 test("catálogo, importación cancelada y dos pestañas", async ({
   page,

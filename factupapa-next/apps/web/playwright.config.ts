@@ -11,7 +11,7 @@ export default defineConfig({
     : "list",
   use: {
     baseURL: process.env.WEB_URL ?? "http://127.0.0.1:4173",
-    trace: "retain-on-failure",
+    trace: "off",
     screenshot: "only-on-failure",
     video: "off",
   },

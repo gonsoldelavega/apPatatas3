@@ -251,65 +251,8 @@ export class InvoiceService {
       const before = await this.repository.get(c, id, true);
       if (!before) throw new HttpError("not_found", 404);
       if (before.status !== "issued") throw new HttpError("conflict", 409);
-
-      if (before.sourceType === "delivery_notes") {
-        const linkedNotes = await c.query<
-          { id: string; status: string } & QueryResultRow
-        >(
-          `select note.id, note.status::text
-           from invoice_delivery_notes as link
-           join delivery_notes as note
-             on note.company_id = link.company_id
-            and note.id = link.delivery_note_id
-           where link.invoice_id = $1 and link.released_at is null
-           order by note.id
-           for update of link, note`,
-          [id],
-        );
-        if (
-          !linkedNotes.rowCount ||
-          linkedNotes.rows.some((note) => note.status !== "invoiced")
-        )
-          throw new HttpError("conflict", 409);
-
-        await c.query(
-          `update invoice_delivery_notes
-           set released_at = now()
-           where invoice_id = $1 and released_at is null`,
-          [id],
-        );
-        for (const note of linkedNotes.rows) {
-          await c.query(
-            `update delivery_notes set status = 'issued'
-             where id = $1 and status = 'invoiced'`,
-            [note.id],
-          );
-          await recordAudit(c, {
-            companyId: identity.companyId,
-            actorUserId: identity.userId,
-            entityType: "delivery_note",
-            entityId: note.id,
-            action: "delivery_note.reopened_after_invoice_cancellation",
-            before: { status: "invoiced", invoiceId: id },
-            after: { status: "issued" },
-          });
-        }
-      }
-
-      await c.query(
-        `update invoices set status='cancelled',cancelled_at=now() where id=$1`,
-        [id],
-      );
+      await c.query(`select public.cancel_sales_invoice($1::uuid)`, [id]);
       const after = await this.repository.get(c, id);
-      await recordAudit(c, {
-        companyId: identity.companyId,
-        actorUserId: identity.userId,
-        entityType: "invoice",
-        entityId: id,
-        action: "invoice.cancelled",
-        before,
-        after,
-      });
       return after;
     });
   }

@@ -21,6 +21,25 @@ let admin: Database,
   productId: string;
 let delivery: DeliveryNoteService, invoices: InvoiceService;
 
+async function createIssuedNote(series: string) {
+  const note = await delivery.create(identity, {
+    contactId: customerId,
+    series,
+    issueDate: "2026-07-15",
+  });
+  await delivery.addLine(identity, note!.id, { productId, quantity: "1" });
+  return (await delivery.issue(identity, note!.id))!;
+}
+
+async function createIssuedInvoice(noteIds: string[], series: string) {
+  const invoice = await invoices.fromDeliveryNotes(identity, {
+    deliveryNoteIds: noteIds,
+    series,
+    issueDate: "2026-07-15",
+  });
+  return (await invoices.issue(identity, invoice!.id))!;
+}
+
 before(async () => {
   assert.ok(adminUrl && apiUrl);
   admin = createDatabaseProbe(adminUrl);
@@ -129,6 +148,31 @@ test("albarán aplica precio específico, snapshot, numeración, bloqueo y aisla
           "update delivery_note_lines set quantity=99 where delivery_note_id=$1",
           [draft!.id],
         ),
+    ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  const targetDraft = await delivery.create(identity, {
+    contactId: customerId,
+    series: "MOVE-DN",
+    issueDate: "2026-07-15",
+  });
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_note_lines set delivery_note_id=$2 where id=$1",
+          [issued!.lines[0]!.id, targetDraft!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_note_lines set company_id=$2 where id=$1",
+          [issued!.lines[0]!.id, other.companyId],
+        ),
       ),
     (error: unknown) => (error as { code?: string }).code === "55000",
   );
@@ -161,6 +205,22 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   });
   assert.equal(invoice?.lines.length, 2);
   assert.equal(invoice?.contactLegalName, "Cliente Ficticio");
+  const invoicedTarget = await delivery.create(identity, {
+    contactId: customerId,
+    series: "MOVE-INVOICED",
+    issueDate: "2026-07-15",
+  });
+  const invoicedSource = await delivery.get(identity, numbered[0]!.id);
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_note_lines set delivery_note_id=$2 where id=$1",
+          [invoicedSource.lines[0]!.id, invoicedTarget!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
   await assert.rejects(
     () =>
       invoices.fromDeliveryNotes(identity, {
@@ -172,6 +232,21 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   );
   const issued = await invoices.issue(identity, invoice!.id);
   assert.equal(issued?.status, "issued");
+  const targetInvoice = await invoices.create(identity, {
+    contactId: customerId,
+    series: "MOVE-INV",
+    issueDate: "2026-07-15",
+  });
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update invoice_lines set invoice_id=$2 where id=$1", [
+          issued!.lines[0]!.id,
+          targetInvoice.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
   await assert.rejects(
     () =>
       withTenantTransaction(api.pool, identity, (client) =>
@@ -186,6 +261,46 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
       withTenantTransaction(api.pool, identity, (client) =>
         client.query(
           "delete from invoice_lines where invoice_id=$1",
+          [invoice!.id],
+        ),
+    ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update invoice_lines set company_id=$2 where id=$1", [
+          issued!.lines[0]!.id,
+          other.companyId,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update invoice_delivery_notes set released_at=now() where invoice_id=$1",
+          [invoice!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "42501",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_notes set status='issued' where id=$1",
+          [numbered[0]!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update invoices set status='cancelled',cancelled_at=now() where id=$1",
           [invoice!.id],
         ),
       ),
@@ -207,13 +322,182 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
     issueDate: "2026-07-15",
   });
   assert.equal(replacement?.deliveryNoteIds.length, 2);
+  const replacementIssued = await invoices.issue(identity, replacement!.id);
+  assert.equal(replacementIssued?.status, "issued");
+  assert.ok(replacementIssued?.number);
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("select public.cancel_sales_invoice($1::uuid)", [
+          invoice!.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  const links = await withTenantTransaction(api.pool, identity, (client) =>
+    client.query<{ invoice_id: string; released_at: Date | null }>(
+      `select invoice_id,released_at from invoice_delivery_notes
+       where delivery_note_id=any($1::uuid[]) order by created_at`,
+      [numbered.map((note) => note!.id)],
+    ),
+  );
+  assert.equal(
+    links.rows.filter((link) => link.invoice_id === invoice!.id).every((link) => link.released_at),
+    true,
+  );
+  assert.equal(
+    links.rows.filter((link) => link.invoice_id === replacement!.id).every((link) => !link.released_at),
+    true,
+  );
   const events = await withTenantTransaction(api.pool, identity, (client) =>
     client.query(
       `select action from audit_events where entity_id=any($1::text[])`,
       [[...numbered.map((note) => note!.id), invoice!.id, replacement!.id]],
     ),
   );
-  assert.ok(events.rows.length >= 8);
+  assert.ok(events.rows.length >= 9);
+  assert.equal(
+    events.rows.filter(
+      (event) =>
+        event.action ===
+        "delivery_note.reopened_after_invoice_cancellation",
+    ).length,
+    2,
+  );
+});
+
+test("transiciones SQL desde borrador exigen el ciclo de vida y no alteran importes", async () => {
+  const draft = await invoices.create(identity, {
+    contactId: customerId,
+    series: "STATE",
+    issueDate: "2026-07-15",
+  });
+  const reject = (query: string) =>
+    assert.rejects(
+      () =>
+        withTenantTransaction(api.pool, identity, (client) =>
+          client.query(query, [draft.id]),
+        ),
+      (error: unknown) => (error as { code?: string }).code === "55000",
+    );
+
+  await reject("update invoices set status='issued' where id=$1");
+  await reject("update invoices set number=900001,status='issued' where id=$1");
+  await reject(
+    "update invoices set status='cancelled',cancelled_at=now() where id=$1",
+  );
+  await reject(
+    "update invoices set number=900001,status='issued',issued_at=now(),total=99 where id=$1",
+  );
+  assert.equal((await invoices.get(identity, draft.id)).status, "draft");
+});
+
+test("dos cancelaciones concurrentes liberan una sola vez", async () => {
+  const note = await createIssuedNote("RACE-CANCEL");
+  const invoice = await createIssuedInvoice([note.id], "RACE-CANCEL");
+  const results = await Promise.allSettled([
+    invoices.cancel(identity, invoice.id),
+    invoices.cancel(identity, invoice.id),
+  ]);
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+  const links = await withTenantTransaction(api.pool, identity, (client) =>
+    client.query<{ released_at: Date | null }>(
+      "select released_at from invoice_delivery_notes where invoice_id=$1",
+      [invoice.id],
+    ),
+  );
+  assert.equal(links.rowCount, 1);
+  assert.ok(links.rows[0]!.released_at);
+  assert.equal((await delivery.get(identity, note.id)).status, "issued");
+});
+
+test("cancelación concurrente con refacturación mantiene un único vínculo activo", async () => {
+  const note = await createIssuedNote("RACE-REINVOICE");
+  const invoice = await createIssuedInvoice([note.id], "RACE-REINVOICE");
+  const [cancelResult, conversionResult] = await Promise.allSettled([
+    invoices.cancel(identity, invoice.id),
+    invoices.fromDeliveryNotes(identity, {
+      deliveryNoteIds: [note.id],
+      series: "RACE-REPLACEMENT",
+      issueDate: "2026-07-15",
+    }),
+  ]);
+  assert.equal(cancelResult.status, "fulfilled");
+  let replacement =
+    conversionResult.status === "fulfilled"
+      ? conversionResult.value
+      : await invoices.fromDeliveryNotes(identity, {
+          deliveryNoteIds: [note.id],
+          series: "RACE-REPLACEMENT",
+          issueDate: "2026-07-15",
+        });
+  replacement = await invoices.issue(identity, replacement!.id);
+  assert.equal(replacement?.status, "issued");
+  const active = await withTenantTransaction(api.pool, identity, (client) =>
+    client.query<{ invoice_id: string }>(
+      `select invoice_id from invoice_delivery_notes
+       where delivery_note_id=$1 and released_at is null`,
+      [note.id],
+    ),
+  );
+  assert.equal(active.rowCount, 1);
+  assert.equal(active.rows[0]!.invoice_id, replacement!.id);
+});
+
+test("un fallo tras liberar el primer albarán revierte toda la cancelación", async () => {
+  const notes = await Promise.all([
+    createIssuedNote("ROLLBACK-A"),
+    createIssuedNote("ROLLBACK-B"),
+  ]);
+  const invoice = await createIssuedInvoice(
+    notes.map((note) => note.id),
+    "ROLLBACK",
+  );
+  const failOnId = notes.map((note) => note.id).sort()[1]!;
+  await admin.pool.query(`
+    create function public.integration_fail_second_reopen()
+    returns trigger language plpgsql as $body$
+    begin
+      if new.id = '${failOnId}'::uuid
+         and old.status = 'invoiced'
+         and new.status = 'issued' then
+        raise exception 'integration rollback injection';
+      end if;
+      return new;
+    end
+    $body$;
+    create trigger zzz_integration_fail_second_reopen
+    before update on public.delivery_notes
+    for each row execute function public.integration_fail_second_reopen();
+  `);
+  try {
+    await assert.rejects(() => invoices.cancel(identity, invoice.id));
+  } finally {
+    await admin.pool.query(`
+      drop trigger if exists zzz_integration_fail_second_reopen on public.delivery_notes;
+      drop function if exists public.integration_fail_second_reopen();
+    `);
+  }
+  assert.equal((await invoices.get(identity, invoice.id)).status, "issued");
+  assert.deepEqual(
+    await Promise.all(notes.map(async (note) => (await delivery.get(identity, note.id)).status)),
+    ["invoiced", "invoiced"],
+  );
+  const state = await withTenantTransaction(api.pool, identity, (client) =>
+    client.query<{ active: number; audit_count: number }>(
+      `select
+         count(*) filter (where link.released_at is null)::int active,
+         (select count(*)::int from audit_events as event
+          where event.entity_id=any($2::text[])
+            and event.action='delivery_note.reopened_after_invoice_cancellation') audit_count
+       from invoice_delivery_notes as link
+       where link.invoice_id=$1`,
+      [invoice.id, notes.map((note) => note.id)],
+    ),
+  );
+  assert.equal(state.rows[0]!.active, 2);
+  assert.equal(state.rows[0]!.audit_count, 0);
 });
 
 test("cancelación, snapshots fiscales y rollback rechazan cruces inválidos", async () => {
