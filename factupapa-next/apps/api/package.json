@@ -13,6 +13,8 @@
     "start": "node dist/server.js",
     "bootstrap": "tsx src/auth/bootstrap.ts",
     "bootstrap:prod": "node dist/auth/bootstrap.js",
+    "seed": "tsx src/dev/seed.ts",
+    "seed:prod": "node dist/dev/seed.js",
     "migrate": "tsx src/database/migrate.ts",
     "migrate:prod": "node dist/database/migrate.js",
     "test": "tsx --test test/*.test.ts",
@@ -22,10 +24,12 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "jose": "^6.2.3",
+    "pdfkit": "^0.19.1",
     "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.15.5",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"

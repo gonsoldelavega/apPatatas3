@@ -38,7 +38,7 @@ Todos los comandos se ejecutan desde la raíz del repositorio salvo que se indiq
    docker compose exec postgres psql -U factupapa -d factupapa_next -c "select filename, applied_at from schema_migrations order by filename;"
    ```
 
-   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready`, la web y `/healthz` devuelven HTTP 200 y PostgreSQL lista las migraciones `0000` a `0005`.
+   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready`, la web y `/healthz` devuelven HTTP 200 y PostgreSQL lista las migraciones `0000` a `0006`.
 
 5. Revisar logs si algún servicio no está sano:
 
@@ -76,7 +76,7 @@ npm run dev
 
 `VITE_API_BASE_URL` debe apuntar a la API local, normalmente `http://127.0.0.1:4100`. Añadir exactamente el origen mostrado por Vite a `CORS_ALLOWED_ORIGINS` de la API, por ejemplo `http://127.0.0.1:5173`; no usar `*`. Ninguna variable `VITE_` debe contener secretos porque forma parte del bundle público.
 
-La aplicación usa access token en memoria y refresh token rotatorio en `sessionStorage`. Al recargar intenta un único refresh y recupera `/me`. Un 401 en una lectura segura se renueva y repite una vez; una mutación no se repite automáticamente. Cerrar sesión revoca la familia en la API y borra el estado local. `sessionStorage` reduce persistencia, pero no protege frente a XSS; la cookie HttpOnly descrita en arquitectura sigue pendiente.
+La aplicación usa access token en memoria y refresh token rotatorio en cookie HttpOnly. Al recargar intenta un único refresh con `credentials: include` y recupera `/me`. Un 401 en una lectura segura se renueva y repite una vez; una mutación no se repite automáticamente. Logout revoca la familia aunque el access token haya caducado.
 
 ### Instalación PWA
 
@@ -122,11 +122,11 @@ El bootstrap es una excepción administrativa explícita a RLS y solo debe ejecu
 ## API de autenticación
 
 - `POST /auth/login` con `email` y `password`.
-- `POST /auth/refresh` con `refreshToken`.
-- `POST /auth/logout` con Bearer access token y `refreshToken`.
+- `POST /auth/refresh` con cuerpo `{}` y cookie HttpOnly.
+- `POST /auth/logout` con cuerpo `{}` y cookie HttpOnly; no exige access token vigente.
 - `GET /me` con Bearer access token.
 
-Los clientes deben mantener access y refresh tokens en almacenamiento seguro del sistema operativo. No deben guardarlos en logs, analítica ni URLs.
+La web mantiene el access token solo en memoria y no puede leer el refresh token, que reside exclusivamente en la cookie HttpOnly. Otros clientes nativos deberán usar almacenamiento seguro del sistema operativo. Ningún cliente debe guardar tokens en logs, analítica ni URLs.
 
 ## API de contactos, productos y precios
 
@@ -269,7 +269,7 @@ npm test
 npm run build
 ```
 
-Las pruebas web cubren login válido/inválido, almacenamiento de sesión, refresh concurrente, expiración, logout, rutas protegidas, códigos 400/401/404/409/413, pérdida de conexión, prohibición de repetir mutaciones, estados vacíos, labels y confirmación explícita de importaciones. El workflow añade build de ambos proyectos, Compose rootless, healthchecks, bootstrap ficticio temporal y smoke de página, login, `/me` y logout. Los artefactos `dist/`, `.env` y credenciales temporales no se versionan.
+Las pruebas web cubren login válido/inválido, cookie no legible, refresh concurrente, expiración, logout, rutas protegidas, códigos 400/401/404/409/413, pérdida de conexión, prohibición de repetir mutaciones, estados vacíos, labels y confirmación explícita de importaciones. El workflow añade build de ambos proyectos, Compose rootless, healthchecks, seed ficticio y smoke de página, sesión, catálogo, albarán, factura, PDF y logout; Playwright comprueba los cuatro viewports. Los artefactos `dist/`, `.env`, capturas, traces, PDF y credenciales temporales no se versionan.
 
 ## Verificación manual de RLS
 
@@ -310,3 +310,9 @@ git status --short --branch
 ## Límites del entorno
 
 Este Compose es exclusivamente de desarrollo. No debe desplegarse como producción ni exponerse directamente a Internet. No usa datos reales y el archivo `.env` queda ignorado por Git.
+
+## Seed ficticio y ventas
+
+El seed exige `APP_ENV=development|integration|test`, `DATABASE_ADMIN_URL`, `DEMO_USER_EMAIL` y `DEMO_USER_PASSWORD`. Se ejecuta manualmente con `docker compose --profile tools run --rm -e APP_ENV -e DEMO_USER_EMAIL -e DEMO_USER_PASSWORD seed`. Es idempotente, nunca arranca automáticamente y se elimina con `docker compose down -v` únicamente en el entorno aislado.
+
+Las rutas nuevas son `/delivery-notes`, `/invoices`, sus acciones `/issue`, `/cancel` y `/lines`, `/invoices/from-delivery-notes` y `GET /invoices/:id/pdf`. Véanse [SALES_DOMAIN.md](SALES_DOMAIN.md) y [E2E_TESTING.md](E2E_TESTING.md).

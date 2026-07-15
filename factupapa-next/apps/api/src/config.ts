@@ -12,6 +12,26 @@ export interface AppConfig {
   importMaximumRows: number;
   importPreviewRows: number;
   corsAllowedOrigins: string[];
+  authCookieSecure: boolean;
+  authCookieName: string;
+}
+
+function readBoolean(
+  name: string,
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
+  if (value === undefined) return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${name} debe ser true o false`);
+}
+
+function readCookieName(value: string | undefined): string {
+  const name = value?.trim() || "factupapa_refresh";
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(name))
+    throw new Error("AUTH_COOKIE_NAME no es válido");
+  return name;
 }
 
 function readPort(value: string | undefined): number {
@@ -22,7 +42,11 @@ function readPort(value: string | undefined): number {
   return port;
 }
 
-function readPositiveInteger(name: string, value: string | undefined, fallback: number): number {
+function readPositiveInteger(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+): number {
   const parsed = Number(value ?? fallback);
   if (!Number.isInteger(parsed) || parsed < 1) {
     throw new Error(`${name} debe ser un entero positivo`);
@@ -32,16 +56,31 @@ function readPositiveInteger(name: string, value: string | undefined, fallback: 
 
 function readCorsOrigins(value: string | undefined): string[] {
   if (!value?.trim()) return [];
-  const origins = [...new Set(value.split(",").map((origin) => origin.trim()).filter(Boolean))];
+  const origins = [
+    ...new Set(
+      value
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
+  ];
   for (const origin of origins) {
     let parsed: URL;
     try {
       parsed = new URL(origin);
     } catch {
-      throw new Error("CORS_ALLOWED_ORIGINS debe contener orígenes HTTP(S) exactos separados por comas");
+      throw new Error(
+        "CORS_ALLOWED_ORIGINS debe contener orígenes HTTP(S) exactos separados por comas",
+      );
     }
-    if (origin === "*" || (parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.origin !== origin) {
-      throw new Error("CORS_ALLOWED_ORIGINS debe contener orígenes HTTP(S) exactos separados por comas");
+    if (
+      origin === "*" ||
+      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+      parsed.origin !== origin
+    ) {
+      throw new Error(
+        "CORS_ALLOWED_ORIGINS debe contener orígenes HTTP(S) exactos separados por comas",
+      );
     }
   }
   return origins;
@@ -56,6 +95,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (!jwtSecret || Buffer.byteLength(jwtSecret, "utf8") < 32) {
     throw new Error("JWT_SECRET debe tener al menos 32 bytes");
   }
+  const authCookieSecure = readBoolean(
+    "AUTH_COOKIE_SECURE",
+    env.AUTH_COOKIE_SECURE,
+    false,
+  );
+  if (env.APP_ENV === "production" && !authCookieSecure) {
+    throw new Error("AUTH_COOKIE_SECURE debe ser true en producción");
+  }
 
   return {
     host: env.APP_HOST ?? "0.0.0.0",
@@ -63,13 +110,43 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl,
     appVersion: env.APP_VERSION ?? "development",
     jwtSecret,
-    accessTokenTtlSeconds: readPositiveInteger("ACCESS_TOKEN_TTL_SECONDS", env.ACCESS_TOKEN_TTL_SECONDS, 900),
-    refreshTokenTtlDays: readPositiveInteger("REFRESH_TOKEN_TTL_DAYS", env.REFRESH_TOKEN_TTL_DAYS, 30),
-    loginRateLimitMax: readPositiveInteger("LOGIN_RATE_LIMIT_MAX", env.LOGIN_RATE_LIMIT_MAX, 5),
-    loginRateLimitWindowMs: readPositiveInteger("LOGIN_RATE_LIMIT_WINDOW_MS", env.LOGIN_RATE_LIMIT_WINDOW_MS, 60_000),
-    importMaximumBytes: readPositiveInteger("IMPORT_MAX_BYTES", env.IMPORT_MAX_BYTES, 1_048_576),
-    importMaximumRows: readPositiveInteger("IMPORT_MAX_ROWS", env.IMPORT_MAX_ROWS, 1_000),
-    importPreviewRows: readPositiveInteger("IMPORT_PREVIEW_ROWS", env.IMPORT_PREVIEW_ROWS, 50),
+    accessTokenTtlSeconds: readPositiveInteger(
+      "ACCESS_TOKEN_TTL_SECONDS",
+      env.ACCESS_TOKEN_TTL_SECONDS,
+      900,
+    ),
+    refreshTokenTtlDays: readPositiveInteger(
+      "REFRESH_TOKEN_TTL_DAYS",
+      env.REFRESH_TOKEN_TTL_DAYS,
+      30,
+    ),
+    loginRateLimitMax: readPositiveInteger(
+      "LOGIN_RATE_LIMIT_MAX",
+      env.LOGIN_RATE_LIMIT_MAX,
+      5,
+    ),
+    loginRateLimitWindowMs: readPositiveInteger(
+      "LOGIN_RATE_LIMIT_WINDOW_MS",
+      env.LOGIN_RATE_LIMIT_WINDOW_MS,
+      60_000,
+    ),
+    importMaximumBytes: readPositiveInteger(
+      "IMPORT_MAX_BYTES",
+      env.IMPORT_MAX_BYTES,
+      1_048_576,
+    ),
+    importMaximumRows: readPositiveInteger(
+      "IMPORT_MAX_ROWS",
+      env.IMPORT_MAX_ROWS,
+      1_000,
+    ),
+    importPreviewRows: readPositiveInteger(
+      "IMPORT_PREVIEW_ROWS",
+      env.IMPORT_PREVIEW_ROWS,
+      50,
+    ),
     corsAllowedOrigins: readCorsOrigins(env.CORS_ALLOWED_ORIGINS),
+    authCookieSecure,
+    authCookieName: readCookieName(env.AUTH_COOKIE_NAME),
   };
 }

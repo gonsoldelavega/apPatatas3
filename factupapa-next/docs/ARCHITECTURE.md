@@ -62,7 +62,7 @@ Rutas disponibles:
 - `/contacts/:contactId/products` y `/contacts/:contactId/products/:productId/price` para precios efectivos.
 - `/imports/validate`, `/imports`, `/imports/:id`, `/imports/:id/confirm` y `/imports/:id/cancel` para importación en dos fases.
 
-No existen todavía endpoints de facturas, pagos, stock u otros movimientos económicos.
+Existen endpoints iniciales de albaranes y facturas de venta. Pagos, stock y demás movimientos económicos siguen fuera de alcance.
 
 ## Cliente web y límites de confianza
 
@@ -74,7 +74,7 @@ Los importes siguen siendo strings decimales hasta su presentación. El formatea
 
 ### Sesión del navegador
 
-El access token vive en memoria. El refresh rotatorio usa `sessionStorage` como compromiso temporal: sobrevive a una recarga en la misma pestaña y desaparece al terminar la sesión del navegador, pero un XSS podría leerlo. No se usa `localStorage`. La solución final deberá mover el refresh a una cookie `HttpOnly`, `Secure`, `SameSite` y con alcance restringido, además de incorporar una defensa CSRF acorde.
+El access token vive en memoria. El refresh rotatorio usa exclusivamente cookie `HttpOnly`, `SameSite=Strict`, `Path=/auth` y `Secure` configurable; JavaScript no puede leerlo. La restauración tras recarga llama una vez a refresh y la defensa CSRF exige `Origin` exacto en todos los POST de autenticación.
 
 Solo existe una promesa de refresh concurrente. Después de renovar, el cliente puede repetir GET/HEAD/OPTIONS; nunca repite POST/PUT/PATCH/DELETE, porque podría duplicar un alta o confirmación. En ese caso informa de que la sesión se renovó y exige repetir conscientemente la acción.
 
@@ -151,7 +151,7 @@ Una migración ya aplicada no se repite. Si su contenido cambia, el proceso fall
 ## Decisiones pendientes
 
 - Recuperación y cambio de contraseña, segundo factor y gestión de dispositivos.
-- API de dominio para facturas y cobros; clientes, productos, precios e importación ya están aislados.
+- Cobros, rectificativas reales y cumplimiento fiscal; albaranes y facturas iniciales ya están aislados.
 - Worker de colas y contratos de trabajos asíncronos.
 - Integración real de documentos con MinIO.
 - Copias, restauración, HTTPS, métricas y logs estructurados antes de cualquier uso real.
@@ -170,7 +170,7 @@ El atacante considerado puede controlar parámetros HTTP y tokens propios, pero 
 - `factupapa_migrator` es `NOLOGIN`, posee tablas, tipos y funciones y tiene `BYPASSRLS` únicamente para migraciones y las tres funciones preautenticadas revisadas. Las migraciones futuras ejecutan `SET LOCAL ROLE factupapa_migrator`.
 - `factupapa_api` tiene `LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOINHERIT` y `NOBYPASSRLS`. No posee tablas y no puede desactivar RLS. Su contraseña se provisiona desde el entorno después de migrar.
 
-Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `contact_product_prices`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches`, `import_batch_rows` y `auth_sessions`.
+Todas las tablas protegidas usan `ENABLE ROW LEVEL SECURITY` y `FORCE ROW LEVEL SECURITY`: `companies`, `users`, `memberships`, `contacts`, `products`, `contact_product_prices`, `invoices`, `invoice_lines`, `payments`, `documents`, `audit_events`, `import_batches`, `import_batch_rows`, `auth_sessions`, `document_sequences`, `delivery_notes`, `delivery_note_lines` e `invoice_delivery_notes`.
 
 `companies` compara su `id` con la empresa actual. `users` compara su `id` con el usuario actual. `memberships` y `auth_sessions` exigen simultáneamente empresa y usuario. El resto compara `company_id`. Cada política incluye `USING` y `WITH CHECK`, por lo que también impide mover una fila a otra empresa mediante `UPDATE`.
 
@@ -211,3 +211,7 @@ Toda migración que añada una tabla empresarial debe:
 7. añadir pruebas negativas con dos empresas para `SELECT`, `INSERT`, `UPDATE` y `DELETE`.
 
 No se aprobará un endpoint económico que consulte el pool directamente.
+
+## Bloque de ventas
+
+Albaranes, facturas, líneas, numeración y conversión usan `withTenantTransaction`. `0006_sales_documents.sql` aplica RLS forzado; los snapshots impiden que cambios posteriores reescriban documentos. El PDF se genera al vuelo y MinIO no se expone. Véanse [SALES_DOMAIN.md](SALES_DOMAIN.md) y [SECURITY.md](SECURITY.md).

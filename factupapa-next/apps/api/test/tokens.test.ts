@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRefreshToken, hashRefreshToken, TokenService } from "../src/auth/tokens.js";
+import {
+  createRefreshToken,
+  hashRefreshToken,
+  TokenService,
+} from "../src/auth/tokens.js";
 
 test("el access token firmado conserva la identidad mínima", async () => {
-  const service = new TokenService("test-secret-with-at-least-32-bytes-long", 900);
+  const service = new TokenService(
+    "test-secret-with-at-least-32-bytes-long",
+    900,
+  );
   const identity = {
     userId: "d632f7e5-e108-40cb-9c97-5100d8ef55da",
     companyId: "398f1da7-486b-4dd6-9aa3-5cc84794d28e",

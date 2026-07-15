@@ -43,8 +43,8 @@ factupapa-next/
 - PostgreSQL: datos económicos y operativos.
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
-- API TypeScript: healthcheck, autenticación, contactos, productos, precios específicos e importaciones validadas.
-- Web React/TypeScript: PWA instalable con login, catálogo, precios e importación supervisada.
+- API TypeScript: healthcheck, autenticación, catálogo, importaciones, albaranes, facturas y PDF.
+- Web React/TypeScript: PWA instalable con login, catálogo, importación supervisada y ventas.
 - Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.
 - Provisionador: asigna en cada arranque la contraseña local al rol limitado `factupapa_api`.
 - Worker: previsto para trabajos asíncronos; todavía no implementado.
@@ -59,11 +59,11 @@ factupapa-next/
 
 ## Aplicación web móvil
 
-`apps/web` es la primera interfaz funcional de FactuPapa Next. Usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil ofrece Inicio, Catálogo, Nuevo, Importar y Más; el alcance actual se limita a contactos, proveedores, productos, precios específicos e importaciones. No contiene facturas ni métricas económicas inventadas.
+`apps/web` es la primera interfaz funcional de FactuPapa Next. Usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil ofrece Inicio, Ventas, Nuevo, Catálogo y Más; Importar vive en Más. El alcance incluye contactos, proveedores, productos, precios específicos, importaciones, albaranes y facturas de venta sin cobros. Solo muestra métricas derivadas de documentos existentes.
 
 La PWA es instalable desde el navegador y dispone de manifest, icono, service worker y shell offline. Los datos de la API no se cachean en el service worker. La URL se configura con `VITE_API_BASE_URL`; no hay URLs privadas ni secretos en el bundle.
 
-El access token permanece solo en memoria. El refresh token rotatorio se guarda en `sessionStorage`, nunca en `localStorage`, y se elimina al cerrar sesión. Esta solución conserva la compatibilidad con la API actual, pero sigue siendo legible por JavaScript ante un XSS: la evolución prevista es una cookie `HttpOnly`, `Secure` y `SameSite` emitida por el backend. Una renovación concurrente se comparte entre peticiones; las mutaciones no se reenvían automáticamente tras un 401 para evitar duplicados.
+El access token permanece solo en memoria. El refresh token rotatorio se entrega exclusivamente como cookie `HttpOnly`, `SameSite=Strict`, con `Secure` configurable y ruta `/auth`; nunca aparece en JSON ni Web Storage. Una renovación concurrente se comparte entre peticiones y las mutaciones no se reenvían automáticamente tras un 401.
 
 La API incorpora login por email y contraseña, rotación de refresh tokens, logout y `GET /me`. No existe registro público: el primer usuario y su empresa se crean exclusivamente mediante el comando de bootstrap documentado en la guía de desarrollo.
 
@@ -74,5 +74,11 @@ La importación admite CSV UTF-8 y JSON estructurado para contactos, productos y
 Las consultas autenticadas se ejecutan en una transacción que fija `app.current_company_id` y `app.current_user_id` con alcance local. PostgreSQL aplica RLS incluso al propietario de las tablas; el rol conectado por la API no puede omitir ni desactivar esas políticas.
 
 La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decisiones y límites actuales están en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Ventas y sesión endurecida
+
+La PWA incorpora Ventas con borradores de albarán y factura, precio efectivo por cliente, emisión, cancelación y PDF autenticado. La numeración es atómica por empresa, tipo y serie. No existen cobros, vencidos automáticos, rectificativas, contabilidad ni VeriFactu.
+
+El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva el access token solo en memoria. Véanse [SECURITY.md](docs/SECURITY.md), [SALES_DOMAIN.md](docs/SALES_DOMAIN.md) y [E2E_TESTING.md](docs/E2E_TESTING.md).
 
 Este proyecto todavía no está conectado a ningún dato real ni a la aplicación productiva.

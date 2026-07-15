@@ -1,9 +1,12 @@
 export type ContactType = "customer" | "supplier" | "both";
 export type ProductUnit = "kg" | "g" | "unit" | "box" | "custom";
-export type ImportEntityType = "contacts" | "products" | "contact_product_prices";
+export type ImportEntityType =
+  "contacts" | "products" | "contact_product_prices";
 export type ImportSourceFormat = "csv" | "json";
-export type ImportStatus = "pending" | "validated" | "importing" | "completed" | "failed" | "cancelled";
-export type ImportStrategy = "skip_existing" | "update_existing" | "fail_on_conflict";
+export type ImportStatus =
+  "pending" | "validated" | "importing" | "completed" | "failed" | "cancelled";
+export type ImportStrategy =
+  "skip_existing" | "update_existing" | "fail_on_conflict";
 
 export interface Address {
   street?: string;
@@ -29,7 +32,10 @@ export interface Contact {
   updatedAt: string;
 }
 
-export type ContactInput = Omit<Contact, "id" | "isActive" | "createdAt" | "updatedAt">;
+export type ContactInput = Omit<
+  Contact,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
 
 export interface Margin {
   amount: string;
@@ -51,7 +57,10 @@ export interface Product {
   updatedAt: string;
 }
 
-export type ProductInput = Omit<Product, "id" | "margin" | "isActive" | "createdAt" | "updatedAt">;
+export type ProductInput = Omit<
+  Product,
+  "id" | "margin" | "isActive" | "createdAt" | "updatedAt"
+>;
 
 export interface EffectiveProduct {
   id: string;
@@ -75,7 +84,6 @@ export interface CurrentUser {
 
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
   tokenType: "Bearer";
   expiresIn: number;
 }
@@ -89,7 +97,8 @@ export interface Page<T> {
 
 export interface ImportRow {
   rowNumber: number;
-  classification: "new" | "possible_update" | "duplicate" | "conflict" | "error";
+  classification:
+    "new" | "possible_update" | "duplicate" | "conflict" | "error";
   proposedAction: "create" | "update" | "skip" | "reject";
   normalizedData: Record<string, unknown>;
   errors: string[];
@@ -115,4 +124,50 @@ export interface ImportBatch {
 export interface ImportPreview extends ImportBatch {
   rows: ImportRow[];
   reused: boolean;
+}
+
+export interface SalesLine {
+  id: string;
+  productId: string | null;
+  description: string;
+  quantity: string;
+  unit: ProductUnit;
+  unitPrice: string;
+  taxRate: string;
+  lineSubtotal: string;
+  lineTax: string;
+  lineTotal: string;
+  position: number;
+}
+export interface DeliveryNote {
+  id: string;
+  contactId: string;
+  number: number | null;
+  series: string;
+  issueDate: string;
+  status: "draft" | "issued" | "invoiced" | "cancelled";
+  notes: string | null;
+  subtotal: string;
+  taxTotal: string;
+  total: string;
+  lines?: SalesLine[];
+}
+export interface Invoice {
+  id: string;
+  contactId: string;
+  number: number | null;
+  series: string;
+  issueDate: string;
+  dueDate: string | null;
+  status: "draft" | "issued" | "cancelled";
+  notes: string | null;
+  subtotal: string;
+  taxTotal: string;
+  total: string;
+  sourceType: "manual" | "delivery_notes";
+  contactLegalName: string;
+  contactTaxId: string | null;
+  contactAddress: Address;
+  lines?: SalesLine[];
+  deliveryNoteIds?: string[];
 }

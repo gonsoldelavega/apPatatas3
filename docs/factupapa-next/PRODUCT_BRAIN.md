@@ -187,7 +187,7 @@ Esta estructura podrá ajustarse tras probarla con uso real, pero no debe llenar
 
 ### Navegación vigente de la primera PWA
 
-Mientras no existen facturas ni movimientos económicos, la validación funcional usa `Inicio`, `Catálogo`, `Nuevo`, `Importar` y `Más`. `Nuevo` ofrece exclusivamente cliente, proveedor y producto. Esta adaptación evita presentar flujos falsos; la navegación objetivo de ventas se activará cuando esos dominios estén implementados de extremo a extremo.
+La validación funcional usa `Inicio`, `Ventas`, `Nuevo`, `Catálogo` y `Más`. `Nuevo` ofrece albarán, factura, cliente, proveedor y producto; Importar se integra en Más. Cobros, gastos y otras áreas no aparecen hasta existir de extremo a extremo.
 
 ---
 
@@ -586,7 +586,7 @@ El catálogo ya dispone de importación segura en dos fases para CSV UTF-8 y JSO
 
 La primera PWA funcional ya conecta login, sesión rotatoria, dashboard operativo, contactos, productos, precios específicos e importaciones con la API real. Es mobile-first, instalable, accesible y se valida junto al backend en Compose rootless. No contiene facturas ni métricas económicas ficticias, no usa datos reales y no está desplegada públicamente.
 
-El siguiente objetivo recomendado es realizar validación de uso con conjuntos exclusivamente ficticios y representativos, completar mapeo de columnas y endurecer la sesión con refresh cookie HttpOnly antes de autorizar datos reales o iniciar el dominio de facturas, sin modificar la aplicación actual ni desplegar en producción.
+La sesión web usa refresh cookie HttpOnly y access token en memoria. El primer bloque de ventas ficticio incorpora albaranes, facturas manuales o desde albaranes, numeración atómica, snapshots, PDF A4 y pantallas móviles. Continúan fuera de alcance cobros, contabilidad, stock, gastos, compras, OCR, VeriFactu y cualquier uso real o despliegue productivo. El siguiente objetivo es validar exhaustivamente este bloque en el runner rootless antes de autorizar nuevas áreas.
 
 ### Estado del primer entregable técnico
 

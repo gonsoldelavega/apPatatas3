@@ -2,11 +2,19 @@ import { createHash } from "node:crypto";
 import { hashPassword, verifyPassword } from "./password.js";
 import { LoginRateLimiter } from "./rate-limit.js";
 import { AuthRepository, type SessionIdentity } from "./repository.js";
-import { createRefreshToken, hashRefreshToken, TokenService } from "./tokens.js";
+import {
+  createRefreshToken,
+  hashRefreshToken,
+  TokenService,
+} from "./tokens.js";
 
 export class AuthError extends Error {
   constructor(
-    readonly code: "invalid_credentials" | "too_many_requests" | "invalid_refresh_token" | "unauthorized",
+    readonly code:
+      | "invalid_credentials"
+      | "too_many_requests"
+      | "invalid_refresh_token"
+      | "unauthorized",
     readonly status: 401 | 429,
   ) {
     super(code);
@@ -29,10 +37,14 @@ export interface CurrentUser {
 }
 
 export interface AuthApplication {
-  login(email: string, password: string, rateLimitKey: string): Promise<AuthTokens>;
+  login(
+    email: string,
+    password: string,
+    rateLimitKey: string,
+  ): Promise<AuthTokens>;
   refresh(refreshToken: string): Promise<AuthTokens>;
   authenticate(accessToken: string): Promise<SessionIdentity>;
-  logout(accessToken: string, refreshToken: string): Promise<void>;
+  logout(refreshToken: string): Promise<void>;
   me(accessToken: string): Promise<CurrentUser>;
 }
 
@@ -56,13 +68,19 @@ export class AuthService implements AuthApplication {
     return new AuthService(
       options.repository,
       new TokenService(options.jwtSecret, options.accessTokenTtlSeconds),
-      new LoginRateLimiter(options.loginRateLimitMax, options.loginRateLimitWindowMs),
+      new LoginRateLimiter(
+        options.loginRateLimitMax,
+        options.loginRateLimitWindowMs,
+      ),
       options.refreshTokenTtlDays * 86_400_000,
       await hashPassword("dummy-password-never-used"),
     );
   }
 
-  private async issueTokens(identity: SessionIdentity, refreshToken: string): Promise<AuthTokens> {
+  private async issueTokens(
+    identity: SessionIdentity,
+    refreshToken: string,
+  ): Promise<AuthTokens> {
     const access = await this.tokens.createAccessToken(identity);
     return {
       accessToken: access.token,
@@ -72,18 +90,31 @@ export class AuthService implements AuthApplication {
     };
   }
 
-  async login(email: string, password: string, rateLimitKey: string): Promise<AuthTokens> {
+  async login(
+    email: string,
+    password: string,
+    rateLimitKey: string,
+  ): Promise<AuthTokens> {
     const normalizedEmail = email.trim().toLowerCase();
-    const auditEntityId = createHash("sha256").update(normalizedEmail).digest("hex");
+    const auditEntityId = createHash("sha256")
+      .update(normalizedEmail)
+      .digest("hex");
     if (!this.rateLimiter.consume(rateLimitKey)) {
       await this.repository.recordLoginFailure(auditEntityId, "rate_limited");
       throw new AuthError("too_many_requests", 429);
     }
 
     const user = await this.repository.findUserByEmail(normalizedEmail);
-    const valid = await verifyPassword(user?.passwordHash ?? this.dummyPasswordHash, password);
+    const valid = await verifyPassword(
+      user?.passwordHash ?? this.dummyPasswordHash,
+      password,
+    );
     if (!user || !valid) {
-      await this.repository.recordLoginFailure(user?.userId ?? auditEntityId, "invalid_credentials", user ?? undefined);
+      await this.repository.recordLoginFailure(
+        user?.userId ?? auditEntityId,
+        "invalid_credentials",
+        user ?? undefined,
+      );
       throw new AuthError("invalid_credentials", 401);
     }
 
@@ -113,17 +144,23 @@ export class AuthService implements AuthApplication {
   async authenticate(accessToken: string): Promise<SessionIdentity> {
     try {
       const claims = await this.tokens.verifyAccessToken(accessToken);
-      const identity = await this.repository.findActiveIdentity(claims.userId, claims.companyId, claims.familyId);
-      if (!identity || identity.role !== claims.role) throw new Error("Sesión inactiva");
+      const identity = await this.repository.findActiveIdentity(
+        claims.userId,
+        claims.companyId,
+        claims.familyId,
+      );
+      if (!identity || identity.role !== claims.role)
+        throw new Error("Sesión inactiva");
       return identity;
     } catch {
       throw new AuthError("unauthorized", 401);
     }
   }
 
-  async logout(accessToken: string, refreshToken: string): Promise<void> {
-    const identity = await this.authenticate(accessToken);
-    const revoked = await this.repository.logout(identity, hashRefreshToken(refreshToken));
+  async logout(refreshToken: string): Promise<void> {
+    const revoked = await this.repository.logoutByRefresh(
+      hashRefreshToken(refreshToken),
+    );
     if (!revoked) throw new AuthError("unauthorized", 401);
   }
 

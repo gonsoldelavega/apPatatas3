@@ -114,6 +114,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET in .env}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-factupapa_refresh}
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-5}
       LOGIN_RATE_LIMIT_WINDOW_MS: ${LOGIN_RATE_LIMIT_WINDOW_MS:-60000}
       IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-1048576}
@@ -161,6 +163,21 @@ services:
     command: ["npm", "run", "bootstrap:prod"]
     restart: "no"
     environment:
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL in .env}
+    depends_on:
+      provision-api-role:
+        condition: service_completed_successfully
+    networks: [factupapa]
+
+  seed:
+    profiles: [tools]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["npm", "run", "seed:prod"]
+    restart: "no"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
       DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL in .env}
     depends_on:
       provision-api-role:

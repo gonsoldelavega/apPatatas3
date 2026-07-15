@@ -1,0 +1,144 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  Download,
+  FileCheck2,
+  ReceiptText,
+  XCircle,
+} from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { deliveryNotesApi, invoicesApi } from "../api/services";
+import { Button } from "../ui/Button";
+import { EmptyState } from "../ui/EmptyState";
+import { LoadingScreen } from "../ui/LoadingScreen";
+import { formatMoney, todayLocal } from "../utils/format";
+
+export function SalesDetailPage() {
+  const { type, id = "" } = useParams();
+  const invoice = type === "facturas";
+  const navigate = useNavigate();
+  const api = invoice ? invoicesApi : deliveryNotesApi;
+  const queryClient = useQueryClient();
+  const document = useQuery({
+    queryKey: [type, id],
+    queryFn: () => api.get(id),
+  });
+  const action = useMutation({
+    mutationFn: (name: "issue" | "cancel") => api[name](id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [type, id] }),
+  });
+  const pdf = useMutation({
+    mutationFn: () => invoicesApi.downloadPdf(id),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+  });
+  const convert = useMutation({
+    mutationFn: () =>
+      invoicesApi.fromDeliveryNotes({
+        deliveryNoteIds: [id],
+        series: "F",
+        issueDate: todayLocal(),
+      }),
+    onSuccess: (created) => navigate(`/ventas/facturas/${created.id}`),
+  });
+  if (document.isLoading) return <LoadingScreen />;
+  if (!document.data)
+    return (
+      <div className="page">
+        <EmptyState
+          title="Documento no disponible"
+          description="No existe o no pertenece a tu empresa."
+        />
+      </div>
+    );
+  const item = document.data;
+  return (
+    <div className="page detail-page sales-detail">
+      <header className="detail-header">
+        <Link className="icon-button" to="/ventas" aria-label="Volver">
+          <ArrowLeft />
+        </Link>
+        <div className="detail-header__title">
+          <p className="eyebrow">{invoice ? "Factura" : "Albarán"}</p>
+          <h1>
+            {item.number
+              ? `${item.series}-${String(item.number).padStart(6, "0")}`
+              : "Borrador"}
+          </h1>
+          <span className={`status status--${item.status}`}>{item.status}</span>
+        </div>
+      </header>
+      <section className="detail-card">
+        <h2>Líneas</h2>
+        {item.lines?.map((line) => (
+          <div className="sales-line" key={line.id}>
+            <span>
+              <strong>{line.description}</strong>
+              <small>
+                {line.quantity} {line.unit} × {formatMoney(line.unitPrice)}
+              </small>
+            </span>
+            <strong>{formatMoney(line.lineTotal)}</strong>
+          </div>
+        ))}
+        <div className="sales-total">
+          <span>Total</span>
+          <strong>{formatMoney(item.total)}</strong>
+        </div>
+      </section>
+      {item.status === "draft" && (
+        <Button
+          icon={<FileCheck2 />}
+          busy={action.isPending}
+          onClick={() =>
+            window.confirm("Emitir bloquea el documento. ¿Continuar?") &&
+            action.mutate("issue")
+          }
+        >
+          Emitir documento
+        </Button>
+      )}
+      {item.status === "issued" && (
+        <>
+          <Button
+            variant="danger"
+            icon={<XCircle />}
+            busy={action.isPending}
+            onClick={() =>
+              window.confirm("¿Cancelar este documento emitido?") &&
+              action.mutate("cancel")
+            }
+          >
+            Cancelar
+          </Button>
+          {invoice ? (
+            <Button
+              variant="secondary"
+              icon={<Download />}
+              busy={pdf.isPending}
+              onClick={() => pdf.mutate()}
+            >
+              Ver PDF
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              icon={<ReceiptText />}
+              busy={convert.isPending}
+              onClick={() =>
+                window.confirm(
+                  "Se creará una factura en borrador. ¿Continuar?",
+                ) && convert.mutate()
+              }
+            >
+              Convertir en factura
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

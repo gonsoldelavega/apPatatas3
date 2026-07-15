@@ -7,6 +7,9 @@ test("las contraseñas se almacenan y verifican con Argon2id", async () => {
   const passwordHash = await hashPassword(password);
   assert.match(passwordHash, /^\$argon2id\$/);
   assert.equal(await verifyPassword(passwordHash, password), true);
-  assert.equal(await verifyPassword(passwordHash, "wrong-password-value"), false);
+  assert.equal(
+    await verifyPassword(passwordHash, "wrong-password-value"),
+    false,
+  );
   assert.equal(passwordHash.includes(password), false);
 });

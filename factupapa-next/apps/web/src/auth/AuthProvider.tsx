@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api/services";
 import { ApiError, apiClient } from "../api/client";
@@ -22,11 +30,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    const restore = async () => {
-      if (!apiClient.hasRefreshToken()) {
-        if (active) setStatus("anonymous");
-        return;
+    const unsubscribe = apiClient.onSessionExpired(() => {
+      queryClient.clear();
+      if (active) {
+        setUser(null);
+        setStatus("anonymous");
       }
+    });
+    const restore = async () => {
       try {
         await authApi.refresh();
         const current = await authApi.me();
@@ -41,25 +52,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
     void restore();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [queryClient]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    try {
-      queryClient.clear();
-      await authApi.login(email, password);
-      const current = await authApi.me();
-      setUser(current);
-      setStatus("authenticated");
-    } catch (error) {
-      apiClient.clearSession();
-      setStatus("anonymous");
-      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) {
-        throw new Error("No se ha podido iniciar sesión. Revisa los datos e inténtalo de nuevo.");
+  const login = useCallback(
+    async (email: string, password: string) => {
+      try {
+        queryClient.clear();
+        await authApi.login(email, password);
+        const current = await authApi.me();
+        setUser(current);
+        setStatus("authenticated");
+      } catch (error) {
+        apiClient.clearSession();
+        queryClient.clear();
+        setUser(null);
+        setStatus("anonymous");
+        if (
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 429)
+        ) {
+          throw new Error(
+            "No se ha podido iniciar sesión. Revisa los datos e inténtalo de nuevo.",
+          );
+        }
+        throw error;
       }
-      throw error;
-    }
-  }, [queryClient]);
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
     await authApi.logout().catch(() => undefined);
@@ -68,7 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("anonymous");
   }, [queryClient]);
 
-  const value = useMemo(() => ({ status, user, login, logout }), [status, user, login, logout]);
+  const value = useMemo(
+    () => ({ status, user, login, logout }),
+    [status, user, login, logout],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

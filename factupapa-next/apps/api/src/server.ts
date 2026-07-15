@@ -11,6 +11,10 @@ import { PricingService } from "./pricing/service.js";
 import { createPricingRoutes } from "./pricing/routes.js";
 import { ImportService } from "./imports/service.js";
 import { createImportRoutes } from "./imports/routes.js";
+import { DeliveryNoteService } from "./delivery-notes/service.js";
+import { createDeliveryNoteRoutes } from "./delivery-notes/routes.js";
+import { InvoiceService } from "./invoices/service.js";
+import { createInvoiceRoutes } from "./invoices/routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -30,16 +34,32 @@ const imports = new ImportService(database.pool, {
   maximumRows: config.importMaximumRows,
   previewRows: config.importPreviewRows,
 });
+const deliveryNotes = new DeliveryNoteService(database.pool);
+const invoices = new InvoiceService(database.pool);
 const server = createApp({
   database,
   auth,
   version: config.appVersion,
   corsAllowedOrigins: config.corsAllowedOrigins,
-  routes: [createImportRoutes(auth, imports), createPricingRoutes(auth, pricing), createContactRoutes(auth, contacts), createProductRoutes(auth, products)],
+  authCookie: {
+    name: config.authCookieName,
+    secure: config.authCookieSecure,
+    maxAgeSeconds: config.refreshTokenTtlDays * 86_400,
+  },
+  routes: [
+    createInvoiceRoutes(auth, invoices),
+    createDeliveryNoteRoutes(auth, deliveryNotes),
+    createImportRoutes(auth, imports),
+    createPricingRoutes(auth, pricing),
+    createContactRoutes(auth, contacts),
+    createProductRoutes(auth, products),
+  ],
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`FactuPapa Next API escuchando en http://${config.host}:${config.port}`);
+  console.log(
+    `FactuPapa Next API escuchando en http://${config.host}:${config.port}`,
+  );
 });
 
 async function shutdown(signal: string) {

@@ -41,11 +41,20 @@ type RotationResult =
   | { status: "invalid" }
   | { status: "reused" };
 
-async function insertAudit(client: Pool | PoolClient, input: AuditInput): Promise<void> {
+async function insertAudit(
+  client: Pool | PoolClient,
+  input: AuditInput,
+): Promise<void> {
   await client.query(
     `insert into audit_events(company_id, actor_user_id, entity_type, entity_id, action, after_data)
      values ($1, $2, 'auth', $3, $4, $5)`,
-    [input.companyId ?? null, input.actorUserId ?? null, input.entityId, input.action, input.metadata ?? null],
+    [
+      input.companyId ?? null,
+      input.actorUserId ?? null,
+      input.entityId,
+      input.action,
+      input.metadata ?? null,
+    ],
   );
 }
 
@@ -65,7 +74,7 @@ export class AuthRepository {
        from auth_lookup_user($1)`,
       [email],
     );
-    return result.rowCount === 1 ? result.rows[0] ?? null : null;
+    return result.rowCount === 1 ? (result.rows[0] ?? null) : null;
   }
 
   async createLoginSession(
@@ -80,7 +89,10 @@ export class AuthRepository {
          values ($1, $2, $3, $4, $5)`,
         [familyId, user.companyId, user.userId, refreshTokenHash, expiresAt],
       );
-      await client.query("update users set last_login_at = now(), updated_at = now() where id = $1", [user.userId]);
+      await client.query(
+        "update users set last_login_at = now(), updated_at = now() where id = $1",
+        [user.userId],
+      );
       await insertAudit(client, {
         companyId: user.companyId,
         actorUserId: user.userId,
@@ -92,9 +104,16 @@ export class AuthRepository {
     });
   }
 
-  async recordLoginFailure(entityId: string, reason: string, user?: UserContext): Promise<void> {
+  async recordLoginFailure(
+    entityId: string,
+    reason: string,
+    user?: UserContext,
+  ): Promise<void> {
     if (!user) {
-      await this.pool.query("select auth_record_anonymous_login_failure($1, $2)", [entityId, reason]);
+      await this.pool.query(
+        "select auth_record_anonymous_login_failure($1, $2)",
+        [entityId, reason],
+      );
       return;
     }
     await withTenantTransaction(this.pool, user, (client) =>
@@ -182,7 +201,14 @@ export class AuthRepository {
       await client.query(
         `insert into auth_sessions(id, family_id, company_id, user_id, refresh_token_hash, expires_at)
          values ($1, $2, $3, $4, $5, $6)`,
-        [nextSessionId, session.familyId, session.companyId, session.userId, nextHash, nextExpiresAt],
+        [
+          nextSessionId,
+          session.familyId,
+          session.companyId,
+          session.userId,
+          nextHash,
+          nextExpiresAt,
+        ],
       );
       await client.query(
         `update auth_sessions
@@ -206,10 +232,17 @@ export class AuthRepository {
     }
   }
 
-  async findActiveIdentity(userId: string, companyId: string, familyId: string): Promise<SessionIdentity | null> {
-    return withTenantTransaction(this.pool, { userId, companyId }, async (client) => {
-      const result = await client.query<SessionIdentity & QueryResultRow>(
-        `select
+  async findActiveIdentity(
+    userId: string,
+    companyId: string,
+    familyId: string,
+  ): Promise<SessionIdentity | null> {
+    return withTenantTransaction(
+      this.pool,
+      { userId, companyId },
+      async (client) => {
+        const result = await client.query<SessionIdentity & QueryResultRow>(
+          `select
            user_account.id as "userId",
            company.id as "companyId",
            session.family_id as "familyId",
@@ -229,13 +262,17 @@ export class AuthRepository {
            and session.expires_at > now()
            and user_account.is_active = true
          limit 1`,
-        [userId, companyId, familyId],
-      );
-      return result.rows[0] ?? null;
-    });
+          [userId, companyId, familyId],
+        );
+        return result.rows[0] ?? null;
+      },
+    );
   }
 
-  async logout(identity: SessionIdentity, refreshTokenHash: string): Promise<boolean> {
+  async logout(
+    identity: SessionIdentity,
+    refreshTokenHash: string,
+  ): Promise<boolean> {
     return withTenantTransaction(this.pool, identity, async (client) => {
       const token = await client.query<{ familyId: string } & QueryResultRow>(
         `select family_id as "familyId"
@@ -257,6 +294,36 @@ export class AuthRepository {
         companyId: identity.companyId,
         actorUserId: identity.userId,
         entityId: identity.familyId,
+        action: "auth.logout_succeeded",
+      });
+      return true;
+    });
+  }
+
+  async logoutByRefresh(refreshTokenHash: string): Promise<boolean> {
+    const tenant = await this.pool.query<RefreshTenantRow>(
+      `select company_id as "companyId", user_id as "userId" from auth_resolve_refresh_tenant($1)`,
+      [refreshTokenHash],
+    );
+    const context = tenant.rows[0];
+    if (!context) return false;
+    return withTenantTransaction(this.pool, context, async (client) => {
+      const token = await client.query<{ familyId: string } & QueryResultRow>(
+        `select family_id as "familyId" from auth_sessions where refresh_token_hash = $1 for update`,
+        [refreshTokenHash],
+      );
+      const familyId = token.rows[0]?.familyId;
+      if (!familyId) return false;
+      await client.query(
+        `update auth_sessions set revoked_at = coalesce(revoked_at, now()),
+           revocation_reason = coalesce(revocation_reason, 'logout')
+         where family_id = $1 and revoked_at is null`,
+        [familyId],
+      );
+      await insertAudit(client, {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        entityId: familyId,
         action: "auth.logout_succeeded",
       });
       return true;

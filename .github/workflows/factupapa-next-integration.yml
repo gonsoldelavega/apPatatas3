@@ -20,7 +20,7 @@ jobs:
   integration:
     if: github.ref == 'refs/heads/design/factupapa-full-prototype'
     runs-on: [self-hosted, linux, x64, factupapa-next]
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       DOCKER_HOST: unix:///run/user/1001/docker.sock
       COMPOSE_PROJECT_NAME: factupapa_next_ci_${{ github.run_id }}_${{ github.run_attempt }}
@@ -73,6 +73,7 @@ jobs:
           npm run typecheck
           npm test
           npm run build
+          npx playwright install chromium
 
       - name: Create temporary integration environment
         working-directory: factupapa-next/infrastructure
@@ -210,29 +211,40 @@ jobs:
 
           (
             cd ../../infrastructure
-            BOOTSTRAP_COMPANY_NAME="Empresa de validación" \
-            BOOTSTRAP_USER_EMAIL="${smoke_email}" \
-            BOOTSTRAP_USER_NAME="Cuenta de validación" \
-            BOOTSTRAP_USER_PASSWORD="${smoke_password}" \
-            docker compose --profile tools run --rm \
-              -e BOOTSTRAP_COMPANY_NAME \
-              -e BOOTSTRAP_USER_EMAIL \
-              -e BOOTSTRAP_USER_NAME \
-              -e BOOTSTRAP_USER_PASSWORD \
-              bootstrap
+            APP_ENV=integration \
+            DEMO_USER_EMAIL="${smoke_email}" \
+            DEMO_USER_PASSWORD="${smoke_password}" \
+            docker compose --profile tools run --build --rm \
+              -e APP_ENV -e DEMO_USER_EMAIL -e DEMO_USER_PASSWORD seed
           )
 
           WEB_URL="http://127.0.0.1:4173" \
           API_URL="http://127.0.0.1:4100" \
           SMOKE_EMAIL="${smoke_email}" \
           SMOKE_PASSWORD="${smoke_password}" \
+          SMOKE_PDF_PATH="${PWD}/test-artifacts/factura-ficticia.pdf" \
           npm run smoke
+
+          DEMO_USER_EMAIL="${smoke_email}" DEMO_USER_PASSWORD="${smoke_password}" \
+          WEB_URL="http://127.0.0.1:4173" npx playwright test
 
           unset smoke_email smoke_password
 
       - name: Show service status
         working-directory: factupapa-next/infrastructure
         run: docker compose ps
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: factupapa-next-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            factupapa-next/apps/web/test-artifacts
+            factupapa-next/apps/web/test-results
+            factupapa-next/apps/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Show diagnostics on failure
         if: failure()
@@ -247,3 +259,4 @@ jobs:
         run: |
           docker compose down -v --remove-orphans || true
           rm -f .env docker-compose.integration.yml
+          rm -rf ../apps/web/test-artifacts ../apps/web/test-results ../apps/web/playwright-report
