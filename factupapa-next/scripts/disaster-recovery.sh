@@ -22,7 +22,7 @@ report_failure() {
 trap 'report_failure "$?" "${LINENO}"' ERR
 
 case "${COMPOSE_PROJECT_NAME:-}" in
-  *ci*|*recovery*|*test*) ;;
+  *ci*|*audit*|*recovery*|*test*) ;;
   *) echo "COMPOSE_PROJECT_NAME debe identificar un proyecto aislado de CI/recovery" >&2; exit 1 ;;
 esac
 test "${APP_ENV:-integration}" != "production"
