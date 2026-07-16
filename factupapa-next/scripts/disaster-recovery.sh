@@ -6,6 +6,20 @@ infra="${root}/infrastructure"
 api="${root}/apps/api"
 web="${root}/apps/web"
 recovery_dir="${RUNNER_TEMP:-/tmp}/factupapa-recovery-${COMPOSE_PROJECT_NAME:-unknown}"
+current_phase="inicio"
+
+phase() {
+  current_phase="$1"
+  printf '\n===== RECOVERY PHASE: %s =====\n' "$1"
+}
+
+report_failure() {
+  local status="$1" line="$2"
+  trap - ERR
+  printf '::error title=FactuPapa recovery failed::phase=%s line=%s exit=%s\n' "${current_phase}" "${line}" "${status}"
+  exit "${status}"
+}
+trap 'report_failure "$?" "${LINENO}"' ERR
 
 case "${COMPOSE_PROJECT_NAME:-}" in
   *ci*|*recovery*|*test*) ;;
@@ -22,6 +36,7 @@ cleanup() {
 trap cleanup EXIT
 
 cd "${infra}"
+phase "arranque y seed ficticio"
 docker compose up --build -d
 
 APP_ENV=integration docker compose --profile tools run --build --rm \
@@ -35,6 +50,7 @@ npm --prefix "${web}" run smoke
 
 before="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select json_build_object('\''companies'\'',(select count(*) from companies),'\''contacts'\'',(select count(*) from contacts),'\''products'\'',(select count(*) from products),'\''deliveryNotes'\'',(select count(*) from delivery_notes),'\''invoices'\'',(select count(*) from invoices),'\''sequences'\'',(select count(*) from document_sequences),'\''audit'\'',(select count(*) from audit_events))"')"
 
+phase "backup y restore aislado previo"
 mkdir -p "${recovery_dir}"
 backup_json="$(cd "${api}" && BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${recovery_dir}" npm run --silent backup:database | tail -n 1)"
 dump="$(node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="verified") process.exit(1); process.stdout.write(value.dump)' "${backup_json}")"
@@ -44,6 +60,7 @@ RESTORE_DUMP="${dump}" RESTORE_ENVIRONMENT=integration RESTORE_TARGET=preflight 
 RESTORE_REPORT_DIRECTORY="${recovery_dir}" npm run --silent restore:verify -- --confirm-isolated-restore
 
 cd "${infra}"
+phase "destrucción y restauración completa"
 docker compose down -v --remove-orphans
 docker compose up -d postgres
 for _ in $(seq 1 60); do docker compose exec -T postgres pg_isready -U "${POSTGRES_USER}" -d postgres >/dev/null 2>&1 && break; sleep 1; done
@@ -58,6 +75,7 @@ curl --fail --silent "http://127.0.0.1:${APP_PORT:-4100}/ready" >/dev/null
 after="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select json_build_object('\''companies'\'',(select count(*) from companies),'\''contacts'\'',(select count(*) from contacts),'\''products'\'',(select count(*) from products),'\''deliveryNotes'\'',(select count(*) from delivery_notes),'\''invoices'\'',(select count(*) from invoices),'\''sequences'\'',(select count(*) from document_sequences),'\''audit'\'',(select count(*) from audit_events))"')"
 test "${before}" = "${after}"
 
+phase "verificación funcional posterior"
 company_id="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from companies order by created_at limit 1"')"
 user_id="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from users order by created_at limit 1"')"
 if PGPASSWORD="${API_DATABASE_PASSWORD}" docker compose exec -T -e PGPASSWORD postgres psql --no-psqlrc -v ON_ERROR_STOP=1 -U "${API_DATABASE_USER}" -d "${POSTGRES_DB}" -c "begin; set local app.current_company_id='${company_id}'; set local app.current_user_id='${user_id}'; update invoices set notes='mutation forbidden' where status='issued';" >/dev/null 2>&1; then
@@ -68,6 +86,7 @@ WEB_URL="http://127.0.0.1:${WEB_PORT:-4173}" API_URL="http://127.0.0.1:${APP_POR
 SMOKE_EMAIL="${DEMO_USER_EMAIL}" SMOKE_PASSWORD="${DEMO_USER_PASSWORD}" \
 SMOKE_PDF_PATH="${web}/test-artifacts/recovery-after.pdf" npm --prefix "${web}" run smoke
 
+phase "cleanup destructivo final"
 docker compose down -v --remove-orphans
 test -z "$(docker compose ps -aq)"
 test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
