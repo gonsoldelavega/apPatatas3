@@ -14,11 +14,12 @@ phase() {
 }
 
 report_failure() {
-  local status=$? line="$1"
+  local status="$1" line="$2"
+  trap - ERR
   printf '::error title=FactuPapa audit failed::phase=%s line=%s exit=%s\n' "${current_phase}" "${line}" "${status}"
-  return "${status}"
+  exit "${status}"
 }
-trap 'report_failure ${LINENO}' ERR
+trap 'report_failure "$?" "${LINENO}"' ERR
 
 compose() {
   (cd "${infra}" && docker compose "$@")
@@ -156,16 +157,18 @@ test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/internal/metrics)" = "404"
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -H "X-Operations-Token: ${INTERNAL_METRICS_TOKEN}" http://127.0.0.1:4100/internal/metrics)" = "200"
 
-phase "smoke y Playwright completo"
+phase "seed ficticio para smoke"
 smoke_email="audit-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}@example.test"
 smoke_password="$(openssl rand -base64 36 | tr -d '\n')"
 APP_ENV=integration DEMO_USER_EMAIL="${smoke_email}" DEMO_USER_PASSWORD="${smoke_password}" \
   compose --profile tools run --build --rm -e APP_ENV -e DEMO_USER_EMAIL -e DEMO_USER_PASSWORD seed
+phase "smoke web autenticado"
 (
   cd "${web}"
   WEB_URL='http://127.0.0.1:4173' API_URL='http://127.0.0.1:4100' \
     SMOKE_EMAIL="${smoke_email}" SMOKE_PASSWORD="${smoke_password}" \
     SMOKE_PDF_PATH="${web}/test-artifacts/factura-ficticia.pdf" npm run smoke
+  phase "Playwright completo"
   DEMO_USER_EMAIL="${smoke_email}" DEMO_USER_PASSWORD="${smoke_password}" \
     WEB_URL='http://127.0.0.1:4173' npx playwright test
 )
