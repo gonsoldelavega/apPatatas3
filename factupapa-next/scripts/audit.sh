@@ -137,8 +137,11 @@ unset postgres_password api_database_password redis_password minio_password jwt_
 ! grep -q 'CAMBIAR_' "${infra}/.env"
 test "$(stat -c '%a' "${infra}/.env")" = "600"
 printf 'networks:\n  factupapa:\n    name: %s_network\n' "${COMPOSE_PROJECT_NAME}" > "${infra}/docker-compose.integration.yml"
+phase "validación de configuración Compose"
 compose config --quiet
+phase "arranque de servicios Compose"
 compose up --build -d
+phase "espera de servicios Compose"
 for service in postgres redis minio api web; do wait_for_healthy "${service}"; done
 
 set -a
