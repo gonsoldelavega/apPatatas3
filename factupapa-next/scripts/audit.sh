@@ -232,6 +232,8 @@ unset DEMO_USER_EMAIL DEMO_USER_PASSWORD
 if [ "${recovery_status}" -ne 0 ]; then
   sanitize_log "${artifacts}/recovery.raw.log" "${artifacts}/recovery-sanitized.log"
   cat "${artifacts}/recovery-sanitized.log"
+  recovery_diagnostic="$(tail -n 20 "${artifacts}/recovery-sanitized.log" | tr '\r\n' '  ' | cut -c1-1500)"
+  printf '::error title=Sanitized recovery diagnostics::%s\n' "${recovery_diagnostic}"
   exit "${recovery_status}"
 fi
 
