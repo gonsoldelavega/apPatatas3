@@ -221,8 +221,16 @@ compose logs --no-color api > "${artifacts}/api.raw.log"
 phase "recuperación destructiva"
 export DEMO_USER_EMAIL="recovery-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}@example.test"
 export DEMO_USER_PASSWORD="$(openssl rand -base64 36 | tr -d '\n')"
-"${root}/scripts/disaster-recovery.sh" > "${artifacts}/recovery.raw.log"
+set +e
+"${root}/scripts/disaster-recovery.sh" > "${artifacts}/recovery.raw.log" 2>&1
+recovery_status=$?
+set -e
 unset DEMO_USER_EMAIL DEMO_USER_PASSWORD
+if [ "${recovery_status}" -ne 0 ]; then
+  sanitize_log "${artifacts}/recovery.raw.log" "${artifacts}/recovery-sanitized.log"
+  cat "${artifacts}/recovery-sanitized.log"
+  exit "${recovery_status}"
+fi
 
 phase "sanitización de logs"
 sanitize_log "${artifacts}/api.raw.log" "${artifacts}/api-sanitized.log"
