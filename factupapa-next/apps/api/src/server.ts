@@ -19,6 +19,8 @@ import { ImportMappingService } from "./imports/mappings.js";
 import { createImportMappingRoutes } from "./imports/mapping-routes.js";
 import { createReadiness } from "./health/readiness.js";
 import { log } from "./observability/logger.js";
+import { SalesPreferencesService } from "./sales-preferences/service.js";
+import { createSalesPreferencesRoutes } from "./sales-preferences/routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -41,6 +43,7 @@ const imports = new ImportService(database.pool, {
 const importMappings = new ImportMappingService(database.pool);
 const deliveryNotes = new DeliveryNoteService(database.pool);
 const invoices = new InvoiceService(database.pool);
+const salesPreferences = new SalesPreferencesService(database.pool);
 const server = createApp({
   database,
   auth,
@@ -59,6 +62,7 @@ const server = createApp({
   }),
   metrics: { allowRemote: config.internalMetricsAllowRemote, pool: database.pool, ...(config.internalMetricsToken ? { token: config.internalMetricsToken } : {}) },
   routes: [
+    createSalesPreferencesRoutes(auth, salesPreferences),
     createInvoiceRoutes(auth, invoices),
     createDeliveryNoteRoutes(auth, deliveryNotes),
     createImportMappingRoutes(auth, importMappings),

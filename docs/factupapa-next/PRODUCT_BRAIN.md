@@ -191,7 +191,16 @@ Esta estructura podrá ajustarse tras probarla con uso real, pero no debe llenar
 
 ### Navegación vigente de la primera PWA
 
-La validación funcional usa `Inicio`, `Ventas`, `Nuevo`, `Catálogo` y `Más`. `Nuevo` ofrece albarán, factura, cliente, proveedor y producto; Importar se integra en Más. Cobros, gastos y otras áreas no aparecen hasta existir de extremo a extremo.
+La validación funcional usa `Inicio`, `Ventas`, `Nuevo`, `Catálogo` y `Más`. La factura directa ocupa la acción principal. Los albaranes solo ganan protagonismo si la empresa los configura o su uso real lo justifica. `Nuevo` ofrece factura, albarán, cliente, proveedor y producto; Importar se integra en Más. Cobros, gastos, gestoría y otras áreas no aparecen con cifras inventadas: se incorporarán cuando existan de extremo a extremo.
+
+### Decisiones validadas en uso móvil
+
+- IVA inicial del negocio de Nando: 4 %, configurable por empresa.
+- Numeración visual objetivo: `FAC-100/2026`, sin relleno con ceros.
+- Cantidades sin ceros técnicos, precios unitarios con precisión útil y dinero siempre con dos decimales.
+- Interfaz azul tinta, dorado y blanco; facturas impresas exclusivamente en blanco y negro.
+- Inicio adaptativo basado en actividad real y preferencia de empresa.
+- Gestoría, trimestres, IRPF y estadísticas de clientes siguen en la visión de producto, pero no se simulan antes de implementar sus fuentes de datos.
 
 ---
 

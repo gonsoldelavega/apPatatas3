@@ -17,6 +17,7 @@ import type {
   Page,
   Product,
   ProductInput,
+  SalesPreferences,
 } from "./types";
 
 function queryString(
@@ -215,4 +216,13 @@ export const invoicesApi = {
       body: "{}",
     }),
   downloadPdf: (id: string) => apiClient.download(`/invoices/${id}/pdf`),
+};
+
+export const salesPreferencesApi = {
+  get: () => apiClient.request<SalesPreferences>("/sales-preferences"),
+  update: (input: SalesPreferences) =>
+    apiClient.request<SalesPreferences>("/sales-preferences", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
 };

@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
-import { productsApi } from "../api/services";
+import { productsApi, salesPreferencesApi } from "../api/services";
 import type { ProductInput } from "../api/types";
 import { productSchema } from "../forms/schemas";
 import { Button } from "../ui/Button";
@@ -14,10 +14,10 @@ import { Field } from "../ui/Field";
 import { LoadingScreen } from "../ui/LoadingScreen";
 import { SelectField } from "../ui/SelectField";
 import { useToast } from "../ui/ToastProvider";
-import { formatMoney } from "../utils/format";
+import { formatMoney, formatQuantity } from "../utils/format";
 
 type Values = z.infer<typeof productSchema>;
-const blank: Values = { name: "", description: "", sku: "", unit: "kg", salePrice: "", estimatedCost: "", taxRate: "21" };
+const blank: Values = { name: "", description: "", sku: "", unit: "kg", salePrice: "", estimatedCost: "", taxRate: "4" };
 const decimal = (value: string) => value.replace(",", ".");
 
 export function ProductFormPage() {
@@ -26,8 +26,10 @@ export function ProductFormPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const product = useQuery({ queryKey: ["product", id], queryFn: () => productsApi.get(id!), enabled: Boolean(id) });
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<Values>({ resolver: zodResolver(productSchema), defaultValues: blank });
-  useEffect(() => { if (product.data) reset({ name: product.data.name, description: product.data.description ?? "", sku: product.data.sku ?? "", unit: product.data.unit, salePrice: product.data.salePrice, estimatedCost: product.data.estimatedCost ?? "", taxRate: product.data.taxRate }); }, [product.data, reset]);
+  const preferences = useQuery({ queryKey: ["sales-preferences"], queryFn: salesPreferencesApi.get, enabled: !id });
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, dirtyFields } } = useForm<Values>({ resolver: zodResolver(productSchema), defaultValues: blank });
+  useEffect(() => { if (product.data) reset({ name: product.data.name, description: product.data.description ?? "", sku: product.data.sku ?? "", unit: product.data.unit, salePrice: formatQuantity(product.data.salePrice), estimatedCost: product.data.estimatedCost ? formatQuantity(product.data.estimatedCost) : "", taxRate: formatQuantity(product.data.taxRate) }); }, [product.data, reset]);
+  useEffect(() => { if (!id && preferences.data && !dirtyFields.taxRate) setValue("taxRate", formatQuantity(preferences.data.defaultTaxRate)); }, [dirtyFields.taxRate, id, preferences.data, setValue]);
   const save = useMutation({ mutationFn: (values: Values) => {
     const input: ProductInput = { name: values.name.trim(), description: values.description?.trim() || null, sku: values.sku?.trim() || null, unit: values.unit, salePrice: decimal(values.salePrice), estimatedCost: values.estimatedCost ? decimal(values.estimatedCost) : null, taxRate: decimal(values.taxRate) };
     return id ? productsApi.update(id, input) : productsApi.create(input);

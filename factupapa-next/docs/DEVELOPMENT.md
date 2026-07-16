@@ -42,7 +42,7 @@ El ensayo destructivo solo se permite con un nombre de proyecto Compose aislado 
    docker compose exec postgres psql -U factupapa -d factupapa_next -c "select filename, applied_at from schema_migrations order by filename;"
    ```
 
-   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready`, la web y `/healthz` devuelven HTTP 200 y PostgreSQL lista las migraciones `0000` a `0006`.
+   Respuestas esperadas: `/health` devuelve `status: ok`, `/ready` devuelve `status: ready`, la web y `/healthz` devuelven HTTP 200 y PostgreSQL lista todas las migraciones del repositorio, actualmente `0000` a `0011`, con sus checksums exactos.
 
 5. Revisar logs si algún servicio no está sano:
 

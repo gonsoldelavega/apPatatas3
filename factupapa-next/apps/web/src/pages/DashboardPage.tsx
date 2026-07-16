@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
+  CircleAlert,
   FileText,
   Package,
-  ScrollText,
+  Plus,
   Upload,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -14,9 +15,10 @@ import {
   importsApi,
   invoicesApi,
   productsApi,
+  salesPreferencesApi,
 } from "../api/services";
 import { useAuth } from "../auth/AuthProvider";
-import { formatMoney } from "../utils/format";
+import { formatDate, formatMoney } from "../utils/format";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -40,13 +42,14 @@ export function DashboardPage() {
   const summary = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: async () => {
-      const [customers, products, imports, notes, invoices] = await Promise.all(
+      const [customers, products, imports, notes, invoices, preferences] = await Promise.all(
         [
           contactsApi.list({ isActive: true, pageSize: 1 }),
           productsApi.list({ isActive: true, pageSize: 1 }),
           importsApi.list(1, 100),
           deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
           invoicesApi.list({ status: "issued", pageSize: 100 }),
+          salesPreferencesApi.get(),
         ],
       );
       return {
@@ -58,6 +61,7 @@ export function DashboardPage() {
         pendingNotes: notes.total,
         issuedInvoices: invoices.total,
         invoicedTotal: sum(invoices.items.map((invoice) => invoice.total)),
+        primarySalesFlow: preferences.primarySalesFlow,
         recent: [
           ...notes.items.map((item) => ({
             id: item.id,
@@ -75,89 +79,56 @@ export function DashboardPage() {
       };
     },
   });
+  const preferDeliveryNotes = summary.data?.primarySalesFlow === "delivery_notes" ||
+    (summary.data?.primarySalesFlow === "adaptive" && summary.data.pendingNotes > summary.data.issuedInvoices);
   return (
     <div className="page dashboard-page">
       <header className="page-hero">
         <div>
-          <p className="eyebrow">{user?.company.name}</p>
+          <div className="brand-row"><strong>FactuPapa</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(new Date())}</span></div>
           <h1>
-            {greeting()}, {user?.displayName.split(" ")[0]}
+            {greeting()}, {user?.displayName.split(" ")[0]} <span aria-hidden="true">👋</span>
           </h1>
-          <p>Ventas reales disponibles, todavía sin cobros ni deuda.</p>
+          <p>{user?.company.name} está sincronizado y al día.</p>
         </div>
-        <span className="hero-badge">FP</span>
+        <span className="hero-badge" aria-label="Perfil">{user?.displayName.slice(0, 1).toUpperCase()}</span>
       </header>
       <section>
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Resumen operativo</p>
-            <h2>Lo importante, a mano</h2>
-          </div>
-        </div>
         {summary.isError ? (
           <div className="inline-error" role="alert">
             No se ha podido cargar.{" "}
             <button onClick={() => void summary.refetch()}>Reintentar</button>
           </div>
         ) : (
-          <div className="metric-grid" aria-busy={summary.isLoading}>
-            <article>
-              <ScrollText />
-              <strong>{summary.data?.pendingNotes ?? "—"}</strong>
-              <span>Albaranes por facturar</span>
-            </article>
-            <article>
-              <FileText />
-              <strong>{summary.data?.issuedInvoices ?? "—"}</strong>
-              <span>Facturas emitidas</span>
-            </article>
-            <article>
-              <FileText />
-              <strong>
-                {summary.data ? formatMoney(summary.data.invoicedTotal) : "—"}
-              </strong>
-              <span>Importe emitido</span>
-            </article>
-            <article>
-              <Upload />
-              <strong>{summary.data?.pendingImports ?? "—"}</strong>
-              <span>Importaciones pendientes</span>
-            </article>
+          <div className="business-summary" aria-busy={summary.isLoading}>
+            <p>FACTURACIÓN EMITIDA</p>
+            <strong>{summary.data ? formatMoney(summary.data.invoicedTotal) : "—"}</strong>
+            <div><span>Facturas <b>{summary.data?.issuedInvoices ?? "—"}</b></span><span>Clientes <b>{summary.data?.customers ?? "—"}</b></span></div>
           </div>
         )}
       </section>
+      <section className="home-shortcuts" aria-label="Acciones principales">
+        <Link className="home-shortcut home-shortcut--primary" to={preferDeliveryNotes ? "/ventas/nuevo/albaran" : "/ventas/nuevo/factura"}><Plus /><span>{preferDeliveryNotes ? "Albarán" : "Factura"}</span></Link>
+        <Link className="home-shortcut" to="/contactos/nuevo?tipo=customer"><Building2 /><span>Cliente</span></Link>
+        <Link className="home-shortcut" to="/productos/nuevo"><Package /><span>Producto</span></Link>
+        <Link className="home-shortcut" to="/importar"><Upload /><span>Importar</span></Link>
+      </section>
+      {(summary.data?.pendingNotes || summary.data?.pendingImports) ? <section className="attention-card">
+        <div className="section-heading"><div><p className="eyebrow">Necesita tu atención</p><h2>Pendientes</h2></div></div>
+        {Boolean(summary.data?.pendingNotes) && <Link to="/ventas"><CircleAlert /><span><strong>{summary.data?.pendingNotes} albaranes sin facturar</strong><small>Solo aparecen porque tienes actividad pendiente</small></span><ArrowRight /></Link>}
+        {Boolean(summary.data?.pendingImports) && <Link to="/importar"><CircleAlert /><span><strong>{summary.data?.pendingImports} importaciones pendientes</strong><small>Revisa los datos antes de confirmar</small></span><ArrowRight /></Link>}
+      </section> : null}
       <section>
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Acciones rápidas</p>
-            <h2>¿Por dónde empezamos?</h2>
+            <p className="eyebrow">Actividad reciente</p>
+            <h2>Últimos documentos</h2>
           </div>
+          <Link to="/ventas">Ver todo</Link>
         </div>
-        <div className="quick-actions">
-          <Link to="/ventas/nuevo/albaran">
-            <ScrollText />
-            <span>
-              <strong>Crear albarán</strong>
-              <small>Con precio efectivo</small>
-            </span>
-            <ArrowRight />
-          </Link>
-          <Link to="/contactos/nuevo?tipo=customer">
-            <Building2 />
-            <span>
-              <strong>Crear cliente</strong>
-              <small>Datos fiscales</small>
-            </span>
-            <ArrowRight />
-          </Link>
-          <Link to="/productos/nuevo">
-            <Package />
-            <span>
-              <strong>Crear producto</strong>
-              <small>Precio, unidad e IVA</small>
-            </span>
-            <ArrowRight />
-          </Link>
+        <div className="recent-documents">
+          {!summary.data?.recent.length && <p className="empty-copy">Tu primera factura aparecerá aquí.</p>}
+          {summary.data?.recent.map((item) => <Link key={`${item.label}-${item.id}`} to={`/ventas/${item.label === "Factura" ? "facturas" : "albaranes"}/${item.id}`}><FileText /><span><strong>{item.label}</strong><small>{formatDate(item.date)}</small></span><ArrowRight /></Link>)}
         </div>
       </section>
     </div>

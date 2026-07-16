@@ -28,7 +28,7 @@ test("login genérico, restauración, logout y consola limpia", async ({
     if (message.type() === "error") errors.push(message.text());
   });
   await page.reload();
-  await expect(page.getByText("Resumen operativo")).toBeVisible();
+  await expect(page.getByText("FACTURACIÓN EMITIDA")).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-inicio.png`,
     fullPage: true,
@@ -46,7 +46,6 @@ test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
     path: `test-artifacts/${testInfo.project.name}-albaranes.png`,
     fullPage: true,
   });
-  await page.getByRole("tab", { name: "Facturas" }).click();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-facturas.png`,
     fullPage: true,
@@ -75,6 +74,26 @@ test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
     );
   expect(undersized).toBe(0);
 });
+test("factura directa, ajustes comerciales y decimales legibles", async ({ page }) => {
+  await login(page);
+  await page.goto("/ajustes/ventas");
+  await expect(page.getByLabel("Prefijo")).toHaveValue("FAC");
+  await expect(page.getByLabel("Primer número")).toHaveValue("100");
+  await expect(page.getByLabel("IVA por defecto (%)")).toHaveValue("4");
+  await expect(page.getByLabel("Flujo principal")).toHaveValue("invoices");
+
+  await page.goto("/ventas/nuevo/factura");
+  await expect(page.getByText(/FAC-100\/\d{4}/)).toBeVisible();
+  await page.getByLabel("Cliente").selectOption({ index: 1 });
+  await page.getByLabel("Producto").selectOption({ index: 1 });
+  await page.getByLabel("Cantidad").fill("10");
+  await page.getByRole("button", { name: "Revisar factura" }).click();
+  await expect(page).toHaveURL(/\/ventas\/facturas\//);
+  await expect(page.getByText(/10 kg ×/)).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/\.0000/);
+  await expect(page.getByText("Base imponible")).toBeVisible();
+  await expect(page.getByText("IVA", { exact: true })).toBeVisible();
+});
 test("emisión, conversión, PDF, cancelación y refacturación completa", async ({
   page,
 }, testInfo) => {
@@ -85,13 +104,13 @@ test("emisión, conversión, PDF, cancelación y refacturación completa", async
   await page.getByLabel("Serie").fill(series);
   await page.getByLabel("Producto").selectOption({ index: 1 });
   await page.getByLabel("Cantidad").fill("2,5");
-  await page.getByRole("button", { name: "Crear borrador" }).click();
+  await page.getByRole("button", { name: "Crear albarán" }).click();
   await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
   const deliveryNoteUrl = page.url();
 
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Emitir documento" }).click();
-  await expect(page.locator(".status")).toHaveText("issued");
+  await page.getByRole("button", { name: "Emitir albarán" }).click();
+  await expect(page.locator(".status")).toHaveText("Emitido");
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Convertir en factura" }).click();
@@ -99,8 +118,8 @@ test("emisión, conversión, PDF, cancelación y refacturación completa", async
   await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Emitir documento" }).click();
-  await expect(page.locator(".status")).toHaveText("issued");
+  await page.getByRole("button", { name: "Emitir factura" }).click();
+  await expect(page.locator(".status")).toHaveText("Emitida");
 
   const pdfResponsePromise = page.waitForResponse(
     (response) => response.url().endsWith("/pdf") && response.status() === 200,
@@ -114,10 +133,10 @@ test("emisión, conversión, PDF, cancelación y refacturación completa", async
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancelar" }).click();
-  await expect(page.locator(".status")).toHaveText("cancelled");
+  await expect(page.locator(".status")).toHaveText("Cancelada");
 
   await page.goto(deliveryNoteUrl);
-  await expect(page.locator(".status")).toHaveText("issued");
+  await expect(page.locator(".status")).toHaveText("Emitido");
   await expect(
     page.getByRole("button", { name: "Convertir en factura" }),
   ).toBeVisible();
@@ -128,8 +147,8 @@ test("emisión, conversión, PDF, cancelación y refacturación completa", async
   await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Emitir documento" }).click();
-  await expect(page.locator(".status")).toHaveText("issued");
+  await page.getByRole("button", { name: "Emitir factura" }).click();
+  await expect(page.locator(".status")).toHaveText("Emitida");
 });
 test("catálogo, importación cancelada y dos pestañas", async ({
   page,
@@ -138,7 +157,7 @@ test("catálogo, importación cancelada y dos pestañas", async ({
   await login(page);
   const second = await context.newPage();
   await second.goto("/");
-  await expect(second.getByText("Resumen operativo")).toBeVisible();
+  await expect(second.getByText("FACTURACIÓN EMITIDA")).toBeVisible();
   await page.goto("/catalogo/contactos");
   await expect(page.getByRole("heading", { name: "Contactos" })).toBeVisible();
   await page.screenshot({

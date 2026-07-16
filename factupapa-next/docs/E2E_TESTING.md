@@ -1,11 +1,15 @@
 # Pruebas E2E
 
-Playwright ejecuta cinco flujos funcionales contra Compose completo con seed
+Playwright ejecuta seis flujos funcionales contra Compose completo con seed
 ficticio. Cada flujo se repite en cuatro viewports: 360×800, 390×844,
 430×932 y 1280×900. Comprueban autenticación, restauración, logout, dos
 pestañas, catálogo, mapeo automático y manual, campos obligatorios,
 duplicados, plantillas, cancelación y confirmación de importaciones, errores de
 red, consola, overflow, targets táctiles y ventas.
+
+El flujo adicional comprueba la configuración comercial en la nube, la factura
+directa como acción principal y que cantidades, precios, IVA y totales no
+expongan la precisión técnica almacenada.
 
 La versión de Playwright está fijada exactamente en `package.json` y
 `package-lock.json`. La instalación reproducible del Chromium correspondiente

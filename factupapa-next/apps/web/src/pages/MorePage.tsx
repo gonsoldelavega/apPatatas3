@@ -1,4 +1,4 @@
-import { LogOut, ShieldCheck, Smartphone, Upload } from "lucide-react";
+import { LogOut, Settings2, ShieldCheck, Smartphone, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
@@ -37,6 +37,13 @@ export function MorePage() {
         <div>
           <h2>Importaciones</h2>
           <p>Valida y confirma lotes ficticios de catálogo.</p>
+        </div>
+      </Link>
+      <Link className="info-card" to="/ajustes/ventas">
+        <Settings2 />
+        <div>
+          <h2>Facturación</h2>
+          <p>Configura serie, numeración inicial, IVA y pantalla principal.</p>
         </div>
       </Link>
       <section className="info-card">

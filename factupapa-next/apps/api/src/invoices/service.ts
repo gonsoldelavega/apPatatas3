@@ -226,8 +226,14 @@ export class InvoiceService {
       if (before.status !== "draft" || !before.lines.length)
         throw new HttpError("conflict", 409);
       const seq = await c.query<{ number: number } & QueryResultRow>(
-        `insert into document_sequences(company_id,document_type,series,next_number) values($1,'invoice',$2,2) on conflict(company_id,document_type,series) do update set next_number=document_sequences.next_number+1 returning next_number-1 number`,
-        [identity.companyId, before.series],
+        `insert into document_sequences(company_id,document_type,series,next_number)
+         values($1,'invoice',$2,coalesce((select invoice_start_number + 1
+           from company_sales_preferences where company_id=$1
+             and $2 = invoice_prefix || '_' || extract(year from $3::date)::int::text),
+           case when $2 ~ '^[A-Z0-9_-]{1,12}_[0-9]{4}$' then 101 else 2 end))
+         on conflict(company_id,document_type,series) do update set next_number=document_sequences.next_number+1
+         returning next_number-1 number`,
+        [identity.companyId, before.series, before.issueDate],
       );
       await c.query(
         `update invoices set number=$2,status='issued',issued_at=now() where id=$1`,

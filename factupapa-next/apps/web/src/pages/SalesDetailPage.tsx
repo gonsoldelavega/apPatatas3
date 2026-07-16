@@ -7,11 +7,18 @@ import {
   XCircle,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { deliveryNotesApi, invoicesApi } from "../api/services";
+import { deliveryNotesApi, invoicesApi, salesPreferencesApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { LoadingScreen } from "../ui/LoadingScreen";
-import { formatMoney, todayLocal } from "../utils/format";
+import { annualInvoiceSeries, formatDocumentNumber, formatMoney, formatQuantity, formatTaxRate, formatUnitPrice, todayLocal, unitLabel } from "../utils/format";
+
+const statusLabel = (status: string, invoice: boolean) => ({
+  draft: "Borrador",
+  issued: invoice ? "Emitida" : "Emitido",
+  invoiced: "Facturado",
+  cancelled: invoice ? "Cancelada" : "Cancelado",
+})[status] ?? status;
 
 export function SalesDetailPage() {
   const { type, id = "" } = useParams();
@@ -23,6 +30,7 @@ export function SalesDetailPage() {
     queryKey: [type, id],
     queryFn: () => api.get(id),
   });
+  const preferences = useQuery({ queryKey: ["sales-preferences"], queryFn: salesPreferencesApi.get, enabled: !invoice });
   const action = useMutation({
     mutationFn: (name: "issue" | "cancel") => api[name](id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [type, id] }),
@@ -39,7 +47,7 @@ export function SalesDetailPage() {
     mutationFn: () =>
       invoicesApi.fromDeliveryNotes({
         deliveryNoteIds: [id],
-        series: "F",
+        series: annualInvoiceSeries(preferences.data?.invoicePrefix ?? "FAC"),
         issueDate: todayLocal(),
       }),
     onSuccess: (created) => navigate(`/ventas/facturas/${created.id}`),
@@ -64,11 +72,9 @@ export function SalesDetailPage() {
         <div className="detail-header__title">
           <p className="eyebrow">{invoice ? "Factura" : "Albarán"}</p>
           <h1>
-            {item.number
-              ? `${item.series}-${String(item.number).padStart(6, "0")}`
-              : "Borrador"}
+            {item.number ? formatDocumentNumber(item.series, item.number) : "Borrador"}
           </h1>
-          <span className={`status status--${item.status}`}>{item.status}</span>
+          <span className={`status status--${item.status}`}>{statusLabel(item.status, invoice)}</span>
         </div>
       </header>
       <section className="detail-card">
@@ -78,15 +84,17 @@ export function SalesDetailPage() {
             <span>
               <strong>{line.description}</strong>
               <small>
-                {line.quantity} {line.unit} × {formatMoney(line.unitPrice)}
+                {formatQuantity(line.quantity)} {unitLabel(line.unit)} × {formatUnitPrice(line.unitPrice)}
+                {invoice ? ` · IVA ${formatTaxRate(line.taxRate)}` : ""}
               </small>
             </span>
             <strong>{formatMoney(line.lineTotal)}</strong>
           </div>
         ))}
-        <div className="sales-total">
-          <span>Total</span>
-          <strong>{formatMoney(item.total)}</strong>
+        <div className="sales-totals">
+          <div><span>Base imponible</span><strong>{formatMoney(item.subtotal)}</strong></div>
+          <div><span>IVA</span><strong>{formatMoney(item.taxTotal)}</strong></div>
+          <div className="sales-total"><span>Total</span><strong>{formatMoney(item.total)}</strong></div>
         </div>
       </section>
       {item.status === "draft" && (
@@ -98,7 +106,7 @@ export function SalesDetailPage() {
             action.mutate("issue")
           }
         >
-          Emitir documento
+          Emitir {invoice ? "factura" : "albarán"}
         </Button>
       )}
       {item.status === "issued" && (

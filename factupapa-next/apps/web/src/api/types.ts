@@ -88,6 +88,13 @@ export interface AuthTokens {
   expiresIn: number;
 }
 
+export interface SalesPreferences {
+  invoicePrefix: string;
+  invoiceStartNumber: number;
+  defaultTaxRate: string;
+  primarySalesFlow: "adaptive" | "invoices" | "delivery_notes";
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

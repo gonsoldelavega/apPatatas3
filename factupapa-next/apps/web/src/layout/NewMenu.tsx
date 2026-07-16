@@ -63,18 +63,18 @@ export function NewMenu({
             <X />
           </button>
         </header>
+        <button className="action-sheet__primary" onClick={() => onChoose("/ventas/nuevo/factura")}>
+          <FileText />
+          <span>
+            <strong>Nueva factura</strong>
+            <small>Tu flujo habitual de venta directa</small>
+          </span>
+        </button>
         <button onClick={() => onChoose("/ventas/nuevo/albaran")}>
           <ScrollText />
           <span>
             <strong>Nuevo albarán</strong>
-            <small>Borrador con precio por cliente</small>
-          </span>
-        </button>
-        <button onClick={() => onChoose("/ventas/nuevo/factura")}>
-          <FileText />
-          <span>
-            <strong>Nueva factura</strong>
-            <small>Factura manual sin cobro</small>
+            <small>Solo si entregas antes de facturar</small>
           </span>
         </button>
         <button onClick={() => onChoose("/contactos/nuevo?tipo=customer")}>

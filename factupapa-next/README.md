@@ -20,7 +20,7 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 
 ## Operación previa a beta
 
-La migración aditiva actual es `0008_import_mapping_and_retention.sql`; no altera `0000`–`0007`. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
+La migración aditiva actual es `0011_company_sales_preferences.sql`; no altera `0000`–`0010`. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
 4. El OCR funciona como proceso separado para no bloquear la aplicación.
 5. La aplicación móvil y la aplicación web comparten API y modelos de datos.
 6. No se usan credenciales reales dentro del repositorio.
@@ -64,7 +64,7 @@ factupapa-next/
 
 ## Aplicación web móvil
 
-`apps/web` es la primera interfaz funcional de FactuPapa Next. Usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil ofrece Inicio, Ventas, Nuevo, Catálogo y Más; Importar vive en Más. El alcance incluye contactos, proveedores, productos, precios específicos, importaciones, albaranes y facturas de venta sin cobros. Solo muestra métricas derivadas de documentos existentes.
+`apps/web` es la primera interfaz funcional de FactuPapa Next. Usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil ofrece Inicio, Ventas, Nuevo, Catálogo y Más; Importar vive en Más. La factura directa es el flujo inicial y el inicio puede adaptarse al uso configurado, sin mostrar albaranes como tarea principal cuando no se utilizan. Los importes comerciales se presentan con formato español legible, aunque la API conserva la precisión decimal completa.
 
 La PWA es instalable desde el navegador y dispone de manifest, icono, service worker y shell offline. Los datos de la API no se cachean en el service worker. La URL se configura con `VITE_API_BASE_URL`; no hay URLs privadas ni secretos en el bundle.
 
@@ -82,7 +82,7 @@ La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decis
 
 ## Ventas y sesión endurecida
 
-La PWA incorpora Ventas con borradores de albarán y factura, precio efectivo por cliente, emisión, cancelación y PDF autenticado. La numeración es atómica por empresa, tipo y serie. No existen cobros, vencidos automáticos, rectificativas, contabilidad ni VeriFactu.
+La PWA incorpora Ventas con borradores de albarán y factura, precio efectivo por cliente, emisión, cancelación y PDF autenticado. Cada empresa configura prefijo, primer número anual, IVA predeterminado y flujo principal; por defecto usa `FAC-100/año`, IVA 4 % y factura directa. La numeración sigue siendo atómica por empresa, tipo y serie. El PDF emitido es A4, blanco y negro y está diseñado para impresión clara. No existen todavía cobros, vencidos automáticos, rectificativas, contabilidad ni VeriFactu.
 
 El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva el access token solo en memoria. Véanse [SECURITY.md](docs/SECURITY.md), [SALES_DOMAIN.md](docs/SALES_DOMAIN.md) y [E2E_TESTING.md](docs/E2E_TESTING.md).
 

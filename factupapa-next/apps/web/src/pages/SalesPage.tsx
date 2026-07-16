@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { deliveryNotesApi, invoicesApi } from "../api/services";
 import { EmptyState } from "../ui/EmptyState";
-import { formatMoney } from "../utils/format";
+import { formatDocumentNumber, formatMoney } from "../utils/format";
 
 const statuses: Record<string, string> = {
   draft: "Borrador",
@@ -13,7 +13,7 @@ const statuses: Record<string, string> = {
   cancelled: "Cancelado",
 };
 export function SalesPage() {
-  const [tab, setTab] = useState<"delivery" | "invoice">("delivery");
+  const [tab, setTab] = useState<"delivery" | "invoice">("invoice");
   const notes = useQuery({
     queryKey: ["delivery-notes"],
     queryFn: () => deliveryNotesApi.list({ pageSize: 100 }),
@@ -28,17 +28,9 @@ export function SalesPage() {
       <header className="page-heading">
         <p className="eyebrow">Operativa comercial</p>
         <h1>Ventas</h1>
-        <p>Albaranes y facturas reales, sin cobros ni métricas inventadas.</p>
+        <p>Facturación directa y documentos de venta de tu empresa.</p>
       </header>
       <div className="segmented" role="tablist">
-        <button
-          role="tab"
-          aria-selected={tab === "delivery"}
-          className={tab === "delivery" ? "active" : ""}
-          onClick={() => setTab("delivery")}
-        >
-          Albaranes
-        </button>
         <button
           role="tab"
           aria-selected={tab === "invoice"}
@@ -46,6 +38,14 @@ export function SalesPage() {
           onClick={() => setTab("invoice")}
         >
           Facturas
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "delivery"}
+          className={tab === "delivery" ? "active" : ""}
+          onClick={() => setTab("delivery")}
+        >
+          Albaranes
         </button>
       </div>
       <Link
@@ -75,9 +75,7 @@ export function SalesPage() {
             </span>
             <span className="entity-card__body">
               <strong>
-                {item.number
-                  ? `${item.series}-${String(item.number).padStart(6, "0")}`
-                  : "Borrador sin numerar"}
+                {formatDocumentNumber(item.series, item.number)}
               </strong>
               <small>{item.issueDate}</small>
               <span className={`status status--${item.status}`}>

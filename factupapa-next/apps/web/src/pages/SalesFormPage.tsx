@@ -7,11 +7,12 @@ import {
   deliveryNotesApi,
   invoicesApi,
   productsApi,
+  salesPreferencesApi,
 } from "../api/services";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
-import { todayLocal } from "../utils/format";
+import { annualInvoiceSeries, todayLocal } from "../utils/format";
 export function SalesFormPage() {
   const { kind } = useParams(),
     invoice = kind === "factura",
@@ -19,8 +20,15 @@ export function SalesFormPage() {
   const [contactId, setContactId] = useState(""),
     [productId, setProductId] = useState(""),
     [quantity, setQuantity] = useState("1"),
-    [series, setSeries] = useState(invoice ? "F" : "A"),
+    [series, setSeries] = useState("A"),
     [issueDate, setIssueDate] = useState(todayLocal());
+  const preferences = useQuery({
+    queryKey: ["sales-preferences"],
+    queryFn: salesPreferencesApi.get,
+    enabled: invoice,
+  });
+  const invoicePrefix = preferences.data?.invoicePrefix ?? "FAC";
+  const invoiceStartNumber = preferences.data?.invoiceStartNumber ?? 100;
   const contacts = useQuery({
       queryKey: ["sales-customers"],
       queryFn: () => contactsApi.list({ isActive: true, pageSize: 100 }),
@@ -32,7 +40,7 @@ export function SalesFormPage() {
   const save = useMutation({
     mutationFn: async () => {
       const document = invoice
-        ? await invoicesApi.create({ contactId, series, issueDate })
+        ? await invoicesApi.create({ contactId, series: annualInvoiceSeries(invoicePrefix, issueDate), issueDate })
         : await deliveryNotesApi.create({ contactId, series, issueDate });
       return invoice
         ? invoicesApi.addLine(document.id, {
@@ -67,7 +75,7 @@ export function SalesFormPage() {
         }}
       >
         <section className="form-card">
-          <h2>Documento</h2>
+          <div className="form-step"><span>1</span><div><small>Cliente</small><h2>¿A quién facturas?</h2></div></div>
           <SelectField
             label="Cliente"
             value={contactId}
@@ -84,12 +92,7 @@ export function SalesFormPage() {
               ))}
           </SelectField>
           <div className="form-grid">
-            <Field
-              label="Serie"
-              value={series}
-              onChange={(event) => setSeries(event.target.value)}
-              required
-            />
+            {invoice ? <div className="automatic-number"><span>Formato de numeración</span><strong>{invoicePrefix}-{invoiceStartNumber}/{issueDate.slice(0, 4)}</strong><small>El siguiente disponible se asigna al emitir</small></div> : <Field label="Serie" value={series} onChange={(event) => setSeries(event.target.value)} required />}
             <Field
               label="Fecha"
               type="date"
@@ -100,7 +103,7 @@ export function SalesFormPage() {
           </div>
         </section>
         <section className="form-card">
-          <h2>Primera línea</h2>
+          <div className="form-step"><span>2</span><div><small>Productos</small><h2>¿Qué has vendido?</h2></div></div>
           <SelectField
             label="Producto"
             value={productId}
@@ -135,7 +138,7 @@ export function SalesFormPage() {
             busy={save.isPending}
             disabled={!contactId || !productId}
           >
-            Crear borrador
+            {invoice ? "Revisar factura" : "Crear albarán"}
           </Button>
         </div>
       </form>

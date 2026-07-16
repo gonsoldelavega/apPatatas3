@@ -92,3 +92,8 @@ jobs:
           test -z "$(docker ps -aq --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
           test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
           test -z "$(docker network ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
+
+      - name: Deploy exact audited SHA to private staging
+        if: success() && github.event_name == 'push'
+        shell: bash
+        run: factupapa-next/scripts/deploy-private-staging.sh

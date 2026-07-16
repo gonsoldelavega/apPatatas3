@@ -222,6 +222,13 @@ createServer(async (request, response) => {
   }
   if (/^\/imports\/[^/]+\/cancel$/.test(url.pathname))
     return send(response, 204);
+  if (url.pathname === "/sales-preferences")
+    return send(response, 200, {
+      invoicePrefix: "FAC",
+      invoiceStartNumber: 100,
+      defaultTaxRate: "4.000",
+      primarySalesFlow: "invoices",
+    });
   if (url.pathname === "/delivery-notes")
     return send(response, 200, {
       items: [

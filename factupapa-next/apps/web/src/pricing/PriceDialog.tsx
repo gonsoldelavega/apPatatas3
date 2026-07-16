@@ -10,7 +10,7 @@ import { priceSchema } from "../forms/schemas";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { useToast } from "../ui/ToastProvider";
-import { formatMoney, todayLocal } from "../utils/format";
+import { formatMoney, formatQuantity, todayLocal } from "../utils/format";
 
 type PriceValues = z.infer<typeof priceSchema>;
 
@@ -18,7 +18,7 @@ export function PriceDialog({ contactId, product, onClose }: { contactId: string
   const closeButton = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
   const toast = useToast();
-  const { register, handleSubmit, formState: { errors } } = useForm<PriceValues>({ resolver: zodResolver(priceSchema), defaultValues: { price: product.specificPrice ?? product.salePrice, validFrom: todayLocal(), isActive: true } });
+  const { register, handleSubmit, formState: { errors } } = useForm<PriceValues>({ resolver: zodResolver(priceSchema), defaultValues: { price: formatQuantity(product.specificPrice ?? product.salePrice), validFrom: todayLocal(), isActive: true } });
   const save = useMutation({ mutationFn: (values: PriceValues) => pricingApi.upsert(contactId, product.id, { ...values, price: values.price.replace(",", ".") }), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["prices", contactId] }); toast.show("Precio específico guardado"); onClose(); } });
   const remove = useMutation({ mutationFn: () => pricingApi.deactivate(contactId, product.id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["prices", contactId] }); toast.show("Se aplicará el precio general"); onClose(); } });
   useEffect(() => {

@@ -11,6 +11,7 @@ import { migrationLockPlan } from "../../src/database/migrate.js";
 import { DeliveryNoteService } from "../../src/delivery-notes/service.js";
 import { InvoiceService } from "../../src/invoices/service.js";
 import { HttpError } from "../../src/http/errors.js";
+import { SalesPreferencesService } from "../../src/sales-preferences/service.js";
 
 const adminUrl = process.env.DATABASE_ADMIN_URL,
   apiUrl = process.env.DATABASE_URL;
@@ -23,6 +24,7 @@ let admin: Database,
   otherCustomerId: string,
   otherProductId: string;
 let delivery: DeliveryNoteService, invoices: InvoiceService;
+let preferences: SalesPreferencesService;
 
 async function createIssuedNote(series: string) {
   const note = await delivery.create(identity, {
@@ -116,6 +118,7 @@ before(async () => {
     }));
   delivery = new DeliveryNoteService(api.pool);
   invoices = new InvoiceService(api.pool);
+  preferences = new SalesPreferencesService(api.pool);
 });
 after(async () => {
   if (admin)
@@ -124,6 +127,39 @@ after(async () => {
     );
   if (api) await api.close();
   if (admin) await admin.close();
+});
+
+test("preferencias de venta son tenant-aware y arrancan la factura en FAC-100/año", async () => {
+  assert.deepEqual(await preferences.get(identity), {
+    invoicePrefix: "FAC",
+    invoiceStartNumber: 100,
+    defaultTaxRate: "4.000",
+    primarySalesFlow: "invoices",
+  });
+  await preferences.update(identity, {
+    invoicePrefix: "FP",
+    invoiceStartNumber: 150,
+    defaultTaxRate: "4",
+    primarySalesFlow: "invoices",
+  });
+  assert.equal((await preferences.get(other)).invoicePrefix, "FAC");
+  const draft = await invoices.create(identity, {
+    contactId: customerId,
+    series: "FP_2026",
+    issueDate: "2026-07-15",
+  });
+  await invoices.line(identity, draft!.id, undefined, { productId, quantity: "1" });
+  const issued = await invoices.issue(identity, draft!.id);
+  assert.equal(issued?.number, 150);
+  await assert.rejects(
+    preferences.update(identity, {
+      invoicePrefix: "FP",
+      invoiceStartNumber: 200,
+      defaultTaxRate: "4",
+      primarySalesFlow: "invoices",
+    }),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
 });
 
 test("albarán aplica precio específico, snapshot, numeración, bloqueo y aislamiento", async () => {

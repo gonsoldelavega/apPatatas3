@@ -10,4 +10,8 @@ Convertir albaranes exige estado `issued`, mismo cliente y ausencia de facturaci
 
 El PDF A4 se genera al vuelo desde el snapshot, solo para factura emitida y con límite de 5 MB. Incluye nombre, NIF y dirección configurada de la empresa, además del snapshot fiscal del cliente. No incluye firma digital, QR fiscal, VeriFactu ni factura electrónica y no está listo para uso legal real.
 
+`0011_company_sales_preferences.sql` añade preferencias tenant con RLS forzado. El valor inicial favorece la operativa de factura directa: prefijo `FAC`, primer número anual 100 e IVA 4 %. Internamente la serie anual se conserva como `FAC_2026`, pero se presenta al usuario y en el PDF como `FAC-100/2026`, sin ceros de relleno. La configuración no permite cambiar el número inicial una vez usada la secuencia del año.
+
+La interfaz no muestra ceros técnicos: cantidades eliminan decimales finales, precios unitarios conservan al menos dos decimales y los totales monetarios muestran exactamente dos. Esto es solo presentación; PostgreSQL, snapshots y cálculos mantienen su precisión `numeric`.
+
 El ensayo de recuperación incluye numeración, snapshots, vínculos albarán-factura, auditoría, inmutabilidad y regeneración del PDF. Una factura cancelada libera transaccionalmente sus vínculos activos y devuelve los albaranes a `issued`; los números emitidos nunca se reutilizan.
