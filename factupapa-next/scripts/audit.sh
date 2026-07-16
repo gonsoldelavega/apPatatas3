@@ -6,10 +6,19 @@ api="${root}/apps/api"
 web="${root}/apps/web"
 infra="${root}/infrastructure"
 artifacts="${RUNNER_TEMP:-/tmp}/factupapa-operational-artifacts"
+current_phase="inicio"
 
 phase() {
+  current_phase="$1"
   printf '\n===== AUDIT PHASE: %s =====\n' "$1"
 }
+
+report_failure() {
+  local status=$? line="$1"
+  printf '::error title=FactuPapa audit failed::phase=%s line=%s exit=%s\n' "${current_phase}" "${line}" "${status}"
+  return "${status}"
+}
+trap 'report_failure ${LINENO}' ERR
 
 compose() {
   (cd "${infra}" && docker compose "$@")
