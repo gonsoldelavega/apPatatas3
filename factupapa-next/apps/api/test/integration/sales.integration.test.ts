@@ -7,6 +7,7 @@ import {
   withTenantTransaction,
   type Database,
 } from "../../src/database/client.js";
+import { migrationLockPlan } from "../../src/database/migrate.js";
 import { DeliveryNoteService } from "../../src/delivery-notes/service.js";
 import { InvoiceService } from "../../src/invoices/service.js";
 import { HttpError } from "../../src/http/errors.js";
@@ -385,6 +386,103 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   );
 });
 
+test("emisión y locks previos a 0009 respetan orden, timeout y rollback", async () => {
+  const draft = await invoices.create(identity, {
+    contactId: customerId,
+    series: "LOCK-AUDIT",
+    issueDate: "2026-07-15",
+  });
+  await invoices.line(identity, draft.id, undefined, {
+    productId,
+    quantity: "1",
+  });
+  const migration = await admin.pool.connect();
+  const emission = await admin.pool.connect();
+  const observer = await admin.pool.connect();
+  const plan = migrationLockPlan("0009_sales_document_state_machine.sql");
+  assert.deepEqual(plan.map((lock) => lock.table), [
+    "public.invoices",
+    "public.document_sequences",
+  ]);
+
+  try {
+    await migration.query("begin");
+    await migration.query(
+      `lock table ${plan[0]!.table} in ${plan[0]!.mode} mode`,
+    );
+    await emission.query("begin");
+    const emissionPid = (
+      await emission.query<{ pid: number }>("select pg_backend_pid() pid")
+    ).rows[0]!.pid;
+    const rowLock = emission.query("select id from invoices where id=$1 for update", [
+      draft.id,
+    ]);
+
+    const deadline = Date.now() + 5_000;
+    while (true) {
+      const waiting = await observer.query<{ waiting: boolean }>(
+        `select exists(
+           select 1 from pg_stat_activity
+           where pid=$1 and wait_event_type='Lock'
+         ) waiting`,
+        [emissionPid],
+      );
+      if (waiting.rows[0]?.waiting) break;
+      assert.ok(Date.now() < deadline, "la emisión no alcanzó la barrera de lock");
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+
+    await migration.query(
+      `lock table ${plan[1]!.table} in ${plan[1]!.mode} mode`,
+    );
+    await migration.query("commit");
+    await rowLock;
+    await emission.query(
+      `insert into document_sequences(company_id,document_type,series,next_number)
+       values($1,'invoice','LOCK-BARRIER',1)
+       on conflict(company_id,document_type,series)
+       do update set next_number=document_sequences.next_number+1`,
+      [identity.companyId],
+    );
+    await emission.query("rollback");
+
+    await emission.query("begin");
+    await emission.query("select id from invoices where id=$1 for update", [draft.id]);
+    await emission.query(
+      `insert into document_sequences(company_id,document_type,series,next_number)
+       values($1,'invoice','LOCK-TIMEOUT',1)
+       on conflict(company_id,document_type,series)
+       do update set next_number=document_sequences.next_number+1`,
+      [identity.companyId],
+    );
+    await migration.query("begin");
+    await migration.query("set local lock_timeout='250ms'");
+    await assert.rejects(
+      () =>
+        migration.query(
+          `lock table ${plan[0]!.table} in ${plan[0]!.mode} mode`,
+        ),
+      (error: unknown) => (error as { code?: string }).code === "55P03",
+    );
+    await migration.query("rollback");
+    await emission.query("rollback");
+
+    await migration.query("begin");
+    for (const lock of plan) {
+      await migration.query(`lock table ${lock.table} in ${lock.mode} mode`);
+    }
+    await migration.query("rollback");
+  } finally {
+    await migration.query("rollback").catch(() => undefined);
+    await emission.query("rollback").catch(() => undefined);
+    migration.release();
+    emission.release();
+    observer.release();
+  }
+
+  assert.equal((await invoices.issue(identity, draft.id))?.status, "issued");
+});
+
 test("transiciones SQL desde borrador exigen el ciclo de vida y no alteran importes", async () => {
   const draft = await invoices.create(identity, {
     contactId: customerId,
@@ -442,6 +540,61 @@ test("transiciones SQL inválidas de albarán desde draft son rechazadas", async
     "update delivery_notes set number=900001,status='issued',issued_at=now(),total=99 where id=$1",
   );
   assert.equal((await delivery.get(identity, draft!.id)).status, "draft");
+});
+
+test("documentos emitidos y cancelados no pueden retroceder de estado", async () => {
+  const invoiceDraft = await invoices.create(identity, {
+    contactId: customerId,
+    series: "STATE-REVERSE-INV",
+    issueDate: "2026-07-15",
+  });
+  await invoices.line(identity, invoiceDraft.id, undefined, {
+    productId,
+    quantity: "1",
+  });
+  const issuedInvoice = await invoices.issue(identity, invoiceDraft.id);
+  assert.ok(issuedInvoice);
+
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update invoices set status='draft' where id=$1", [
+          issuedInvoice.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await invoices.cancel(identity, issuedInvoice.id);
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update invoices set status='issued' where id=$1", [
+          issuedInvoice.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+
+  const issuedNote = await createIssuedNote("STATE-REVERSE-DN");
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update delivery_notes set status='draft' where id=$1", [
+          issuedNote.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+  await delivery.cancel(identity, issuedNote.id);
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("update delivery_notes set status='issued' where id=$1", [
+          issuedNote.id,
+        ]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
 });
 
 test("company_id de líneas no puede cruzar empresas ni entre borradores", async () => {

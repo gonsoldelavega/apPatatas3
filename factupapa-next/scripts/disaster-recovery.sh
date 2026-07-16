@@ -5,6 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 infra="${root}/infrastructure"
 api="${root}/apps/api"
 web="${root}/apps/web"
+recovery_dir="${RUNNER_TEMP:-/tmp}/factupapa-recovery-${COMPOSE_PROJECT_NAME:-unknown}"
 
 case "${COMPOSE_PROJECT_NAME:-}" in
   *ci*|*recovery*|*test*) ;;
@@ -16,6 +17,7 @@ test -n "${DEMO_USER_PASSWORD:-}"
 
 cleanup() {
   (cd "${infra}" && docker compose down -v --remove-orphans) >/dev/null 2>&1 || true
+  rm -rf "${recovery_dir}"
 }
 trap cleanup EXIT
 
@@ -33,13 +35,13 @@ npm --prefix "${web}" run smoke
 
 before="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select json_build_object('\''companies'\'',(select count(*) from companies),'\''contacts'\'',(select count(*) from contacts),'\''products'\'',(select count(*) from products),'\''deliveryNotes'\'',(select count(*) from delivery_notes),'\''invoices'\'',(select count(*) from invoices),'\''sequences'\'',(select count(*) from document_sequences),'\''audit'\'',(select count(*) from audit_events))"')"
 
-mkdir -p "${RUNNER_TEMP:-/tmp}/factupapa-recovery"
-backup_json="$(cd "${api}" && BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${RUNNER_TEMP:-/tmp}/factupapa-recovery" npm run --silent backup:database | tail -n 1)"
+mkdir -p "${recovery_dir}"
+backup_json="$(cd "${api}" && BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${recovery_dir}" npm run --silent backup:database | tail -n 1)"
 dump="$(node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="verified") process.exit(1); process.stdout.write(value.dump)' "${backup_json}")"
 
 cd "${api}"
 RESTORE_DUMP="${dump}" RESTORE_ENVIRONMENT=integration RESTORE_TARGET=preflight \
-RESTORE_REPORT_DIRECTORY="${RUNNER_TEMP:-/tmp}/factupapa-recovery" npm run --silent restore:verify -- --confirm-isolated-restore
+RESTORE_REPORT_DIRECTORY="${recovery_dir}" npm run --silent restore:verify -- --confirm-isolated-restore
 
 cd "${infra}"
 docker compose down -v --remove-orphans
@@ -69,5 +71,6 @@ SMOKE_PDF_PATH="${web}/test-artifacts/recovery-after.pdf" npm --prefix "${web}" 
 docker compose down -v --remove-orphans
 test -z "$(docker compose ps -aq)"
 test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
+rm -rf "${recovery_dir}"
 trap - EXIT
 echo '{"status":"recovery_verified","data":"fictitious","servicesRemaining":0,"volumesRemaining":0}'

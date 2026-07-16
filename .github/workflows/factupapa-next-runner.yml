@@ -2,48 +2,93 @@ name: FactuPapa Next Rootless Audit
 
 on:
   push:
-    branches:
-      - design/factupapa-full-prototype
+    branches: [design/factupapa-full-prototype]
     paths:
       - 'factupapa-next/**'
-      - 'docs/factupapa-next/**'
-      - 'prototype/factupapa-v2/**'
       - '.github/workflows/factupapa-next-runner.yml'
+      - '.github/workflows/factupapa-next-integration.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: factupapa-next-vps
+  group: factupapa-next-rootless-audit
   cancel-in-progress: false
 
 jobs:
   rootless-audit:
     runs-on: [self-hosted, linux, x64, factupapa-next]
-    timeout-minutes: 15
+    timeout-minutes: 60
+    env:
+      DOCKER_HOST: unix:///run/user/1001/docker.sock
+      COMPOSE_PROJECT_NAME: factupapa_audit_${{ github.run_id }}_${{ github.run_attempt }}
+      COMPOSE_FILE: docker-compose.yml:docker-compose.integration.yml
+      PRESERVE_AUDIT_ARTIFACTS: '1'
     steps:
-      - name: Checkout isolated branch
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Checkout exact triggering SHA
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          ref: design/factupapa-full-prototype
+          ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Verify execution context
+      - name: Verify exact SHA and rootless runner
         shell: bash
         run: |
           set -euo pipefail
-          test "$(id -un)" = "factupapa"
-          test "${GITHUB_REF_NAME}" = "design/factupapa-full-prototype"
-          echo "Runner user: $(id -un)"
-          echo "Commit: ${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(id -u)" = "1001"
+          test "${DOCKER_HOST}" = "unix:///run/user/1001/docker.sock"
+          test -S "${DOCKER_HOST#unix://}"
+          docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
 
-      - name: Run repository audit
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            factupapa-next/apps/api/package-lock.json
+            factupapa-next/apps/web/package-lock.json
+
+      - name: Run complete rootless audit
         shell: bash
         run: |
           set -euo pipefail
-          if [ -f factupapa-next/scripts/audit.sh ]; then
-            bash factupapa-next/scripts/audit.sh
-          else
-            echo "No audit script found; checkout audit completed."
-          fi
+          test -f factupapa-next/scripts/audit.sh
+          test -x factupapa-next/scripts/audit.sh
+          factupapa-next/scripts/audit.sh
+
+      - name: Upload sanitized fictitious evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: factupapa-rootless-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            factupapa-next/apps/web/test-artifacts
+            factupapa-next/apps/web/test-results
+            factupapa-next/apps/web/playwright-report
+            ${{ runner.temp }}/factupapa-operational-artifacts/api-sanitized.log
+            ${{ runner.temp }}/factupapa-operational-artifacts/backup-sanitized.log
+            ${{ runner.temp }}/factupapa-operational-artifacts/objects-sanitized.log
+            ${{ runner.temp }}/factupapa-operational-artifacts/recovery-sanitized.log
+            ${{ runner.temp }}/factupapa-operational-artifacts/database-backup.manifest.json
+            ${{ runner.temp }}/factupapa-operational-artifacts/object-backup.manifest.json
+            ${{ runner.temp }}/factupapa-operational-artifacts/restore-*.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce final cleanup
+        if: always()
+        working-directory: factupapa-next/infrastructure
+        shell: bash
+        run: |
+          set +e
+          docker compose down -v --remove-orphans
+          rm -f .env docker-compose.integration.yml
+          rm -rf ../apps/web/test-artifacts ../apps/web/test-results ../apps/web/playwright-report
+          rm -rf "${RUNNER_TEMP}/factupapa-operational-artifacts"
+          set -e
+          test -z "$(docker ps -aq --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
+          test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
+          test -z "$(docker network ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
