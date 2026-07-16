@@ -145,11 +145,11 @@ set -a
 # shellcheck disable=SC1091
 source "${infra}/.env"
 set +a
-export DATABASE_ADMIN_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}"
-export DATABASE_URL="postgresql://${API_DATABASE_USER}:${API_DATABASE_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}"
+host_database_admin_url="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}"
+host_database_url="postgresql://${API_DATABASE_USER}:${API_DATABASE_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}"
 
 phase "integración PostgreSQL"
-(cd "${api}" && npm run test:integration)
+(cd "${api}" && DATABASE_ADMIN_URL="${host_database_admin_url}" DATABASE_URL="${host_database_url}" npm run test:integration)
 
 phase "health, readiness y métricas"
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/health)" = "200"
@@ -179,8 +179,8 @@ company_id="$(compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" ps
 user_id="$(compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from users order by created_at limit 1"')"
 (
   cd "${api}"
-  CLEANUP_COMPANY_ID="${company_id}" CLEANUP_USER_ID="${user_id}" timeout --foreground 60s npm run cleanup:imports -- --dry-run
-  CLEANUP_COMPANY_ID="${company_id}" CLEANUP_USER_ID="${user_id}" timeout --foreground 60s npm run cleanup:imports
+  DATABASE_URL="${host_database_url}" CLEANUP_COMPANY_ID="${company_id}" CLEANUP_USER_ID="${user_id}" timeout --foreground 60s npm run cleanup:imports -- --dry-run
+  DATABASE_URL="${host_database_url}" CLEANUP_COMPANY_ID="${company_id}" CLEANUP_USER_ID="${user_id}" timeout --foreground 60s npm run cleanup:imports
   BACKUP_ENVIRONMENT=integration BACKUP_DIRECTORY="${artifacts}" timeout --foreground 120s npm run --silent backup:database > "${artifacts}/backup.raw.log"
 )
 compose run --rm --entrypoint sh create-buckets -c 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; printf "%s" "fictitious-object" | mc pipe local/factupapa-documents/ci/fictitious.txt >/dev/null'
