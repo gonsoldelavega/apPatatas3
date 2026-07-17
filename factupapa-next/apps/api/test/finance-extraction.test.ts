@@ -31,6 +31,36 @@ test("convierte sacos de 15 kg en kilos de stock", () => {
   assert.equal(result.purchasedSacks, 20);
   assert.equal(result.purchasedQuantityKg, "300");
 });
+test("lee una factura escaneada con cabecera y tabla fiscal separadas", () => {
+  const result = extractPurchaseFields(
+    `PROVEEDOR FICTICIO 2020 S.L. B12345678 Fecha: 21/05/2026
+     Código Descripción Cant. Precio Importe PRODUCTO 5 10,45 52,25 €
+     TOTAL Base imponible % IVA IVA 52,25 21 10,97 63,22 €`,
+  );
+  assert.equal(result.supplierTaxId, "B12345678");
+  assert.equal(result.issueDate, "2026-05-21");
+  assert.equal(result.subtotal, "52.25");
+  assert.equal(result.taxTotal, "10.97");
+  assert.equal(result.total, "63.22");
+});
+test("usa fecha y total del nombre cuando la foto no los reconoce", () => {
+  const result = extractPurchaseFields(
+    "PROVEEDOR FICTICIO S.L.",
+    "2026-04-04_COMPRA_FICTICIA_14,14.pdf",
+  );
+  assert.equal(result.issueDate, "2026-04-04");
+  assert.equal(result.total, "14.14");
+});
+test("normaliza números OCR y reconcilia base, IVA y total entre columnas", () => {
+  const result = extractPurchaseFields(
+    "Fecha Numero Vendedor 01/04/2026 FVØ06-00000709 Base Imponible %IVA Importe IVA TOTAL FACTURA 13.60 13.60 4.00 0.54 14.14",
+  );
+  assert.equal(result.supplierInvoiceNumber, "FV006-00000709");
+  assert.equal(result.subtotal, "13.60");
+  assert.equal(result.taxTotal, "0.54");
+  assert.equal(result.total, "14.14");
+  assert.ok(!result.warnings?.includes("totals_mismatch"));
+});
 test("rechaza fechas inexistentes", () =>
   assert.throws(() =>
     validatePurchase({

@@ -18,6 +18,34 @@ import {
 } from "./extraction.js";
 import { recognizeWithTimeout } from "./ocr.js";
 import type { PurchaseInput, RecurringExpenseInput } from "./validation.js";
+const extractionScore = (x: ExtractedPurchaseFields) =>
+  (x.supplierTaxId ? 4 : 0) +
+  (x.issueDate ? 3 : 0) +
+  (x.total ? 4 : 0) +
+  (x.subtotal ? 2 : 0) +
+  (x.taxTotal ? 2 : 0) +
+  (x.supplierInvoiceNumber ? 2 : 0) +
+  (x.supplierName ? 1 : 0);
+async function bestOcr(input: Buffer, filename: string) {
+  const candidates = [];
+  for (const [rotation, singleColumn] of [[0, false], [0, true]] as const) {
+    const page = await recognizeWithTimeout(input, 45_000, rotation, singleColumn);
+    const fields = extractPurchaseFields(page.text, filename);
+    candidates.push({ page, fields });
+    if (extractionScore(fields) >= 14 && fields.supplierInvoiceNumber) break;
+  }
+  if (Math.max(...candidates.map((x) => extractionScore(x.fields))) < 10) {
+    for (const rotation of [90, 270]) {
+      const page = await recognizeWithTimeout(input, 45_000, rotation);
+      candidates.push({ page, fields: extractPurchaseFields(page.text, filename) });
+    }
+  }
+  return candidates.sort(
+    (a, b) =>
+      extractionScore(b.fields) - extractionScore(a.fields) ||
+      b.page.confidence - a.page.confidence,
+  )[0]!;
+}
 const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
 const stockCtes = `purchase_quantities as(select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id group by l.product_id),sold_entries as(select l.product_id,l.quantity,l.unit from invoice_lines l join invoices i on i.id=l.invoice_id and i.status='issued' and i.source_type='manual' union all select l.product_id,l.quantity,l.unit from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id and d.status in('issued','invoiced')),sold_quantities as(select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from sold_entries l join products p on p.id=l.product_id group by l.product_id),adjustment_quantities as(select product_id,sum(quantity_delta)qty from stock_adjustments group by product_id),stock_rows as(select p.id,p.name,p.unit,p.sale_price,p.estimated_cost,(coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0))current_quantity from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id left join adjustment_quantities a on a.product_id=p.id where p.is_active)`;
 export class FinanceService {
@@ -83,7 +111,7 @@ export class FinanceService {
             setTimeout(() => reject(new Error("timeout")), 5000),
           ),
         ]);
-        const textFields = extractPurchaseFields(parsed.text);
+        const textFields = extractPurchaseFields(parsed.text, input.filename);
         if (
           parsed.text.replace(/\s/g, "").length >= 80 &&
           (textFields.total || textFields.supplierTaxId)
@@ -98,13 +126,13 @@ export class FinanceService {
           });
           const pages = [];
           for (const page of screenshots.pages.slice(0, 2))
-            pages.push(await recognizeWithTimeout(Buffer.from(page.data)));
-          const fields = extractPurchaseFields(pages.map((page) => page.text).join("\n"));
+            pages.push(await bestOcr(Buffer.from(page.data), input.filename));
+          const fields = extractPurchaseFields(pages.map((x) => x.page.text).join("\n"), input.filename);
           extracted = {
             ...fields,
             ocrConfidence: pages.length
               ? Math.round(
-                  pages.reduce((sum, page) => sum + page.confidence, 0) /
+                  pages.reduce((sum, page) => sum + page.page.confidence, 0) /
                     pages.length,
                 )
               : 0,
@@ -122,9 +150,10 @@ export class FinanceService {
       }
     } else {
       try {
-        const page = await recognizeWithTimeout(body);
+        const candidate = await bestOcr(body, input.filename),
+          page = candidate.page;
         extracted = {
-          ...extractPurchaseFields(page.text),
+          ...candidate.fields,
           ocrConfidence: page.confidence,
           source: "ocr",
         };

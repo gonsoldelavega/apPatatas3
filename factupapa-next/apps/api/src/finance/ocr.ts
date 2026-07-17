@@ -37,16 +37,14 @@ async function worker() {
   return workerPromise;
 }
 
-async function preparedImage(input: Buffer) {
-  return sharp(input, { failOn: "warning", limitInputPixels: 40_000_000 })
-    .rotate()
+async function preparedImage(input: Buffer, rotation = 0, enhanced = true) {
+  let image = sharp(input, { failOn: "warning", limitInputPixels: 40_000_000 })
+    .autoOrient()
+    .rotate(rotation)
     .resize({ width: 2200, height: 3000, fit: "inside", withoutEnlargement: false })
-    .flatten({ background: "white" })
-    .grayscale()
-    .normalize()
-    .sharpen({ sigma: 1 })
-    .png({ compressionLevel: 9 })
-    .toBuffer();
+    .flatten({ background: "white" });
+  if (enhanced) image = image.grayscale().normalize().sharpen({ sigma: 1 });
+  return image.png({ compressionLevel: 9 }).toBuffer();
 }
 
 export interface OcrPageResult {
@@ -54,10 +52,19 @@ export interface OcrPageResult {
   confidence: number;
 }
 
-export function recognizeDocumentPage(input: Buffer): Promise<OcrPageResult> {
+export function recognizeDocumentPage(
+  input: Buffer,
+  rotation = 0,
+  singleColumn = false,
+): Promise<OcrPageResult> {
   const task = queue.then(async () => {
-    const image = await preparedImage(input);
-    const result = await (await worker()).recognize(image);
+    const image = await preparedImage(input, rotation, !singleColumn);
+    const active = await worker();
+    await active.setParameters({
+      tessedit_pageseg_mode: singleColumn ? PSM.SINGLE_COLUMN : PSM.AUTO,
+      preserve_interword_spaces: "1",
+    });
+    const result = await active.recognize(image);
     return {
       text: result.data.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").slice(0, 100_000),
       confidence: Math.max(0, Math.min(100, Math.round(result.data.confidence))),
@@ -67,11 +74,16 @@ export function recognizeDocumentPage(input: Buffer): Promise<OcrPageResult> {
   return task;
 }
 
-export async function recognizeWithTimeout(input: Buffer, timeoutMs = 45_000) {
+export async function recognizeWithTimeout(
+  input: Buffer,
+  timeoutMs = 45_000,
+  rotation = 0,
+  singleColumn = false,
+) {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
-      recognizeDocumentPage(input),
+      recognizeDocumentPage(input, rotation, singleColumn),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("ocr_timeout")), timeoutMs);
       }),
