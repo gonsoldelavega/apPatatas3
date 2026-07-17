@@ -13,6 +13,7 @@ import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import { annualInvoiceSeries, todayLocal } from "../utils/format";
+import { bagLabel } from "../utils/packaging";
 export function SalesFormPage() {
   const { kind } = useParams(),
     invoice = kind === "factura",
@@ -44,6 +45,8 @@ export function SalesFormPage() {
     }),
     prefix =
       prefs.data?.numberingMode === "live" ? prefs.data.invoicePrefix : "TEST";
+  const selectedProduct = products.data?.items.find((x) => x.id === productId),
+    packaging = bagLabel(quantity.replace(",", "."), selectedProduct?.unit ?? "");
   const save = useMutation({
     mutationFn: async () => {
       const d = invoice
@@ -216,10 +219,11 @@ export function SalesFormPage() {
             ))}
           </SelectField>
           <Field
-            label="Cantidad"
+            label={selectedProduct?.unit === "kg" ? "Cantidad en kg" : "Cantidad"}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
           />
+          {packaging && <p className="field-help">Equivale a {packaging}</p>}
         </section>
         <Button
           type="submit"

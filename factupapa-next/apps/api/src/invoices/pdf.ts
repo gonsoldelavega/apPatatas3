@@ -6,6 +6,15 @@ const decimal = (value: string, minimum = 0) => {
   return `${integer}${fraction ? `,${fraction}` : ""}`;
 };
 const money = (value: string) => `${decimal(value, 2)} EUR`;
+const bags = (quantity: string, unit: string) => {
+  if (unit !== "kg") return null;
+  const kg = Number(quantity),
+    count = Math.floor((kg + 1e-9) / 2.5),
+    remainder = Math.round((kg - count * 2.5) * 10_000) / 10_000;
+  if (!Number.isFinite(kg) || kg <= 0) return null;
+  const label = `${count} ${count === 1 ? "bolsa" : "bolsas"} de 2,5 kg`;
+  return remainder > 0 ? `${label} + ${decimal(String(remainder))} kg` : label;
+};
 const date = (v: string) => v.split("-").reverse().join("/");
 const documentNumber = (series: string, number: number | null) => {
   const annual = series.match(/^(.+)_([0-9]{4})$/u);
@@ -125,6 +134,7 @@ export async function createInvoicePdf(
         doc.addPage();
         y = 60;
       }
+      const packaging = bags(line.quantity, line.unit);
       doc
         .fontSize(9)
         .text(line.description, 56, y, { width: 200 })
@@ -135,7 +145,13 @@ export async function createInvoicePdf(
           align: "right",
         })
         .text(money(line.lineTotal), 462, y, { width: 85, align: "right" });
-      y += 26;
+      if (packaging)
+        doc
+          .fontSize(7)
+          .fillColor("#555555")
+          .text(packaging, 56, y + 12, { width: 200 })
+          .fillColor("#111111");
+      y += packaging ? 32 : 26;
       doc
         .moveTo(48, y - 7)
         .lineTo(547, y - 7)

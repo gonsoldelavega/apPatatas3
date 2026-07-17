@@ -28,6 +28,7 @@ import {
   todayLocal,
   unitLabel,
 } from "../utils/format";
+import { bagLabel } from "../utils/packaging";
 
 const statusLabel = (status: string, invoice: boolean) =>
   ({
@@ -179,6 +180,9 @@ export function SalesDetailPage() {
                 {formatUnitPrice(line.unitPrice)}
                 {invoice ? ` · IVA ${formatTaxRate(line.taxRate)}` : ""}
               </small>
+              {bagLabel(line.quantity, line.unit) && (
+                <small>{bagLabel(line.quantity, line.unit)}</small>
+              )}
             </span>
             <strong>{formatMoney(line.lineTotal)}</strong>
           </div>
