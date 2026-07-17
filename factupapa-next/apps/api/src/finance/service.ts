@@ -47,7 +47,24 @@ async function bestOcr(input: Buffer, filename: string) {
   )[0]!;
 }
 const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
-const stockCtes = `purchase_quantities as(select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id group by l.product_id),sold_entries as(select l.product_id,l.quantity,l.unit from invoice_lines l join invoices i on i.id=l.invoice_id and i.status='issued' and i.source_type='manual' union all select l.product_id,l.quantity,l.unit from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id and d.status in('issued','invoiced')),sold_quantities as(select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from sold_entries l join products p on p.id=l.product_id group by l.product_id),adjustment_quantities as(select product_id,sum(quantity_delta)qty from stock_adjustments group by product_id),stock_rows as(select p.id,p.name,p.unit,p.sale_price,p.estimated_cost,(coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0))current_quantity from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id left join adjustment_quantities a on a.product_id=p.id where p.is_active)`;
+const stockCtes = `purchase_entries as(
+  select l.product_id,l.line_subtotal,
+    case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end qty
+  from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id
+),purchase_quantities as(
+  select product_id,sum(qty)qty,sum(line_subtotal)/nullif(sum(qty),0) average_cost from purchase_entries where qty>0 group by product_id
+),sold_entries as(
+  select l.product_id,l.quantity,l.unit from invoice_lines l join invoices i on i.id=l.invoice_id and i.status='issued' and i.source_type='manual'
+  union all select l.product_id,l.quantity,l.unit from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id and d.status in('issued','invoiced')
+),sold_quantities as(
+  select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from sold_entries l join products p on p.id=l.product_id group by l.product_id
+),adjustment_quantities as(
+  select product_id,sum(quantity_delta)qty from stock_adjustments group by product_id
+),stock_rows as(
+  select p.id,p.name,p.unit,p.sale_price,p.estimated_cost,b.average_cost,coalesce(b.average_cost,p.estimated_cost)current_cost,
+    (coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0))current_quantity
+  from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id left join adjustment_quantities a on a.product_id=p.id where p.is_active
+)`;
 export class FinanceService {
   private readonly s3?: S3Client;
   constructor(
@@ -480,7 +497,7 @@ export class FinanceService {
       async (c) =>
         (
           await c.query(
-            `with ${stockCtes} select id "productId",name,unit,current_quantity::text quantity,sale_price::text "salePrice",estimated_cost::text "estimatedCost",(current_quantity*sale_price)::text "potentialRevenue",case when estimated_cost is null then null else(current_quantity*estimated_cost)::text end "stockValue" from stock_rows order by name`,
+            `with ${stockCtes} select id "productId",name,unit,current_quantity::text quantity,sale_price::text "salePrice",estimated_cost::text "estimatedCost",average_cost::text "averagePurchaseCost",(current_quantity*sale_price)::text "potentialRevenue",case when current_cost is null then null else(current_quantity*current_cost)::text end "stockValue",case when current_cost is null then null else(current_quantity*(sale_price-current_cost))::text end "potentialGrossMargin" from stock_rows order by name`,
           )
         ).rows,
     );

@@ -179,8 +179,10 @@ export interface StockItem {
   quantity: string;
   salePrice: string;
   estimatedCost: string | null;
+  averagePurchaseCost: string | null;
   potentialRevenue: string;
   stockValue: string | null;
+  potentialGrossMargin: string | null;
 }
 export interface FinanceSummary {
   sales: string;

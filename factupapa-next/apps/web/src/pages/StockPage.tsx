@@ -114,7 +114,13 @@ export function StockPage() {
             <p>
               Valor: {x.stockValue ? formatMoney(x.stockValue) : "Sin coste"}
             </p>
+            {x.averagePurchaseCost && (
+              <p>Coste medio real: {formatMoney(x.averagePurchaseCost)} / {x.unit}</p>
+            )}
             <p>Venta posible: {formatMoney(x.potentialRevenue)}</p>
+            {x.potentialGrossMargin && (
+              <p>Margen bruto posible: {formatMoney(x.potentialGrossMargin)}</p>
+            )}
           </article>
         ))}
       </div>
