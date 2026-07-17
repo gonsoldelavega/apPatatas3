@@ -16,6 +16,7 @@ import {
   extractPurchaseFields,
   type ExtractedPurchaseFields,
 } from "./extraction.js";
+import { recognizeWithTimeout } from "./ocr.js";
 import type { PurchaseInput, RecurringExpenseInput } from "./validation.js";
 const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
 const stockCtes = `purchase_quantities as(select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id group by l.product_id),sold_entries as(select l.product_id,l.quantity,l.unit from invoice_lines l join invoices i on i.id=l.invoice_id and i.status='issued' and i.source_type='manual' union all select l.product_id,l.quantity,l.unit from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id and d.status in('issued','invoiced')),sold_quantities as(select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from sold_entries l join products p on p.id=l.product_id group by l.product_id),adjustment_quantities as(select product_id,sum(quantity_delta)qty from stock_adjustments group by product_id),stock_rows as(select p.id,p.name,p.unit,p.sale_price,p.estimated_cost,(coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0))current_quantity from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id left join adjustment_quantities a on a.product_id=p.id where p.is_active)`;
@@ -82,10 +83,53 @@ export class FinanceService {
             setTimeout(() => reject(new Error("timeout")), 5000),
           ),
         ]);
-        extracted = extractPurchaseFields(parsed.text);
+        const textFields = extractPurchaseFields(parsed.text);
+        if (
+          parsed.text.replace(/\s/g, "").length >= 80 &&
+          (textFields.total || textFields.supplierTaxId)
+        ) {
+          extracted = { ...textFields, ocrConfidence: 100, source: "pdf_text" };
+        } else {
+          const screenshots = await parser.getScreenshot({
+            first: 2,
+            desiredWidth: 2200,
+            imageBuffer: true,
+            imageDataUrl: false,
+          });
+          const pages = [];
+          for (const page of screenshots.pages.slice(0, 2))
+            pages.push(await recognizeWithTimeout(Buffer.from(page.data)));
+          const fields = extractPurchaseFields(pages.map((page) => page.text).join("\n"));
+          extracted = {
+            ...fields,
+            ocrConfidence: pages.length
+              ? Math.round(
+                  pages.reduce((sum, page) => sum + page.confidence, 0) /
+                    pages.length,
+                )
+              : 0,
+            source: "ocr",
+          };
+        }
       } catch {
+        extracted = {
+          warnings: ["ocr_failed"],
+          ocrConfidence: 0,
+          source: "ocr",
+        };
       } finally {
         await parser?.destroy().catch(() => undefined);
+      }
+    } else {
+      try {
+        const page = await recognizeWithTimeout(body);
+        extracted = {
+          ...extractPurchaseFields(page.text),
+          ocrConfidence: page.confidence,
+          source: "ocr",
+        };
+      } catch {
+        extracted = { warnings: ["ocr_failed"], ocrConfidence: 0, source: "ocr" };
       }
     }
     const id = randomUUID(),
@@ -110,8 +154,41 @@ export class FinanceService {
       return await withTenantTransaction(
         this.pool,
         i,
-        async (c) =>
-          (
+        async (c) => {
+          const supplier = extracted.supplierTaxId
+            ? (
+                await c.query(
+                  `select id,legal_name from contacts where is_active and kind in ('supplier','both') and upper(regexp_replace(coalesce(tax_id,''),'[^A-Z0-9]','','g'))=upper(regexp_replace($1,'[^A-Z0-9]','','g')) limit 1`,
+                  [extracted.supplierTaxId],
+                )
+              ).rows[0]
+            : undefined;
+          const duplicate =
+            extracted.supplierInvoiceNumber && supplier
+              ? Boolean(
+                  (
+                    await c.query(
+                      `select 1 from purchase_invoices where supplier_id=$1 and lower(btrim(supplier_invoice_number))=lower(btrim($2)) and status<>'cancelled' limit 1`,
+                      [supplier.id, extracted.supplierInvoiceNumber],
+                    )
+                  ).rowCount,
+                )
+              : false;
+          const normalized = {
+            ...extracted,
+            ...(supplier ? { supplierId: supplier.id, supplierName: supplier.legal_name } : {}),
+            warnings: [
+              ...new Set([
+                ...(extracted.warnings ?? []),
+                ...(duplicate ? ["possible_duplicate"] : []),
+                ...(extracted.source === "ocr" &&
+                (extracted.ocrConfidence ?? 0) < 70
+                  ? ["low_confidence"]
+                  : []),
+              ]),
+            ],
+          };
+          return (
             await c.query(
               `insert into documents(id,company_id,kind,status,original_filename,storage_key,mime_type,byte_size,sha256,uploaded_by,ocr_provider,ocr_confidence,extracted_data)values($1,$2,'purchase_invoice','needs_review',$3,$4,$5,$6,$7,$8,$9,$10,$11)returning id,original_filename filename,mime_type "mimeType",byte_size::text "byteSize",status,extracted_data "extractedData"`,
               [
@@ -123,12 +200,13 @@ export class FinanceService {
                 body.length,
                 sha,
                 i.userId,
-                mime === "application/pdf" ? "local-pdf-text" : null,
-                Object.keys(extracted).length ? 0.5 : null,
-                extracted,
+                normalized.source === "ocr" ? "tesseract-spa-eng" : "local-pdf-text",
+                normalized.ocrConfidence == null ? null : normalized.ocrConfidence / 100,
+                normalized,
               ],
             )
-          ).rows[0],
+          ).rows[0];
+        },
       );
     } catch (e) {
       await this.s3

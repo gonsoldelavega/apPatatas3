@@ -308,11 +308,25 @@ export const financeApi = {
   }) =>
     apiClient.request<{
       id: string;
-      extractedData: { supplierInvoiceNumber?: string; issueDate?: string };
+      extractedData: {
+        supplierId?: string;
+        supplierName?: string;
+        supplierTaxId?: string;
+        supplierInvoiceNumber?: string;
+        issueDate?: string;
+        dueDate?: string;
+        subtotal?: string;
+        taxTotal?: string;
+        total?: string;
+        concept?: string;
+        ocrConfidence?: number;
+        source?: "pdf_text" | "ocr";
+        warnings?: string[];
+      };
     }>("/purchase-documents", {
       method: "POST",
       body: JSON.stringify(input),
-      timeoutMs: 60000,
+      timeoutMs: 120000,
     }),
   downloadPurchaseDocument: (id: string) =>
     apiClient.download(`/purchase-documents/${id}`),

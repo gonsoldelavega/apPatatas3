@@ -28,7 +28,12 @@ export function PurchaseFormPage() {
     [supplierId, setSupplierId] = useState(""),
     [number, setNumber] = useState(""),
     [issueDate, setIssueDate] = useState(todayLocal()),
+    [dueDate, setDueDate] = useState(""),
+    [category, setCategory] = useState("mercancia"),
     [documentId, setDocumentId] = useState<string | null>(null),
+    [ocr, setOcr] = useState<
+      Awaited<ReturnType<typeof financeApi.uploadPurchaseDocument>>["extractedData"] | null
+    >(null),
     [lines, setLines] = useState([empty()]);
   const suppliers = useQuery({
       queryKey: ["purchase-suppliers"],
@@ -50,9 +55,30 @@ export function PurchaseFormPage() {
         }),
       onSuccess: (d) => {
         setDocumentId(d.id);
+        setOcr(d.extractedData);
+        if (d.extractedData.supplierId) setSupplierId(d.extractedData.supplierId);
         if (d.extractedData.supplierInvoiceNumber)
           setNumber(d.extractedData.supplierInvoiceNumber);
         if (d.extractedData.issueDate) setIssueDate(d.extractedData.issueDate);
+        if (d.extractedData.dueDate) setDueDate(d.extractedData.dueDate);
+        if (d.extractedData.concept || d.extractedData.subtotal) {
+          const subtotal = d.extractedData.subtotal ?? "";
+          const taxRate =
+            subtotal && d.extractedData.taxTotal
+              ? String(
+                  Math.round(
+                    (Number(d.extractedData.taxTotal) / Number(subtotal)) * 10000,
+                  ) / 100,
+                )
+              : "4";
+          patch(0, {
+            description: d.extractedData.concept ?? d.extractedData.supplierName ?? "Compra según factura",
+            quantity: "1",
+            unit: "unit",
+            unitCost: subtotal,
+            taxRate,
+          });
+        }
       },
     }),
     save = useMutation({
@@ -62,8 +88,8 @@ export function PurchaseFormPage() {
           documentId,
           supplierInvoiceNumber: number || null,
           issueDate,
-          dueDate: null,
-          category: "mercancia",
+          dueDate: dueDate || null,
+          category,
           notes: null,
           lines: lines.filter((l) => l.description && l.unitCost),
         }),
@@ -92,7 +118,35 @@ export function PurchaseFormPage() {
             }}
           />
         </label>
+        {upload.isPending && <p>Mejorando imagen y leyendo la factura…</p>}
+        {upload.isError && (
+          <p role="alert">
+            No se pudo leer el documento. Puedes reintentarlo o introducir los datos
+            manualmente.
+          </p>
+        )}
         {documentId && <p>Documento protegido y vinculado.</p>}
+        {ocr && (
+          <div className="ocr-review" aria-label="Resultado OCR">
+            <strong>Lectura automática: {ocr.ocrConfidence ?? 0}%</strong>
+            <span>{ocr.source === "pdf_text" ? "Texto original del PDF" : "OCR español/inglés"}</span>
+            {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
+            {ocr.total && <span>Total detectado: {ocr.total} €</span>}
+            {ocr.warnings?.map((warning) => (
+              <span className="field-error" key={warning}>
+                {{
+                  totals_mismatch: "Los importes no cuadran: revisa base, IVA y total.",
+                  supplier_tax_id_missing: "No se reconoció el NIF del proveedor.",
+                  total_missing: "No se reconoció el total.",
+                  issue_date_missing: "No se reconoció la fecha.",
+                  possible_duplicate: "Posible factura duplicada.",
+                  ocr_failed: "La imagen no pudo leerse.",
+                  low_confidence: "Lectura poco nítida: comprueba todos los campos.",
+                }[warning] ?? "Campo pendiente de revisión."}
+              </span>
+            ))}
+          </div>
+        )}
       </section>
       <section className="form-card">
         <SelectField
@@ -112,6 +166,22 @@ export function PurchaseFormPage() {
           value={number}
           onChange={(e) => setNumber(e.target.value)}
         />
+        <Field
+          label="Fecha de vencimiento"
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+        />
+        <SelectField label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="mercancia">Mercancía</option>
+          <option value="gestoria">Gestoría</option>
+          <option value="transporte">Transporte</option>
+          <option value="suministros">Suministros</option>
+          <option value="alquiler">Alquiler</option>
+          <option value="autonomo">Autónomo</option>
+          <option value="impuestos">Impuestos</option>
+          <option value="otros">Otros</option>
+        </SelectField>
         <Field
           label="Fecha de emisión"
           type="date"
