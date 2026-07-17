@@ -136,8 +136,21 @@ export function SalesDetailPage() {
       mutationFn: () => invoicesApi.downloadPdf(id),
       onSuccess: async (b) => {
         const f = new File([b], "factura.pdf", { type: "application/pdf" });
-        if (navigator.canShare?.({ files: [f] }))
+        if (navigator.canShare?.({ files: [f] })) {
           await navigator.share({ title: "Factura", files: [f] });
+          return;
+        }
+        const u = URL.createObjectURL(b),
+          a = document.createElement("a"),
+          current = documentQuery.data as Invoice | undefined,
+          subject = current?.number
+            ? `Factura ${formatDocumentNumber(current.series, current.number)}`
+            : "Factura";
+        a.href = u;
+        a.download = `${subject.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(u), 60000);
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent("Adjunto la factura en PDF. Si no se adjunta automáticamente, usa el archivo descargado.")}`;
       },
     }),
     printPdf = useMutation({
