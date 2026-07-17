@@ -8,7 +8,11 @@ import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import { todayLocal } from "../utils/format";
-const empty = (): PurchaseLineInput => ({
+
+type DraftPurchaseLine = PurchaseLineInput & { clientId: string };
+
+const empty = (): DraftPurchaseLine => ({
+    clientId: crypto.randomUUID(),
     productId: null,
     description: "",
     quantity: "1",
@@ -69,6 +73,18 @@ export function PurchaseFormPage() {
     }),
     patch = (n: number, v: Partial<PurchaseLineInput>) =>
       setLines((x) => x.map((l, i) => (i === n ? { ...l, ...v } : l)));
+  const suggestProductId = (description: string, unit: ProductUnit) => {
+    const normalized = description.trim().toLowerCase();
+    if (!normalized) return null;
+    const exact = products.data?.items.find(
+      (product) =>
+        product.unit === unit &&
+        normalized.includes(product.name.trim().toLowerCase()),
+    );
+    if (exact) return exact.id;
+    const sameUnit = products.data?.items.filter((product) => product.unit === unit) ?? [];
+    return sameUnit.length === 1 && unit === "kg" ? sameUnit[0].id : null;
+  };
   const upload = useMutation({
       mutationFn: async (f: File) =>
         financeApi.uploadPurchaseDocument({
@@ -92,7 +108,8 @@ export function PurchaseFormPage() {
         if (d.extractedData.lines?.length) {
           setLines(
             d.extractedData.lines.map((line) => ({
-              productId: null,
+              clientId: crypto.randomUUID(),
+              productId: suggestProductId(line.description, line.unit),
               ...line,
             })),
           );
@@ -112,6 +129,10 @@ export function PurchaseFormPage() {
                 )
               : "4";
           patch(0, {
+            productId: suggestProductId(
+              d.extractedData.concept ?? d.extractedData.supplierName ?? "",
+              d.extractedData.purchasedQuantityKg ? "kg" : "unit",
+            ),
             description: d.extractedData.concept ?? d.extractedData.supplierName ?? "Compra según factura",
             quantity,
             unit: d.extractedData.purchasedQuantityKg ? "kg" : "unit",
@@ -155,7 +176,9 @@ export function PurchaseFormPage() {
           dueDate: dueDate || null,
           category,
           notes: null,
-          lines: lines.filter((l) => l.description && l.unitCost),
+          lines: lines
+            .filter((l) => l.description && l.unitCost)
+            .map(({ clientId: _clientId, ...line }) => line),
         }),
       onSuccess: (x) => nav(`/gastos/${x.id}`),
     });
@@ -329,7 +352,7 @@ export function PurchaseFormPage() {
           </div>
         )}
         {lines.map((l, n) => (
-          <div className="purchase-line-editor" key={n}>
+          <div className="purchase-line-editor" key={l.clientId}>
             <SelectField
               label="Producto de stock"
               value={l.productId ?? ""}
@@ -352,6 +375,11 @@ export function PurchaseFormPage() {
                 </option>
               ))}
             </SelectField>
+            {l.productId && ocr && (
+              <p className="field-help">
+                Producto propuesto para actualizar stock. Revísalo antes de guardar.
+              </p>
+            )}
             <Field
               label="Descripción"
               value={l.description}
