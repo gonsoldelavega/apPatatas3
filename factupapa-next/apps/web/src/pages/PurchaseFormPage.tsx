@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Building2, FileUp, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
@@ -31,6 +31,7 @@ export function PurchaseFormPage() {
     [newSupplierTaxId, setNewSupplierTaxId] = useState(""),
     [showSupplierCreate, setShowSupplierCreate] = useState(false),
     [ignoreDetectedStock, setIgnoreDetectedStock] = useState(false),
+    [acceptTotalMismatch, setAcceptTotalMismatch] = useState(false),
     [number, setNumber] = useState(""),
     [issueDate, setIssueDate] = useState(todayLocal()),
     [dueDate, setDueDate] = useState(""),
@@ -40,6 +41,23 @@ export function PurchaseFormPage() {
       Awaited<ReturnType<typeof financeApi.uploadPurchaseDocument>>["extractedData"] | null
     >(null),
     [lines, setLines] = useState([empty()]);
+  const calculatedTotal = useMemo(
+      () =>
+        lines.reduce(
+          (sum, line) =>
+            sum +
+            Number(line.quantity || 0) *
+              Number(line.unitCost || 0) *
+              (1 + Number(line.taxRate || 0) / 100),
+          0,
+        ),
+      [lines],
+    ),
+    totalMismatch = Boolean(
+      ocr?.total &&
+        lines.some((line) => line.quantity && line.unitCost) &&
+        Math.abs(calculatedTotal - Number(ocr.total)) > 0.02,
+    );
   const suppliers = useQuery({
       queryKey: ["purchase-suppliers"],
       queryFn: () =>
@@ -66,11 +84,19 @@ export function PurchaseFormPage() {
         setNewSupplierTaxId(d.extractedData.supplierTaxId ?? "");
         setShowSupplierCreate(false);
         setIgnoreDetectedStock(false);
+        setAcceptTotalMismatch(false);
         if (d.extractedData.supplierInvoiceNumber)
           setNumber(d.extractedData.supplierInvoiceNumber);
         if (d.extractedData.issueDate) setIssueDate(d.extractedData.issueDate);
         if (d.extractedData.dueDate) setDueDate(d.extractedData.dueDate);
-        if (
+        if (d.extractedData.lines?.length) {
+          setLines(
+            d.extractedData.lines.map((line) => ({
+              productId: null,
+              ...line,
+            })),
+          );
+        } else if (
           d.extractedData.concept ||
           d.extractedData.subtotal ||
           d.extractedData.purchasedQuantityKg
@@ -171,6 +197,9 @@ export function PurchaseFormPage() {
             {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
             {ocr.supplierTaxId && <span>NIF detectado: {ocr.supplierTaxId}</span>}
             {ocr.total && <span>Total detectado: {ocr.total} €</span>}
+            {ocr.lines?.length && (
+              <span>{ocr.lines.length} conceptos detectados para revisar.</span>
+            )}
             {ocr.purchasedSacks && (
               <span>
                 Compra detectada: {ocr.purchasedSacks} sacos · {ocr.purchasedQuantityKg} kg
@@ -370,6 +399,26 @@ export function PurchaseFormPage() {
           <Plus />
           Añadir concepto
         </button>
+        {ocr?.total && (
+          <div className={totalMismatch ? "total-review total-review--warning" : "total-review"}>
+            <span>
+              Total según conceptos <strong>{calculatedTotal.toFixed(2)} €</strong>
+            </span>
+            <span>
+              Total leído <strong>{Number(ocr.total).toFixed(2)} €</strong>
+            </span>
+            {totalMismatch && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={acceptTotalMismatch}
+                  onChange={(e) => setAcceptTotalMismatch(e.target.checked)}
+                />
+                He revisado y acepto esta diferencia
+              </label>
+            )}
+          </div>
+        )}
       </section>
       <Button
         disabled={
@@ -379,7 +428,8 @@ export function PurchaseFormPage() {
             ocr?.purchasedQuantityKg &&
               !lines.some((line) => line.productId) &&
               !ignoreDetectedStock,
-          )
+          ) ||
+          (totalMismatch && !acceptTotalMismatch)
         }
         busy={save.isPending || upload.isPending}
         onClick={() => save.mutate()}

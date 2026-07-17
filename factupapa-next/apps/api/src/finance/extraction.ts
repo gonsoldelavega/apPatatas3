@@ -10,12 +10,68 @@ export interface ExtractedPurchaseFields {
   concept?: string;
   purchasedSacks?: number;
   purchasedQuantityKg?: string;
+  lines?: ExtractedPurchaseLine[];
   ocrConfidence?: number;
   source?: "pdf_text" | "ocr";
   warnings?: string[];
 }
+export interface ExtractedPurchaseLine {
+  description: string;
+  quantity: string;
+  unit: "kg" | "g" | "unit";
+  unitCost: string;
+  taxRate: string;
+}
 const decimal = (value: string) =>
   value.includes(",") ? value.replace(/\./g, "").replace(",", ".") : value;
+const rounded = (value: number) => String(Math.round(value * 10_000) / 10_000);
+function extractLines(text: string, fallbackTaxRate: string): ExtractedPurchaseLine[] {
+  const result: ExtractedPurchaseLine[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (
+      line.length < 8 ||
+      /(?:base\s+imponible|subtotal|total|cuota|forma\s+de\s+pago|vencimiento)/i.test(line)
+    )
+      continue;
+    const match = line.match(
+      /^(.{3,180}?\D)\s+(\d{1,8}(?:[.,]\d{1,4})?)\s*(kg|kgs?|g|gr|uds?\.?|unidades?)?\s+(\d{1,8}(?:[.,]\d{2,4}))\s+(?:(\d{1,2}(?:[.,]\d{1,2})?)\s*%?\s+)?(\d{1,12}(?:[.,]\d{2}))\s*€?$/i,
+    );
+    if (!match) continue;
+    const quantity = Number(decimal(match[2]!)),
+      unitCost = Number(decimal(match[4]!)),
+      lineAmount = Number(decimal(match[6]!));
+    if (
+      !Number.isFinite(quantity) ||
+      !Number.isFinite(unitCost) ||
+      quantity <= 0 ||
+      unitCost < 0 ||
+      Math.abs(quantity * unitCost - lineAmount) > Math.max(0.03, lineAmount * 0.015)
+    )
+      continue;
+    const description = match[1]!
+      .replace(/^\s*(?=[A-Z0-9./_-]*\d)[A-Z0-9./_-]{2,20}\s+(?=[A-ZÁÉÍÓÚÑ])/i, "")
+      .trim()
+      .slice(0, 500);
+    if (!description || /^(?:c[oó]digo|descripci[oó]n|art[ií]culo)$/i.test(description))
+      continue;
+    const rawUnit = match[3]?.toLowerCase(),
+      unit = rawUnit?.startsWith("kg") || (!rawUnit && /patat/i.test(description))
+        ? "kg"
+        : rawUnit === "g" || rawUnit === "gr"
+          ? "g"
+          : "unit";
+    result.push({
+      description,
+      quantity: rounded(quantity),
+      unit,
+      unitCost: rounded(unitCost),
+      taxRate: match[5] ? decimal(match[5]) : fallbackTaxRate,
+    });
+    if (result.length === 100) break;
+  }
+  return result;
+}
 export function extractPurchaseFields(text: string, filename = ""): ExtractedPurchaseFields {
   const clean = text
       .replace(/[\r\n\t]+/g, " ")
@@ -174,6 +230,21 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
       out.purchasedQuantityKg = decimal(potatoRow[1]!);
       const kg = Number(out.purchasedQuantityKg);
       if (Number.isInteger(kg / 15)) out.purchasedSacks = kg / 15;
+    }
+  }
+  const inferredTaxRate =
+    out.subtotal && out.taxTotal && Number(out.subtotal) > 0
+      ? rounded((Number(out.taxTotal) / Number(out.subtotal)) * 100)
+      : "0";
+  const extractedLines = extractLines(text, inferredTaxRate);
+  if (extractedLines.length) {
+    out.lines = extractedLines;
+    const stockKg = extractedLines
+      .filter((line) => line.unit === "kg" && /patat/i.test(line.description))
+      .reduce((sum, line) => sum + Number(line.quantity), 0);
+    if (stockKg > 0) {
+      out.purchasedQuantityKg = rounded(stockKg);
+      if (Number.isInteger(stockKg / 15)) out.purchasedSacks = stockKg / 15;
     }
   }
   const warnings: string[] = [];

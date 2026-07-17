@@ -321,6 +321,13 @@ export const financeApi = {
         concept?: string;
         purchasedSacks?: number;
         purchasedQuantityKg?: string;
+        lines?: Array<{
+          description: string;
+          quantity: string;
+          unit: "kg" | "g" | "unit";
+          unitCost: string;
+          taxRate: string;
+        }>;
         ocrConfidence?: number;
         source?: "pdf_text" | "ocr";
         warnings?: string[];

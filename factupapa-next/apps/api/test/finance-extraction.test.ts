@@ -61,6 +61,38 @@ test("normaliza números OCR y reconcilia base, IVA y total entre columnas", () 
   assert.equal(result.total, "14.14");
   assert.ok(!result.warnings?.includes("totals_mismatch"));
 });
+test("extrae varias líneas sin confundir el resumen fiscal", () => {
+  const result = extractPurchaseFields(
+    `FACTURA Número: PR-130 Fecha: 17/07/2026 CIF: B12345678
+     PATATA AGRIA 210 kg 0,5000 105,00
+     TRANSPORTE 1 ud 12,00 12,00
+     Base imponible 117,00 IVA 4,68 TOTAL 121,68`,
+  );
+  assert.deepEqual(result.lines, [
+    {
+      description: "PATATA AGRIA",
+      quantity: "210",
+      unit: "kg",
+      unitCost: "0.5",
+      taxRate: "4",
+    },
+    {
+      description: "TRANSPORTE",
+      quantity: "1",
+      unit: "unit",
+      unitCost: "12",
+      taxRate: "4",
+    },
+  ]);
+  assert.equal(result.purchasedQuantityKg, "210");
+  assert.equal(result.purchasedSacks, 14);
+});
+test("descarta filas OCR cuyos importes no cuadran", () => {
+  const result = extractPurchaseFields(
+    "FACTURA Fecha: 17/07/2026 CIF: B12345678 PRODUCTO 10 kg 5,00 999,00 TOTAL 999,00",
+  );
+  assert.equal(result.lines, undefined);
+});
 test("rechaza fechas inexistentes", () =>
   assert.throws(() =>
     validatePurchase({

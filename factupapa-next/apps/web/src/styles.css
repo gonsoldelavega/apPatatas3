@@ -1099,6 +1099,34 @@ h2 {
   gap: 0.6rem;
   min-height: 2.75rem;
 }
+
+.total-review {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.total-review > span,
+.total-review > label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.total-review--warning {
+  border-color: color-mix(in srgb, var(--error) 55%, var(--line));
+}
+
+.total-review > label {
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--error);
+}
 .review-summary {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
