@@ -16,6 +16,12 @@ phase() {
 report_failure() {
   local status="$1" line="$2"
   trap - ERR
+  if [ -d "${infra:-}" ] && [ -d "${artifacts:-}" ]; then
+    mkdir -p "${artifacts}"
+    if compose logs --no-color api > "${artifacts}/api-failure.raw.log" 2>&1; then
+      sanitize_log "${artifacts}/api-failure.raw.log" "${artifacts}/api-failure-sanitized.log" || true
+    fi
+  fi
   printf '::error title=FactuPapa audit failed::phase=%s line=%s exit=%s\n' "${current_phase}" "${line}" "${status}"
   exit "${status}"
 }

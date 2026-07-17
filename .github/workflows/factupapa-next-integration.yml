@@ -71,6 +71,7 @@ jobs:
             factupapa-next/apps/web/test-results
             factupapa-next/apps/web/playwright-report
             ${{ runner.temp }}/factupapa-operational-artifacts/api-sanitized.log
+            ${{ runner.temp }}/factupapa-operational-artifacts/api-failure-sanitized.log
             ${{ runner.temp }}/factupapa-operational-artifacts/backup-sanitized.log
             ${{ runner.temp }}/factupapa-operational-artifacts/objects-sanitized.log
             ${{ runner.temp }}/factupapa-operational-artifacts/recovery-sanitized.log
