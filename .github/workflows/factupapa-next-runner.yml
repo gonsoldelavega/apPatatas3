@@ -13,8 +13,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: factupapa-next-rootless-audit
-  cancel-in-progress: true
+  # Integration and rootless audit share one rootless Docker host and fixed
+  # localhost ports. Queue them to prevent cross-run traffic and false failures.
+  group: factupapa-next-rootless-host
+  cancel-in-progress: false
 
 jobs:
   rootless-audit:
