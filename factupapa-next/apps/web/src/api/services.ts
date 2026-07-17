@@ -192,6 +192,10 @@ export const deliveryNotesApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  deleteLine: (id: string, lineId: string) =>
+    apiClient.request<void>(`/delivery-notes/${id}/lines/${lineId}`, {
+      method: "DELETE",
+    }),
   issue: (id: string) =>
     apiClient.request<DeliveryNote>(`/delivery-notes/${id}/issue`, {
       method: "POST",
@@ -237,6 +241,10 @@ export const invoicesApi = {
     apiClient.request<Invoice>(`/invoices/${id}/lines`, {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  deleteLine: (id: string, lineId: string) =>
+    apiClient.request<void>(`/invoices/${id}/lines/${lineId}`, {
+      method: "DELETE",
     }),
   issue: (id: string) =>
     apiClient.request<Invoice>(`/invoices/${id}/issue`, {

@@ -2,22 +2,28 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Download,
+  Plus,
   Printer,
   Share2,
   FileCheck2,
   ReceiptText,
   XCircle,
+  Trash2,
 } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   deliveryNotesApi,
   invoicesApi,
+  productsApi,
   salesPreferencesApi,
 } from "../api/services";
 import { Button } from "../ui/Button";
 import type { Invoice } from "../api/types";
 import { EmptyState } from "../ui/EmptyState";
 import { LoadingScreen } from "../ui/LoadingScreen";
+import { Field } from "../ui/Field";
+import { SelectField } from "../ui/SelectField";
 import {
   annualInvoiceSeries,
   formatDocumentNumber,
@@ -44,6 +50,8 @@ export function SalesDetailPage() {
   const navigate = useNavigate();
   const api = invoice ? invoicesApi : deliveryNotesApi;
   const queryClient = useQueryClient();
+  const [newProductId, setNewProductId] = useState(""),
+    [newQuantity, setNewQuantity] = useState("1");
   const documentQuery = useQuery({
     queryKey: [type, id],
     queryFn: () => api.get(id),
@@ -52,6 +60,22 @@ export function SalesDetailPage() {
     queryKey: ["sales-preferences"],
     queryFn: salesPreferencesApi.get,
     enabled: !invoice,
+  });
+  const products = useQuery({
+    queryKey: ["sales-products"],
+    queryFn: () => productsApi.list({ isActive: true, pageSize: 100 }),
+  });
+  const editLine = useMutation({
+    mutationFn: async (input: { action: "add"; productId: string; quantity: string } | { action: "delete"; lineId: string }) => {
+      if (input.action === "add")
+        await api.addLine(id, { productId: input.productId, quantity: input.quantity });
+      else await api.deleteLine(id, input.lineId);
+    },
+    onSuccess: async () => {
+      setNewProductId("");
+      setNewQuantity("1");
+      await queryClient.invalidateQueries({ queryKey: [type, id] });
+    },
   });
   const action = useMutation({
     mutationFn: (name: "issue" | "cancel") => api[name](id),
@@ -184,7 +208,18 @@ export function SalesDetailPage() {
                 <small>{bagLabel(line.quantity, line.unit)}</small>
               )}
             </span>
-            <strong>{formatMoney(line.lineTotal)}</strong>
+            <span className="sales-line__amount">
+              <strong>{formatMoney(line.lineTotal)}</strong>
+              {item.status === "draft" && (
+                <button
+                  type="button"
+                  aria-label={`Eliminar ${line.description}`}
+                  onClick={() => window.confirm("¿Quitar esta línea?") && editLine.mutate({ action: "delete", lineId: line.id })}
+                >
+                  <Trash2 />
+                </button>
+              )}
+            </span>
           </div>
         ))}
         <div className="sales-totals">
@@ -203,16 +238,36 @@ export function SalesDetailPage() {
         </div>
       </section>
       {item.status === "draft" && (
-        <Button
-          icon={<FileCheck2 />}
-          busy={action.isPending}
-          onClick={() =>
-            window.confirm("Emitir bloquea el documento. ¿Continuar?") &&
-            action.mutate("issue")
-          }
-        >
-          Emitir {invoice ? "factura" : "albarán"}
-        </Button>
+        <>
+          <section className="form-card draft-line-add">
+            <h2>Añadir producto</h2>
+            <SelectField label="Producto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
+              <option value="">Selecciona</option>
+              {products.data?.items.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
+            </SelectField>
+            <Field label="Cantidad" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
+            <Button
+              variant="secondary"
+              icon={<Plus />}
+              busy={editLine.isPending}
+              disabled={!newProductId || Number(newQuantity.replace(",", ".")) <= 0}
+              onClick={() => editLine.mutate({ action: "add", productId: newProductId, quantity: newQuantity.replace(",", ".") })}
+            >
+              Añadir línea
+            </Button>
+          </section>
+          <Button
+            icon={<FileCheck2 />}
+            busy={action.isPending}
+            disabled={!item.lines?.length || editLine.isPending}
+            onClick={() =>
+              window.confirm("Emitir bloquea el documento. ¿Continuar?") &&
+              action.mutate("issue")
+            }
+          >
+            Emitir {invoice ? "factura" : "albarán"}
+          </Button>
+        </>
       )}
       {item.status === "issued" && (
         <>

@@ -1514,6 +1514,27 @@ h2 {
   flex-direction: column;
   gap: 4px;
 }
+.sales-line__amount {
+  align-items: flex-end;
+}
+.sales-line__amount button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: var(--error);
+  background: rgb(198 75 75 / 8%);
+}
+.sales-line__amount button svg { width: 17px; }
+.sales-line-editor {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.draft-line-add { grid-column: 1 / -1; }
 .sales-line small {
   color: var(--muted);
 }

@@ -14,13 +14,27 @@ import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import { annualInvoiceSeries, todayLocal } from "../utils/format";
 import { bagLabel } from "../utils/packaging";
+
+type DraftSalesLine = {
+  clientId: string;
+  productId: string;
+  quantity: string;
+};
+
+function createDraftLine(): DraftSalesLine {
+  return {
+    clientId: crypto.randomUUID(),
+    productId: "",
+    quantity: "1",
+  };
+}
+
 export function SalesFormPage() {
   const { kind } = useParams(),
     invoice = kind === "factura",
     nav = useNavigate(),
     [contactId, setContactId] = useState(""),
-    [productId, setProductId] = useState(""),
-    [quantity, setQuantity] = useState("1"),
+    [lines, setLines] = useState<DraftSalesLine[]>(() => [createDraftLine()]),
     [series, setSeries] = useState("A"),
     [issueDate, setIssueDate] = useState(todayLocal()),
     [start, setStart] = useState(""),
@@ -45,8 +59,6 @@ export function SalesFormPage() {
     }),
     prefix =
       prefs.data?.numberingMode === "live" ? prefs.data.invoicePrefix : "TEST";
-  const selectedProduct = products.data?.items.find((x) => x.id === productId),
-    packaging = bagLabel(quantity.replace(",", "."), selectedProduct?.unit ?? "");
   const save = useMutation({
     mutationFn: async () => {
       const d = invoice
@@ -62,15 +74,18 @@ export function SalesFormPage() {
             generalInformation: info || null,
           })
         : await deliveryNotesApi.create({ contactId, series, issueDate });
-      return invoice
-        ? invoicesApi.addLine(d.id, {
-            productId,
-            quantity: quantity.replace(",", "."),
-          })
-        : deliveryNotesApi.addLine(d.id, {
-            productId,
-            quantity: quantity.replace(",", "."),
-          });
+      let result = d;
+      for (const line of lines)
+        result = invoice
+          ? await invoicesApi.addLine(d.id, {
+              productId: line.productId,
+              quantity: line.quantity.replace(",", "."),
+            })
+          : await deliveryNotesApi.addLine(d.id, {
+              productId: line.productId,
+              quantity: line.quantity.replace(",", "."),
+            });
+      return result;
     },
     onSuccess: (d) =>
       nav(`/ventas/${invoice ? "facturas" : "albaranes"}/${d.id}`),
@@ -206,30 +221,43 @@ export function SalesFormPage() {
           </section>
         )}
         <section className="form-card">
-          <SelectField
-            label="Producto"
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-          >
-            <option value="">Selecciona</option>
-            {products.data?.items.map((x) => (
-              <option value={x.id} key={x.id}>
-                {x.name}
-              </option>
-            ))}
-          </SelectField>
-          <Field
-            label={selectedProduct?.unit === "kg" ? "Cantidad en kg" : "Cantidad"}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-          {packaging && <p className="field-help">Equivale a {packaging}</p>}
+          <h2>Productos</h2>
+          {lines.map((line, index) => {
+            const selected = products.data?.items.find((x) => x.id === line.productId),
+              packaging = bagLabel(line.quantity.replace(",", "."), selected?.unit ?? "");
+            return (
+              <div className="sales-line-editor" key={line.clientId}>
+                <SelectField
+                  label={`Producto ${index + 1}`}
+                  value={line.productId}
+                  onChange={(e) => setLines((current) => current.map((x, n) => n === index ? { ...x, productId: e.target.value } : x))}
+                >
+                  <option value="">Selecciona</option>
+                  {products.data?.items.map((x) => <option value={x.id} key={x.id}>{x.name}</option>)}
+                </SelectField>
+                <Field
+                  label={selected?.unit === "kg" ? "Cantidad en kg" : "Cantidad"}
+                  value={line.quantity}
+                  onChange={(e) => setLines((current) => current.map((x, n) => n === index ? { ...x, quantity: e.target.value } : x))}
+                />
+                {packaging && <p className="field-help">Equivale a {packaging}</p>}
+                {lines.length > 1 && (
+                  <button type="button" className="compact-action" onClick={() => setLines((current) => current.filter((_, n) => n !== index))}>
+                    <X /> Quitar
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          <button type="button" className="compact-action" onClick={() => setLines((current) => [...current, createDraftLine()])}>
+            <Plus /> Añadir producto
+          </button>
         </section>
         <Button
           type="submit"
           icon={<Save />}
           busy={save.isPending}
-          disabled={!contactId || !productId}
+          disabled={!contactId || lines.some((line) => !line.productId || !line.quantity || Number(line.quantity.replace(",", ".")) <= 0)}
         >
           {invoice ? "Revisar factura" : "Crear albarán"}
         </Button>
