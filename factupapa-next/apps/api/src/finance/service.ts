@@ -590,20 +590,21 @@ export class FinanceService {
       (
         await c.query(
           `with month_rows as(
-            select generate_series(
-              date_trunc('month',current_date)-(($1::int-1)||' months')::interval,
-              date_trunc('month',current_date),interval '1 month'
-            )::date month_start
+            select (
+              date_trunc('month', current_date)::date
+              - month_offset * interval '1 month'
+            )::date as month_start
+            from generate_series($1::int - 1, 0, -1) as offsets(month_offset)
           )
-          select to_char(m.month_start,'YYYY-MM') month,
-            coalesce(s.total,0)::text sales,
-            coalesce(p.total,0)::text purchases,
-            coalesce(r.total,0)::text recurring,
-            (coalesce(s.total,0)-coalesce(p.total,0)-coalesce(r.total,0))::text balance
+          select to_char(m.month_start, 'YYYY-MM') as month,
+            coalesce(s.total, 0)::text as sales,
+            coalesce(p.total, 0)::text as purchases,
+            coalesce(r.total, 0)::text as recurring,
+            (coalesce(s.total, 0) - coalesce(p.total, 0) - coalesce(r.total, 0))::text as balance
           from month_rows m
-          left join lateral(select sum(total)total from invoices where status='issued' and issue_date>=m.month_start and issue_date<m.month_start+interval '1 month')s on true
-          left join lateral(select sum(total)total from purchase_invoices where status='confirmed' and issue_date>=m.month_start and issue_date<m.month_start+interval '1 month')p on true
-          left join lateral(select sum(amount)total from recurring_expenses where starts_on<m.month_start+interval '1 month' and(ends_on is null or ends_on>=m.month_start))r on true
+          left join lateral (select sum(total) as total from invoices where status = 'issued' and issue_date >= m.month_start and issue_date < m.month_start + interval '1 month') s on true
+          left join lateral (select sum(total) as total from purchase_invoices where status = 'confirmed' and issue_date >= m.month_start and issue_date < m.month_start + interval '1 month') p on true
+          left join lateral (select sum(amount) as total from recurring_expenses where is_active and starts_on < m.month_start + interval '1 month' and (ends_on is null or ends_on >= m.month_start)) r on true
           order by m.month_start`,
           [months],
         )
