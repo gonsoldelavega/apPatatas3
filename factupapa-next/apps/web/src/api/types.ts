@@ -184,6 +184,16 @@ export interface StockItem {
   stockValue: string | null;
   potentialGrossMargin: string | null;
 }
+export interface StockMovement {
+  id: string;
+  productId: string;
+  productName: string;
+  unit: ProductUnit;
+  occurredOn: string;
+  kind: "purchase" | "sale" | "adjustment";
+  quantityDelta: string;
+  reference: string;
+}
 export interface FinanceSummary {
   sales: string;
   purchases: string;

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PackageCheck, Plus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, PackageCheck, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { financeApi } from "../api/services";
 import { Button } from "../ui/Button";
@@ -9,6 +9,11 @@ import { formatMoney, formatQuantity, todayLocal } from "../utils/format";
 export function StockPage() {
   const qc = useQueryClient(),
     q = useQuery({ queryKey: ["stock"], queryFn: financeApi.stock }),
+    [historyProductId, setHistoryProductId] = useState(""),
+    movements = useQuery({
+      queryKey: ["stock-movements", historyProductId],
+      queryFn: () => financeApi.stockMovements(historyProductId || undefined),
+    }),
     [open, setOpen] = useState(false),
     [productId, setProductId] = useState(""),
     [targetQuantity, setTargetQuantity] = useState(""),
@@ -124,6 +129,44 @@ export function StockPage() {
           </article>
         ))}
       </div>
+      <section className="stock-history">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Trazabilidad</p>
+            <h2>Movimientos recientes</h2>
+          </div>
+        </div>
+        <SelectField
+          label="Filtrar por producto"
+          value={historyProductId}
+          onChange={(e) => setHistoryProductId(e.target.value)}
+        >
+          <option value="">Todos los productos</option>
+          {q.data?.map((x) => (
+            <option value={x.productId} key={x.productId}>{x.name}</option>
+          ))}
+        </SelectField>
+        <div className="movement-list">
+          {movements.data?.map((movement) => {
+            const positive = Number(movement.quantityDelta) > 0;
+            return (
+              <article key={`${movement.kind}-${movement.id}`}>
+                <span className={positive ? "movement-icon movement-icon--in" : "movement-icon movement-icon--out"}>
+                  {movement.kind === "adjustment" ? <RefreshCw /> : positive ? <ArrowDownRight /> : <ArrowUpRight />}
+                </span>
+                <span>
+                  <strong>{movement.productName}</strong>
+                  <small>{movement.reference} · {movement.occurredOn}</small>
+                </span>
+                <strong className={positive ? "quantity-in" : "quantity-out"}>
+                  {positive ? "+" : ""}{formatQuantity(movement.quantityDelta)} {movement.unit}
+                </strong>
+              </article>
+            );
+          })}
+          {movements.data?.length === 0 && <p className="empty-copy">Todavía no hay movimientos.</p>}
+        </div>
+      </section>
     </div>
   );
 }

@@ -22,6 +22,7 @@ import type {
   PurchaseLineInput,
   RecurringExpense,
   StockItem,
+  StockMovement,
   FinanceSummary,
 } from "./types";
 
@@ -369,6 +370,10 @@ export const financeApi = {
   deactivateRecurring: (id: string) =>
     apiClient.request<void>(`/recurring-expenses/${id}`, { method: "DELETE" }),
   stock: () => apiClient.request<StockItem[]>("/stock"),
+  stockMovements: (productId?: string) =>
+    apiClient.request<StockMovement[]>(
+      `/stock/movements${queryString({ productId })}`,
+    ),
   adjustStock: (input: {
     productId: string;
     occurredOn: string;

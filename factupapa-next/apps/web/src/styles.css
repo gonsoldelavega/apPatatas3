@@ -1758,6 +1758,48 @@ h2 {
   border-radius: 18px;
   background: var(--surface);
 }
+.stock-history {
+  margin-top: 2rem;
+}
+.movement-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+.movement-list article {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.movement-list article > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+.movement-list small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.movement-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+.movement-icon svg { width: 20px; }
+.movement-icon--in { color: var(--positive); background: rgb(39 134 93 / 10%); }
+.movement-icon--out { color: var(--error); background: rgb(198 75 75 / 10%); }
+.quantity-in { color: var(--positive); }
+.quantity-out { color: var(--error); }
 .delivery-date-editor {
   display: grid;
   grid-template-columns: 1fr auto;

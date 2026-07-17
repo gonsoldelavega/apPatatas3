@@ -502,6 +502,39 @@ export class FinanceService {
         ).rows,
     );
   }
+  async stockMovements(i: SessionIdentity, productId?: string) {
+    return withTenantTransaction(this.pool, i, async (c) =>
+      (
+        await c.query(
+          `with movements as(
+            select l.id,l.product_id,i.issue_date occurred_on,'purchase' kind,
+              case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end quantity_delta,
+              coalesce(i.supplier_invoice_number,'Compra confirmada') reference
+            from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id
+            union all
+            select l.id,l.product_id,i.issue_date,'sale',
+              -(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end),
+              coalesce(i.series||'-'||i.number::text,'Factura emitida')
+            from invoice_lines l join invoices i on i.id=l.invoice_id and i.status='issued' and i.source_type='manual' join products p on p.id=l.product_id
+            union all
+            select l.id,l.product_id,d.issue_date,'sale',
+              -(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end),
+              coalesce(d.series||'-'||d.number::text,'Albarán emitido')
+            from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id and d.status in('issued','invoiced') join products p on p.id=l.product_id
+            union all
+            select a.id,a.product_id,a.occurred_on,'adjustment',a.quantity_delta,
+              coalesce(a.note,case a.reason when 'loss' then 'Merma' when 'initial' then 'Stock inicial' when 'correction' then 'Recuento físico' else 'Ajuste' end)
+            from stock_adjustments a
+          )
+          select m.id,m.product_id "productId",p.name "productName",p.unit,m.occurred_on::text "occurredOn",m.kind,m.quantity_delta::text "quantityDelta",m.reference
+          from movements m join products p on p.id=m.product_id
+          where ($1::uuid is null or m.product_id=$1) and m.quantity_delta<>0
+          order by m.occurred_on desc,m.id desc limit 250`,
+          [productId ?? null],
+        )
+      ).rows,
+    );
+  }
   async setStockLevel(
     i: SessionIdentity,
     x: {

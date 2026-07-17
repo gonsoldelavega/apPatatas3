@@ -50,6 +50,15 @@ export function createFinanceRoutes(
       json(response, 200, await finance.stock(id));
       return true;
     }
+    if (url.pathname === "/stock/movements" && request.method === "GET") {
+      const product = url.searchParams.get("productId");
+      json(
+        response,
+        200,
+        await finance.stockMovements(id, product ? requireUuid(product) : undefined),
+      );
+      return true;
+    }
     if (url.pathname === "/stock/adjustments" && request.method === "POST") {
       json(
         response,
