@@ -24,6 +24,7 @@ import type {
   StockItem,
   StockMovement,
   FinanceSummary,
+  MonthlyFinanceSummary,
 } from "./types";
 
 function queryString(
@@ -295,6 +296,10 @@ export const financeApi = {
   summary: (from?: string, to?: string) =>
     apiClient.request<FinanceSummary>(
       `/finance/summary${queryString({ from, to })}`,
+    ),
+  monthlySummary: (months = 6) =>
+    apiClient.request<MonthlyFinanceSummary[]>(
+      `/finance/monthly${queryString({ months })}`,
     ),
   purchases: (from?: string, to?: string) =>
     apiClient.request<PurchaseInvoice[]>(

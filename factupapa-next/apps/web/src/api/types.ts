@@ -202,6 +202,13 @@ export interface FinanceSummary {
   stockKg: string;
   potentialRevenue: string;
 }
+export interface MonthlyFinanceSummary {
+  month: string;
+  sales: string;
+  purchases: string;
+  recurring: string;
+  balance: string;
+}
 
 export interface Page<T> {
   items: T[];

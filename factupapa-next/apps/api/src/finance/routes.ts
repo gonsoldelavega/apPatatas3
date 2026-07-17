@@ -46,6 +46,12 @@ export function createFinanceRoutes(
       json(response, 200, await finance.summary(id, financeRange(url)));
       return true;
     }
+    if (url.pathname === "/finance/monthly" && request.method === "GET") {
+      const raw = Number(url.searchParams.get("months") ?? 6),
+        months = Number.isInteger(raw) && raw >= 1 && raw <= 24 ? raw : 6;
+      json(response, 200, await finance.monthlySummary(id, months));
+      return true;
+    }
     if (url.pathname === "/stock" && request.method === "GET") {
       json(response, 200, await finance.stock(id));
       return true;

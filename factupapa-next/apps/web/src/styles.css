@@ -1800,6 +1800,28 @@ h2 {
 .movement-icon--out { color: var(--error); background: rgb(198 75 75 / 10%); }
 .quantity-in { color: var(--positive); }
 .quantity-out { color: var(--error); }
+.monthly-balance { margin-top: 1.5rem; }
+.monthly-balance__list {
+  display: grid;
+  gap: 0.55rem;
+}
+.monthly-balance__list article {
+  display: grid;
+  grid-template-columns: 70px 1fr 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.monthly-balance__list span { color: var(--muted); font-size: 0.74rem; }
+.balance-positive { color: var(--positive); }
+.balance-negative { color: var(--error); }
+@media (max-width: 560px) {
+  .monthly-balance__list article { grid-template-columns: 62px 1fr auto; }
+  .monthly-balance__list article span:nth-of-type(2) { display: none; }
+}
 .delivery-date-editor {
   display: grid;
   grid-template-columns: 1fr auto;

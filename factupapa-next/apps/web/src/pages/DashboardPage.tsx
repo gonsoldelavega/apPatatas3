@@ -51,6 +51,7 @@ export function DashboardPage() {
         invoices,
         preferences,
         finance,
+        monthly,
       ] = await Promise.all([
         contactsApi.list({ isActive: true, pageSize: 1 }),
         productsApi.list({ isActive: true, pageSize: 1 }),
@@ -59,6 +60,7 @@ export function DashboardPage() {
         invoicesApi.list({ status: "issued", pageSize: 100 }),
         salesPreferencesApi.get(),
         financeApi.summary(),
+        financeApi.monthlySummary(6),
       ]);
       return {
         customers: customers.total,
@@ -71,6 +73,7 @@ export function DashboardPage() {
         invoicedTotal: sum(invoices.items.map((invoice) => invoice.total)),
         primarySalesFlow: preferences.primarySalesFlow,
         finance,
+        monthly,
         recent: [
           ...notes.items.map((item) => ({
             id: item.id,
@@ -152,8 +155,36 @@ export function DashboardPage() {
               {formatMoney(summary.data.finance.potentialRevenue)}
             </small>
           </article>
+          <article>
+            <span>Compras del mes</span>
+            <strong>{formatMoney(summary.data.finance.purchases)}</strong>
+          </article>
+          <article>
+            <span>Gastos fijos del mes</span>
+            <strong>{formatMoney(summary.data.finance.recurring)}</strong>
+          </article>
         </section>
       )}
+      {summary.data?.monthly.length ? (
+        <section className="monthly-balance">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Evolución</p>
+              <h2>Balance de los últimos meses</h2>
+            </div>
+          </div>
+          <div className="monthly-balance__list">
+            {summary.data.monthly.map((row) => (
+              <article key={row.month}>
+                <strong>{new Intl.DateTimeFormat("es-ES", { month: "short", year: "2-digit" }).format(new Date(`${row.month}-01T12:00:00`))}</strong>
+                <span>Ventas {formatMoney(row.sales)}</span>
+                <span>Costes {formatMoney(String(Number(row.purchases) + Number(row.recurring)))}</span>
+                <b className={Number(row.balance) >= 0 ? "balance-positive" : "balance-negative"}>{formatMoney(row.balance)}</b>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="home-shortcuts" aria-label="Acciones principales">
         <Link
           className="home-shortcut home-shortcut--primary"
