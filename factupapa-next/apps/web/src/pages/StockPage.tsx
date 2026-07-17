@@ -23,6 +23,16 @@ export function StockPage() {
     target = selected?.unit === "kg"
       ? String(Number(sacks || 0) * 15 + Number((looseKg || "0").replace(",", ".")))
       : targetQuantity;
+  const totals = (q.data ?? []).reduce(
+    (acc, item) => {
+      if (item.unit === "kg") acc.kg += Number(item.quantity);
+      acc.potentialRevenue += Number(item.potentialRevenue);
+      if (item.stockValue) acc.stockValue += Number(item.stockValue);
+      if (item.potentialGrossMargin) acc.margin += Number(item.potentialGrossMargin);
+      return acc;
+    },
+    { kg: 0, stockValue: 0, potentialRevenue: 0, margin: 0 },
+  );
   const adjust = useMutation({
     mutationFn: () =>
       financeApi.setStockLevel({
@@ -43,6 +53,31 @@ export function StockPage() {
         <h1>Stock</h1>
         <p>Compras confirmadas menos ventas y ajustes.</p>
       </header>
+      <section className="metric-grid">
+        <article>
+          <span>Patata disponible</span>
+          <strong>{formatQuantity(String(totals.kg))} kg</strong>
+          <small>
+            {Math.floor(totals.kg / 15)} sacos completos +{" "}
+            {formatQuantity(String(Math.round((totals.kg % 15) * 10_000) / 10_000))} kg
+          </small>
+        </article>
+        <article>
+          <span>Valor comprado</span>
+          <strong>{formatMoney(String(totals.stockValue))}</strong>
+          <small>Coste medio real de compras confirmadas.</small>
+        </article>
+        <article>
+          <span>Si vendes todo</span>
+          <strong>{formatMoney(String(totals.potentialRevenue))}</strong>
+          <small>Con precios actuales de catálogo.</small>
+        </article>
+        <article>
+          <span>Margen bruto posible</span>
+          <strong>{formatMoney(String(totals.margin))}</strong>
+          <small>Antes de autónomo, gestoría y otros gastos.</small>
+        </article>
+      </section>
       <button className="compact-action" onClick={() => setOpen(!open)}>
         <Plus />
         Ajustar existencias
