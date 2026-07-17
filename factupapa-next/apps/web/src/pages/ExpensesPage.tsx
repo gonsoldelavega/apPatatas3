@@ -30,6 +30,8 @@ const decimal = (value: string) => value.replace(",", "."),
 
 export function ExpensesPage() {
   const [month, setMonth] = useState(todayLocal().slice(0, 7)),
+    [purchaseCategory, setPurchaseCategory] = useState(""),
+    [purchaseSupplier, setPurchaseSupplier] = useState(""),
     r = range(month),
     qc = useQueryClient(),
     purchases = useQuery({
@@ -86,6 +88,13 @@ export function ExpensesPage() {
   const recurringInMonth =
       recurring.data?.filter((x) => monthContains(r.from, r.to, x.startsOn, x.endsOn)) ?? [],
     recurringTotal = recurringInMonth.reduce((total, x) => total + Number(x.amount), 0),
+    filteredPurchases =
+      purchases.data?.filter(
+        (x) =>
+          (!purchaseCategory || x.category === purchaseCategory) &&
+          (!purchaseSupplier || x.supplierId === purchaseSupplier),
+      ) ?? [],
+    purchaseTotal = filteredPurchases.reduce((total, x) => total + Number(x.total), 0),
     formInvalid =
       !name.trim() ||
       !amount ||
@@ -108,6 +117,32 @@ export function ExpensesPage() {
         value={month}
         onChange={(e) => setMonth(e.target.value)}
       />
+      <section className="filter-card">
+        <SelectField
+          label="Categoría de compras"
+          value={purchaseCategory}
+          onChange={(e) => setPurchaseCategory(e.target.value)}
+        >
+          <option value="">Todas</option>
+          {Object.entries(cats).map(([value, label]) => (
+            <option value={value} key={value}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField
+          label="Proveedor"
+          value={purchaseSupplier}
+          onChange={(e) => setPurchaseSupplier(e.target.value)}
+        >
+          <option value="">Todos</option>
+          {suppliers.data?.items.map((x) => (
+            <option value={x.id} key={x.id}>
+              {x.tradeName || x.legalName}
+            </option>
+          ))}
+        </SelectField>
+      </section>
       <div className="finance-actions">
         <Link className="compact-action" to="/gastos/nuevo">
           <FilePlus2 />
@@ -195,9 +230,15 @@ export function ExpensesPage() {
         </section>
       )}
       <section>
-        <h2>Facturas de compra</h2>
+        <div className="section-heading">
+          <span>
+            <h2>Facturas de compra</h2>
+            <p>{filteredPurchases.length} facturas en el filtro</p>
+          </span>
+          <strong>{formatMoney(String(purchaseTotal))}</strong>
+        </div>
         <div className="card-list">
-          {purchases.data?.map((x) => (
+          {filteredPurchases.map((x) => (
             <Link className="entity-card" to={`/gastos/${x.id}`} key={x.id}>
               <Receipt />
               <span className="entity-card__body">
@@ -205,6 +246,7 @@ export function ExpensesPage() {
                 <small>
                   {x.supplierInvoiceNumber || "Sin número"} · {x.issueDate}
                 </small>
+                <small>{cats[x.category] ?? x.category}</small>
               </span>
               <strong>{formatMoney(x.total)}</strong>
             </Link>
