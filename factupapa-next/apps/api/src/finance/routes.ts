@@ -8,6 +8,7 @@ import {
   validatePurchase,
   validateRecurringExpense,
   validateStockAdjustment,
+  validateStockLevel,
 } from "./validation.js";
 export function createFinanceRoutes(
   auth: AuthApplication,
@@ -57,6 +58,14 @@ export function createFinanceRoutes(
           id,
           validateStockAdjustment(await readJson(request)),
         ),
+      );
+      return true;
+    }
+    if (url.pathname === "/stock/level" && request.method === "POST") {
+      json(
+        response,
+        200,
+        await finance.setStockLevel(id, validateStockLevel(await readJson(request))),
       );
       return true;
     }

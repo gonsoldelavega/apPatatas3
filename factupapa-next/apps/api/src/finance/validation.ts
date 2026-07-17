@@ -189,6 +189,21 @@ export function validateStockAdjustment(i: Json) {
     note: text(i.note, 1000),
   };
 }
+export function validateStockLevel(i: Json) {
+  allowed(i, ["productId", "occurredOn", "targetQuantity", "note"]);
+  const targetQuantity =
+    typeof i.targetQuantity === "string" || typeof i.targetQuantity === "number"
+      ? String(i.targetQuantity).replace(",", ".")
+      : "";
+  if (!/^\d{1,12}(?:\.\d{1,4})?$/.test(targetQuantity))
+    throw new HttpError("invalid_request", 400);
+  return {
+    productId: uuid(i.productId, true)!,
+    occurredOn: date(i.occurredOn, true)!,
+    targetQuantity,
+    note: text(i.note, 1000),
+  };
+}
 export function financeRange(url: URL) {
   const now = new Date(),
     month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`,

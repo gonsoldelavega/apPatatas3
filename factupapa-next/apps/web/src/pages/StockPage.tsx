@@ -11,17 +11,25 @@ export function StockPage() {
     q = useQuery({ queryKey: ["stock"], queryFn: financeApi.stock }),
     [open, setOpen] = useState(false),
     [productId, setProductId] = useState(""),
-    [quantity, setQuantity] = useState("");
+    [targetQuantity, setTargetQuantity] = useState(""),
+    [sacks, setSacks] = useState(""),
+    [looseKg, setLooseKg] = useState("");
+  const selected = q.data?.find((x) => x.productId === productId),
+    target = selected?.unit === "kg"
+      ? String(Number(sacks || 0) * 15 + Number((looseKg || "0").replace(",", ".")))
+      : targetQuantity;
   const adjust = useMutation({
     mutationFn: () =>
-      financeApi.adjustStock({
+      financeApi.setStockLevel({
         productId,
         occurredOn: todayLocal(),
-        quantityDelta: quantity,
-        reason: "correction",
-        note: null,
+        targetQuantity: target,
+        note: "Recuento físico: sacos completos y kilos sueltos",
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["stock"] }),
+    onSuccess: () => {
+      setOpen(false);
+      return qc.invalidateQueries({ queryKey: ["stock"] });
+    },
   });
   return (
     <div className="page">
@@ -39,7 +47,15 @@ export function StockPage() {
           <SelectField
             label="Producto"
             value={productId}
-            onChange={(e) => setProductId(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value,
+                item = q.data?.find((x) => x.productId === value),
+                quantity = Number(item?.quantity ?? 0);
+              setProductId(value);
+              setTargetQuantity(item?.quantity ?? "");
+              setSacks(String(Math.floor(quantity / 15)));
+              setLooseKg(String(Math.round((quantity % 15) * 10_000) / 10_000));
+            }}
           >
             <option value="">Selecciona</option>
             {q.data?.map((x) => (
@@ -48,12 +64,37 @@ export function StockPage() {
               </option>
             ))}
           </SelectField>
-          <Field
-            label="Cantidad (+ entrada / − salida)"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-          <Button onClick={() => adjust.mutate()}>Registrar</Button>
+          {selected?.unit === "kg" ? (
+            <>
+              <Field
+                label="Sacos completos (15 kg cada uno)"
+                inputMode="decimal"
+                value={sacks}
+                onChange={(e) => setSacks(e.target.value)}
+              />
+              <Field
+                label="Kilos sueltos"
+                inputMode="decimal"
+                value={looseKg}
+                onChange={(e) => setLooseKg(e.target.value)}
+              />
+              <p>Stock real que quedará registrado: {formatQuantity(target)} kg</p>
+            </>
+          ) : (
+            <Field
+              label={`Cantidad real (${selected?.unit ?? "unidades"})`}
+              value={targetQuantity}
+              onChange={(e) => setTargetQuantity(e.target.value)}
+            />
+          )}
+          {adjust.isError && <p role="alert">No se pudo guardar el recuento.</p>}
+          <Button
+            disabled={!productId || !target || Number(target) < 0}
+            busy={adjust.isPending}
+            onClick={() => adjust.mutate()}
+          >
+            Guardar stock real
+          </Button>
         </section>
       )}
       <div className="stock-grid">
@@ -64,6 +105,12 @@ export function StockPage() {
             <strong>
               {formatQuantity(x.quantity)} {x.unit}
             </strong>
+            {x.unit === "kg" && (
+              <p>
+                {Math.floor(Number(x.quantity) / 15)} sacos completos +{" "}
+                {formatQuantity(String(Number(x.quantity) % 15))} kg
+              </p>
+            )}
             <p>
               Valor: {x.stockValue ? formatMoney(x.stockValue) : "Sin coste"}
             </p>

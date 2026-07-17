@@ -456,6 +456,43 @@ export class FinanceService {
         ).rows,
     );
   }
+  async setStockLevel(
+    i: SessionIdentity,
+    x: {
+      productId: string;
+      occurredOn: string;
+      targetQuantity: string;
+      note: string | null;
+    },
+  ) {
+    return withTenantTransaction(this.pool, i, async (c) => {
+      const product = await c.query(
+        `select id from products where id=$1 and is_active for update`,
+        [x.productId],
+      );
+      if (!product.rowCount) throw new HttpError("not_found", 404);
+      const current = (
+        await c.query(
+          `with ${stockCtes} select current_quantity::text quantity from stock_rows where id=$1`,
+          [x.productId],
+        )
+      ).rows[0];
+      const adjustment = await c.query(
+        `insert into stock_adjustments(company_id,product_id,occurred_on,quantity_delta,reason,note,created_by_user_id)
+         select $1,$2,$3,$4::numeric-$5::numeric,'correction',$6,$7 where $4::numeric<>$5::numeric returning id`,
+        [
+          i.companyId,
+          x.productId,
+          x.occurredOn,
+          x.targetQuantity,
+          current.quantity,
+          x.note ?? "Recuento físico de existencias",
+          i.userId,
+        ],
+      );
+      return { adjusted: Boolean(adjustment.rowCount), quantity: x.targetQuantity };
+    });
+  }
   async summary(i: SessionIdentity, r: { from: string; to: string }) {
     return withTenantTransaction(
       this.pool,

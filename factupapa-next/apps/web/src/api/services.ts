@@ -319,6 +319,8 @@ export const financeApi = {
         taxTotal?: string;
         total?: string;
         concept?: string;
+        purchasedSacks?: number;
+        purchasedQuantityKg?: string;
         ocrConfidence?: number;
         source?: "pdf_text" | "ocr";
         warnings?: string[];
@@ -368,6 +370,16 @@ export const financeApi = {
     note: string | null;
   }) =>
     apiClient.request("/stock/adjustments", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  setStockLevel: (input: {
+    productId: string;
+    occurredOn: string;
+    targetQuantity: string;
+    note: string | null;
+  }) =>
+    apiClient.request("/stock/level", {
       method: "POST",
       body: JSON.stringify(input),
     }),

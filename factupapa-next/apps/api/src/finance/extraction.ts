@@ -8,6 +8,8 @@ export interface ExtractedPurchaseFields {
   supplierTaxId?: string;
   supplierName?: string;
   concept?: string;
+  purchasedSacks?: number;
+  purchasedQuantityKg?: string;
   ocrConfidence?: number;
   source?: "pdf_text" | "ocr";
   warnings?: string[];
@@ -52,6 +54,17 @@ export function extractPurchaseFields(text: string): ExtractedPurchaseFields {
   if (name) out.supplierName = name.replace(/\s+/g, " ").slice(0, 200);
   const concept = lines.find((line) => /patat|envase|transporte|gestor|servicio|producto/i.test(line));
   if (concept) out.concept = concept.replace(/\s+/g, " ").slice(0, 500);
+  const sacks = clean.match(
+    /\b(\d{1,5})\s*(?:sacos?|sacks?)(?:\s*(?:x|de)\s*(\d{1,3}(?:[.,]\d{1,3})?)\s*kg)?\b/i,
+  );
+  if (sacks) {
+    out.purchasedSacks = Number(sacks[1]);
+    const kgPerSack = sacks[2] ? Number(decimal(sacks[2])) : 15;
+    out.purchasedQuantityKg = String(out.purchasedSacks * kgPerSack);
+  } else {
+    const kg = clean.match(/\b(?:cantidad|peso|total)?\s*(\d{1,8}(?:[.,]\d{1,3})?)\s*kg\b/i);
+    if (kg) out.purchasedQuantityKg = decimal(kg[1]!);
+  }
   const warnings: string[] = [];
   if (
     out.subtotal &&

@@ -61,8 +61,13 @@ export function PurchaseFormPage() {
           setNumber(d.extractedData.supplierInvoiceNumber);
         if (d.extractedData.issueDate) setIssueDate(d.extractedData.issueDate);
         if (d.extractedData.dueDate) setDueDate(d.extractedData.dueDate);
-        if (d.extractedData.concept || d.extractedData.subtotal) {
+        if (
+          d.extractedData.concept ||
+          d.extractedData.subtotal ||
+          d.extractedData.purchasedQuantityKg
+        ) {
           const subtotal = d.extractedData.subtotal ?? "";
+          const quantity = d.extractedData.purchasedQuantityKg ?? "1";
           const taxRate =
             subtotal && d.extractedData.taxTotal
               ? String(
@@ -73,9 +78,15 @@ export function PurchaseFormPage() {
               : "4";
           patch(0, {
             description: d.extractedData.concept ?? d.extractedData.supplierName ?? "Compra según factura",
-            quantity: "1",
-            unit: "unit",
-            unitCost: subtotal,
+            quantity,
+            unit: d.extractedData.purchasedQuantityKg ? "kg" : "unit",
+            unitCost:
+              subtotal && Number(quantity) > 0
+                ? String(
+                    Math.round((Number(subtotal) / Number(quantity)) * 10_000) /
+                      10_000,
+                  )
+                : "",
             taxRate,
           });
         }
@@ -132,6 +143,11 @@ export function PurchaseFormPage() {
             <span>{ocr.source === "pdf_text" ? "Texto original del PDF" : "OCR español/inglés"}</span>
             {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
             {ocr.total && <span>Total detectado: {ocr.total} €</span>}
+            {ocr.purchasedSacks && (
+              <span>
+                Compra detectada: {ocr.purchasedSacks} sacos · {ocr.purchasedQuantityKg} kg
+              </span>
+            )}
             {ocr.warnings?.map((warning) => (
               <span className="field-error" key={warning}>
                 {{
