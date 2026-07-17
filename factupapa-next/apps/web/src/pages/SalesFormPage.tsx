@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   contactsApi,
@@ -59,6 +59,18 @@ export function SalesFormPage() {
     }),
     prefix =
       prefs.data?.numberingMode === "live" ? prefs.data.invoicePrefix : "TEST";
+  const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
+  useEffect(() => {
+    if (!invoice || !selectedContact?.applyInvoiceDefaults) return;
+    if (selectedContact.paymentTermsText) setTerms(selectedContact.paymentTermsText);
+    if (selectedContact.defaultInvoiceInformation)
+      setInfo(selectedContact.defaultInvoiceInformation);
+    if (selectedContact.paymentTermsDays > 0) {
+      const date = new Date(`${issueDate}T00:00:00`);
+      date.setDate(date.getDate() + selectedContact.paymentTermsDays);
+      setDue(date.toISOString().slice(0, 10));
+    }
+  }, [invoice, issueDate, selectedContact]);
   const save = useMutation({
     mutationFn: async () => {
       const d = invoice
@@ -218,6 +230,13 @@ export function SalesFormPage() {
                 onChange={(e) => setInfo(e.target.value)}
               />
             </label>
+            {selectedContact?.applyInvoiceDefaults && (
+              <p className="field-help">
+                Se han cargado las condiciones habituales de{" "}
+                {selectedContact.tradeName || selectedContact.legalName}. Puedes
+                corregirlas antes de revisar la factura.
+              </p>
+            )}
           </section>
         )}
         <section className="form-card">
