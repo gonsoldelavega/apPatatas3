@@ -47,7 +47,7 @@ export function StockPage() {
     },
   });
   return (
-    <div className="page">
+    <div className="page stock-page">
       <header className="page-heading">
         <p className="eyebrow">Inventario real</p>
         <h1>Stock</h1>
@@ -78,7 +78,11 @@ export function StockPage() {
           <small>Antes de autónomo, gestoría y otros gastos.</small>
         </article>
       </section>
-      <button className="compact-action" onClick={() => setOpen(!open)}>
+      <button
+        className="compact-action stock-adjust-action"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
         <Plus />
         Ajustar existencias
       </button>

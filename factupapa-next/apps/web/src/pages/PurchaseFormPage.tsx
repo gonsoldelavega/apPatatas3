@@ -183,7 +183,7 @@ export function PurchaseFormPage() {
       onSuccess: (x) => nav(`/gastos/${x.id}`),
     });
   return (
-    <div className="page form-page">
+    <div className="page form-page purchase-form-page">
       <header className="form-page__header">
         <Link className="icon-button" to="/gastos">
           <ArrowLeft />

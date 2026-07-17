@@ -44,6 +44,10 @@ export function SalesPage() {
     queryFn: () => invoicesApi.list(filters),
   });
   const items = tab === "delivery" ? notes.data?.items : invoices.data?.items;
+  const visibleTotal = (items ?? []).reduce(
+    (total, item) => total + Number(item.total),
+    0,
+  );
   return (
     <div className="page sales-page">
       <header className="page-heading">
@@ -106,15 +110,23 @@ export function SalesPage() {
             ))}
         </SelectField>
       </section>
-      <Link
-        className="compact-action"
-        to={
-          tab === "delivery" ? "/ventas/nuevo/albaran" : "/ventas/nuevo/factura"
-        }
-      >
-        <Plus />
-        Crear {tab === "delivery" ? "albarán" : "factura"}
-      </Link>
+      <div className="sales-toolbar">
+        <span>
+          <small>{items?.length ?? 0} documentos</small>
+          <strong>{formatMoney(String(visibleTotal))}</strong>
+        </span>
+        <Link
+          className="compact-action"
+          to={
+            tab === "delivery"
+              ? "/ventas/nuevo/albaran"
+              : "/ventas/nuevo/factura"
+          }
+        >
+          <Plus />
+          Crear {tab === "delivery" ? "albarán" : "factura"}
+        </Link>
+      </div>
       {!items?.length && (
         <EmptyState
           title={`No hay ${tab === "delivery" ? "albaranes" : "facturas"}`}
@@ -142,7 +154,9 @@ export function SalesPage() {
                 {statuses[item.status]}
               </span>
             </span>
-            <strong>{formatMoney(item.total)}</strong>
+            <strong className="entity-card__amount">
+              {formatMoney(item.total)}
+            </strong>
           </Link>
         ))}
       </div>

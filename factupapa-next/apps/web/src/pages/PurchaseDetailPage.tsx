@@ -26,7 +26,7 @@ export function PurchaseDetailPage() {
   if (!q.data) return <div className="page">Cargando…</div>;
   const x = q.data;
   return (
-    <div className="page">
+    <div className="page purchase-detail-page">
       <header className="detail-header">
         <Link to="/gastos">
           <ArrowLeft />

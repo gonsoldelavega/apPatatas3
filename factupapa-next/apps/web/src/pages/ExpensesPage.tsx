@@ -105,7 +105,7 @@ export function ExpensesPage() {
       Number(chargeDay) > 28 ||
       !startsOn;
   return (
-    <div className="page">
+    <div className="page expenses-page">
       <header className="page-heading">
         <p className="eyebrow">Compras y costes</p>
         <h1>Gastos</h1>
@@ -117,6 +117,22 @@ export function ExpensesPage() {
         value={month}
         onChange={(e) => setMonth(e.target.value)}
       />
+      <section className="expense-overview" aria-label="Resumen de gastos del mes">
+        <div>
+          <span>Total del mes</span>
+          <strong>{formatMoney(String(purchaseTotal + recurringTotal))}</strong>
+        </div>
+        <dl>
+          <div>
+            <dt>Compras</dt>
+            <dd>{formatMoney(String(purchaseTotal))}</dd>
+          </div>
+          <div>
+            <dt>Fijos</dt>
+            <dd>{formatMoney(String(recurringTotal))}</dd>
+          </div>
+        </dl>
+      </section>
       <section className="filter-card">
         <SelectField
           label="Categoría de compras"
@@ -248,7 +264,9 @@ export function ExpensesPage() {
                 </small>
                 <small>{cats[x.category] ?? x.category}</small>
               </span>
-              <strong>{formatMoney(x.total)}</strong>
+              <strong className="entity-card__amount">
+                {formatMoney(x.total)}
+              </strong>
             </Link>
           ))}
         </div>

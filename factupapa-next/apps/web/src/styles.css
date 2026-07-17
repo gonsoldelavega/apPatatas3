@@ -1833,6 +1833,116 @@ body {
   }
 }
 
+.sales-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 5px 0 18px;
+}
+.sales-toolbar > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.sales-toolbar small { color: var(--muted); }
+.sales-toolbar strong {
+  color: var(--deep);
+  font-size: 1.35rem;
+}
+.sales-toolbar .compact-action { flex: none; }
+.entity-card__amount {
+  color: var(--deep);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.expense-overview {
+  overflow: hidden;
+  margin: 4px 0 16px;
+  border-radius: 24px;
+  color: var(--white);
+  background:
+    radial-gradient(circle at 90% 5%, rgb(246 203 101 / 25%), transparent 8rem),
+    linear-gradient(140deg, #173e35, #215a4c);
+  box-shadow: 0 16px 38px rgb(18 58 49 / 17%);
+}
+.expense-overview > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 21px 21px 17px;
+}
+.expense-overview > div span {
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.expense-overview > div strong {
+  color: #f6cb65;
+  font-size: 2.15rem;
+  letter-spacing: -0.04em;
+}
+.expense-overview dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+}
+.expense-overview dl div { padding: 13px 21px 16px; }
+.expense-overview dl div + div { border-left: 1px solid rgb(255 255 255 / 14%); }
+.expense-overview dt {
+  margin-bottom: 4px;
+  color: rgb(255 255 255 / 62%);
+  font-size: 0.7rem;
+}
+.expense-overview dd {
+  margin: 0;
+  font-weight: 800;
+}
+.expenses-page > .field:first-of-type { max-width: 260px; }
+.finance-actions .compact-action {
+  min-height: 48px;
+  padding-inline: 16px;
+}
+
+.stock-page > .metric-grid {
+  margin-bottom: 16px;
+}
+.stock-adjust-action {
+  min-height: 48px;
+  margin: 2px 0 10px;
+  padding-inline: 17px;
+}
+.stock-card {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+}
+.stock-card::after {
+  content: "";
+  position: absolute;
+  right: -38px;
+  top: -40px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgb(230 185 77 / 11%);
+  pointer-events: none;
+}
+
+@media (max-width: 480px) {
+  .sales-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .sales-toolbar .compact-action { justify-content: center; }
+  .entity-card__amount { font-size: 0.85rem; }
+}
+
 @media (min-width: 960px) {
   .app-shell {
     padding: 0 0 0 96px;
@@ -2425,5 +2535,145 @@ body {
   .dashboard-page .page-hero {
     margin: -54px -34px 20px;
     border-radius: 0 0 34px 34px;
+  }
+}
+
+.form-page__header,
+.detail-header {
+  position: relative;
+  align-items: center;
+  margin-bottom: 25px;
+}
+.form-page__header::after,
+.detail-header::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -13px;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+.form-page__header .icon-button,
+.detail-header .icon-button {
+  border: 0;
+  border-radius: 50%;
+  color: var(--deep);
+  background: #e5e9df;
+}
+.form-page__header h1,
+.detail-header h1 {
+  color: var(--deep);
+  font-size: clamp(1.55rem, 6vw, 2.15rem);
+}
+.sales-form-page .form-card,
+.purchase-form-page .form-card {
+  padding: 20px;
+}
+.sales-form-page .form-card h2,
+.purchase-form-page .form-card h2 {
+  color: var(--deep);
+  font-size: 1.08rem;
+}
+.automatic-number {
+  min-height: 58px;
+  border: 1px dashed #c8cec4;
+  border-radius: 15px;
+  background: #f1f1eb;
+}
+.sales-line-editor,
+.purchase-line-editor {
+  margin: 0 -4px;
+  padding: 15px 4px;
+}
+.delivery-date-list span {
+  border: 1px solid rgb(24 51 45 / 8%);
+  color: var(--deep);
+  background: #edf1e6;
+}
+.drop-zone {
+  min-height: 190px;
+  border: 1.5px dashed #8da497;
+  border-radius: 22px;
+  color: var(--deep);
+  background:
+    radial-gradient(circle at 50% 40%, rgb(230 185 77 / 15%), transparent 6rem),
+    #f1f3ed;
+}
+.drop-zone svg {
+  width: 42px;
+  height: 42px;
+  padding: 9px;
+  border-radius: 50%;
+  color: var(--white);
+  background: var(--deep);
+  box-shadow: 0 9px 20px rgb(18 58 49 / 20%);
+}
+.ocr-review {
+  border: 1px solid rgb(39 122 89 / 16%);
+  border-radius: 18px;
+  background: #edf4ed;
+}
+.inline-create-card,
+.stock-review-warning,
+.total-review {
+  border-radius: 17px;
+}
+.stock-review-warning {
+  border-color: rgb(200 121 42 / 22%);
+  background: #f7eedc;
+}
+.total-review {
+  background: #eef0e9;
+}
+.total-review > span strong {
+  color: var(--deep);
+  font-size: 1.25rem;
+}
+.detail-page .detail-card {
+  padding: 21px;
+}
+.invoice-facts {
+  padding: 13px;
+  border-radius: 16px;
+  background: #f0f1eb;
+}
+.sales-detail .sales-line {
+  padding-block: 15px;
+}
+.sales-detail .sales-total {
+  color: var(--deep);
+  font-size: 1.35rem;
+}
+.document-actions .button,
+.document-actions .compact-action {
+  min-height: 50px;
+}
+.purchase-detail-page .detail-card:first-of-type {
+  color: var(--white);
+  background:
+    radial-gradient(circle at 92% 8%, rgb(246 203 101 / 20%), transparent 7rem),
+    var(--deep);
+}
+.purchase-detail-page .detail-card:first-of-type h2,
+.purchase-detail-page .detail-card:first-of-type strong {
+  color: #f6cb65;
+}
+.purchase-detail-page .detail-card:first-of-type .detail-list dt,
+.purchase-detail-page .detail-card:first-of-type .detail-list dd small {
+  color: rgb(255 255 255 / 62%);
+}
+.purchase-detail-page .detail-card:first-of-type .detail-list > div {
+  border-color: rgb(255 255 255 / 13%);
+}
+
+@media (min-width: 960px) {
+  .sales-form-page form,
+  .purchase-form-page form {
+    align-items: start;
+  }
+  .sales-form-page .form-card,
+  .purchase-form-page .form-card {
+    padding: 24px;
   }
 }

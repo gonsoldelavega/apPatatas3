@@ -103,7 +103,7 @@ export function SalesFormPage() {
       nav(`/ventas/${invoice ? "facturas" : "albaranes"}/${d.id}`),
   });
   return (
-    <div className="page form-page">
+    <div className="page form-page sales-form-page">
       <header className="form-page__header">
         <Link className="icon-button" to="/ventas">
           <ArrowLeft />
