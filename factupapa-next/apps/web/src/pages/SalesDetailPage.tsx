@@ -150,7 +150,7 @@ export function SalesDetailPage() {
         a.download = `${subject.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(u), 60000);
-        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent("Adjunto la factura en PDF. Si no se adjunta automáticamente, usa el archivo descargado.")}`;
+        window.location.href = `mailto:${encodeURIComponent(current?.contactEmail ?? "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent("Adjunto la factura en PDF. Si no se adjunta automáticamente, usa el archivo descargado.")}`;
       },
     }),
     printPdf = useMutation({

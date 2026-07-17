@@ -5,6 +5,7 @@ const projection = `id, contact_id "contactId", number, series, issue_date::text
   due_date::text "dueDate", status, notes, subtotal, tax_total "taxTotal", total,
   operation_start_date::text "operationStartDate",operation_end_date::text "operationEndDate",delivery_dates::text[] "deliveryDates",payment_terms "paymentTerms",general_information "generalInformation",
   source_type "sourceType", contact_legal_name "contactLegalName", contact_tax_id "contactTaxId",
+  (select email from contacts c where c.id = invoices.contact_id) "contactEmail",
   contact_address "contactAddress", issuer_legal_name "issuerLegalName", issuer_tax_id "issuerTaxId",
   issuer_address "issuerAddress", issued_at "issuedAt", cancelled_at "cancelledAt",
   created_at "createdAt", updated_at "updatedAt"`;

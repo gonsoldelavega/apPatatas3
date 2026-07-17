@@ -33,6 +33,7 @@ export interface Invoice {
   sourceType: "manual" | "delivery_notes";
   contactLegalName: string;
   contactTaxId: string | null;
+  contactEmail?: string | null;
   contactAddress: Record<string, string>;
   issuerLegalName: string;
   issuerTaxId: string | null;
