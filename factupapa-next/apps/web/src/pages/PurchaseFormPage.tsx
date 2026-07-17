@@ -1,5 +1,5 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, FileUp, Plus, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Building2, FileUp, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
@@ -25,7 +25,12 @@ const empty = (): PurchaseLineInput => ({
     });
 export function PurchaseFormPage() {
   const nav = useNavigate(),
+    queryClient = useQueryClient(),
     [supplierId, setSupplierId] = useState(""),
+    [newSupplierName, setNewSupplierName] = useState(""),
+    [newSupplierTaxId, setNewSupplierTaxId] = useState(""),
+    [showSupplierCreate, setShowSupplierCreate] = useState(false),
+    [ignoreDetectedStock, setIgnoreDetectedStock] = useState(false),
     [number, setNumber] = useState(""),
     [issueDate, setIssueDate] = useState(todayLocal()),
     [dueDate, setDueDate] = useState(""),
@@ -57,6 +62,10 @@ export function PurchaseFormPage() {
         setDocumentId(d.id);
         setOcr(d.extractedData);
         if (d.extractedData.supplierId) setSupplierId(d.extractedData.supplierId);
+        setNewSupplierName(d.extractedData.supplierName ?? "");
+        setNewSupplierTaxId(d.extractedData.supplierTaxId ?? "");
+        setShowSupplierCreate(false);
+        setIgnoreDetectedStock(false);
         if (d.extractedData.supplierInvoiceNumber)
           setNumber(d.extractedData.supplierInvoiceNumber);
         if (d.extractedData.issueDate) setIssueDate(d.extractedData.issueDate);
@@ -90,6 +99,24 @@ export function PurchaseFormPage() {
             taxRate,
           });
         }
+      },
+    }),
+    createSupplier = useMutation({
+      mutationFn: () =>
+        contactsApi.create({
+          type: "supplier",
+          legalName: newSupplierName.trim(),
+          tradeName: null,
+          taxId: newSupplierTaxId.trim() || null,
+          email: null,
+          phone: null,
+          address: {},
+          notes: null,
+        }),
+      onSuccess: async (supplier) => {
+        setSupplierId(supplier.id);
+        setShowSupplierCreate(false);
+        await queryClient.invalidateQueries({ queryKey: ["purchase-suppliers"] });
       },
     }),
     save = useMutation({
@@ -142,6 +169,7 @@ export function PurchaseFormPage() {
             <strong>Lectura automática: {ocr.ocrConfidence ?? 0}%</strong>
             <span>{ocr.source === "pdf_text" ? "Texto original del PDF" : "OCR español/inglés"}</span>
             {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
+            {ocr.supplierTaxId && <span>NIF detectado: {ocr.supplierTaxId}</span>}
             {ocr.total && <span>Total detectado: {ocr.total} €</span>}
             {ocr.purchasedSacks && (
               <span>
@@ -177,6 +205,53 @@ export function PurchaseFormPage() {
             </option>
           ))}
         </SelectField>
+        {ocr?.supplierName && !ocr.supplierId && !showSupplierCreate && (
+          <button
+            className="compact-action"
+            type="button"
+            onClick={() => setShowSupplierCreate(true)}
+          >
+            <Building2 />
+            Crear proveedor detectado
+          </button>
+        )}
+        {showSupplierCreate && (
+          <div className="inline-create-card" aria-label="Revisar proveedor nuevo">
+            <strong>Revisa antes de crear el proveedor</strong>
+            <p>Solo se guardarán los datos que confirmes.</p>
+            <Field
+              label="Nombre legal"
+              value={newSupplierName}
+              onChange={(e) => setNewSupplierName(e.target.value)}
+            />
+            <Field
+              label="NIF"
+              value={newSupplierTaxId}
+              onChange={(e) => setNewSupplierTaxId(e.target.value.toUpperCase())}
+            />
+            {createSupplier.isError && (
+              <p className="field-error" role="alert">
+                No se pudo crear. Comprueba si el proveedor o el NIF ya existen.
+              </p>
+            )}
+            <div className="inline-create-card__actions">
+              <button
+                type="button"
+                onClick={() => setShowSupplierCreate(false)}
+                disabled={createSupplier.isPending}
+              >
+                Cancelar
+              </button>
+              <Button
+                busy={createSupplier.isPending}
+                disabled={!newSupplierName.trim()}
+                onClick={() => createSupplier.mutate()}
+              >
+                Crear y seleccionar
+              </Button>
+            </div>
+          </div>
+        )}
         <Field
           label="Número de factura del proveedor"
           value={number}
@@ -207,6 +282,23 @@ export function PurchaseFormPage() {
       </section>
       <section className="form-card">
         <h2>Conceptos</h2>
+        {ocr?.purchasedQuantityKg && !lines.some((line) => line.productId) && (
+          <div className="stock-review-warning" role="status">
+            <strong>Falta decidir el destino de {ocr.purchasedQuantityKg} kg</strong>
+            <p>
+              Selecciona debajo el producto para que la compra aumente el stock.
+              Si no es mercancía vendible, indícalo expresamente.
+            </p>
+            <label>
+              <input
+                type="checkbox"
+                checked={ignoreDetectedStock}
+                onChange={(e) => setIgnoreDetectedStock(e.target.checked)}
+              />
+              No añadir estos kg al stock
+            </label>
+          </div>
+        )}
         {lines.map((l, n) => (
           <div className="purchase-line-editor" key={n}>
             <SelectField
@@ -221,6 +313,7 @@ export function PurchaseFormPage() {
                   description: p?.name ?? l.description,
                   unit: p?.unit ?? l.unit,
                 });
+                if (e.target.value) setIgnoreDetectedStock(false);
               }}
             >
               <option value="">No afecta al stock</option>
@@ -280,7 +373,13 @@ export function PurchaseFormPage() {
       </section>
       <Button
         disabled={
-          !supplierId || !lines.some((l) => l.description && l.unitCost)
+          !supplierId ||
+          !lines.some((l) => l.description && l.unitCost) ||
+          Boolean(
+            ocr?.purchasedQuantityKg &&
+              !lines.some((line) => line.productId) &&
+              !ignoreDetectedStock,
+          )
         }
         busy={save.isPending || upload.isPending}
         onClick={() => save.mutate()}
