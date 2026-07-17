@@ -73,6 +73,22 @@ const NotFoundPage = lazy(() =>
     default: module.NotFoundPage,
   })),
 );
+const ExpensesPage = lazy(() =>
+  import("./pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
+);
+const PurchaseFormPage = lazy(() =>
+  import("./pages/PurchaseFormPage").then((m) => ({
+    default: m.PurchaseFormPage,
+  })),
+);
+const PurchaseDetailPage = lazy(() =>
+  import("./pages/PurchaseDetailPage").then((m) => ({
+    default: m.PurchaseDetailPage,
+  })),
+);
+const StockPage = lazy(() =>
+  import("./pages/StockPage").then((m) => ({ default: m.StockPage })),
+);
 
 export function App() {
   return (
@@ -85,6 +101,10 @@ export function App() {
             <Route path="ventas" element={<SalesPage />} />
             <Route path="ventas/nuevo/:kind" element={<SalesFormPage />} />
             <Route path="ventas/:type/:id" element={<SalesDetailPage />} />
+            <Route path="gastos" element={<ExpensesPage />} />
+            <Route path="gastos/nuevo" element={<PurchaseFormPage />} />
+            <Route path="gastos/:id" element={<PurchaseDetailPage />} />
+            <Route path="stock" element={<StockPage />} />
             <Route path="catalogo" element={<CatalogPage />}>
               <Route index element={<Navigate to="contactos" replace />} />
               <Route path="contactos" element={<ContactsListPage />} />

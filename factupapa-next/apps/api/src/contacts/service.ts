@@ -7,20 +7,36 @@ import { ContactRepository } from "./repository.js";
 import type { ContactCreate, ContactListQuery, ContactPatch } from "./types.js";
 
 export class ContactService {
-  constructor(private readonly pool: Pool, private readonly repository = new ContactRepository()) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly repository = new ContactRepository(),
+  ) {}
 
   async create(identity: SessionIdentity, input: ContactCreate) {
     try {
-      return await withTenantTransaction(this.pool, identity, async (client) => {
-        const contact = await this.repository.create(client, identity.companyId, input);
-        await recordAudit(client, {
-          companyId: identity.companyId, actorUserId: identity.userId, entityType: "contact", entityId: contact.id,
-          action: "contact.created", after: contact,
-        });
-        return contact;
-      });
+      return await withTenantTransaction(
+        this.pool,
+        identity,
+        async (client) => {
+          const contact = await this.repository.create(
+            client,
+            identity.companyId,
+            input,
+          );
+          await recordAudit(client, {
+            companyId: identity.companyId,
+            actorUserId: identity.userId,
+            entityType: "contact",
+            entityId: contact.id,
+            action: "contact.created",
+            after: contact,
+          });
+          return contact;
+        },
+      );
     } catch (error) {
-      if (isPostgresUniqueViolation(error)) throw new HttpError("conflict", 409);
+      if (isPostgresUniqueViolation(error))
+        throw new HttpError("conflict", 409);
       throw error;
     }
   }
@@ -42,19 +58,29 @@ export class ContactService {
 
   async update(identity: SessionIdentity, id: string, input: ContactPatch) {
     try {
-      return await withTenantTransaction(this.pool, identity, async (client) => {
-        const before = await this.repository.findById(client, id);
-        if (!before) throw new HttpError("not_found", 404);
-        const contact = await this.repository.update(client, id, input);
-        if (!contact) throw new HttpError("not_found", 404);
-        await recordAudit(client, {
-          companyId: identity.companyId, actorUserId: identity.userId, entityType: "contact", entityId: id,
-          action: "contact.updated", before, after: contact,
-        });
-        return contact;
-      });
+      return await withTenantTransaction(
+        this.pool,
+        identity,
+        async (client) => {
+          const before = await this.repository.findById(client, id);
+          if (!before) throw new HttpError("not_found", 404);
+          const contact = await this.repository.update(client, id, input);
+          if (!contact) throw new HttpError("not_found", 404);
+          await recordAudit(client, {
+            companyId: identity.companyId,
+            actorUserId: identity.userId,
+            entityType: "contact",
+            entityId: id,
+            action: "contact.updated",
+            before,
+            after: contact,
+          });
+          return contact;
+        },
+      );
     } catch (error) {
-      if (isPostgresUniqueViolation(error)) throw new HttpError("conflict", 409);
+      if (isPostgresUniqueViolation(error))
+        throw new HttpError("conflict", 409);
       throw error;
     }
   }
@@ -65,8 +91,13 @@ export class ContactService {
       if (!before) throw new HttpError("not_found", 404);
       const after = await this.repository.deactivate(client, id);
       await recordAudit(client, {
-        companyId: identity.companyId, actorUserId: identity.userId, entityType: "contact", entityId: id,
-        action: "contact.deactivated", before, after,
+        companyId: identity.companyId,
+        actorUserId: identity.userId,
+        entityType: "contact",
+        entityId: id,
+        action: "contact.deactivated",
+        before,
+        after,
       });
     });
   }

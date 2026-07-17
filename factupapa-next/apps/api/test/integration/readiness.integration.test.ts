@@ -31,15 +31,18 @@ test("readiness valida el manifiesto dinámico completo", async (t) => {
     filename: string;
     checksum: string;
     applied_at: Date;
-  }>("select filename,checksum,applied_at from schema_migrations order by filename");
-  assert.deepEqual(applied.rows.map((row) => row.filename), expectedFilenames);
+  }>(
+    "select filename,checksum,applied_at from schema_migrations order by filename",
+  );
+  assert.deepEqual(
+    applied.rows.map((row) => row.filename),
+    expectedFilenames,
+  );
   await api.readiness();
   assert.equal((await readiness.check()).postgresql, "ok");
 
-  const migration = applied.rows.find(
-    (row) => row.filename === "0010_sales_line_company_guard.sql",
-  );
-  assert.ok(migration, "0010 debe formar parte del manifiesto dinámico");
+  const migration = applied.rows.at(-1);
+  assert.ok(migration, "debe existir una migración más reciente");
   const unexpectedFilename = "9999_unexpected_audit_migration.sql";
   const restore = async () => {
     await admin.pool.query("delete from schema_migrations where filename=$1", [
@@ -52,52 +55,66 @@ test("readiness valida el manifiesto dinámico completo", async (t) => {
     );
   };
 
-  await t.test("0010 ausente produce migration_incomplete", async () => {
-    await admin.pool.query("delete from schema_migrations where filename=$1", [
-      migration.filename,
-    ]);
-    try {
-      assert.equal((await readiness.check()).postgresql, "incomplete");
-      await assert.rejects(
-        () => api.readiness(),
-        /migration_missing:0010_sales_line_company_guard\.sql/,
+  await t.test(
+    "la migración más reciente ausente produce migration_incomplete",
+    async () => {
+      await admin.pool.query(
+        "delete from schema_migrations where filename=$1",
+        [migration.filename],
       );
-    } finally {
-      await restore();
-    }
-  });
+      try {
+        assert.equal((await readiness.check()).postgresql, "incomplete");
+        await assert.rejects(
+          () => api.readiness(),
+          new RegExp(
+            `migration_missing:${migration.filename.replace(".", "\\.")}`,
+          ),
+        );
+      } finally {
+        await restore();
+      }
+    },
+  );
 
-  await t.test("checksum incorrecto de 0010 produce migration_incomplete", async () => {
-    await admin.pool.query(
-      "update schema_migrations set checksum=$2 where filename=$1",
-      [migration.filename, "0".repeat(64)],
-    );
-    try {
-      assert.equal((await readiness.check()).postgresql, "incomplete");
-      await assert.rejects(
-        () => api.readiness(),
-        /migration_checksum_mismatch:0010_sales_line_company_guard\.sql/,
+  await t.test(
+    "checksum incorrecto de la migración más reciente produce migration_incomplete",
+    async () => {
+      await admin.pool.query(
+        "update schema_migrations set checksum=$2 where filename=$1",
+        [migration.filename, "0".repeat(64)],
       );
-    } finally {
-      await restore();
-    }
-  });
+      try {
+        assert.equal((await readiness.check()).postgresql, "incomplete");
+        await assert.rejects(
+          () => api.readiness(),
+          new RegExp(
+            `migration_checksum_mismatch:${migration.filename.replace(".", "\\.")}`,
+          ),
+        );
+      } finally {
+        await restore();
+      }
+    },
+  );
 
-  await t.test("una migración inesperada produce migration_incomplete", async () => {
-    await admin.pool.query(
-      "insert into schema_migrations(filename,checksum) values($1,$2)",
-      [unexpectedFilename, "f".repeat(64)],
-    );
-    try {
-      assert.equal((await readiness.check()).postgresql, "incomplete");
-      await assert.rejects(
-        () => api.readiness(),
-        /migration_unexpected:9999_unexpected_audit_migration\.sql/,
+  await t.test(
+    "una migración inesperada produce migration_incomplete",
+    async () => {
+      await admin.pool.query(
+        "insert into schema_migrations(filename,checksum) values($1,$2)",
+        [unexpectedFilename, "f".repeat(64)],
       );
-    } finally {
-      await restore();
-    }
-  });
+      try {
+        assert.equal((await readiness.check()).postgresql, "incomplete");
+        await assert.rejects(
+          () => api.readiness(),
+          /migration_unexpected:9999_unexpected_audit_migration\.sql/,
+        );
+      } finally {
+        await restore();
+      }
+    },
+  );
 
   await api.readiness();
   assert.equal((await readiness.check()).postgresql, "ok");

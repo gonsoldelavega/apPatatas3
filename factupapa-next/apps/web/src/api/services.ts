@@ -18,6 +18,11 @@ import type {
   Product,
   ProductInput,
   SalesPreferences,
+  PurchaseInvoice,
+  PurchaseLineInput,
+  RecurringExpense,
+  StockItem,
+  FinanceSummary,
 } from "./types";
 
 function queryString(
@@ -136,12 +141,32 @@ export const importsApi = {
       method: "POST",
       body: "{}",
     }),
-  detectColumns: (input: { entityType: ImportEntityType; sourceFormat: ImportSourceFormat; content: string }) =>
-    apiClient.request<ImportColumnDetection>("/imports/detect-columns", { method: "POST", body: JSON.stringify(input), timeoutMs: 30_000 }),
-  mappings: (entityType: ImportEntityType) => apiClient.request<{ items: ImportMapping[] }>(`/import-mappings${queryString({ entityType })}`),
-  saveMapping: (input: { name: string; entityType: ImportEntityType; sourceFormat: ImportSourceFormat; mapping: Record<string,string> }) =>
-    apiClient.request<ImportMapping>("/import-mappings", { method: "POST", body: JSON.stringify(input) }),
-  deleteMapping: (id: string) => apiClient.request<void>(`/import-mappings/${id}`, { method: "DELETE" }),
+  detectColumns: (input: {
+    entityType: ImportEntityType;
+    sourceFormat: ImportSourceFormat;
+    content: string;
+  }) =>
+    apiClient.request<ImportColumnDetection>("/imports/detect-columns", {
+      method: "POST",
+      body: JSON.stringify(input),
+      timeoutMs: 30_000,
+    }),
+  mappings: (entityType: ImportEntityType) =>
+    apiClient.request<{ items: ImportMapping[] }>(
+      `/import-mappings${queryString({ entityType })}`,
+    ),
+  saveMapping: (input: {
+    name: string;
+    entityType: ImportEntityType;
+    sourceFormat: ImportSourceFormat;
+    mapping: Record<string, string>;
+  }) =>
+    apiClient.request<ImportMapping>("/import-mappings", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteMapping: (id: string) =>
+    apiClient.request<void>(`/import-mappings/${id}`, { method: "DELETE" }),
 };
 
 export const deliveryNotesApi = {
@@ -186,6 +211,12 @@ export const invoicesApi = {
     series: string;
     issueDate: string;
     notes?: string | null;
+    dueDate?: string | null;
+    operationStartDate?: string | null;
+    operationEndDate?: string | null;
+    deliveryDates?: string[];
+    paymentTerms?: string | null;
+    generalInformation?: string | null;
   }) =>
     apiClient.request<Invoice>("/invoices", {
       method: "POST",
@@ -216,6 +247,28 @@ export const invoicesApi = {
       body: "{}",
     }),
   downloadPdf: (id: string) => apiClient.download(`/invoices/${id}/pdf`),
+  update: (
+    id: string,
+    input: Partial<
+      Pick<
+        Invoice,
+        | "contactId"
+        | "series"
+        | "issueDate"
+        | "dueDate"
+        | "notes"
+        | "operationStartDate"
+        | "operationEndDate"
+        | "deliveryDates"
+        | "paymentTerms"
+        | "generalInformation"
+      >
+    >,
+  ) =>
+    apiClient.request<Invoice>(`/invoices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
 };
 
 export const salesPreferencesApi = {
@@ -223,6 +276,85 @@ export const salesPreferencesApi = {
   update: (input: SalesPreferences) =>
     apiClient.request<SalesPreferences>("/sales-preferences", {
       method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  activateNumbering: (input: {
+    prefix: string;
+    nextNumber: number;
+    year: number;
+    confirmation: string;
+  }) =>
+    apiClient.request<SalesPreferences>(
+      "/sales-preferences/activate-numbering",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+};
+
+export const financeApi = {
+  summary: (from?: string, to?: string) =>
+    apiClient.request<FinanceSummary>(
+      `/finance/summary${queryString({ from, to })}`,
+    ),
+  purchases: (from?: string, to?: string) =>
+    apiClient.request<PurchaseInvoice[]>(
+      `/purchases${queryString({ from, to })}`,
+    ),
+  purchase: (id: string) =>
+    apiClient.request<PurchaseInvoice>(`/purchases/${id}`),
+  uploadPurchaseDocument: (input: {
+    filename: string;
+    mimeType: string;
+    contentBase64: string;
+  }) =>
+    apiClient.request<{
+      id: string;
+      extractedData: { supplierInvoiceNumber?: string; issueDate?: string };
+    }>("/purchase-documents", {
+      method: "POST",
+      body: JSON.stringify(input),
+      timeoutMs: 60000,
+    }),
+  downloadPurchaseDocument: (id: string) =>
+    apiClient.download(`/purchase-documents/${id}`),
+  createPurchase: (input: {
+    supplierId: string;
+    documentId: string | null;
+    supplierInvoiceNumber: string | null;
+    issueDate: string;
+    dueDate: string | null;
+    category: string;
+    notes: string | null;
+    lines: PurchaseLineInput[];
+  }) =>
+    apiClient.request<PurchaseInvoice>("/purchases", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  transitionPurchase: (id: string, action: "confirm" | "cancel") =>
+    apiClient.request<PurchaseInvoice>(`/purchases/${id}/${action}`, {
+      method: "POST",
+      body: "{}",
+    }),
+  recurring: () => apiClient.request<RecurringExpense[]>("/recurring-expenses"),
+  createRecurring: (
+    input: Omit<RecurringExpense, "id" | "isActive" | "supplierName">,
+  ) =>
+    apiClient.request<RecurringExpense>("/recurring-expenses", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deactivateRecurring: (id: string) =>
+    apiClient.request<void>(`/recurring-expenses/${id}`, { method: "DELETE" }),
+  stock: () => apiClient.request<StockItem[]>("/stock"),
+  adjustStock: (input: {
+    productId: string;
+    occurredOn: string;
+    quantityDelta: string;
+    reason: "initial" | "loss" | "correction" | "other";
+    note: string | null;
+  }) =>
+    apiClient.request("/stock/adjustments", {
+      method: "POST",
       body: JSON.stringify(input),
     }),
 };

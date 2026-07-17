@@ -21,6 +21,8 @@ import { createReadiness } from "./health/readiness.js";
 import { log } from "./observability/logger.js";
 import { SalesPreferencesService } from "./sales-preferences/service.js";
 import { createSalesPreferencesRoutes } from "./sales-preferences/routes.js";
+import { FinanceService } from "./finance/service.js";
+import { createFinanceRoutes } from "./finance/routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -44,6 +46,17 @@ const importMappings = new ImportMappingService(database.pool);
 const deliveryNotes = new DeliveryNoteService(database.pool);
 const invoices = new InvoiceService(database.pool);
 const salesPreferences = new SalesPreferencesService(database.pool);
+const finance = new FinanceService(
+  database.pool,
+  config.s3Endpoint && config.s3AccessKey && config.s3SecretKey
+    ? {
+        endpoint: config.s3Endpoint,
+        bucket: config.s3Bucket,
+        accessKey: config.s3AccessKey,
+        secretKey: config.s3SecretKey,
+      }
+    : undefined,
+);
 const server = createApp({
   database,
   auth,
@@ -58,10 +71,26 @@ const server = createApp({
     database,
     timeoutMs: config.dependencyTimeoutMs,
     ...(config.redisUrl ? { redisUrl: config.redisUrl } : {}),
-    ...(config.s3Endpoint && config.s3AccessKey && config.s3SecretKey ? { s3: { endpoint: config.s3Endpoint, bucket: config.s3Bucket, accessKey: config.s3AccessKey, secretKey: config.s3SecretKey } } : {}),
+    ...(config.s3Endpoint && config.s3AccessKey && config.s3SecretKey
+      ? {
+          s3: {
+            endpoint: config.s3Endpoint,
+            bucket: config.s3Bucket,
+            accessKey: config.s3AccessKey,
+            secretKey: config.s3SecretKey,
+          },
+        }
+      : {}),
   }),
-  metrics: { allowRemote: config.internalMetricsAllowRemote, pool: database.pool, ...(config.internalMetricsToken ? { token: config.internalMetricsToken } : {}) },
+  metrics: {
+    allowRemote: config.internalMetricsAllowRemote,
+    pool: database.pool,
+    ...(config.internalMetricsToken
+      ? { token: config.internalMetricsToken }
+      : {}),
+  },
   routes: [
+    createFinanceRoutes(auth, finance),
     createSalesPreferencesRoutes(auth, salesPreferences),
     createInvoiceRoutes(auth, invoices),
     createDeliveryNoteRoutes(auth, deliveryNotes),
@@ -74,11 +103,20 @@ const server = createApp({
 });
 
 server.listen(config.port, config.host, () => {
-  log("info", { event: "service.started", host: config.host, port: config.port, serviceVersion: config.appVersion });
+  log("info", {
+    event: "service.started",
+    host: config.host,
+    port: config.port,
+    serviceVersion: config.appVersion,
+  });
 });
 
 async function shutdown(signal: string) {
-  log("info", { event: "service.stopping", signal, serviceVersion: config.appVersion });
+  log("info", {
+    event: "service.stopping",
+    signal,
+    serviceVersion: config.appVersion,
+  });
   server.close(async () => {
     await database.close();
     process.exit(0);

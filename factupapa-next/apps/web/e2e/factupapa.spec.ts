@@ -40,7 +40,7 @@ test("login genérico, restauración, logout y consola limpia", async ({
 });
 test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
   await login(page);
-  await page.getByRole("link", { name: "Ventas" }).click();
+  await page.getByRole("link", { name: "Facturas" }).click();
   await expect(page.getByRole("heading", { name: "Ventas" })).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-albaranes.png`,
@@ -74,7 +74,9 @@ test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
     );
   expect(undersized).toBe(0);
 });
-test("factura directa, ajustes comerciales y decimales legibles", async ({ page }) => {
+test("factura directa, ajustes comerciales y decimales legibles", async ({
+  page,
+}) => {
   await login(page);
   await page.goto("/ajustes/ventas");
   await expect(page.getByLabel("Prefijo")).toHaveValue("FAC");
@@ -83,7 +85,7 @@ test("factura directa, ajustes comerciales y decimales legibles", async ({ page 
   await expect(page.getByLabel("Flujo principal")).toHaveValue("invoices");
 
   await page.goto("/ventas/nuevo/factura");
-  await expect(page.getByText(/FAC-100\/\d{4}/)).toBeVisible();
+  await expect(page.getByText(/Serie TEST\/\d{4}/)).toBeVisible();
   await page.getByLabel("Cliente").selectOption({ index: 1 });
   await page.getByLabel("Producto").selectOption({ index: 1 });
   await page.getByLabel("Cantidad").fill("10");
@@ -171,7 +173,9 @@ test("catálogo, importación cancelada y dos pestañas", async ({
     fullPage: true,
   });
   await page.goto("/catalogo/productos");
-  await expect(page.getByRole("heading", { name: "Productos", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Productos", exact: true }),
+  ).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-productos.png`,
     fullPage: true,
@@ -208,12 +212,20 @@ test("catálogo, importación cancelada y dos pestañas", async ({
   await page.getByRole("button", { name: "Cancelar lote" }).click();
 });
 
-test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de red", async ({ page }, testInfo) => {
+test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de red", async ({
+  page,
+}, testInfo) => {
   const runKey = `${testInfo.project.name}-${testInfo.retry}`;
   await login(page);
   await page.goto("/importar");
   await page.getByLabel("Qué quieres importar").selectOption("products");
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({ name: "manual.csv", mimeType: "text/csv", buffer: Buffer.from(`A,B,C,D\nProducto manual ${runKey},kg,2.3456,4\n`) });
+  await page
+    .getByLabel("Seleccionar archivo CSV o JSON")
+    .setInputFiles({
+      name: "manual.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(`A,B,C,D\nProducto manual ${runKey},kg,2.3456,4\n`),
+    });
   await page.getByRole("button", { name: "Detectar columnas" }).click();
   await page.getByLabel("Columna para Nombre").selectOption("A");
   await page.getByLabel("Columna para Unidad").selectOption("B");
@@ -221,29 +233,65 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
   await page.getByLabel("Columna para IVA").selectOption("D");
   await page.getByText("Guardar como plantilla").click();
   const template = `Plantilla ${runKey}`.slice(0, 80);
-  await page.getByText("Nombre de la plantilla").locator("..").getByRole("textbox").fill(template);
+  await page
+    .getByText("Nombre de la plantilla")
+    .locator("..")
+    .getByRole("textbox")
+    .fill(template);
   await page.getByRole("button", { name: "Validar y previsualizar" }).click();
-  await page.getByLabel("Estrategia de conflictos").selectOption("skip_existing");
+  await page
+    .getByLabel("Estrategia de conflictos")
+    .selectOption("skip_existing");
   await page.getByRole("button", { name: "Confirmar importación" }).click();
   await expect(page.getByText("Importación completada")).toBeVisible();
 
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({ name: "reutilizada.csv", mimeType: "text/csv", buffer: Buffer.from("A,B,C,D\nOtro producto,kg,3.0000,4\n") });
+  await page
+    .getByLabel("Seleccionar archivo CSV o JSON")
+    .setInputFiles({
+      name: "reutilizada.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from("A,B,C,D\nOtro producto,kg,3.0000,4\n"),
+    });
   await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await page.getByLabel("Usar una plantilla guardada").selectOption({ label: template });
+  await page
+    .getByLabel("Usar una plantilla guardada")
+    .selectOption({ label: template });
   await expect(page.getByLabel("Columna para Nombre")).toHaveValue("A");
   await page.getByRole("button", { name: "Atrás" }).click();
 
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({ name: "sin-obligatorio.csv", mimeType: "text/csv", buffer: Buffer.from("nombre\nIncompleto\n") });
+  await page
+    .getByLabel("Seleccionar archivo CSV o JSON")
+    .setInputFiles({
+      name: "sin-obligatorio.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from("nombre\nIncompleto\n"),
+    });
   await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await expect(page.getByRole("button", { name: "Validar y previsualizar" })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Validar y previsualizar" }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "Atrás" }).click();
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({ name: "duplicada.csv", mimeType: "text/csv", buffer: Buffer.from("nombre,nombre,unidad,precio,iva\nA,B,kg,1,4\n") });
+  await page
+    .getByLabel("Seleccionar archivo CSV o JSON")
+    .setInputFiles({
+      name: "duplicada.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from("nombre,nombre,unidad,precio,iva\nA,B,kg,1,4\n"),
+    });
   await page.getByRole("button", { name: "Detectar columnas" }).click();
   await expect(page.getByRole("alert")).toContainText("cabeceras duplicadas");
   await page.getByRole("button", { name: "Atrás" }).click();
 
   await page.route("**/imports/detect-columns", (route) => route.abort());
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({ name: "red.csv", mimeType: "text/csv", buffer: Buffer.from("nombre,unidad,precio,iva\nRed,kg,1,4\n") });
+  await page
+    .getByLabel("Seleccionar archivo CSV o JSON")
+    .setInputFiles({
+      name: "red.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from("nombre,unidad,precio,iva\nRed,kg,1,4\n"),
+    });
   await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await expect(page.getByRole("alert")).toContainText("No se han podido detectar");
+  await expect(page.getByRole("alert")).toContainText(
+    "No se han podido detectar",
+  );
 });

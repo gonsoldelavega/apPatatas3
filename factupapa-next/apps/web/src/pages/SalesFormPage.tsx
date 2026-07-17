@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Plus, Save, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -16,131 +16,219 @@ import { annualInvoiceSeries, todayLocal } from "../utils/format";
 export function SalesFormPage() {
   const { kind } = useParams(),
     invoice = kind === "factura",
-    navigate = useNavigate();
-  const [contactId, setContactId] = useState(""),
+    nav = useNavigate(),
+    [contactId, setContactId] = useState(""),
     [productId, setProductId] = useState(""),
     [quantity, setQuantity] = useState("1"),
     [series, setSeries] = useState("A"),
-    [issueDate, setIssueDate] = useState(todayLocal());
-  const preferences = useQuery({
-    queryKey: ["sales-preferences"],
-    queryFn: salesPreferencesApi.get,
-    enabled: invoice,
-  });
-  const invoicePrefix = preferences.data?.invoicePrefix ?? "FAC";
-  const invoiceStartNumber = preferences.data?.invoiceStartNumber ?? 100;
-  const contacts = useQuery({
+    [issueDate, setIssueDate] = useState(todayLocal()),
+    [start, setStart] = useState(""),
+    [end, setEnd] = useState(""),
+    [deliveryDates, setDeliveryDates] = useState<string[]>([]),
+    [deliveryInput, setDeliveryInput] = useState(""),
+    [due, setDue] = useState(""),
+    [terms, setTerms] = useState(""),
+    [info, setInfo] = useState("");
+  const prefs = useQuery({
+      queryKey: ["sales-preferences"],
+      queryFn: salesPreferencesApi.get,
+      enabled: invoice,
+    }),
+    contacts = useQuery({
       queryKey: ["sales-customers"],
       queryFn: () => contactsApi.list({ isActive: true, pageSize: 100 }),
     }),
     products = useQuery({
       queryKey: ["sales-products"],
       queryFn: () => productsApi.list({ isActive: true, pageSize: 100 }),
-    });
+    }),
+    prefix =
+      prefs.data?.numberingMode === "live" ? prefs.data.invoicePrefix : "TEST";
   const save = useMutation({
     mutationFn: async () => {
-      const document = invoice
-        ? await invoicesApi.create({ contactId, series: annualInvoiceSeries(invoicePrefix, issueDate), issueDate })
+      const d = invoice
+        ? await invoicesApi.create({
+            contactId,
+            series: annualInvoiceSeries(prefix, issueDate),
+            issueDate,
+            dueDate: due || null,
+            operationStartDate: start || null,
+            operationEndDate: end || null,
+            deliveryDates,
+            paymentTerms: terms || null,
+            generalInformation: info || null,
+          })
         : await deliveryNotesApi.create({ contactId, series, issueDate });
       return invoice
-        ? invoicesApi.addLine(document.id, {
+        ? invoicesApi.addLine(d.id, {
             productId,
             quantity: quantity.replace(",", "."),
           })
-        : deliveryNotesApi.addLine(document.id, {
+        : deliveryNotesApi.addLine(d.id, {
             productId,
             quantity: quantity.replace(",", "."),
           });
     },
-    onSuccess: (document) =>
-      navigate(`/ventas/${invoice ? "facturas" : "albaranes"}/${document.id}`, {
-        replace: true,
-      }),
+    onSuccess: (d) =>
+      nav(`/ventas/${invoice ? "facturas" : "albaranes"}/${d.id}`),
   });
   return (
     <div className="page form-page">
       <header className="form-page__header">
-        <Link className="icon-button" to="/ventas" aria-label="Volver">
+        <Link className="icon-button" to="/ventas">
           <ArrowLeft />
         </Link>
-        <div>
-          <p className="eyebrow">Nuevo borrador</p>
-          <h1>{invoice ? "Nueva factura" : "Nuevo albarán"}</h1>
-        </div>
+        <h1>{invoice ? "Nueva factura" : "Nuevo albarán"}</h1>
       </header>
       <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (contactId && productId) save.mutate();
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
         }}
       >
         <section className="form-card">
-          <div className="form-step"><span>1</span><div><small>Cliente</small><h2>¿A quién facturas?</h2></div></div>
           <SelectField
             label="Cliente"
             value={contactId}
-            onChange={(event) => setContactId(event.target.value)}
-            required
+            onChange={(e) => setContactId(e.target.value)}
           >
-            <option value="">Selecciona un cliente</option>
+            <option value="">Selecciona</option>
             {contacts.data?.items
-              .filter((contact) => contact.type !== "supplier")
-              .map((contact) => (
-                <option key={contact.id} value={contact.id}>
-                  {contact.tradeName || contact.legalName}
+              .filter((x) => x.type !== "supplier")
+              .map((x) => (
+                <option value={x.id} key={x.id}>
+                  {x.tradeName || x.legalName}
                 </option>
               ))}
           </SelectField>
-          <div className="form-grid">
-            {invoice ? <div className="automatic-number"><span>Formato de numeración</span><strong>{invoicePrefix}-{invoiceStartNumber}/{issueDate.slice(0, 4)}</strong><small>El siguiente disponible se asigna al emitir</small></div> : <Field label="Serie" value={series} onChange={(event) => setSeries(event.target.value)} required />}
+          {invoice ? (
+            <div className="automatic-number">
+              <span>
+                {prefs.data?.numberingMode === "live"
+                  ? "Numeración real"
+                  : "Numeración de pruebas"}
+              </span>
+              <strong>
+                Serie {prefix}/{issueDate.slice(0, 4)}
+              </strong>
+              <small>El número se asigna al emitir</small>
+            </div>
+          ) : (
             <Field
-              label="Fecha"
-              type="date"
-              value={issueDate}
-              onChange={(event) => setIssueDate(event.target.value)}
-              required
+              label="Serie"
+              value={series}
+              onChange={(e) => setSeries(e.target.value)}
             />
-          </div>
+          )}
+          <Field
+            label="Fecha de emisión"
+            type="date"
+            value={issueDate}
+            onChange={(e) => setIssueDate(e.target.value)}
+          />
         </section>
+        {invoice && (
+          <section className="form-card">
+            <h2>Fechas y condiciones</h2>
+            <div className="form-grid">
+              <Field
+                label="Operaciones desde"
+                type="date"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
+              <Field
+                label="Operaciones hasta"
+                type="date"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+              />
+            </div>
+            <div className="delivery-date-editor">
+              <Field
+                label="Añadir fecha de entrega"
+                type="date"
+                value={deliveryInput}
+                onChange={(e) => setDeliveryInput(e.target.value)}
+              />
+              <button
+                type="button"
+                className="compact-action"
+                onClick={() => {
+                  if (deliveryInput && !deliveryDates.includes(deliveryInput)) {
+                    setDeliveryDates((x) => [...x, deliveryInput].sort());
+                    setDeliveryInput("");
+                  }
+                }}
+              >
+                <Plus />
+                Añadir
+              </button>
+            </div>
+            <div className="delivery-date-list">
+              {deliveryDates.map((x) => (
+                <span key={x}>
+                  {x}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDeliveryDates((d) => d.filter((y) => y !== x))
+                    }
+                  >
+                    <X />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <Field
+              label="Fecha de vencimiento"
+              type="date"
+              value={due}
+              onChange={(e) => setDue(e.target.value)}
+            />
+            <label className="field">
+              <span>Condiciones de pago</span>
+              <textarea
+                value={terms}
+                onChange={(e) => setTerms(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Información general</span>
+              <textarea
+                value={info}
+                onChange={(e) => setInfo(e.target.value)}
+              />
+            </label>
+          </section>
+        )}
         <section className="form-card">
-          <div className="form-step"><span>2</span><div><small>Productos</small><h2>¿Qué has vendido?</h2></div></div>
           <SelectField
             label="Producto"
             value={productId}
-            onChange={(event) => setProductId(event.target.value)}
-            required
+            onChange={(e) => setProductId(e.target.value)}
           >
-            <option value="">Selecciona un producto</option>
-            {products.data?.items.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name}
+            <option value="">Selecciona</option>
+            {products.data?.items.map((x) => (
+              <option value={x.id} key={x.id}>
+                {x.name}
               </option>
             ))}
           </SelectField>
           <Field
             label="Cantidad"
-            inputMode="decimal"
             value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-            required
+            onChange={(e) => setQuantity(e.target.value)}
           />
         </section>
-        {save.isError && (
-          <div className="form-alert" role="alert">
-            No se ha podido crear el borrador. Revisa cliente, producto y
-            cantidad.
-          </div>
-        )}
-        <div className="sticky-submit">
-          <Button
-            type="submit"
-            icon={<Save />}
-            busy={save.isPending}
-            disabled={!contactId || !productId}
-          >
-            {invoice ? "Revisar factura" : "Crear albarán"}
-          </Button>
-        </div>
+        <Button
+          type="submit"
+          icon={<Save />}
+          busy={save.isPending}
+          disabled={!contactId || !productId}
+        >
+          {invoice ? "Revisar factura" : "Crear albarán"}
+        </Button>
       </form>
     </div>
   );

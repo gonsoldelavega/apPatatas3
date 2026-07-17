@@ -1,12 +1,21 @@
 export type ContactType = "customer" | "supplier" | "both";
 export type ProductUnit = "kg" | "g" | "unit" | "box" | "custom";
 export type ImportEntityType =
-  "contacts" | "products" | "contact_product_prices";
+  | "contacts"
+  | "products"
+  | "contact_product_prices";
 export type ImportSourceFormat = "csv" | "json";
 export type ImportStatus =
-  "pending" | "validated" | "importing" | "completed" | "failed" | "cancelled";
+  | "pending"
+  | "validated"
+  | "importing"
+  | "completed"
+  | "failed"
+  | "cancelled";
 export type ImportStrategy =
-  "skip_existing" | "update_existing" | "fail_on_conflict";
+  | "skip_existing"
+  | "update_existing"
+  | "fail_on_conflict";
 
 export interface Address {
   street?: string;
@@ -27,6 +36,10 @@ export interface Contact {
   phone: string | null;
   address: Address;
   notes: string | null;
+  paymentTermsDays: number;
+  paymentTermsText: string | null;
+  defaultInvoiceInformation: string | null;
+  applyInvoiceDefaults: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -34,8 +47,24 @@ export interface Contact {
 
 export type ContactInput = Omit<
   Contact,
-  "id" | "isActive" | "createdAt" | "updatedAt"
->;
+  | "id"
+  | "isActive"
+  | "createdAt"
+  | "updatedAt"
+  | "paymentTermsDays"
+  | "paymentTermsText"
+  | "defaultInvoiceInformation"
+  | "applyInvoiceDefaults"
+> &
+  Partial<
+    Pick<
+      Contact,
+      | "paymentTermsDays"
+      | "paymentTermsText"
+      | "defaultInvoiceInformation"
+      | "applyInvoiceDefaults"
+    >
+  >;
 
 export interface Margin {
   amount: string;
@@ -93,6 +122,73 @@ export interface SalesPreferences {
   invoiceStartNumber: number;
   defaultTaxRate: string;
   primarySalesFlow: "adaptive" | "invoices" | "delivery_notes";
+  numberingMode: "test" | "live";
+  numberingActivatedAt: string | null;
+}
+
+export interface PurchaseLineInput {
+  productId: string | null;
+  description: string;
+  quantity: string;
+  unit: ProductUnit;
+  unitCost: string;
+  taxRate: string;
+}
+export interface PurchaseInvoice {
+  id: string;
+  supplierId: string | null;
+  documentId: string | null;
+  supplierName: string | null;
+  supplierInvoiceNumber: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  status: "draft" | "confirmed" | "cancelled";
+  category: string;
+  subtotal: string;
+  taxTotal: string;
+  total: string;
+  notes: string | null;
+  lines?: Array<
+    PurchaseLineInput & {
+      id: string;
+      lineSubtotal: string;
+      lineTax: string;
+      lineTotal: string;
+      position: number;
+    }
+  >;
+}
+export interface RecurringExpense {
+  id: string;
+  supplierId: string | null;
+  supplierName?: string | null;
+  name: string;
+  category: string;
+  amount: string;
+  taxRate: string;
+  chargeDay: number;
+  startsOn: string;
+  endsOn: string | null;
+  isActive: boolean;
+  notes: string | null;
+}
+export interface StockItem {
+  productId: string;
+  name: string;
+  unit: ProductUnit;
+  quantity: string;
+  salePrice: string;
+  estimatedCost: string | null;
+  potentialRevenue: string;
+  stockValue: string | null;
+}
+export interface FinanceSummary {
+  sales: string;
+  purchases: string;
+  recurring: string;
+  balance: string;
+  stockKg: string;
+  potentialRevenue: string;
 }
 
 export interface Page<T> {
@@ -105,7 +201,11 @@ export interface Page<T> {
 export interface ImportRow {
   rowNumber: number;
   classification:
-    "new" | "possible_update" | "duplicate" | "conflict" | "error";
+    | "new"
+    | "possible_update"
+    | "duplicate"
+    | "conflict"
+    | "error";
   proposedAction: "create" | "update" | "skip" | "reject";
   normalizedData: Record<string, unknown>;
   errors: string[];
@@ -188,6 +288,11 @@ export interface Invoice {
   series: string;
   issueDate: string;
   dueDate: string | null;
+  operationStartDate: string | null;
+  operationEndDate: string | null;
+  deliveryDates: string[];
+  paymentTerms: string | null;
+  generalInformation: string | null;
   status: "draft" | "issued" | "cancelled";
   notes: string | null;
   subtotal: string;

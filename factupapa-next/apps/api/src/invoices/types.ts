@@ -20,6 +20,11 @@ export interface Invoice {
   series: string;
   issueDate: string;
   dueDate: string | null;
+  operationStartDate?: string | null;
+  operationEndDate?: string | null;
+  deliveryDates?: string[];
+  paymentTerms?: string | null;
+  generalInformation?: string | null;
   status: InvoiceState;
   notes: string | null;
   subtotal: string;
@@ -45,6 +50,11 @@ export interface InvoiceCreate {
   issueDate: string;
   dueDate?: string | null | undefined;
   notes?: string | null | undefined;
+  operationStartDate?: string | null;
+  operationEndDate?: string | null;
+  deliveryDates?: string[];
+  paymentTerms?: string | null;
+  generalInformation?: string | null;
 }
 export type InvoicePatch = Partial<InvoiceCreate>;
 export interface InvoiceLineInput {

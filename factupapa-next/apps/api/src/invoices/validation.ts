@@ -40,8 +40,13 @@ export function validateInvoiceCreate(
     "issueDate",
     "dueDate",
     "notes",
+    "operationStartDate",
+    "operationEndDate",
+    "deliveryDates",
+    "paymentTerms",
+    "generalInformation",
   ]);
-  return {
+  const result: InvoiceCreate = {
     contactId: uuid(body.contactId),
     series: series(body.series ?? "F"),
     issueDate: date(body.issueDate),
@@ -49,7 +54,23 @@ export function validateInvoiceCreate(
       ? {}
       : { dueDate: date(body.dueDate) }),
     notes: optionalText(body.notes, 4000),
+    ...(body.operationStartDate == null
+      ? {}
+      : { operationStartDate: date(body.operationStartDate) }),
+    ...(body.operationEndDate == null
+      ? {}
+      : { operationEndDate: date(body.operationEndDate) }),
+    deliveryDates: invoiceDates(body.deliveryDates),
+    paymentTerms: optionalText(body.paymentTerms, 1000) ?? null,
+    generalInformation: optionalText(body.generalInformation, 2000) ?? null,
   };
+  if (
+    result.operationStartDate &&
+    result.operationEndDate &&
+    result.operationStartDate > result.operationEndDate
+  )
+    throw new HttpError("invalid_request", 400);
+  return result;
 }
 
 export function validateInvoicePatch(
@@ -57,7 +78,18 @@ export function validateInvoicePatch(
 ): InvoicePatch {
   assertAllowedKeys(
     body,
-    ["contactId", "series", "issueDate", "dueDate", "notes"],
+    [
+      "contactId",
+      "series",
+      "issueDate",
+      "dueDate",
+      "notes",
+      "operationStartDate",
+      "operationEndDate",
+      "deliveryDates",
+      "paymentTerms",
+      "generalInformation",
+    ],
     true,
   );
   return {
@@ -74,7 +106,40 @@ export function validateInvoicePatch(
     ...(body.notes === undefined
       ? {}
       : { notes: optionalText(body.notes, 4000) }),
+    ...(body.operationStartDate === undefined
+      ? {}
+      : {
+          operationStartDate:
+            body.operationStartDate === null
+              ? null
+              : date(body.operationStartDate),
+        }),
+    ...(body.operationEndDate === undefined
+      ? {}
+      : {
+          operationEndDate:
+            body.operationEndDate === null ? null : date(body.operationEndDate),
+        }),
+    ...(body.deliveryDates === undefined
+      ? {}
+      : { deliveryDates: invoiceDates(body.deliveryDates) }),
+    ...(body.paymentTerms === undefined
+      ? {}
+      : { paymentTerms: optionalText(body.paymentTerms, 1000) ?? null }),
+    ...(body.generalInformation === undefined
+      ? {}
+      : {
+          generalInformation:
+            optionalText(body.generalInformation, 2000) ?? null,
+        }),
   };
+}
+
+function invoiceDates(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 100)
+    throw new HttpError("invalid_request", 400);
+  return [...new Set(value.map(date))].sort();
 }
 
 export function validateInvoiceLine(

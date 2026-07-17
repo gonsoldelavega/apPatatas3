@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { FileText, Plus, ScrollText } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { deliveryNotesApi, invoicesApi } from "../api/services";
+import { contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
 import { EmptyState } from "../ui/EmptyState";
+import { Field } from "../ui/Field";
+import { SelectField } from "../ui/SelectField";
 import { formatDocumentNumber, formatMoney } from "../utils/format";
 
 const statuses: Record<string, string> = {
@@ -14,13 +16,32 @@ const statuses: Record<string, string> = {
 };
 export function SalesPage() {
   const [tab, setTab] = useState<"delivery" | "invoice">("invoice");
+  const [month, setMonth] = useState(""),
+    [contactId, setContactId] = useState(""),
+    [status, setStatus] = useState(""),
+    [search, setSearch] = useState("");
+  const dateRange = month
+      ? {
+          from: `${month}-01`,
+          to: new Date(
+            Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0),
+          )
+            .toISOString()
+            .slice(0, 10),
+        }
+      : {},
+    filters = { pageSize: 100, contactId, status, search, ...dateRange };
+  const contacts = useQuery({
+    queryKey: ["sales-filter-contacts"],
+    queryFn: () => contactsApi.list({ isActive: true, pageSize: 100 }),
+  });
   const notes = useQuery({
-    queryKey: ["delivery-notes"],
-    queryFn: () => deliveryNotesApi.list({ pageSize: 100 }),
+    queryKey: ["delivery-notes", filters],
+    queryFn: () => deliveryNotesApi.list(filters),
   });
   const invoices = useQuery({
-    queryKey: ["invoices"],
-    queryFn: () => invoicesApi.list({ pageSize: 100 }),
+    queryKey: ["invoices", filters],
+    queryFn: () => invoicesApi.list(filters),
   });
   const items = tab === "delivery" ? notes.data?.items : invoices.data?.items;
   return (
@@ -48,6 +69,43 @@ export function SalesPage() {
           Albaranes
         </button>
       </div>
+      <section className="filter-card">
+        <Field
+          label="Buscar"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Field
+          label="Mes"
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+        />
+        <SelectField
+          label="Estado"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          <option value="">Todos</option>
+          <option value="draft">Borrador</option>
+          <option value="issued">Emitido</option>
+          <option value="cancelled">Cancelado</option>
+        </SelectField>
+        <SelectField
+          label="Cliente"
+          value={contactId}
+          onChange={(e) => setContactId(e.target.value)}
+        >
+          <option value="">Todos</option>
+          {contacts.data?.items
+            .filter((x) => x.type !== "supplier")
+            .map((x) => (
+              <option value={x.id} key={x.id}>
+                {x.tradeName || x.legalName}
+              </option>
+            ))}
+        </SelectField>
+      </section>
       <Link
         className="compact-action"
         to={
@@ -74,10 +132,12 @@ export function SalesPage() {
               {tab === "delivery" ? <ScrollText /> : <FileText />}
             </span>
             <span className="entity-card__body">
-              <strong>
-                {formatDocumentNumber(item.series, item.number)}
-              </strong>
-              <small>{item.issueDate}</small>
+              <strong>{formatDocumentNumber(item.series, item.number)}</strong>
+              <small>
+                {tab === "invoice"
+                  ? `${(item as import("../api/types").Invoice).contactLegalName} · ${item.issueDate}`
+                  : item.issueDate}
+              </small>
               <span className={`status status--${item.status}`}>
                 {statuses[item.status]}
               </span>

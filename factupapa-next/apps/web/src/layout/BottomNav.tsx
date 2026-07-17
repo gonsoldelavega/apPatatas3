@@ -1,12 +1,18 @@
-import { Home, Layers3, MoreHorizontal, Plus, ReceiptText } from "lucide-react";
+import {
+  Home,
+  WalletCards,
+  MoreHorizontal,
+  Plus,
+  ReceiptText,
+} from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { NewMenu } from "./NewMenu";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home },
-  { to: "/ventas", label: "Ventas", icon: ReceiptText },
-  { to: "/catalogo", label: "Catálogo", icon: Layers3 },
+  { to: "/ventas", label: "Facturas", icon: ReceiptText },
+  { to: "/gastos", label: "Gastos", icon: WalletCards },
   { to: "/mas", label: "Más", icon: MoreHorizontal },
 ];
 

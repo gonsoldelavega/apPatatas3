@@ -4,6 +4,7 @@ import {
   PackagePlus,
   ScrollText,
   Store,
+  Receipt,
   X,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -63,7 +64,10 @@ export function NewMenu({
             <X />
           </button>
         </header>
-        <button className="action-sheet__primary" onClick={() => onChoose("/ventas/nuevo/factura")}>
+        <button
+          className="action-sheet__primary"
+          onClick={() => onChoose("/ventas/nuevo/factura")}
+        >
           <FileText />
           <span>
             <strong>Nueva factura</strong>
@@ -75,6 +79,13 @@ export function NewMenu({
           <span>
             <strong>Nuevo albarán</strong>
             <small>Solo si entregas antes de facturar</small>
+          </span>
+        </button>
+        <button onClick={() => onChoose("/gastos/nuevo")}>
+          <Receipt />
+          <span>
+            <strong>Nueva compra</strong>
+            <small>Factura recibida o gasto</small>
           </span>
         </button>
         <button onClick={() => onChoose("/contactos/nuevo?tipo=customer")}>

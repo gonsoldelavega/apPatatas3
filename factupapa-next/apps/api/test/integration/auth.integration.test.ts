@@ -215,6 +215,12 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
         "delivery_notes",
         "delivery_note_lines",
         "invoice_delivery_notes",
+        "import_mappings",
+        "company_sales_preferences",
+        "purchase_invoices",
+        "purchase_invoice_lines",
+        "recurring_expenses",
+        "stock_adjustments",
       ];
       const result = await adminDatabase.pool.query<{
         relname: string;

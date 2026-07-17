@@ -6,9 +6,22 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   busy?: boolean;
 }
 
-export function Button({ variant = "primary", icon, busy, children, disabled, className = "", ...props }: ButtonProps) {
+export function Button({
+  variant = "primary",
+  icon,
+  busy,
+  children,
+  disabled,
+  className = "",
+  ...props
+}: ButtonProps) {
   return (
-    <button className={`button button--${variant} ${className}`} disabled={disabled || busy} aria-busy={busy} {...props}>
+    <button
+      className={`button button--${variant} ${className}`}
+      disabled={disabled || busy}
+      aria-busy={busy}
+      {...props}
+    >
       {busy ? <span className="spinner" aria-hidden="true" /> : icon}
       <span>{children}</span>
     </button>

@@ -8,7 +8,24 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 import "./styles.css";
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false }, mutations: { retry: false } } });
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false },
+    mutations: { retry: false },
+  },
+});
 registerSW({ immediate: true });
 
-createRoot(document.getElementById("root")!).render(<StrictMode><QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><ToastProvider><App /></ToastProvider></AuthProvider></BrowserRouter></QueryClientProvider></StrictMode>);
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
+  </StrictMode>,
+);

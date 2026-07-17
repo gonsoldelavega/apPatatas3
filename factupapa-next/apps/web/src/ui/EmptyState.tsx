@@ -1,9 +1,19 @@
 import type { ReactNode } from "react";
 
-export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
   return (
     <section className="empty-state">
-      <span className="empty-state__mark" aria-hidden="true">·</span>
+      <span className="empty-state__mark" aria-hidden="true">
+        ·
+      </span>
       <h2>{title}</h2>
       <p>{description}</p>
       {action}

@@ -12,6 +12,10 @@ export interface Contact {
   phone: string | null;
   address: Address;
   notes: string | null;
+  paymentTermsDays: number;
+  paymentTermsText: string | null;
+  defaultInvoiceInformation: string | null;
+  applyInvoiceDefaults: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -26,7 +30,13 @@ export interface ContactCreate {
   phone?: string | null;
   address?: Address;
   notes?: string | null;
+  paymentTermsDays?: number;
+  paymentTermsText?: string | null;
+  defaultInvoiceInformation?: string | null;
+  applyInvoiceDefaults?: boolean;
 }
 
 export type ContactPatch = Partial<ContactCreate & { isActive: boolean }>;
-export interface ContactListQuery extends ListQuery { type?: ContactType }
+export interface ContactListQuery extends ListQuery {
+  type?: ContactType;
+}

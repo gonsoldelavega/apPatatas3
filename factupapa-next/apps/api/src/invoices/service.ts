@@ -71,6 +71,11 @@ export class InvoiceService {
         issueDate: "issue_date",
         dueDate: "due_date",
         notes: "notes",
+        operationStartDate: "operation_start_date",
+        operationEndDate: "operation_end_date",
+        deliveryDates: "delivery_dates",
+        paymentTerms: "payment_terms",
+        generalInformation: "general_information",
       } as const;
       const entries = Object.entries(input) as [keyof InvoicePatch, unknown][];
       if (input.contactId) {
@@ -225,6 +230,25 @@ export class InvoiceService {
       if (!before) throw new HttpError("not_found", 404);
       if (before.status !== "draft" || !before.lines.length)
         throw new HttpError("conflict", 409);
+      await c.query(
+        "insert into company_sales_preferences(company_id) values($1) on conflict(company_id) do nothing",
+        [identity.companyId],
+      );
+      const numbering = await c.query<
+        {
+          numberingMode: "test" | "live";
+          invoicePrefix: string;
+        } & QueryResultRow
+      >(
+        `select numbering_mode "numberingMode",invoice_prefix "invoicePrefix" from company_sales_preferences where company_id=$1`,
+        [identity.companyId],
+      );
+      if (
+        numbering.rows[0]?.numberingMode === "live" &&
+        before.series !==
+          `${numbering.rows[0].invoicePrefix}_${before.issueDate.slice(0, 4)}`
+      )
+        throw new HttpError("conflict", 409);
       const seq = await c.query<{ number: number } & QueryResultRow>(
         `insert into document_sequences(company_id,document_type,series,next_number)
          values($1,'invoice',$2,coalesce((select invoice_start_number + 1
@@ -274,9 +298,9 @@ export class InvoiceService {
   ) {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const notes = await c.query<
-        { id: string; contactId: string } & QueryResultRow
+        { id: string; contactId: string; issueDate: string } & QueryResultRow
       >(
-        `select id,contact_id "contactId" from delivery_notes where id=any($1::uuid[]) and status='issued' order by id for update`,
+        `select id,contact_id "contactId",issue_date::text "issueDate" from delivery_notes where id=any($1::uuid[]) and status='issued' order by issue_date,id for update`,
         [input.deliveryNoteIds],
       );
       if (notes.rowCount !== input.deliveryNoteIds.length)
@@ -293,6 +317,9 @@ export class InvoiceService {
           issueDate: input.issueDate,
           dueDate: input.dueDate,
           notes: input.notes,
+          operationStartDate: notes.rows[0]!.issueDate,
+          operationEndDate: notes.rows.at(-1)!.issueDate,
+          deliveryDates: [...new Set(notes.rows.map((note) => note.issueDate))],
         },
         "delivery_notes",
       );

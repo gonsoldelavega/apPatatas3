@@ -135,6 +135,8 @@ test("preferencias de venta son tenant-aware y arrancan la factura en FAC-100/a�
     invoiceStartNumber: 100,
     defaultTaxRate: "4.000",
     primarySalesFlow: "invoices",
+    numberingMode: "test",
+    numberingActivatedAt: null,
   });
   await preferences.update(identity, {
     invoicePrefix: "FP",
@@ -148,7 +150,10 @@ test("preferencias de venta son tenant-aware y arrancan la factura en FAC-100/a�
     series: "FP_2026",
     issueDate: "2026-07-15",
   });
-  await invoices.line(identity, draft!.id, undefined, { productId, quantity: "1" });
+  await invoices.line(identity, draft!.id, undefined, {
+    productId,
+    quantity: "1",
+  });
   const issued = await invoices.issue(identity, draft!.id);
   assert.equal(issued?.number, 150);
   await assert.rejects(
@@ -204,7 +209,7 @@ test("albarán aplica precio específico, snapshot, numeración, bloqueo y aisla
           "update delivery_note_lines set quantity=99 where delivery_note_id=$1",
           [draft!.id],
         ),
-    ),
+      ),
     (error: unknown) => (error as { code?: string }).code === "55000",
   );
   const targetDraft = await delivery.create(identity, {
@@ -315,11 +320,10 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   await assert.rejects(
     () =>
       withTenantTransaction(api.pool, identity, (client) =>
-        client.query(
-          "delete from invoice_lines where invoice_id=$1",
-          [invoice!.id],
-        ),
-    ),
+        client.query("delete from invoice_lines where invoice_id=$1", [
+          invoice!.id,
+        ]),
+      ),
     (error: unknown) => (error as { code?: string }).code === "55000",
   );
   await assert.rejects(
@@ -345,10 +349,9 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   await assert.rejects(
     () =>
       withTenantTransaction(api.pool, identity, (client) =>
-        client.query(
-          "update delivery_notes set status='issued' where id=$1",
-          [numbered[0]!.id],
-        ),
+        client.query("update delivery_notes set status='issued' where id=$1", [
+          numbered[0]!.id,
+        ]),
       ),
     (error: unknown) => (error as { code?: string }).code === "55000",
   );
@@ -398,11 +401,15 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
     ),
   );
   assert.equal(
-    links.rows.filter((link) => link.invoice_id === invoice!.id).every((link) => link.released_at),
+    links.rows
+      .filter((link) => link.invoice_id === invoice!.id)
+      .every((link) => link.released_at),
     true,
   );
   assert.equal(
-    links.rows.filter((link) => link.invoice_id === replacement!.id).every((link) => !link.released_at),
+    links.rows
+      .filter((link) => link.invoice_id === replacement!.id)
+      .every((link) => !link.released_at),
     true,
   );
   const events = await withTenantTransaction(api.pool, identity, (client) =>
@@ -415,8 +422,7 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
   assert.equal(
     events.rows.filter(
       (event) =>
-        event.action ===
-        "delivery_note.reopened_after_invoice_cancellation",
+        event.action === "delivery_note.reopened_after_invoice_cancellation",
     ).length,
     2,
   );
@@ -436,10 +442,10 @@ test("emisión y locks previos a 0009 respetan orden, timeout y rollback", async
   const emission = await admin.pool.connect();
   const observer = await admin.pool.connect();
   const plan = migrationLockPlan("0009_sales_document_state_machine.sql");
-  assert.deepEqual(plan.map((lock) => lock.table), [
-    "public.invoices",
-    "public.document_sequences",
-  ]);
+  assert.deepEqual(
+    plan.map((lock) => lock.table),
+    ["public.invoices", "public.document_sequences"],
+  );
 
   try {
     await migration.query("begin");
@@ -450,9 +456,10 @@ test("emisión y locks previos a 0009 respetan orden, timeout y rollback", async
     const emissionPid = (
       await emission.query<{ pid: number }>("select pg_backend_pid() pid")
     ).rows[0]!.pid;
-    const rowLock = emission.query("select id from invoices where id=$1 for update", [
-      draft.id,
-    ]);
+    const rowLock = emission.query(
+      "select id from invoices where id=$1 for update",
+      [draft.id],
+    );
 
     const deadline = Date.now() + 5_000;
     while (true) {
@@ -464,7 +471,10 @@ test("emisión y locks previos a 0009 respetan orden, timeout y rollback", async
         [emissionPid],
       );
       if (waiting.rows[0]?.waiting) break;
-      assert.ok(Date.now() < deadline, "la emisión no alcanzó la barrera de lock");
+      assert.ok(
+        Date.now() < deadline,
+        "la emisión no alcanzó la barrera de lock",
+      );
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
 
@@ -483,7 +493,9 @@ test("emisión y locks previos a 0009 respetan orden, timeout y rollback", async
     await emission.query("rollback");
 
     await emission.query("begin");
-    await emission.query("select id from invoices where id=$1 for update", [draft.id]);
+    await emission.query("select id from invoices where id=$1 for update", [
+      draft.id,
+    ]);
     await emission.query(
       `insert into document_sequences(company_id,document_type,series,next_number)
        values($1,'invoice','LOCK-TIMEOUT',1)
@@ -714,8 +726,14 @@ test("dos cancelaciones concurrentes liberan una sola vez", async () => {
     invoices.cancel(identity, invoice.id),
     invoices.cancel(identity, invoice.id),
   ]);
-  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
-  assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+  assert.equal(
+    results.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  assert.equal(
+    results.filter((result) => result.status === "rejected").length,
+    1,
+  );
   const links = await withTenantTransaction(api.pool, identity, (client) =>
     client.query<{ released_at: Date | null }>(
       "select released_at from invoice_delivery_notes where invoice_id=$1",
@@ -796,7 +814,9 @@ test("un fallo tras liberar el primer albarán revierte toda la cancelación", a
   }
   assert.equal((await invoices.get(identity, invoice.id)).status, "issued");
   assert.deepEqual(
-    await Promise.all(notes.map(async (note) => (await delivery.get(identity, note.id)).status)),
+    await Promise.all(
+      notes.map(async (note) => (await delivery.get(identity, note.id)).status),
+    ),
     ["invoiced", "invoiced"],
   );
   const state = await withTenantTransaction(api.pool, identity, (client) =>
