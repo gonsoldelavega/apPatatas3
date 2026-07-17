@@ -2677,3 +2677,123 @@ body {
     padding: 24px;
   }
 }
+
+.catalog-section .section-heading {
+  margin-top: 22px;
+}
+.catalog-section .search-box {
+  min-height: 54px;
+  border-color: rgb(24 51 45 / 8%);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(24 51 45 / 5%);
+}
+.catalog-section .filter-row button {
+  min-height: 40px;
+  border: 0;
+  background: #e6e9e1;
+}
+.catalog-section .filter-row button.active {
+  color: var(--white);
+  background: var(--deep);
+  box-shadow: 0 7px 17px rgb(18 58 49 / 15%);
+}
+.catalog-section .entity-card {
+  min-height: 92px;
+  padding: 15px;
+}
+.product-card .product-price {
+  color: #277a59;
+  font-size: 0.9rem;
+}
+.pagination {
+  padding: 6px;
+  border-radius: 18px;
+  background: #e9ebe4;
+}
+.pagination .button {
+  min-height: 44px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.more-page .profile-card {
+  position: relative;
+  overflow: hidden;
+  padding: 22px;
+  border: 0;
+  color: var(--white);
+  background:
+    radial-gradient(circle at 92% 4%, rgb(246 203 101 / 24%), transparent 7rem),
+    linear-gradient(140deg, #123a31, #205648);
+  box-shadow: 0 16px 38px rgb(18 58 49 / 17%);
+}
+.more-page .profile-avatar {
+  color: var(--deep);
+  background: #f6cb65;
+}
+.more-page .profile-card p { color: rgb(255 255 255 / 65%); }
+.more-page .profile-card span { color: #f6cb65; }
+.more-page .info-card {
+  min-height: 78px;
+  align-items: center;
+  margin-bottom: 10px;
+  border-color: rgb(24 51 45 / 8%);
+  border-radius: 19px;
+  box-shadow: 0 7px 24px rgb(24 51 45 / 5%);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.more-page .info-card > svg {
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  border-radius: 13px;
+  color: var(--deep);
+  background: #edf1e6;
+}
+
+.login-page {
+  background:
+    radial-gradient(circle at 80% 10%, rgb(246 203 101 / 18%), transparent 18rem),
+    linear-gradient(145deg, #0d3028, #17483d);
+}
+.login-brand {
+  background: transparent;
+}
+.login-brand .brand-mark {
+  border: 0;
+  border-radius: 50%;
+  color: var(--deep);
+  background: #f6cb65;
+  box-shadow: 0 14px 30px rgb(0 0 0 / 18%);
+}
+.login-brand .brand-mark span { color: var(--deep); }
+.login-brand h1 {
+  max-width: 620px;
+  color: var(--white);
+  font-size: clamp(2.7rem, 10vw, 5.4rem);
+  line-height: 0.95;
+}
+.login-card {
+  background: var(--ivory);
+}
+.login-card header > svg {
+  color: var(--deep);
+  background: #f6cb65;
+}
+
+@media (hover: hover) {
+  .more-page a.info-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 13px 32px rgb(24 51 45 / 9%);
+  }
+}
+
+@media (min-width: 960px) {
+  .catalog-section .card-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .more-page {
+    max-width: 860px;
+  }
+}
