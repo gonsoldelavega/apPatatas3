@@ -192,6 +192,17 @@ export function createApp(dependencies: AppDependencies): Server {
         json(response, error.status, { error: error.code });
       } else {
         if (context) context.errorCode = "internal_error";
+        const diagnostic = error as {
+          name?: unknown;
+          code?: unknown;
+          constraint?: unknown;
+        };
+        log("error", {
+          event: "unhandled_request_error",
+          errorName: diagnostic?.name,
+          databaseCode: diagnostic?.code,
+          databaseConstraint: diagnostic?.constraint,
+        });
         json(response, 500, { error: "internal_error" });
       }
     }));
