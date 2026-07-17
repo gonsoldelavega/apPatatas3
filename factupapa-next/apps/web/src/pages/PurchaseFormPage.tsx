@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, FileUp, Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeft, Building2, FileUp, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
@@ -36,6 +36,8 @@ export function PurchaseFormPage() {
     [showSupplierCreate, setShowSupplierCreate] = useState(false),
     [ignoreDetectedStock, setIgnoreDetectedStock] = useState(false),
     [acceptTotalMismatch, setAcceptTotalMismatch] = useState(false),
+    [acceptWarnings, setAcceptWarnings] = useState(false),
+    [uploadedFile, setUploadedFile] = useState<File | null>(null),
     [number, setNumber] = useState(""),
     [issueDate, setIssueDate] = useState(todayLocal()),
     [dueDate, setDueDate] = useState(""),
@@ -61,7 +63,22 @@ export function PurchaseFormPage() {
       ocr?.total &&
         lines.some((line) => line.quantity && line.unitCost) &&
         Math.abs(calculatedTotal - Number(ocr.total)) > 0.02,
-    );
+    ),
+    pendingWarnings = ocr?.warnings ?? [],
+    fieldLevel = (field: string) => ocr?.fieldConfidence?.[field],
+    fieldClass = (field: string) => {
+      const level = fieldLevel(field);
+      return level ? `field--confidence-${level}` : "";
+    },
+    confidenceDot = (field: string) => {
+      const level = fieldLevel(field);
+      return level ? (
+        <span
+          className={`confidence-dot confidence-dot--${level}`}
+          title={{ high: "Fiable", medium: "Conviene revisar", low: "Dudoso" }[level]}
+        />
+      ) : null;
+    };
   const suppliers = useQuery({
       queryKey: ["purchase-suppliers"],
       queryFn: () =>
@@ -101,16 +118,32 @@ export function PurchaseFormPage() {
         setShowSupplierCreate(false);
         setIgnoreDetectedStock(false);
         setAcceptTotalMismatch(false);
+        setAcceptWarnings(false);
         if (d.extractedData.supplierInvoiceNumber)
           setNumber(d.extractedData.supplierInvoiceNumber);
         if (d.extractedData.issueDate) setIssueDate(d.extractedData.issueDate);
         if (d.extractedData.dueDate) setDueDate(d.extractedData.dueDate);
         if (d.extractedData.lines?.length) {
           setLines(
-            d.extractedData.lines.map((line) => ({
+            d.extractedData.lines.map(({ discount, lineTotal, ...line }) => ({
               clientId: crypto.randomUUID(),
               productId: suggestProductId(line.description, line.unit),
               ...line,
+              unitCost:
+                lineTotal &&
+                Number(line.quantity) > 0 &&
+                Math.abs(
+                  Number(line.quantity) * Number(line.unitCost) -
+                    Number(discount ?? 0) -
+                    Number(lineTotal),
+                ) <= 0.03 &&
+                Number(discount ?? 0) !== 0
+                  ? String(
+                      Math.round(
+                        (Number(lineTotal) / Number(line.quantity)) * 10_000,
+                      ) / 10_000,
+                    )
+                  : line.unitCost,
             })),
           );
         } else if (
@@ -166,6 +199,11 @@ export function PurchaseFormPage() {
         await queryClient.invalidateQueries({ queryKey: ["purchase-suppliers"] });
       },
     }),
+    documentBlob = useQuery({
+      queryKey: ["purchase-document", documentId],
+      queryFn: () => financeApi.downloadPurchaseDocument(documentId!),
+      enabled: Boolean(documentId),
+    }),
     save = useMutation({
       mutationFn: () =>
         financeApi.createPurchase({
@@ -182,6 +220,17 @@ export function PurchaseFormPage() {
         }),
       onSuccess: (x) => nav(`/gastos/${x.id}`),
     });
+  const documentUrl = useMemo(
+    () =>
+      documentBlob.data ? URL.createObjectURL(documentBlob.data) : null,
+    [documentBlob.data],
+  );
+  useEffect(
+    () => () => {
+      if (documentUrl) URL.revokeObjectURL(documentUrl);
+    },
+    [documentUrl],
+  );
   return (
     <div className="page form-page purchase-form-page">
       <header className="form-page__header">
@@ -201,7 +250,10 @@ export function PurchaseFormPage() {
             accept="application/pdf,image/jpeg,image/png"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) upload.mutate(f);
+              if (f) {
+                setUploadedFile(f);
+                upload.mutate(f);
+              }
             }}
           />
         </label>
@@ -213,13 +265,70 @@ export function PurchaseFormPage() {
           </p>
         )}
         {documentId && <p>Documento protegido y vinculado.</p>}
+        {uploadedFile && !upload.isPending && (
+          <button
+            className="compact-action"
+            type="button"
+            onClick={() => upload.mutate(uploadedFile)}
+          >
+            <RefreshCw />
+            Reintentar extracción
+          </button>
+        )}
+        {documentUrl && (
+          <details className="document-preview" open={ocr != null}>
+            <summary>Ver documento subido</summary>
+            {documentBlob.data?.type === "application/pdf" ? (
+              <iframe src={documentUrl} title="Factura subida" />
+            ) : (
+              <img src={documentUrl} alt="Factura subida" />
+            )}
+          </details>
+        )}
         {ocr && (
           <div className="ocr-review" aria-label="Resultado OCR">
             <strong>Lectura automática: {ocr.ocrConfidence ?? 0}%</strong>
-            <span>{ocr.source === "pdf_text" ? "Texto original del PDF" : "OCR español/inglés"}</span>
-            {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
-            {ocr.supplierTaxId && <span>NIF detectado: {ocr.supplierTaxId}</span>}
-            {ocr.total && <span>Total detectado: {ocr.total} €</span>}
+            <span>
+              {ocr.source === "vision"
+                ? "Lectura con IA de visión"
+                : ocr.source === "pdf_text"
+                  ? ocr.fieldConfidence && Object.keys(ocr.fieldConfidence).length
+                    ? "Texto del PDF interpretado con IA"
+                    : "Texto original del PDF"
+                  : "OCR español/inglés"}
+            </span>
+            {ocr.fieldConfidence && Object.keys(ocr.fieldConfidence).length > 0 && (
+              <span className="confidence-legend">
+                <span className="confidence-dot confidence-dot--high" /> fiable ·{" "}
+                <span className="confidence-dot confidence-dot--medium" /> revisar ·{" "}
+                <span className="confidence-dot confidence-dot--low" /> dudoso
+              </span>
+            )}
+            {ocr.supplierName && (
+              <span>
+                {confidenceDot("supplierName")}Proveedor: {ocr.supplierName}
+              </span>
+            )}
+            {ocr.supplierTaxId && (
+              <span>
+                {confidenceDot("supplierTaxId")}NIF detectado: {ocr.supplierTaxId}
+              </span>
+            )}
+            {ocr.subtotal && (
+              <span>
+                {confidenceDot("subtotal")}Base imponible: {ocr.subtotal} €
+              </span>
+            )}
+            {ocr.taxTotal && (
+              <span>
+                {confidenceDot("taxTotal")}Cuota de IVA: {ocr.taxTotal} €
+              </span>
+            )}
+            {ocr.total && (
+              <span>
+                {confidenceDot("total")}Total detectado: {ocr.total} €
+              </span>
+            )}
             {ocr.lines?.length && (
               <span>{ocr.lines.length} conceptos detectados para revisar.</span>
             )}
@@ -233,6 +342,12 @@ export function PurchaseFormPage() {
                 {{
                   totals_mismatch: "Los importes no cuadran: revisa base, IVA y total.",
                   supplier_tax_id_missing: "No se reconoció el NIF del proveedor.",
+                  supplier_tax_id_own:
+                    "El NIF leído era el tuyo, no el del proveedor: se ha descartado.",
+                  line_amount_mismatch:
+                    "Alguna línea no cuadra (cantidad × precio − descuento).",
+                  vision_unavailable:
+                    "La lectura con IA no estaba disponible: se usó el OCR clásico.",
                   total_missing: "No se reconoció el total.",
                   issue_date_missing: "No se reconoció la fecha.",
                   possible_duplicate: "Posible factura duplicada.",
@@ -241,6 +356,16 @@ export function PurchaseFormPage() {
                 }[warning] ?? "Campo pendiente de revisión."}
               </span>
             ))}
+            {pendingWarnings.length > 0 && (
+              <label className="review-ack">
+                <input
+                  type="checkbox"
+                  checked={acceptWarnings}
+                  onChange={(e) => setAcceptWarnings(e.target.checked)}
+                />
+                He revisado los avisos y los campos marcados
+              </label>
+            )}
           </div>
         )}
       </section>
@@ -277,6 +402,7 @@ export function PurchaseFormPage() {
               onChange={(e) => setNewSupplierName(e.target.value)}
             />
             <Field
+              className={fieldClass("supplierTaxId")}
               label="NIF"
               value={newSupplierTaxId}
               onChange={(e) => setNewSupplierTaxId(e.target.value.toUpperCase())}
@@ -305,11 +431,13 @@ export function PurchaseFormPage() {
           </div>
         )}
         <Field
+          className={fieldClass("supplierInvoiceNumber")}
           label="Número de factura del proveedor"
           value={number}
           onChange={(e) => setNumber(e.target.value)}
         />
         <Field
+          className={fieldClass("dueDate")}
           label="Fecha de vencimiento"
           type="date"
           value={dueDate}
@@ -326,6 +454,7 @@ export function PurchaseFormPage() {
           <option value="otros">Otros</option>
         </SelectField>
         <Field
+          className={fieldClass("issueDate")}
           label="Fecha de emisión"
           type="date"
           value={issueDate}
@@ -352,7 +481,12 @@ export function PurchaseFormPage() {
           </div>
         )}
         {lines.map((l, n) => (
-          <div className="purchase-line-editor" key={l.clientId}>
+          <div
+            className={`purchase-line-editor${
+              fieldLevel("lines") ? ` purchase-line-editor--${fieldLevel("lines")}` : ""
+            }`}
+            key={l.clientId}
+          >
             <SelectField
               label="Producto de stock"
               value={l.productId ?? ""}
@@ -457,7 +591,8 @@ export function PurchaseFormPage() {
               !lines.some((line) => line.productId) &&
               !ignoreDetectedStock,
           ) ||
-          (totalMismatch && !acceptTotalMismatch)
+          (totalMismatch && !acceptTotalMismatch) ||
+          (pendingWarnings.length > 0 && !acceptWarnings)
         }
         busy={save.isPending || upload.isPending}
         onClick={() => save.mutate()}

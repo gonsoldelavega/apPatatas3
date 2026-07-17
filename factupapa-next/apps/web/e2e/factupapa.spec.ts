@@ -295,3 +295,20 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
     "No se han podido detectar",
   );
 });
+test("nueva compra: subida, revisión y guardado bloqueado sin datos", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.goto("/gastos/nuevo");
+  await expect(
+    page.getByRole("heading", { name: "Nueva compra" }),
+  ).toBeVisible();
+  await expect(page.getByText("Seleccionar PDF o foto")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Guardar para revisión" }),
+  ).toBeDisabled();
+  await page.screenshot({
+    path: `test-artifacts/${testInfo.project.name}-nueva-compra.png`,
+    fullPage: true,
+  });
+});

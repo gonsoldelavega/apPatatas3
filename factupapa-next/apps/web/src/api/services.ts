@@ -341,9 +341,12 @@ export const financeApi = {
           unit: "kg" | "g" | "unit";
           unitCost: string;
           taxRate: string;
+          discount?: string;
+          lineTotal?: string;
         }>;
         ocrConfidence?: number;
-        source?: "pdf_text" | "ocr";
+        source?: "pdf_text" | "ocr" | "vision";
+        fieldConfidence?: Record<string, "high" | "medium" | "low">;
         warnings?: string[];
       };
     }>("/purchase-documents", {
