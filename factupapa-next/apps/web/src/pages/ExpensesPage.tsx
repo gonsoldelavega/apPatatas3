@@ -6,7 +6,7 @@ import { contactsApi, financeApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
-import { formatMoney, todayLocal } from "../utils/format";
+import { formatMoney, formatQuantity, todayLocal } from "../utils/format";
 const range = (m: string) => ({
     from: `${m}-01`,
     to: new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)), 0))
@@ -22,6 +22,12 @@ const range = (m: string) => ({
     impuestos: "Impuestos",
     otros: "Otros",
   };
+
+const decimal = (value: string) => value.replace(",", "."),
+  monthContains = (monthStart: string, monthEnd: string, startsOn: string, endsOn: string | null) =>
+    startsOn <= monthEnd && (!endsOn || endsOn >= monthStart),
+  chargeLabel = (day: number) => `Día ${day}`;
+
 export function ExpensesPage() {
   const [month, setMonth] = useState(todayLocal().slice(0, 7)),
     r = range(month),
@@ -42,6 +48,10 @@ export function ExpensesPage() {
   const [open, setOpen] = useState(false),
     [name, setName] = useState(""),
     [amount, setAmount] = useState(""),
+    [taxRate, setTaxRate] = useState("0"),
+    [chargeDay, setChargeDay] = useState("1"),
+    [startsOn, setStartsOn] = useState(`${month}-01`),
+    [notes, setNotes] = useState(""),
     [category, setCategory] = useState("gestoria"),
     [supplierId, setSupplierId] = useState("");
   const add = useMutation({
@@ -50,14 +60,21 @@ export function ExpensesPage() {
           supplierId: supplierId || null,
           name,
           category,
-          amount,
-          taxRate: "0",
-          chargeDay: 1,
-          startsOn: `${month}-01`,
+          amount: decimal(amount),
+          taxRate: decimal(taxRate || "0"),
+          chargeDay: Number(chargeDay),
+          startsOn,
           endsOn: null,
-          notes: null,
+          notes: notes || null,
         }),
       onSuccess: async () => {
+        setName("");
+        setAmount("");
+        setTaxRate("0");
+        setChargeDay("1");
+        setStartsOn(`${month}-01`);
+        setNotes("");
+        setSupplierId("");
         setOpen(false);
         await qc.invalidateQueries({ queryKey: ["recurring"] });
       },
@@ -66,6 +83,18 @@ export function ExpensesPage() {
       mutationFn: financeApi.deactivateRecurring,
       onSuccess: () => qc.invalidateQueries({ queryKey: ["recurring"] }),
     });
+  const recurringInMonth =
+      recurring.data?.filter((x) => monthContains(r.from, r.to, x.startsOn, x.endsOn)) ?? [],
+    recurringTotal = recurringInMonth.reduce((total, x) => total + Number(x.amount), 0),
+    formInvalid =
+      !name.trim() ||
+      !amount ||
+      Number(decimal(amount)) <= 0 ||
+      Number(decimal(taxRate || "0")) > 100 ||
+      !Number.isInteger(Number(chargeDay)) ||
+      Number(chargeDay) < 1 ||
+      Number(chargeDay) > 28 ||
+      !startsOn;
   return (
     <div className="page">
       <header className="page-heading">
@@ -126,8 +155,38 @@ export function ExpensesPage() {
             inputMode="decimal"
             onChange={(e) => setAmount(e.target.value)}
           />
+          <div className="form-grid">
+            <Field
+              label="IVA"
+              value={taxRate}
+              inputMode="decimal"
+              onChange={(e) => setTaxRate(e.target.value)}
+            />
+            <Field
+              label="Día de cargo"
+              type="number"
+              min="1"
+              max="28"
+              value={chargeDay}
+              onChange={(e) => setChargeDay(e.target.value)}
+            />
+          </div>
+          <Field
+            label="Activo desde"
+            type="date"
+            value={startsOn}
+            onChange={(e) => setStartsOn(e.target.value)}
+          />
+          <label className="field">
+            <span>Notas privadas</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ej. domiciliado, revisar cada trimestre..."
+            />
+          </label>
           <Button
-            disabled={!name || !amount}
+            disabled={formInvalid}
             busy={add.isPending}
             onClick={() => add.mutate()}
           >
@@ -153,23 +212,41 @@ export function ExpensesPage() {
         </div>
       </section>
       <section>
-        <h2>Gastos mensuales</h2>
-        {recurring.data
-          ?.filter((x) => x.isActive)
-          .map((x) => (
+        <div className="section-heading">
+          <span>
+            <h2>Gastos mensuales</h2>
+            <p>{recurringInMonth.length} cargos aplican en {month}</p>
+          </span>
+          <strong>{formatMoney(String(recurringTotal))}</strong>
+        </div>
+        {recurringInMonth.map((x) => (
             <article className="entity-card" key={x.id}>
               <CalendarClock />
               <span className="entity-card__body">
                 <strong>{x.name}</strong>
-                <small>{cats[x.category]}</small>
+                <small>
+                  {cats[x.category]} · {chargeLabel(x.chargeDay)}
+                  {x.supplierName ? ` · ${x.supplierName}` : ""}
+                </small>
+                <small>
+                  Desde {x.startsOn}
+                  {x.endsOn ? ` · hasta ${x.endsOn}` : ""}
+                  {Number(x.taxRate) > 0 ? ` · IVA ${formatQuantity(x.taxRate)} %` : ""}
+                </small>
+                {x.notes && <small>{x.notes}</small>}
               </span>
               <strong>{formatMoney(x.amount)}</strong>
-              <button
-                aria-label={`Desactivar ${x.name}`}
-                onClick={() => remove.mutate(x.id)}
-              >
-                <Trash2 />
-              </button>
+              {x.isActive && (
+                <button
+                  aria-label={`Desactivar ${x.name}`}
+                  onClick={() =>
+                    window.confirm("¿Desactivar este gasto mensual?") &&
+                    remove.mutate(x.id)
+                  }
+                >
+                  <Trash2 />
+                </button>
+              )}
             </article>
           ))}
       </section>
