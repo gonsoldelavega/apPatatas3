@@ -37,6 +37,13 @@ function sum(values: string[]): string {
   }, 0n);
   return `${total / scale}.${(total % scale).toString().padStart(4, "0")}`;
 }
+function sacksLabel(kgValue: string) {
+  const kg = Number(kgValue);
+  if (!Number.isFinite(kg) || kg <= 0) return "Sin sacos disponibles";
+  const sacks = Math.floor(kg / 15),
+    rest = Math.round((kg % 15) * 10_000) / 10_000;
+  return `${sacks} sacos completos + ${rest} kg`;
+}
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -151,6 +158,7 @@ export function DashboardPage() {
             <span>Stock disponible</span>
             <strong>{summary.data.finance.stockKg} kg</strong>
             <small>
+              {sacksLabel(summary.data.finance.stockKg)} ·{" "}
               Venta posible:{" "}
               {formatMoney(summary.data.finance.potentialRevenue)}
             </small>
