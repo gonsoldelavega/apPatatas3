@@ -12,7 +12,8 @@ export interface ExtractedPurchaseFields {
   purchasedQuantityKg?: string;
   lines?: ExtractedPurchaseLine[];
   ocrConfidence?: number;
-  source?: "pdf_text" | "ocr";
+  source?: "pdf_text" | "ocr" | "vision";
+  fieldConfidence?: Record<string, "high" | "medium" | "low">;
   warnings?: string[];
 }
 export interface ExtractedPurchaseLine {
@@ -21,6 +22,8 @@ export interface ExtractedPurchaseLine {
   unit: "kg" | "g" | "unit";
   unitCost: string;
   taxRate: string;
+  discount?: string;
+  lineTotal?: string;
 }
 const decimal = (value: string) =>
   value.includes(",") ? value.replace(/\./g, "").replace(",", ".") : value;

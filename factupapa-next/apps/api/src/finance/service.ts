@@ -16,6 +16,13 @@ import {
   extractPurchaseFields,
   type ExtractedPurchaseFields,
 } from "./extraction.js";
+import {
+  DEFAULT_VISION_MODEL,
+  extractPurchaseFieldsWithVision,
+  prepareVisionImage,
+  stripOwnTaxId,
+  type VisionDocument,
+} from "./extraction-vision.js";
 import { recognizeWithTimeout } from "./ocr.js";
 import type { PurchaseInput, RecurringExpenseInput } from "./validation.js";
 const extractionScore = (x: ExtractedPurchaseFields) =>
@@ -75,6 +82,11 @@ export class FinanceService {
       accessKey: string;
       secretKey: string;
     },
+    private extraction?: {
+      ownTaxIds: string[];
+      anthropicApiKey?: string;
+      visionModel?: string;
+    },
   ) {
     if (storage)
       this.s3 = new S3Client({
@@ -118,6 +130,23 @@ export class FinanceService {
           : body.subarray(0, 3).equals(Buffer.from([255, 216, 255]));
     if (!ok) throw new HttpError("invalid_request", 400);
     let extracted: ExtractedPurchaseFields = {};
+    const visionEnabled = Boolean(this.extraction?.anthropicApiKey);
+    let visionFailed = false;
+    const tryVision = async (document: VisionDocument) => {
+      if (!this.extraction?.anthropicApiKey) return undefined;
+      try {
+        return await extractPurchaseFieldsWithVision(document, {
+          apiKey: this.extraction.anthropicApiKey,
+          ownTaxIds: this.extraction.ownTaxIds,
+          ...(this.extraction.visionModel
+            ? { model: this.extraction.visionModel }
+            : {}),
+        });
+      } catch {
+        visionFailed = true;
+        return undefined;
+      }
+    };
     if (mime === "application/pdf") {
       let parser: PDFParse | undefined;
       try {
@@ -128,33 +157,59 @@ export class FinanceService {
             setTimeout(() => reject(new Error("timeout")), 5000),
           ),
         ]);
-        const textFields = extractPurchaseFields(parsed.text, input.filename);
+        const hasTextLayer = parsed.text.replace(/\s/g, "").length >= 80;
+        if (hasTextLayer) {
+          const vision = await tryVision({ kind: "text", text: parsed.text });
+          if (vision)
+            extracted = { ...vision, ocrConfidence: 100, source: "pdf_text" };
+        }
+        const textFields = !extracted.source
+          ? extractPurchaseFields(parsed.text, input.filename)
+          : undefined;
         if (
-          parsed.text.replace(/\s/g, "").length >= 80 &&
+          !extracted.source &&
+          hasTextLayer &&
+          textFields &&
           (textFields.total || textFields.supplierTaxId)
         ) {
           extracted = { ...textFields, ocrConfidence: 100, source: "pdf_text" };
-        } else {
+        } else if (!extracted.source) {
           const screenshots = await parser.getScreenshot({
             first: 2,
             desiredWidth: 2200,
             imageBuffer: true,
             imageDataUrl: false,
           });
-          const pages = [];
-          for (const page of screenshots.pages.slice(0, 2))
-            pages.push(await bestOcr(Buffer.from(page.data), input.filename));
-          const fields = extractPurchaseFields(pages.map((x) => x.page.text).join("\n"), input.filename);
-          extracted = {
-            ...fields,
-            ocrConfidence: pages.length
-              ? Math.round(
-                  pages.reduce((sum, page) => sum + page.page.confidence, 0) /
-                    pages.length,
-                )
-              : 0,
-            source: "ocr",
-          };
+          const pageBuffers = screenshots.pages
+            .slice(0, 2)
+            .map((page) => Buffer.from(page.data));
+          if (visionEnabled && pageBuffers.length) {
+            const images = [];
+            for (const buffer of pageBuffers)
+              images.push(await prepareVisionImage(buffer));
+            const vision = await tryVision({
+              kind: "images",
+              images,
+              mediaType: "image/jpeg",
+            });
+            if (vision) extracted = { ...vision, source: "vision" };
+          }
+          if (!extracted.source) {
+            const pages = [];
+            for (const buffer of pageBuffers)
+              pages.push(await bestOcr(buffer, input.filename));
+            const fields = extractPurchaseFields(pages.map((x) => x.page.text).join("\n"), input.filename);
+            extracted = {
+              ...fields,
+              ocrConfidence: pages.length
+                ? Math.round(
+                    pages.reduce((sum, page) => sum + page.page.confidence, 0) /
+                      pages.length,
+                  )
+                : 0,
+              source: "ocr",
+            };
+          }
         }
       } catch {
         extracted = {
@@ -167,17 +222,35 @@ export class FinanceService {
       }
     } else {
       try {
-        const candidate = await bestOcr(body, input.filename),
-          page = candidate.page;
-        extracted = {
-          ...candidate.fields,
-          ocrConfidence: page.confidence,
-          source: "ocr",
-        };
+        if (visionEnabled) {
+          const vision = await tryVision({
+            kind: "images",
+            images: [await prepareVisionImage(body)],
+            mediaType: "image/jpeg",
+          });
+          if (vision) extracted = { ...vision, source: "vision" };
+        }
+        if (!extracted.source) {
+          const candidate = await bestOcr(body, input.filename),
+            page = candidate.page;
+          extracted = {
+            ...candidate.fields,
+            ocrConfidence: page.confidence,
+            source: "ocr",
+          };
+        }
       } catch {
         extracted = { warnings: ["ocr_failed"], ocrConfidence: 0, source: "ocr" };
       }
     }
+    extracted = stripOwnTaxId(extracted, this.extraction?.ownTaxIds ?? []);
+    if (visionFailed && extracted.source !== "vision")
+      extracted = {
+        ...extracted,
+        warnings: [
+          ...new Set([...(extracted.warnings ?? []), "vision_unavailable"]),
+        ],
+      };
     const id = randomUUID(),
       ext =
         mime === "application/pdf"
@@ -246,7 +319,11 @@ export class FinanceService {
                 body.length,
                 sha,
                 i.userId,
-                normalized.source === "ocr" ? "tesseract-spa-eng" : "local-pdf-text",
+                normalized.source === "vision" || normalized.fieldConfidence
+                  ? `anthropic-${this.extraction?.visionModel ?? DEFAULT_VISION_MODEL}`
+                  : normalized.source === "ocr"
+                    ? "tesseract-spa-eng"
+                    : "local-pdf-text",
                 normalized.ocrConfidence == null ? null : normalized.ocrConfidence / 100,
                 normalized,
               ],

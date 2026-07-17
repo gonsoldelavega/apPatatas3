@@ -25,6 +25,8 @@ export interface AppConfig {
   dependencyTimeoutMs: number;
   importRetentionDays: { completed: number; cancelled: number; failed: number };
   importCleanupLimit: number;
+  anthropicApiKey?: string;
+  ownTaxIds: string[];
 }
 
 const placeholder = /^(changeme|change_me|password|secret|default|cambiar(?:_|$)|minioadmin)/i;
@@ -132,6 +134,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   for (const [name, value] of [["REDIS_URL", env.REDIS_URL], ["S3_ACCESS_KEY", env.S3_ACCESS_KEY], ["S3_SECRET_KEY", env.S3_SECRET_KEY], ["MINIO_ROOT_USER", env.MINIO_ROOT_USER], ["MINIO_ROOT_PASSWORD", env.MINIO_ROOT_PASSWORD]] as const) rejectPlaceholder(name, value);
   rejectPlaceholder("INTERNAL_METRICS_TOKEN", env.INTERNAL_METRICS_TOKEN);
+  rejectPlaceholder("ANTHROPIC_API_KEY", env.ANTHROPIC_API_KEY);
   if (env.REDIS_URL) {
     const redis = new URL(env.REDIS_URL);
     if (redis.protocol !== "redis:" && redis.protocol !== "rediss:") throw new Error("REDIS_URL debe usar Redis");
@@ -209,6 +212,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       failed: readPositiveInteger("IMPORT_RETENTION_FAILED_DAYS", env.IMPORT_RETENTION_FAILED_DAYS, 14),
     },
     importCleanupLimit: readPositiveInteger("IMPORT_CLEANUP_LIMIT", env.IMPORT_CLEANUP_LIMIT, 500),
+    ...(env.ANTHROPIC_API_KEY?.trim()
+      ? { anthropicApiKey: env.ANTHROPIC_API_KEY.trim() }
+      : {}),
+    ownTaxIds: [
+      ...new Set(
+        (env.OWN_TAX_IDS ?? "45313973V")
+          .split(",")
+          .map((value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""))
+          .filter(Boolean),
+      ),
+    ],
   };
 }
 
@@ -219,5 +233,6 @@ export function publicConfigSummary(config: AppConfig) {
     redis: config.redisUrl ? "configured" : "disabled",
     objectStorage: config.s3Endpoint ? "configured" : "disabled",
     metrics: config.internalMetricsToken ? "protected" : "local_only",
+    visionExtraction: config.anthropicApiKey ? "configured" : "disabled",
   };
 }

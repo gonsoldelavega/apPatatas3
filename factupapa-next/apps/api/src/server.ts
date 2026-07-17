@@ -56,6 +56,12 @@ const finance = new FinanceService(
         secretKey: config.s3SecretKey,
       }
     : undefined,
+  {
+    ownTaxIds: config.ownTaxIds,
+    ...(config.anthropicApiKey
+      ? { anthropicApiKey: config.anthropicApiKey }
+      : {}),
+  },
 );
 const server = createApp({
   database,

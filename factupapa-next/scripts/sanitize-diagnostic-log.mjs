@@ -18,6 +18,7 @@ const sensitiveNames = new Set([
   "S3_SECRET_KEY",
   "JWT_SECRET",
   "INTERNAL_METRICS_TOKEN",
+  "ANTHROPIC_API_KEY",
 ]);
 
 const env = await readFile(envPath, "utf8");
@@ -35,6 +36,7 @@ for (const secret of secrets) contents = contents.replaceAll(secret, "[redacted]
 contents = contents
   .replace(/(authorization["']?\s*[:=]\s*["']?)[^\r\n]+/giu, "$1[redacted]")
   .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/giu, "Bearer [redacted]")
+  .replace(/sk-ant-[A-Za-z0-9_-]+/gu, "[redacted]")
   .replace(/(factupapa_refresh=)[^;\s"']+/giu, "$1[redacted]")
   .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/giu, "$1[redacted]@")
   .replace(/(?:[A-Za-z]:\\Users\\|\/(?:Users|home|root|workspace)\/)[^\s"']+/gu, "[internal-path]")

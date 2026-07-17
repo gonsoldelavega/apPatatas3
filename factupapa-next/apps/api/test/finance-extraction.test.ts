@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { extractPurchaseFields } from "../src/finance/extraction.js";
+import { stripOwnTaxId } from "../src/finance/extraction-vision.js";
 import { validatePurchase, validateStockLevel } from "../src/finance/validation.js";
 test("extrae y contrasta los campos fiscales sin conservar el texto", () => {
   const result = extractPurchaseFields(
@@ -92,6 +93,15 @@ test("descarta filas OCR cuyos importes no cuadran", () => {
     "FACTURA Fecha: 17/07/2026 CIF: B12345678 PRODUCTO 10 kg 5,00 999,00 TOTAL 999,00",
   );
   assert.equal(result.lines, undefined);
+});
+test("el NIF del propio cliente extraído por regex se descarta con aviso", () => {
+  const fields = extractPurchaseFields(
+    "FACTURA Número: FV-1 Fecha: 16/07/2026 NIF: 45313973V Base imponible 126,00 IVA 5,04 TOTAL 131,04",
+  );
+  assert.equal(fields.supplierTaxId, "45313973V");
+  const filtered = stripOwnTaxId(fields, ["45313973V"]);
+  assert.equal(filtered.supplierTaxId, undefined);
+  assert.ok(filtered.warnings?.includes("supplier_tax_id_own"));
 });
 test("rechaza fechas inexistentes", () =>
   assert.throws(() =>
