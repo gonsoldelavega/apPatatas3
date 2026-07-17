@@ -13,9 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  # Integration and rootless audit share one rootless Docker host and fixed
-  # localhost ports. Queue them to prevent cross-run traffic and false failures.
-  group: factupapa-next-rootless-host
+  group: factupapa-next-rootless-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -59,7 +57,9 @@ jobs:
           set -euo pipefail
           test -f factupapa-next/scripts/audit.sh
           test -x factupapa-next/scripts/audit.sh
-          factupapa-next/scripts/audit.sh
+          # Both audit workflows share fixed localhost ports on the rootless host.
+          # A host lock serializes them without GitHub cancelling the other workflow.
+          flock -w 3300 /tmp/factupapa-next-rootless-host.lock factupapa-next/scripts/audit.sh
 
       - name: Upload sanitized fictitious evidence
         if: always()
