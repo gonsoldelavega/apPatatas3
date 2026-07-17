@@ -10,7 +10,7 @@ import {
   XCircle,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   deliveryNotesApi,
@@ -51,7 +51,15 @@ export function SalesDetailPage() {
   const api = invoice ? invoicesApi : deliveryNotesApi;
   const queryClient = useQueryClient();
   const [newProductId, setNewProductId] = useState(""),
-    [newQuantity, setNewQuantity] = useState("1");
+    [newQuantity, setNewQuantity] = useState("1"),
+    [draftIssueDate, setDraftIssueDate] = useState(todayLocal()),
+    [draftDueDate, setDraftDueDate] = useState(""),
+    [draftStartDate, setDraftStartDate] = useState(""),
+    [draftEndDate, setDraftEndDate] = useState(""),
+    [draftDeliveryDates, setDraftDeliveryDates] = useState<string[]>([]),
+    [draftDeliveryInput, setDraftDeliveryInput] = useState(""),
+    [draftPaymentTerms, setDraftPaymentTerms] = useState(""),
+    [draftGeneralInfo, setDraftGeneralInfo] = useState("");
   const documentQuery = useQuery({
     queryKey: [type, id],
     queryFn: () => api.get(id),
@@ -65,6 +73,17 @@ export function SalesDetailPage() {
     queryKey: ["sales-products"],
     queryFn: () => productsApi.list({ isActive: true, pageSize: 100 }),
   });
+  useEffect(() => {
+    if (!invoice || !documentQuery.data) return;
+    const current = documentQuery.data as Invoice;
+    setDraftIssueDate(current.issueDate);
+    setDraftDueDate(current.dueDate ?? "");
+    setDraftStartDate(current.operationStartDate ?? "");
+    setDraftEndDate(current.operationEndDate ?? "");
+    setDraftDeliveryDates(current.deliveryDates);
+    setDraftPaymentTerms(current.paymentTerms ?? "");
+    setDraftGeneralInfo(current.generalInformation ?? "");
+  }, [documentQuery.data, invoice]);
   const editLine = useMutation({
     mutationFn: async (input: { action: "add"; productId: string; quantity: string } | { action: "delete"; lineId: string }) => {
       if (input.action === "add")
@@ -79,6 +98,19 @@ export function SalesDetailPage() {
   });
   const action = useMutation({
     mutationFn: (name: "issue" | "cancel") => api[name](id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [type, id] }),
+  });
+  const updateInvoiceDraft = useMutation({
+    mutationFn: () =>
+      invoicesApi.update(id, {
+        issueDate: draftIssueDate,
+        dueDate: draftDueDate || null,
+        operationStartDate: draftStartDate || null,
+        operationEndDate: draftEndDate || null,
+        deliveryDates: draftDeliveryDates,
+        paymentTerms: draftPaymentTerms || null,
+        generalInformation: draftGeneralInfo || null,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [type, id] }),
   });
   const pdf = useMutation({
@@ -192,6 +224,16 @@ export function SalesDetailPage() {
                 <strong>Vencimiento:</strong> {invoiceItem.dueDate}
               </p>
             )}
+            {invoiceItem.paymentTerms && (
+              <p>
+                <strong>Condiciones:</strong> {invoiceItem.paymentTerms}
+              </p>
+            )}
+            {invoiceItem.generalInformation && (
+              <p>
+                <strong>Información:</strong> {invoiceItem.generalInformation}
+              </p>
+            )}
           </div>
         )}
         <h2>Líneas</h2>
@@ -239,6 +281,104 @@ export function SalesDetailPage() {
       </section>
       {item.status === "draft" && (
         <>
+          {invoiceItem && (
+            <section className="form-card">
+              <h2>Datos de la factura</h2>
+              <div className="form-grid">
+                <Field
+                  label="Fecha de emisión"
+                  type="date"
+                  value={draftIssueDate}
+                  onChange={(e) => setDraftIssueDate(e.target.value)}
+                />
+                <Field
+                  label="Fecha de vencimiento"
+                  type="date"
+                  value={draftDueDate}
+                  onChange={(e) => setDraftDueDate(e.target.value)}
+                />
+              </div>
+              <div className="form-grid">
+                <Field
+                  label="Operaciones desde"
+                  type="date"
+                  value={draftStartDate}
+                  onChange={(e) => setDraftStartDate(e.target.value)}
+                />
+                <Field
+                  label="Operaciones hasta"
+                  type="date"
+                  value={draftEndDate}
+                  onChange={(e) => setDraftEndDate(e.target.value)}
+                />
+              </div>
+              <div className="delivery-date-editor">
+                <Field
+                  label="Añadir fecha de entrega"
+                  type="date"
+                  value={draftDeliveryInput}
+                  onChange={(e) => setDraftDeliveryInput(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="compact-action"
+                  onClick={() => {
+                    if (
+                      draftDeliveryInput &&
+                      !draftDeliveryDates.includes(draftDeliveryInput)
+                    ) {
+                      setDraftDeliveryDates((x) =>
+                        [...x, draftDeliveryInput].sort(),
+                      );
+                      setDraftDeliveryInput("");
+                    }
+                  }}
+                >
+                  <Plus />
+                  Añadir
+                </button>
+              </div>
+              <div className="delivery-date-list">
+                {draftDeliveryDates.map((date) => (
+                  <span key={date}>
+                    {date}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraftDeliveryDates((dates) =>
+                          dates.filter((x) => x !== date),
+                        )
+                      }
+                    >
+                      <XCircle />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <label className="field">
+                <span>Condiciones de pago</span>
+                <textarea
+                  value={draftPaymentTerms}
+                  onChange={(e) => setDraftPaymentTerms(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>Información general</span>
+                <textarea
+                  value={draftGeneralInfo}
+                  onChange={(e) => setDraftGeneralInfo(e.target.value)}
+                />
+              </label>
+              <Button
+                variant="secondary"
+                busy={updateInvoiceDraft.isPending}
+                disabled={!draftIssueDate}
+                onClick={() => updateInvoiceDraft.mutate()}
+              >
+                Guardar datos
+              </Button>
+            </section>
+          )}
           <section className="form-card draft-line-add">
             <h2>Añadir producto</h2>
             <SelectField label="Producto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
