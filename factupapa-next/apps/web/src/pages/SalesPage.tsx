@@ -5,8 +5,10 @@ import { Link } from "react-router-dom";
 import { contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
 import { EmptyState } from "../ui/EmptyState";
 import { Field } from "../ui/Field";
+import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
 import { formatDocumentNumber, formatMoney } from "../utils/format";
+import { currentPeriod, periodRange } from "../utils/period";
 
 const statuses: Record<string, string> = {
   draft: "Borrador",
@@ -16,21 +18,17 @@ const statuses: Record<string, string> = {
 };
 export function SalesPage() {
   const [tab, setTab] = useState<"delivery" | "invoice">("invoice");
-  const [month, setMonth] = useState(""),
+  const [period, setPeriod] = useState(currentPeriod("all")),
     [contactId, setContactId] = useState(""),
     [status, setStatus] = useState(""),
     [search, setSearch] = useState("");
-  const dateRange = month
-      ? {
-          from: `${month}-01`,
-          to: new Date(
-            Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0),
-          )
-            .toISOString()
-            .slice(0, 10),
-        }
-      : {},
-    filters = { pageSize: 100, contactId, status, search, ...dateRange };
+  const filters = {
+    pageSize: 100,
+    contactId,
+    status,
+    search,
+    ...periodRange(period),
+  };
   const contacts = useQuery({
     queryKey: ["sales-filter-contacts"],
     queryFn: () => contactsApi.list({ isActive: true, pageSize: 100 }),
@@ -79,12 +77,7 @@ export function SalesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Field
-          label="Mes"
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        />
+        <PeriodPicker value={period} onChange={setPeriod} allowAll />
         <SelectField
           label="Estado"
           value={status}

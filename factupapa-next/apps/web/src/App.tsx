@@ -50,6 +50,11 @@ const ImportsPage = lazy(() =>
 const MorePage = lazy(() =>
   import("./pages/MorePage").then((module) => ({ default: module.MorePage })),
 );
+const ExportPage = lazy(() =>
+  import("./pages/ExportPage").then((module) => ({
+    default: module.ExportPage,
+  })),
+);
 const SalesSettingsPage = lazy(() =>
   import("./pages/SalesSettingsPage").then((module) => ({
     default: module.SalesSettingsPage,
@@ -117,6 +122,7 @@ export function App() {
             <Route path="productos/:id/editar" element={<ProductFormPage />} />
             <Route path="importar" element={<ImportsPage />} />
             <Route path="mas" element={<MorePage />} />
+            <Route path="exportar" element={<ExportPage />} />
             <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
           </Route>
         </Route>

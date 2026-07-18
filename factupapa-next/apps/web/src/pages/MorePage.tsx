@@ -1,4 +1,5 @@
 import {
+  FileDown,
   LogOut,
   Moon,
   Settings2,
@@ -76,6 +77,13 @@ export function MorePage() {
         <div>
           <h2>Facturación</h2>
           <p>Configura serie, numeración inicial, IVA y pantalla principal.</p>
+        </div>
+      </Link>
+      <Link className="info-card" to="/exportar">
+        <FileDown />
+        <div>
+          <h2>Exportar</h2>
+          <p>CSV de facturas y compras por mes, trimestre o año.</p>
         </div>
       </Link>
       <Link className="info-card" to="/stock">

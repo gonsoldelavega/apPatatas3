@@ -5,15 +5,11 @@ import { Link } from "react-router-dom";
 import { contactsApi, financeApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
+import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
-import { formatMoney, formatQuantity, todayLocal } from "../utils/format";
-const range = (m: string) => ({
-    from: `${m}-01`,
-    to: new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)), 0))
-      .toISOString()
-      .slice(0, 10),
-  }),
-  cats: Record<string, string> = {
+import { formatMoney, formatQuantity } from "../utils/format";
+import { currentPeriod, periodLabel, periodRange } from "../utils/period";
+const cats: Record<string, string> = {
     autonomo: "Cuota de autónomo",
     gestoria: "Gestoría",
     transporte: "Transporte",
@@ -26,13 +22,36 @@ const range = (m: string) => ({
 const decimal = (value: string) => value.replace(",", "."),
   monthContains = (monthStart: string, monthEnd: string, startsOn: string, endsOn: string | null) =>
     startsOn <= monthEnd && (!endsOn || endsOn >= monthStart),
-  chargeLabel = (day: number) => `Día ${day}`;
+  chargeLabel = (day: number) => `Día ${day}`,
+  monthsOf = (from: string, to: string) => {
+    const list: Array<{ start: string; end: string }> = [];
+    let cursor = from.slice(0, 7);
+    const last = to.slice(0, 7);
+    while (cursor <= last && list.length < 12) {
+      const year = Number(cursor.slice(0, 4)),
+        monthNumber = Number(cursor.slice(5));
+      list.push({
+        start: `${cursor}-01`,
+        end: new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10),
+      });
+      cursor =
+        monthNumber === 12
+          ? `${year + 1}-01`
+          : `${year}-${String(monthNumber + 1).padStart(2, "0")}`;
+    }
+    return list;
+  };
 
 export function ExpensesPage() {
-  const [month, setMonth] = useState(todayLocal().slice(0, 7)),
+  const [period, setPeriod] = useState(currentPeriod()),
     [purchaseCategory, setPurchaseCategory] = useState(""),
     [purchaseSupplier, setPurchaseSupplier] = useState(""),
-    r = range(month),
+    [purchaseStatus, setPurchaseStatus] = useState(""),
+    partialRange = periodRange(period),
+    r =
+      partialRange.from && partialRange.to
+        ? { from: partialRange.from, to: partialRange.to }
+        : (periodRange(currentPeriod()) as { from: string; to: string }),
     qc = useQueryClient(),
     purchases = useQuery({
       queryKey: ["purchases", r],
@@ -52,7 +71,7 @@ export function ExpensesPage() {
     [amount, setAmount] = useState(""),
     [taxRate, setTaxRate] = useState("0"),
     [chargeDay, setChargeDay] = useState("1"),
-    [startsOn, setStartsOn] = useState(`${month}-01`),
+    [startsOn, setStartsOn] = useState(r.from),
     [notes, setNotes] = useState(""),
     [category, setCategory] = useState("gestoria"),
     [supplierId, setSupplierId] = useState("");
@@ -74,7 +93,7 @@ export function ExpensesPage() {
         setAmount("");
         setTaxRate("0");
         setChargeDay("1");
-        setStartsOn(`${month}-01`);
+        setStartsOn(r.from);
         setNotes("");
         setSupplierId("");
         setOpen(false);
@@ -85,14 +104,26 @@ export function ExpensesPage() {
       mutationFn: financeApi.deactivateRecurring,
       onSuccess: () => qc.invalidateQueries({ queryKey: ["recurring"] }),
     });
-  const recurringInMonth =
-      recurring.data?.filter((x) => monthContains(r.from, r.to, x.startsOn, x.endsOn)) ?? [],
-    recurringTotal = recurringInMonth.reduce((total, x) => total + Number(x.amount), 0),
+  const periodMonths = monthsOf(r.from, r.to),
+    recurringInMonth =
+      recurring.data
+        ?.map((x) => ({
+          ...x,
+          appliedMonths: periodMonths.filter((m) =>
+            monthContains(m.start, m.end, x.startsOn, x.endsOn),
+          ).length,
+        }))
+        .filter((x) => x.appliedMonths > 0) ?? [],
+    recurringTotal = recurringInMonth.reduce(
+      (total, x) => total + Number(x.amount) * x.appliedMonths,
+      0,
+    ),
     filteredPurchases =
       purchases.data?.filter(
         (x) =>
           (!purchaseCategory || x.category === purchaseCategory) &&
-          (!purchaseSupplier || x.supplierId === purchaseSupplier),
+          (!purchaseSupplier || x.supplierId === purchaseSupplier) &&
+          (!purchaseStatus || x.status === purchaseStatus),
       ) ?? [],
     purchaseTotal = filteredPurchases.reduce((total, x) => total + Number(x.total), 0),
     formInvalid =
@@ -111,15 +142,12 @@ export function ExpensesPage() {
         <h1>Gastos</h1>
         <p>Facturas recibidas y cargos fijos mensuales.</p>
       </header>
-      <Field
-        label="Mes"
-        type="month"
-        value={month}
-        onChange={(e) => setMonth(e.target.value)}
-      />
-      <section className="expense-overview" aria-label="Resumen de gastos del mes">
+      <section className="filter-card">
+        <PeriodPicker value={period} onChange={setPeriod} />
+      </section>
+      <section className="expense-overview" aria-label="Resumen de gastos del periodo">
         <div>
-          <span>Total del mes</span>
+          <span>Total del periodo</span>
           <strong>{formatMoney(String(purchaseTotal + recurringTotal))}</strong>
         </div>
         <dl>
@@ -157,6 +185,16 @@ export function ExpensesPage() {
               {x.tradeName || x.legalName}
             </option>
           ))}
+        </SelectField>
+        <SelectField
+          label="Estado"
+          value={purchaseStatus}
+          onChange={(e) => setPurchaseStatus(e.target.value)}
+        >
+          <option value="">Todos</option>
+          <option value="draft">Borrador</option>
+          <option value="confirmed">Confirmada</option>
+          <option value="cancelled">Cancelada</option>
         </SelectField>
       </section>
       <div className="finance-actions">
@@ -275,7 +313,9 @@ export function ExpensesPage() {
         <div className="section-heading">
           <span>
             <h2>Gastos mensuales</h2>
-            <p>{recurringInMonth.length} cargos aplican en {month}</p>
+            <p>
+              {recurringInMonth.length} cargos aplican en {periodLabel(period)}
+            </p>
           </span>
           <strong>{formatMoney(String(recurringTotal))}</strong>
         </div>
@@ -294,8 +334,13 @@ export function ExpensesPage() {
                   {Number(x.taxRate) > 0 ? ` · IVA ${formatQuantity(x.taxRate)} %` : ""}
                 </small>
                 {x.notes && <small>{x.notes}</small>}
+                {x.appliedMonths > 1 && (
+                  <small>Aplica {x.appliedMonths} meses en el periodo</small>
+                )}
               </span>
-              <strong>{formatMoney(x.amount)}</strong>
+              <strong>
+                {formatMoney(String(Number(x.amount) * x.appliedMonths))}
+              </strong>
               {x.isActive && (
                 <button
                   aria-label={`Desactivar ${x.name}`}
