@@ -2233,10 +2233,15 @@ body {
 }
 .dashboard-page .page-hero h1 {
   margin: 16px 0 5px;
+  color: var(--ink);
   font-size: 1.28rem;
 }
-.dashboard-page .page-hero > div > p:last-child {
+.dashboard-page .page-hero > div > p:last-child,
+.dashboard-page .brand-row span {
   color: var(--muted);
+}
+.dashboard-page .page-hero::after {
+  border-color: var(--line);
 }
 .brand-row {
   display: flex;
