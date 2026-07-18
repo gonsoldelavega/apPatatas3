@@ -10,6 +10,17 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   contactsApi,
   deliveryNotesApi,
   importsApi,
@@ -37,6 +48,15 @@ function sum(values: string[]): string {
   }, 0n);
   return `${total / scale}.${(total % scale).toString().padStart(4, "0")}`;
 }
+const monthLabel = (month: string) =>
+  new Intl.DateTimeFormat("es-ES", { month: "short", year: "2-digit" }).format(
+    new Date(`${month}-01T12:00:00`),
+  );
+const compactEuros = (value: number) =>
+  `${new Intl.NumberFormat("es-ES", {
+    notation: "compact",
+    maximumFractionDigits: 0,
+  }).format(value)} €`;
 function sacksLabel(kgValue: string) {
   const kg = Number(kgValue);
   if (!Number.isFinite(kg) || kg <= 0) return "Sin sacos disponibles";
@@ -180,6 +200,69 @@ export function DashboardPage() {
               <p className="eyebrow">Evolución</p>
               <h2>Balance de los últimos meses</h2>
             </div>
+          </div>
+          <div className="monthly-chart" aria-label="Ingresos y gastos por mes">
+            <ResponsiveContainer width="100%" height={250}>
+              <ComposedChart
+                data={summary.data.monthly.map((row) => ({
+                  label: monthLabel(row.month),
+                  Ingresos: Number(row.sales),
+                  Gastos: Number(row.purchases) + Number(row.recurring),
+                  Balance: Number(row.balance),
+                }))}
+                barGap={2}
+                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "var(--muted)", fontSize: 12 }}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                  tick={{ fill: "var(--muted)", fontSize: 11 }}
+                  tickFormatter={compactEuros}
+                />
+                <Tooltip
+                  formatter={(value) => formatMoney(String(value))}
+                  contentStyle={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "12px",
+                    color: "var(--ink)",
+                  }}
+                  cursor={{ fill: "var(--surface-soft)" }}
+                />
+                <Legend
+                  formatter={(value) => (
+                    <span style={{ color: "var(--ink)" }}>{value}</span>
+                  )}
+                />
+                <Bar
+                  dataKey="Ingresos"
+                  fill="var(--chart-income)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={22}
+                />
+                <Bar
+                  dataKey="Gastos"
+                  fill="var(--chart-expense)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={22}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Balance"
+                  stroke="var(--chart-balance)"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "var(--chart-balance)", strokeWidth: 0 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
           <div className="monthly-balance__list">
             {summary.data.monthly.map((row) => (

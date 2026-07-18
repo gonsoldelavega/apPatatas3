@@ -3,10 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#14213D" />
+    <meta name="theme-color" content="#122B21" />
     <meta name="description" content="FactuPapa Next: gestión diaria clara y móvil." />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link
+      rel="preload"
+      href="/fonts/hanken-grotesk-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/bricolage-grotesque-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <title>FactuPapa Next</title>
+    <script>
+      try {
+        var theme = localStorage.getItem("factupapa-theme");
+        if (theme === "dark" || theme === "light")
+          document.documentElement.dataset.theme = theme;
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

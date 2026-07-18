@@ -1,17 +1,42 @@
 import {
   LogOut,
+  Moon,
   Settings2,
   ShieldCheck,
   Smartphone,
   Upload,
   PackageCheck,
 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
 
+type ThemeChoice = "auto" | "light" | "dark";
+
+function storedTheme(): ThemeChoice {
+  try {
+    const value = localStorage.getItem("factupapa-theme");
+    return value === "light" || value === "dark" ? value : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+function applyTheme(theme: ThemeChoice) {
+  if (theme === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  try {
+    if (theme === "auto") localStorage.removeItem("factupapa-theme");
+    else localStorage.setItem("factupapa-theme", theme);
+  } catch {
+    /* almacenamiento no disponible */
+  }
+}
+
 export function MorePage() {
   const auth = useAuth();
+  const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
   return (
     <div className="page more-page">
       <header className="page-heading">
@@ -60,6 +85,35 @@ export function MorePage() {
           <p>Existencias, valor y venta potencial.</p>
         </div>
       </Link>
+      <section className="info-card">
+        <Moon />
+        <div>
+          <h2>Apariencia</h2>
+          <p>Elige el tema de la aplicación.</p>
+          <div className="theme-switch" role="group" aria-label="Tema">
+            {(
+              [
+                ["auto", "Auto"],
+                ["light", "Claro"],
+                ["dark", "Oscuro"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={theme === value}
+                className={theme === value ? "theme-switch__active" : ""}
+                onClick={() => {
+                  setTheme(value);
+                  applyTheme(value);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
       <section className="info-card">
         <Smartphone />
         <div>

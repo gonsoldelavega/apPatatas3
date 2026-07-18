@@ -1,29 +1,134 @@
+/* Identidad "Verde Tinta": verde botella profundo + oro cosecha + porcelana */
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-grotesk-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-grotesk-latin-ext.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/fonts/bricolage-grotesque-latin-ext.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 :root {
   font-family:
-    Inter,
+    "Hanken Grotesk",
     ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  color: #14213d;
-  background: #f7f6f1;
+  color: #13241C;
+  background: #F1F2EC;
   font-synthesis: none;
-  --ink: #14213d;
-  --deep: #0b132b;
-  --gold: #d6a649;
-  --ivory: #f7f6f1;
-  --white: #ffffff;
-  --positive: #27865d;
-  --pending: #d78a21;
-  --error: #c64b4b;
-  --muted: #697184;
-  --line: #e3e0d7;
-  --surface: #ffffff;
-  --surface-soft: #efede6;
-  --shadow: 0 12px 35px rgb(20 33 61 / 9%);
+  --ink: #13241C;
+  --strong: #122B21;
+  --deep: #122B21;
+  --deep-2: #1D4233;
+  --ink-surface: #122B21;
+  --gold: #B98A42;
+  --gold-bright: #D8B26B;
+  --gold-deep: #9A7132;
+  --ivory: #F1F2EC;
+  --white: #FFFFFF;
+  --positive: #2E7D58;
+  --pending: #BD8327;
+  --error: #B5483F;
+  --muted: #5F7268;
+  --line: #DFE3D5;
+  --surface: #FFFFFF;
+  --surface-soft: #EAECE2;
+  --warn-soft: #F7EEDC;
+  --shadow: 0 12px 35px rgb(18 43 33 / 9%);
+  --chart-income: #2E9060;
+  --chart-expense: #C8892B;
+  --chart-balance: #13241C;
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", Georgia, sans-serif;
   color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color: #E9F3EC;
+  background: #08110D;
+  --ink: #E9F3EC;
+  --strong: #F1F7F2;
+  --deep: #122019;
+  --deep-2: #1D4233;
+  --ink-surface: #24493A;
+  --gold: #E0BC76;
+  --gold-bright: #E0BC76;
+  --gold-deep: #C99B4E;
+  --ivory: #08110D;
+  --positive: #62A483;
+  --pending: #DBA445;
+  --error: #DF6E6E;
+  --muted: #A2B4A9;
+  --line: #26382E;
+  --surface: #14241C;
+  --surface-soft: #0F1C15;
+  --warn-soft: #2A2213;
+  --shadow: 0 12px 35px rgb(0 0 0 / 45%);
+  --chart-income: #3F9C6B;
+  --chart-expense: #BC8B34;
+  --chart-balance: #E9F3EC;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color: #E9F3EC;
+    background: #08110D;
+    --ink: #E9F3EC;
+    --strong: #F1F7F2;
+    --deep: #122019;
+    --deep-2: #1D4233;
+    --ink-surface: #24493A;
+    --gold: #E0BC76;
+    --gold-bright: #E0BC76;
+    --gold-deep: #C99B4E;
+    --ivory: #08110D;
+    --positive: #62A483;
+    --pending: #DBA445;
+    --error: #DF6E6E;
+    --muted: #A2B4A9;
+    --line: #26382E;
+    --surface: #14241C;
+    --surface-soft: #0F1C15;
+    --warn-soft: #2A2213;
+    --shadow: 0 12px 35px rgb(0 0 0 / 45%);
+    --chart-income: #3F9C6B;
+    --chart-expense: #BC8B34;
+    --chart-balance: #E9F3EC;
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -148,7 +253,7 @@ h2 {
   color: var(--white);
   background:
     radial-gradient(circle at 85% 10%, rgb(214 166 73 / 24%), transparent 32%),
-    linear-gradient(145deg, var(--deep), #14213d);
+    linear-gradient(145deg, var(--deep), var(--deep-2));
   border-radius: 0 0 30px 30px;
 }
 .page-hero h1 {
@@ -192,7 +297,7 @@ h2 {
   border-top: 1px solid var(--line);
   background: rgb(255 255 255 / 94%);
   backdrop-filter: blur(18px);
-  box-shadow: 0 -8px 25px rgb(20 33 61 / 7%);
+  box-shadow: 0 -8px 25px rgb(18 43 33 / 7%);
 }
 .nav-item,
 .nav-new {
@@ -224,7 +329,7 @@ h2 {
   place-items: center;
   border: 4px solid var(--ivory);
   border-radius: 18px;
-  color: var(--deep);
+  color: var(--strong);
   background: var(--gold);
   box-shadow: 0 8px 18px rgb(214 166 73 / 35%);
 }
@@ -246,7 +351,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 6px 20px rgb(20 33 61 / 4%);
+  box-shadow: 0 6px 20px rgb(18 43 33 / 4%);
 }
 .metric-grid svg {
   width: 20px;
@@ -318,8 +423,8 @@ h2 {
 }
 .button--primary {
   color: var(--white);
-  background: var(--ink);
-  box-shadow: 0 8px 18px rgb(20 33 61 / 16%);
+  background: var(--ink-surface);
+  box-shadow: 0 8px 18px rgb(18 43 33 / 16%);
 }
 .button--secondary {
   border-color: var(--line);
@@ -519,7 +624,7 @@ h2 {
   padding: 11px;
   border-radius: 13px;
   color: var(--gold);
-  background: var(--ink);
+  background: var(--ink-surface);
 }
 .login-card h2 {
   margin: 0;
@@ -556,7 +661,7 @@ h2 {
 .segmented a.active {
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 3px 9px rgb(20 33 61 / 8%);
+  box-shadow: 0 3px 9px rgb(18 43 33 / 8%);
 }
 .search-box {
   min-height: 48px;
@@ -602,7 +707,7 @@ h2 {
 .filter-row button.active {
   color: var(--white);
   border-color: var(--ink);
-  background: var(--ink);
+  background: var(--ink-surface);
 }
 .card-list {
   display: grid;
@@ -735,7 +840,7 @@ h2 {
   margin: 0 auto 13px;
   border-radius: 15px;
   color: var(--gold);
-  background: var(--ink);
+  background: var(--ink-surface);
   font-size: 2rem;
 }
 .empty-state h2 {
@@ -772,7 +877,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 5px 20px rgb(20 33 61 / 4%);
+  box-shadow: 0 5px 20px rgb(18 43 33 / 4%);
 }
 .form-card h2,
 .detail-card h2,
@@ -895,7 +1000,7 @@ h2 {
   display: flex;
   align-items: flex-end;
   padding: 12px;
-  background: rgb(11 19 43 / 58%);
+  background: rgb(10 24 18 / 58%);
   backdrop-filter: blur(3px);
 }
 .action-sheet {
@@ -1276,7 +1381,7 @@ h2 {
   display: grid;
   place-items: center;
   border-radius: 18px;
-  color: var(--deep);
+  color: var(--strong);
   background: var(--gold);
   font-weight: 800;
 }
@@ -1331,7 +1436,7 @@ h2 {
   place-items: center;
   border-radius: 17px;
   color: var(--gold);
-  background: var(--ink);
+  background: var(--ink-surface);
   font-size: 1.2rem;
   font-weight: 800;
 }
@@ -1394,16 +1499,16 @@ h2 {
 /* Visual system v2: warmer, calmer and closer to a native business app. */
 :root {
   --ink: #18332d;
-  --deep: #123a31;
-  --gold: #e6b94d;
-  --ivory: #f4f2eb;
-  --positive: #277a59;
-  --pending: #c8792a;
-  --error: #bd4b4b;
+  --deep: var(--deep);
+  --gold: var(--gold-bright);
+  --ivory: var(--surface-soft);
+  --positive: var(--positive);
+  --pending: var(--pending);
+  --error: var(--error);
   --muted: #6e7772;
-  --line: #dedfd7;
-  --surface: #fffefa;
-  --surface-soft: #ebece5;
+  --line: var(--line);
+  --surface: var(--surface);
+  --surface-soft: var(--surface-soft);
   --shadow: 0 18px 48px rgb(24 51 45 / 10%);
   color-scheme: light;
 }
@@ -1424,12 +1529,12 @@ body {
 
 .page-heading h1 {
   margin-bottom: 7px;
-  color: var(--deep);
+  color: var(--strong);
   font-size: clamp(2rem, 8vw, 3rem);
 }
 
 .eyebrow {
-  color: #9a711c;
+  color: var(--gold-deep);
   font-size: 0.68rem;
   letter-spacing: 0.16em;
 }
@@ -1453,8 +1558,8 @@ body {
 }
 
 .nav-item--active {
-  color: var(--deep);
-  background: #edf3e9;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 
 .nav-new {
@@ -1492,8 +1597,8 @@ body {
 }
 
 .compact-action {
-  color: var(--deep);
-  background: #e8ebdf;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 
 .field__label {
@@ -1506,8 +1611,8 @@ body {
 .field select,
 .field textarea {
   min-height: 51px;
-  border-color: #d9dcd4;
-  background: #fffefa;
+  border-color: var(--line);
+  background: var(--surface);
 }
 
 .form-card,
@@ -1526,7 +1631,7 @@ body {
   padding: 5px;
   border: 0;
   border-radius: 17px;
-  background: #e5e7df;
+  background: var(--surface-soft);
 }
 
 .segmented button,
@@ -1551,8 +1656,8 @@ body {
 }
 
 .entity-card__icon {
-  color: var(--deep);
-  background: #edf1e6;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 
 .status {
@@ -1568,7 +1673,7 @@ body {
   color: var(--white);
   background:
     radial-gradient(circle at 88% 8%, rgb(230 185 77 / 38%), transparent 9rem),
-    linear-gradient(140deg, #0f312a, #1d5648);
+    linear-gradient(140deg, var(--deep), var(--deep-2));
   border-radius: 0 0 32px 32px;
   box-shadow: 0 18px 40px rgb(18 58 49 / 18%);
 }
@@ -1596,15 +1701,15 @@ body {
 }
 
 .brand-row strong {
-  color: #f6cb65;
+  color: var(--gold-bright);
   font-size: 1.28rem;
 }
 
 .dashboard-page .hero-badge {
   z-index: 1;
   border-color: rgb(255 255 255 / 22%);
-  color: var(--deep);
-  background: #f6cb65;
+  color: var(--strong);
+  background: var(--gold-bright);
   box-shadow: 0 10px 24px rgb(0 0 0 / 15%);
 }
 
@@ -1614,7 +1719,7 @@ body {
   padding: 22px;
   border: 1px solid rgb(24 51 45 / 7%);
   border-radius: 24px;
-  color: var(--deep);
+  color: var(--strong);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -1635,7 +1740,7 @@ body {
 }
 
 .business-summary > strong {
-  color: var(--deep);
+  color: var(--strong);
   font-size: clamp(2.3rem, 11vw, 3.5rem);
 }
 
@@ -1648,7 +1753,7 @@ body {
 }
 
 .business-summary b {
-  color: var(--deep);
+  color: var(--strong);
 }
 
 .metric-grid {
@@ -1661,24 +1766,24 @@ body {
   padding: 17px;
   border: 0;
   border-radius: 21px;
-  background: #e9efe7;
+  background: var(--surface-soft);
   box-shadow: none;
 }
 
 .metric-grid article:nth-child(2) {
-  background: #f4e7c5;
+  background: var(--warn-soft);
 }
 
 .metric-grid article:nth-child(3) {
-  background: #e7edf1;
+  background: var(--surface-soft);
 }
 
 .metric-grid article:nth-child(4) {
-  background: #efe8e1;
+  background: var(--surface-soft);
 }
 
 .metric-grid strong {
-  color: var(--deep);
+  color: var(--strong);
   font-size: clamp(1.35rem, 6vw, 2rem);
 }
 
@@ -1702,7 +1807,7 @@ body {
 }
 
 .home-shortcut svg {
-  color: var(--deep);
+  color: var(--strong);
 }
 
 .home-shortcut--primary {
@@ -1711,8 +1816,8 @@ body {
 }
 
 .home-shortcut--primary svg {
-  color: var(--deep);
-  background: #f6cb65;
+  color: var(--strong);
+  background: var(--gold-bright);
 }
 
 .attention-card,
@@ -1727,7 +1832,7 @@ body {
 }
 
 .section-heading h2 {
-  color: var(--deep);
+  color: var(--strong);
   font-size: 1.18rem;
 }
 
@@ -1736,14 +1841,14 @@ body {
   height: 42px;
   padding: 10px;
   border-radius: 13px;
-  color: var(--deep);
-  background: #edf1e6;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 
 .stock-card > strong {
   display: block;
   margin: 8px 0 5px;
-  color: var(--deep);
+  color: var(--strong);
   font-size: 1.8rem;
 }
 
@@ -1848,12 +1953,12 @@ body {
 }
 .sales-toolbar small { color: var(--muted); }
 .sales-toolbar strong {
-  color: var(--deep);
+  color: var(--strong);
   font-size: 1.35rem;
 }
 .sales-toolbar .compact-action { flex: none; }
 .entity-card__amount {
-  color: var(--deep);
+  color: var(--strong);
   font-size: 0.95rem;
   white-space: nowrap;
 }
@@ -1882,7 +1987,7 @@ body {
   text-transform: uppercase;
 }
 .expense-overview > div strong {
-  color: #f6cb65;
+  color: var(--gold-bright);
   font-size: 2.15rem;
   letter-spacing: -0.04em;
 }
@@ -2048,7 +2153,7 @@ body {
 .segmented button.active {
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 3px 9px rgb(20 33 61 / 8%);
+  box-shadow: 0 3px 9px rgb(18 43 33 / 8%);
 }
 .sales-list {
   margin-top: 16px;
@@ -2155,7 +2260,7 @@ body {
   padding: 19px;
   border-radius: 18px;
   color: var(--white);
-  background: linear-gradient(145deg, var(--deep), #14213d);
+  background: linear-gradient(145deg, var(--deep), var(--deep-2));
   box-shadow: 0 12px 28px rgb(8 19 43 / 18%);
 }
 .business-summary > p {
@@ -2207,13 +2312,13 @@ body {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 5px 16px rgb(20 33 61 / 5%);
+  box-shadow: 0 5px 16px rgb(18 43 33 / 5%);
   font-size: 0.68rem;
   font-weight: 800;
 }
 .home-shortcut svg {
   width: 22px;
-  color: var(--deep);
+  color: var(--strong);
 }
 .home-shortcut--primary svg {
   box-sizing: content-box;
@@ -2459,7 +2564,7 @@ body {
   color: var(--white);
   background:
     radial-gradient(circle at 88% 8%, rgb(230 185 77 / 38%), transparent 9rem),
-    linear-gradient(140deg, #0f312a, #1d5648);
+    linear-gradient(140deg, var(--deep), var(--deep-2));
   border-radius: 0 0 32px 32px;
   box-shadow: 0 18px 40px rgb(18 58 49 / 18%);
 }
@@ -2473,8 +2578,8 @@ body {
 .dashboard-page .hero-badge {
   z-index: 1;
   border-color: rgb(255 255 255 / 22%);
-  color: var(--deep);
-  background: #f6cb65;
+  color: var(--strong);
+  background: var(--gold-bright);
   box-shadow: 0 10px 24px rgb(0 0 0 / 15%);
 }
 .business-summary {
@@ -2484,7 +2589,7 @@ body {
   padding: 22px;
   border: 1px solid rgb(24 51 45 / 7%);
   border-radius: 24px;
-  color: var(--deep);
+  color: var(--strong);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -2501,11 +2606,11 @@ body {
 .business-summary > p,
 .business-summary span { color: var(--muted); }
 .business-summary > strong {
-  color: var(--deep);
+  color: var(--strong);
   font-size: clamp(2.3rem, 11vw, 3.5rem);
 }
 .business-summary > div { border-color: var(--line); }
-.business-summary b { color: var(--deep); }
+.business-summary b { color: var(--strong); }
 .home-shortcuts { max-width: none; }
 
 @media (min-width: 720px) {
@@ -2558,12 +2663,12 @@ body {
 .detail-header .icon-button {
   border: 0;
   border-radius: 50%;
-  color: var(--deep);
-  background: #e5e9df;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 .form-page__header h1,
 .detail-header h1 {
-  color: var(--deep);
+  color: var(--strong);
   font-size: clamp(1.55rem, 6vw, 2.15rem);
 }
 .sales-form-page .form-card,
@@ -2572,14 +2677,14 @@ body {
 }
 .sales-form-page .form-card h2,
 .purchase-form-page .form-card h2 {
-  color: var(--deep);
+  color: var(--strong);
   font-size: 1.08rem;
 }
 .automatic-number {
   min-height: 58px;
-  border: 1px dashed #c8cec4;
+  border: 1px dashed var(--line);
   border-radius: 15px;
-  background: #f1f1eb;
+  background: var(--surface-soft);
 }
 .sales-line-editor,
 .purchase-line-editor {
@@ -2588,17 +2693,17 @@ body {
 }
 .delivery-date-list span {
   border: 1px solid rgb(24 51 45 / 8%);
-  color: var(--deep);
-  background: #edf1e6;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 .drop-zone {
   min-height: 190px;
   border: 1.5px dashed #8da497;
   border-radius: 22px;
-  color: var(--deep);
+  color: var(--strong);
   background:
     radial-gradient(circle at 50% 40%, rgb(230 185 77 / 15%), transparent 6rem),
-    #f1f3ed;
+    var(--surface-soft);
 }
 .drop-zone svg {
   width: 42px;
@@ -2612,7 +2717,7 @@ body {
 .ocr-review {
   border: 1px solid rgb(39 122 89 / 16%);
   border-radius: 18px;
-  background: #edf4ed;
+  background: var(--surface-soft);
 }
 .inline-create-card,
 .stock-review-warning,
@@ -2621,13 +2726,13 @@ body {
 }
 .stock-review-warning {
   border-color: rgb(200 121 42 / 22%);
-  background: #f7eedc;
+  background: var(--warn-soft);
 }
 .total-review {
-  background: #eef0e9;
+  background: var(--surface-soft);
 }
 .total-review > span strong {
-  color: var(--deep);
+  color: var(--strong);
   font-size: 1.25rem;
 }
 .detail-page .detail-card {
@@ -2636,13 +2741,13 @@ body {
 .invoice-facts {
   padding: 13px;
   border-radius: 16px;
-  background: #f0f1eb;
+  background: var(--surface-soft);
 }
 .sales-detail .sales-line {
   padding-block: 15px;
 }
 .sales-detail .sales-total {
-  color: var(--deep);
+  color: var(--strong);
   font-size: 1.35rem;
 }
 .document-actions .button,
@@ -2657,7 +2762,7 @@ body {
 }
 .purchase-detail-page .detail-card:first-of-type h2,
 .purchase-detail-page .detail-card:first-of-type strong {
-  color: #f6cb65;
+  color: var(--gold-bright);
 }
 .purchase-detail-page .detail-card:first-of-type .detail-list dt,
 .purchase-detail-page .detail-card:first-of-type .detail-list dd small {
@@ -2690,7 +2795,7 @@ body {
 .catalog-section .filter-row button {
   min-height: 40px;
   border: 0;
-  background: #e6e9e1;
+  background: var(--surface-soft);
 }
 .catalog-section .filter-row button.active {
   color: var(--white);
@@ -2702,13 +2807,13 @@ body {
   padding: 15px;
 }
 .product-card .product-price {
-  color: #277a59;
+  color: var(--positive);
   font-size: 0.9rem;
 }
 .pagination {
   padding: 6px;
   border-radius: 18px;
-  background: #e9ebe4;
+  background: var(--surface-soft);
 }
 .pagination .button {
   min-height: 44px;
@@ -2724,15 +2829,15 @@ body {
   color: var(--white);
   background:
     radial-gradient(circle at 92% 4%, rgb(246 203 101 / 24%), transparent 7rem),
-    linear-gradient(140deg, #123a31, #205648);
+    linear-gradient(140deg, var(--deep), #205648);
   box-shadow: 0 16px 38px rgb(18 58 49 / 17%);
 }
 .more-page .profile-avatar {
-  color: var(--deep);
-  background: #f6cb65;
+  color: var(--strong);
+  background: var(--gold-bright);
 }
 .more-page .profile-card p { color: rgb(255 255 255 / 65%); }
-.more-page .profile-card span { color: #f6cb65; }
+.more-page .profile-card span { color: var(--gold-bright); }
 .more-page .info-card {
   min-height: 78px;
   align-items: center;
@@ -2747,8 +2852,8 @@ body {
   height: 42px;
   padding: 10px;
   border-radius: 13px;
-  color: var(--deep);
-  background: #edf1e6;
+  color: var(--strong);
+  background: var(--surface-soft);
 }
 
 .login-page {
@@ -2762,11 +2867,11 @@ body {
 .login-brand .brand-mark {
   border: 0;
   border-radius: 50%;
-  color: var(--deep);
-  background: #f6cb65;
+  color: var(--strong);
+  background: var(--gold-bright);
   box-shadow: 0 14px 30px rgb(0 0 0 / 18%);
 }
-.login-brand .brand-mark span { color: var(--deep); }
+.login-brand .brand-mark span { color: var(--strong); }
 .login-brand h1 {
   max-width: 620px;
   color: var(--white);
@@ -2777,8 +2882,8 @@ body {
   background: var(--ivory);
 }
 .login-card header > svg {
-  color: var(--deep);
-  background: #f6cb65;
+  color: var(--strong);
+  background: var(--gold-bright);
 }
 
 @media (hover: hover) {
@@ -2809,7 +2914,7 @@ body {
 .document-preview summary {
   padding: 0.85rem 1rem;
   font-weight: 600;
-  color: var(--deep);
+  color: var(--strong);
   cursor: pointer;
 }
 .document-preview iframe,
@@ -2868,5 +2973,47 @@ body {
   gap: 0.55rem;
   margin-top: 0.35rem;
   font-weight: 600;
-  color: var(--deep);
+  color: var(--strong);
+}
+
+/* Identidad Verde Tinta: titulares y controles de tema */
+h1,
+h2,
+h3,
+.brand-row strong {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+.theme-switch {
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+.theme-switch button {
+  min-height: 38px;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.theme-switch button.theme-switch__active {
+  background: var(--ink-surface);
+  color: var(--white);
+}
+.monthly-chart {
+  padding: 1rem 0.5rem 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.monthly-chart .recharts-legend-item-text {
+  font-size: 0.8rem;
 }
