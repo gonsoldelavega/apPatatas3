@@ -20,7 +20,7 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 
 ## Operación previa a beta
 
-La migración aditiva actual es `0014_ocr_usage_budget.sql`; no altera ninguna migración anterior. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
+La migración aditiva actual es `0015_contact_invoice_period.sql`; no altera ninguna migración anterior. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
 4. La extracción de compras aplica límites persistentes antes de cada llamada de pago y usa Tesseract como fallback sin coste.
 5. La aplicación móvil y la aplicación web comparten API y modelos de datos.
 6. No se usan credenciales reales dentro del repositorio.
@@ -82,7 +82,7 @@ La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decis
 
 ## Ventas y sesión endurecida
 
-La PWA incorpora Ventas con borradores de albarán y factura, precio efectivo por cliente, emisión, cancelación y PDF autenticado. Cada empresa configura prefijo, primer número anual, IVA predeterminado y flujo principal; por defecto usa `FAC-100/año`, IVA 4 % y factura directa. La numeración sigue siendo atómica por empresa, tipo y serie. El PDF emitido es A4, blanco y negro y está diseñado para impresión clara. No existen todavía cobros, vencidos automáticos, rectificativas, contabilidad ni VeriFactu.
+La PWA incorpora Ventas con borradores de albarán y factura, precio efectivo editable por cliente, periodos quincenales, condiciones de pago opcionales, emisión, cancelación y PDF autenticado. Cada empresa configura prefijo, primer número anual, IVA predeterminado y flujo principal; por defecto usa `FAC-100/año`, IVA 4 % y factura directa. La numeración sigue siendo atómica por empresa, tipo y serie. El PDF emitido es A4, blanco y negro y está diseñado para impresión clara. No existen todavía cobros, vencidos automáticos, rectificativas, contabilidad ni VeriFactu.
 
 El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva el access token solo en memoria. Véanse [SECURITY.md](docs/SECURITY.md), [SALES_DOMAIN.md](docs/SALES_DOMAIN.md) y [E2E_TESTING.md](docs/E2E_TESTING.md).
 
