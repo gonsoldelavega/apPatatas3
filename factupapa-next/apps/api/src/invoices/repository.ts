@@ -95,7 +95,7 @@ export class InvoiceRepository {
         input.notes ?? null,
         source,
         userId,
-        snapshot.applyInvoiceDefaults,
+        (input.applyContactDefaults ?? true) && snapshot.applyInvoiceDefaults,
         snapshot.paymentTermsDays,
         snapshot.paymentTermsText,
         snapshot.defaultInvoiceInformation,

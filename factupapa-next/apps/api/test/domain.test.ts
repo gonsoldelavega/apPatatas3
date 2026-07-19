@@ -7,6 +7,7 @@ import {
 import { calculateMargin } from "../src/domain/money.js";
 import { validatePrice } from "../src/pricing/validation.js";
 import { validateProductCreate } from "../src/products/validation.js";
+import { validateInvoiceCreate } from "../src/invoices/validation.js";
 
 test("contactos validan claves, formatos y dirección estructurada", () => {
   assert.deepEqual(
@@ -35,6 +36,26 @@ test("contactos validan claves, formatos y dirección estructurada", () => {
   assert.throws(() => validateContactPatch({}));
   assert.throws(() => validateContactPatch({ email: "sin-arroba" }));
   assert.throws(() => validateContactPatch({ address: { unknown: "x" } }));
+  assert.equal(
+    validateContactPatch({ invoicePeriodMode: "fortnightly" })
+      .invoicePeriodMode,
+    "fortnightly",
+  );
+  assert.throws(() =>
+    validateContactPatch({ invoicePeriodMode: "monthly" }),
+  );
+});
+
+test("una factura puede excluir expresamente las condiciones del cliente", () => {
+  assert.equal(
+    validateInvoiceCreate({
+      contactId: crypto.randomUUID(),
+      series: "FAC",
+      issueDate: "2026-07-19",
+      applyContactDefaults: false,
+    }).applyContactDefaults,
+    false,
+  );
 });
 
 test("productos y precios exigen cadenas decimales y unidades admitidas", () => {

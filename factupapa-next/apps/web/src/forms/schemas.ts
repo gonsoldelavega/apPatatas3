@@ -37,6 +37,7 @@ export const contactSchema = z.object({
   paymentTermsText: optionalText(1000),
   defaultInvoiceInformation: optionalText(2000),
   applyInvoiceDefaults: z.boolean(),
+  invoicePeriodMode: z.enum(["manual", "fortnightly"]),
 });
 
 export const productSchema = z.object({

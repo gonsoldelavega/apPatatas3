@@ -224,6 +224,7 @@ export const invoicesApi = {
     deliveryDates?: string[];
     paymentTerms?: string | null;
     generalInformation?: string | null;
+    applyContactDefaults?: boolean;
   }) =>
     apiClient.request<Invoice>("/invoices", {
       method: "POST",
@@ -238,7 +239,10 @@ export const invoicesApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  addLine: (id: string, input: { productId: string; quantity: string }) =>
+  addLine: (
+    id: string,
+    input: { productId: string; quantity: string; unitPrice?: string },
+  ) =>
     apiClient.request<Invoice>(`/invoices/${id}/lines`, {
       method: "POST",
       body: JSON.stringify(input),

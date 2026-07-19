@@ -56,8 +56,9 @@ export interface InvoiceCreate {
   deliveryDates?: string[];
   paymentTerms?: string | null;
   generalInformation?: string | null;
+  applyContactDefaults?: boolean;
 }
-export type InvoicePatch = Partial<InvoiceCreate>;
+export type InvoicePatch = Partial<Omit<InvoiceCreate, "applyContactDefaults">>;
 export interface InvoiceLineInput {
   productId?: string | null;
   description?: string;

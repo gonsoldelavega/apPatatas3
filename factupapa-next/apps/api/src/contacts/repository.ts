@@ -20,6 +20,7 @@ const projection = `
   payment_terms_text as "paymentTermsText",
   default_invoice_information as "defaultInvoiceInformation",
   apply_invoice_defaults as "applyInvoiceDefaults",
+  invoice_period_mode as "invoicePeriodMode",
   is_active as "isActive",
   created_at as "createdAt",
   updated_at as "updatedAt"`;
@@ -35,8 +36,8 @@ export class ContactRepository {
     input: ContactCreate,
   ): Promise<Contact> {
     const result = await client.query<Contact & QueryResultRow>(
-      `insert into contacts(company_id, kind, legal_name, trade_name, tax_id, email, phone, address, notes,payment_terms_days,payment_terms_text,default_invoice_information,apply_invoice_defaults)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      `insert into contacts(company_id, kind, legal_name, trade_name, tax_id, email, phone, address, notes,payment_terms_days,payment_terms_text,default_invoice_information,apply_invoice_defaults,invoice_period_mode)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        returning ${projection}`,
       [
         companyId,
@@ -52,6 +53,7 @@ export class ContactRepository {
         input.paymentTermsText ?? null,
         input.defaultInvoiceInformation ?? null,
         input.applyInvoiceDefaults ?? false,
+        input.invoicePeriodMode ?? "manual",
       ],
     );
     return result.rows[0]!;
@@ -123,6 +125,7 @@ export class ContactRepository {
       paymentTermsText: "payment_terms_text",
       defaultInvoiceInformation: "default_invoice_information",
       applyInvoiceDefaults: "apply_invoice_defaults",
+      invoicePeriodMode: "invoice_period_mode",
       isActive: "is_active",
     } as const;
     const entries = Object.entries(input) as [keyof ContactPatch, unknown][];

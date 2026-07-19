@@ -332,3 +332,84 @@ test("nueva compra: subida, revisión y guardado bloqueado sin datos", async ({
     fullPage: true,
   });
 });
+
+test("una compra se puede confirmar y cancelar con respuesta visible", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+
+  const createPurchase = async (suffix: string) => {
+    await page.goto("/gastos/nuevo");
+    await page.getByLabel("Proveedor obligatorio").selectOption({ index: 1 });
+    await page
+      .getByLabel("Número de factura del proveedor")
+      .fill(`E2E-${testInfo.project.name}-${testInfo.retry}-${suffix}`);
+    await page.getByLabel("Descripción").fill(`Compra ficticia ${suffix}`);
+    await page.getByLabel("Coste unidad sin IVA").fill("2,50");
+    await page.getByRole("button", { name: "Guardar para revisión" }).click();
+    await expect(page).toHaveURL(/\/gastos\/[0-9a-f-]+$/);
+  };
+
+  await createPurchase("confirmar");
+  await page.getByRole("button", { name: "Confirmar compra" }).click();
+  await expect(page.getByRole("status")).toContainText("Compra confirmada");
+  await expect(
+    page.getByRole("button", { name: "Confirmar compra" }),
+  ).toBeHidden();
+
+  await createPurchase("cancelar");
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Compra cancelada");
+  await expect(
+    page.getByRole("button", { name: "Cancelar", exact: true }),
+  ).toBeHidden();
+});
+
+test("cliente quincenal, condiciones opcionales y precio editable", async ({
+  page,
+}, testInfo) => {
+  const key = `${testInfo.project.name}-${testInfo.retry}`;
+  const customer = `Cliente quincenal ${key}`;
+  await login(page);
+  await page.goto("/contactos/nuevo?tipo=customer");
+  await page.getByLabel("Nombre fiscal").fill(customer);
+  await page
+    .getByLabel("Periodo habitual de sus facturas")
+    .selectOption("fortnightly");
+  await page
+    .getByText("Incluir condiciones de pago por defecto")
+    .click();
+  await page.getByLabel("Días hasta vencimiento").fill("3");
+  await page
+    .getByText("Condiciones y consecuencias del impago")
+    .locator("..")
+    .getByRole("textbox")
+    .fill("Pago en 3 días. La demora podrá suspender nuevos pedidos.");
+  await page.getByRole("button", { name: "Guardar contacto" }).click();
+  await expect(page).toHaveURL(/\/contactos\/[0-9a-f-]+$/);
+
+  await page.goto("/ventas/nuevo/factura");
+  await page.getByLabel("Cliente").selectOption({ label: customer });
+  await expect(page.getByText("Periodo quincenal")).toBeVisible();
+  await expect(page.locator(".invoice-period-summary strong")).toContainText(
+    /\d{4}-\d{2}-(01|16).*\d{4}-\d{2}-\d{2}/,
+  );
+  const conditions = page
+    .getByText("Condiciones y consecuencias del impago")
+    .locator("..")
+    .getByRole("textbox");
+  await expect(conditions).toHaveValue(/Pago en 3 días/);
+
+  await page.getByLabel("Producto 1").selectOption({ index: 1 });
+  const price = page.getByLabel(/Precio sin IVA/);
+  await expect(price).not.toHaveValue("");
+  await price.fill("1,75");
+  await expect(price).toHaveValue("1,75");
+
+  await page.getByText("Incluir condiciones de pago", { exact: true }).click();
+  await expect(conditions).toBeHidden();
+  await expect(page.getByLabel(/Precio sin IVA/)).toHaveValue("1,75");
+  await page.getByRole("button", { name: "Revisar factura" }).click();
+  await expect(page).toHaveURL(/\/ventas\/facturas\/[0-9a-f-]+$/);
+  await expect(page.getByText(/1 kg × 1,75/)).toBeVisible();
+});

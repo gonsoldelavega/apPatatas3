@@ -3,10 +3,12 @@ import { ArrowLeft, CheckCircle2, Eye, XCircle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { financeApi } from "../api/services";
 import { Button } from "../ui/Button";
+import { useToast } from "../ui/ToastProvider";
 import { formatMoney, formatQuantity } from "../utils/format";
 export function PurchaseDetailPage() {
   const { id = "" } = useParams(),
     qc = useQueryClient(),
+    toast = useToast(),
     q = useQuery({
       queryKey: ["purchase", id],
       queryFn: () => financeApi.purchase(id),
@@ -14,7 +16,13 @@ export function PurchaseDetailPage() {
     action = useMutation({
       mutationFn: (x: "confirm" | "cancel") =>
         financeApi.transitionPurchase(id, x),
-      onSuccess: () => qc.invalidateQueries({ queryKey: ["purchase", id] }),
+      onSuccess: async (purchase, requestedAction) => {
+        qc.setQueryData(["purchase", id], purchase);
+        await qc.invalidateQueries({ queryKey: ["purchases"] });
+        toast.show(
+          requestedAction === "confirm" ? "Compra confirmada" : "Compra cancelada",
+        );
+      },
     }),
     view = useMutation({
       mutationFn: financeApi.downloadPurchaseDocument,
@@ -64,18 +72,30 @@ export function PurchaseDetailPage() {
       {x.status === "draft" && (
         <div className="document-actions">
           <Button
+            type="button"
             icon={<CheckCircle2 />}
+            busy={action.isPending && action.variables === "confirm"}
+            disabled={action.isPending}
             onClick={() => action.mutate("confirm")}
           >
             Confirmar compra
           </Button>
           <Button
+            type="button"
             variant="danger"
             icon={<XCircle />}
+            busy={action.isPending && action.variables === "cancel"}
+            disabled={action.isPending}
             onClick={() => action.mutate("cancel")}
           >
             Cancelar
           </Button>
+        </div>
+      )}
+      {action.isError && (
+        <div className="form-alert" role="alert">
+          No se ha podido cambiar el estado de la compra. Recarga la página y
+          vuelve a intentarlo.
         </div>
       )}
     </div>

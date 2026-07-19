@@ -15,6 +15,7 @@ import type {
   ContactListQuery,
   ContactPatch,
   ContactType,
+  InvoicePeriodMode,
 } from "./types.js";
 
 const fields = [
@@ -30,11 +31,18 @@ const fields = [
   "paymentTermsText",
   "defaultInvoiceInformation",
   "applyInvoiceDefaults",
+  "invoicePeriodMode",
   "isActive",
 ] as const;
 
 function contactType(value: unknown): ContactType {
   if (value !== "customer" && value !== "supplier" && value !== "both")
+    throw new HttpError("invalid_request", 400);
+  return value;
+}
+
+function invoicePeriodMode(value: unknown): InvoicePeriodMode {
+  if (value !== "manual" && value !== "fortnightly")
     throw new HttpError("invalid_request", 400);
   return value;
 }
@@ -76,6 +84,10 @@ function optionalFields(body: Record<string, unknown>): ContactPatch {
       2000,
     ),
     applyInvoiceDefaults = optionalBoolean(body.applyInvoiceDefaults);
+  const periodMode =
+    body.invoicePeriodMode === undefined
+      ? undefined
+      : invoicePeriodMode(body.invoicePeriodMode);
   if (
     body.paymentTermsDays !== undefined &&
     (!Number.isInteger(body.paymentTermsDays) ||
@@ -98,6 +110,7 @@ function optionalFields(body: Record<string, unknown>): ContactPatch {
       ? {}
       : { defaultInvoiceInformation }),
     ...(applyInvoiceDefaults === undefined ? {} : { applyInvoiceDefaults }),
+    ...(periodMode === undefined ? {} : { invoicePeriodMode: periodMode }),
   };
 }
 

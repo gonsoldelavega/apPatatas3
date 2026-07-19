@@ -1,6 +1,7 @@
 import type { Address, ListQuery } from "../domain/validation.js";
 
 export type ContactType = "customer" | "supplier" | "both";
+export type InvoicePeriodMode = "manual" | "fortnightly";
 
 export interface Contact {
   id: string;
@@ -16,6 +17,7 @@ export interface Contact {
   paymentTermsText: string | null;
   defaultInvoiceInformation: string | null;
   applyInvoiceDefaults: boolean;
+  invoicePeriodMode: InvoicePeriodMode;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +36,7 @@ export interface ContactCreate {
   paymentTermsText?: string | null;
   defaultInvoiceInformation?: string | null;
   applyInvoiceDefaults?: boolean;
+  invoicePeriodMode?: InvoicePeriodMode;
 }
 
 export type ContactPatch = Partial<ContactCreate & { isActive: boolean }>;

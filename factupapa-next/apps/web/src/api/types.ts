@@ -1,4 +1,5 @@
 export type ContactType = "customer" | "supplier" | "both";
+export type InvoicePeriodMode = "manual" | "fortnightly";
 export type ProductUnit = "kg" | "g" | "unit" | "box" | "custom";
 export type ImportEntityType =
   | "contacts"
@@ -40,6 +41,7 @@ export interface Contact {
   paymentTermsText: string | null;
   defaultInvoiceInformation: string | null;
   applyInvoiceDefaults: boolean;
+  invoicePeriodMode: InvoicePeriodMode;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -55,6 +57,7 @@ export type ContactInput = Omit<
   | "paymentTermsText"
   | "defaultInvoiceInformation"
   | "applyInvoiceDefaults"
+  | "invoicePeriodMode"
 > &
   Partial<
     Pick<
@@ -63,6 +66,7 @@ export type ContactInput = Omit<
       | "paymentTermsText"
       | "defaultInvoiceInformation"
       | "applyInvoiceDefaults"
+      | "invoicePeriodMode"
     >
   >;
 

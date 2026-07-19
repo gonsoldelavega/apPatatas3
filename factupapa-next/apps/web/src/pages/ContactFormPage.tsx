@@ -39,6 +39,7 @@ const blank: Values = {
   paymentTermsText: "",
   defaultInvoiceInformation: "",
   applyInvoiceDefaults: false,
+  invoicePeriodMode: "manual",
 };
 const nullable = (value?: string) => value?.trim() || null;
 
@@ -55,6 +56,7 @@ function payload(values: Values): ContactInput {
     paymentTermsText: nullable(values.paymentTermsText),
     defaultInvoiceInformation: nullable(values.defaultInvoiceInformation),
     applyInvoiceDefaults: values.applyInvoiceDefaults,
+    invoicePeriodMode: values.invoicePeriodMode,
     address: Object.fromEntries(
       Object.entries({
         street: values.street,
@@ -85,6 +87,7 @@ export function ContactFormPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(contactSchema),
@@ -113,15 +116,22 @@ export function ContactFormPage() {
       paymentTermsText: contact.data.paymentTermsText ?? "",
       defaultInvoiceInformation: contact.data.defaultInvoiceInformation ?? "",
       applyInvoiceDefaults: contact.data.applyInvoiceDefaults,
+      invoicePeriodMode: contact.data.invoicePeriodMode,
     });
   }, [contact.data, reset]);
+  const contactType = watch("type");
+  const includePaymentTerms = watch("applyInvoiceDefaults");
   const save = useMutation({
     mutationFn: (values: Values) =>
       id
         ? contactsApi.update(id, payload(values))
         : contactsApi.create(payload(values)),
     onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["contacts"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-suppliers"] }),
+      ]);
       toast.show(id ? "Contacto actualizado" : "Contacto creado");
       navigate(`/contactos/${saved.id}`, { replace: true });
     },
@@ -242,26 +252,55 @@ export function ContactFormPage() {
             </span>
           </label>
         </section>
-        <section className="form-card">
-          <h2>Facturación habitual</h2>
-          <label>
-            <input type="checkbox" {...register("applyInvoiceDefaults")} />{" "}
-            Aplicar estas condiciones automáticamente
-          </label>
-          <Field
-            label="Días hasta vencimiento"
-            type="number"
-            {...register("paymentTermsDays", { valueAsNumber: true })}
-          />
-          <label className="field">
-            <span>Condiciones de pago</span>
-            <textarea {...register("paymentTermsText")} />
-          </label>
-          <label className="field">
-            <span>Información general</span>
-            <textarea {...register("defaultInvoiceInformation")} />
-          </label>
-        </section>
+        {contactType !== "supplier" && (
+          <section className="form-card">
+            <h2>Facturación habitual</h2>
+            <SelectField
+              label="Periodo habitual de sus facturas"
+              {...register("invoicePeriodMode")}
+            >
+              <option value="manual">Sin periodo automático</option>
+              <option value="fortnightly">
+                Quincenal: 1–15 y 16–último día
+              </option>
+            </SelectField>
+            <label className="choice-row">
+              <input type="checkbox" {...register("applyInvoiceDefaults")} />
+              <span>
+                <strong>Incluir condiciones de pago por defecto</strong>
+                <small>
+                  Déjalo desactivado para clientes que pagan al momento.
+                </small>
+              </span>
+            </label>
+            {includePaymentTerms && (
+              <div className="conditional-fields">
+                <Field
+                  label="Días hasta vencimiento"
+                  type="number"
+                  min={0}
+                  max={365}
+                  {...register("paymentTermsDays", { valueAsNumber: true })}
+                />
+                <label className="field">
+                  <span>Condiciones y consecuencias del impago</span>
+                  <textarea
+                    rows={4}
+                    placeholder="Ej.: Pago en 3 días. En caso de demora…"
+                    {...register("paymentTermsText")}
+                  />
+                </label>
+                <label className="field">
+                  <span>Otra información para la factura (opcional)</span>
+                  <textarea
+                    rows={3}
+                    {...register("defaultInvoiceInformation")}
+                  />
+                </label>
+              </div>
+            )}
+          </section>
+        )}
         {save.isError && (
           <div className="form-alert" role="alert">
             No se ha podido guardar. Revisa los datos o posibles duplicados.

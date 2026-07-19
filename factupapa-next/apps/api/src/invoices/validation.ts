@@ -3,6 +3,7 @@ import {
   decimalString,
   isoDate,
   optionalText,
+  optionalBoolean,
   requiredText,
   taxRate,
 } from "../domain/validation.js";
@@ -45,6 +46,7 @@ export function validateInvoiceCreate(
     "deliveryDates",
     "paymentTerms",
     "generalInformation",
+    "applyContactDefaults",
   ]);
   const result: InvoiceCreate = {
     contactId: uuid(body.contactId),
@@ -63,6 +65,7 @@ export function validateInvoiceCreate(
     deliveryDates: invoiceDates(body.deliveryDates),
     paymentTerms: optionalText(body.paymentTerms, 1000) ?? null,
     generalInformation: optionalText(body.generalInformation, 2000) ?? null,
+    applyContactDefaults: optionalBoolean(body.applyContactDefaults) ?? true,
   };
   if (
     result.operationStartDate &&
