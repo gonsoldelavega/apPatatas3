@@ -585,9 +585,17 @@ export class FinanceService {
       ).rows[0];
       if (!before) throw new HttpError("not_found", 404);
       if (before.status !== "draft") throw new HttpError("conflict", 409);
+      // Avoid reusing a parameter in enum and text comparison contexts. That
+      // makes PostgreSQL reject the statement with 42P08 before triggers run.
       await c.query(
-        `update purchase_invoices set status=$2,confirmed_at=case when $2='confirmed' then now() end,cancelled_at=case when $2='cancelled' then now() end where id=$1`,
-        [id, status],
+        status === "confirmed"
+          ? `update purchase_invoices
+             set status='confirmed',confirmed_at=now(),cancelled_at=null
+             where id=$1`
+          : `update purchase_invoices
+             set status='cancelled',cancelled_at=now(),confirmed_at=null
+             where id=$1`,
+        [id],
       );
       return this.getIn(c, id);
     });

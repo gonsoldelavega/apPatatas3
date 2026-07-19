@@ -13,6 +13,8 @@ import {
   createDatabaseProbe,
   type Database,
 } from "../../src/database/client.js";
+import { createFinanceRoutes } from "../../src/finance/routes.js";
+import { FinanceService } from "../../src/finance/service.js";
 import { PricingService } from "../../src/pricing/service.js";
 import { createPricingRoutes } from "../../src/pricing/routes.js";
 import { ProductService } from "../../src/products/service.js";
@@ -145,6 +147,7 @@ before(async () => {
     loginRateLimitWindowMs: 60_000,
   });
   const contacts = new ContactService(apiDatabase.pool);
+  const finance = new FinanceService(apiDatabase.pool);
   const products = new ProductService(apiDatabase.pool);
   const pricing = new PricingService(apiDatabase.pool);
   server = createApp({
@@ -153,6 +156,7 @@ before(async () => {
     version: "business-integration",
     corsAllowedOrigins: ["http://integration.test"],
     routes: [
+      createFinanceRoutes(auth, finance),
       createPricingRoutes(auth, pricing),
       createContactRoutes(auth, contacts),
       createProductRoutes(auth, products),
@@ -522,6 +526,65 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
         tokenA,
       );
       assert.equal(((await search.json()) as { total: number }).total, 0);
+    },
+  );
+
+  await context.test(
+    "confirma y cancela compras sin ambigüedad de tipos PostgreSQL",
+    async () => {
+      const supplier = await createContact(tokenA, {
+        type: "supplier",
+        legalName: "Proveedor de transiciones",
+        taxId: "TEST-PURCHASE-001",
+      });
+      const createPurchase = async (suffix: string) => {
+        const response = await request(
+          "POST",
+          "/purchases",
+          {
+            supplierId: supplier.id,
+            documentId: null,
+            supplierInvoiceNumber: `TEST-${suffix}`,
+            issueDate: "2026-07-19",
+            dueDate: null,
+            category: "mercancia",
+            notes: "Compra ficticia de integración",
+            lines: [
+              {
+                productId: null,
+                description: `Línea ${suffix}`,
+                quantity: "1",
+                unit: "kg",
+                unitCost: "2.5",
+                taxRate: "4",
+              },
+            ],
+          },
+          tokenA,
+        );
+        assert.equal(response.status, 201);
+        return (await response.json()) as Entity;
+      };
+
+      const confirmed = await createPurchase("CONFIRM");
+      const confirm = await request(
+        "POST",
+        `/purchases/${confirmed.id}/confirm`,
+        {},
+        tokenA,
+      );
+      assert.equal(confirm.status, 200);
+      assert.equal(((await confirm.json()) as Entity).status, "confirmed");
+
+      const cancelled = await createPurchase("CANCEL");
+      const cancel = await request(
+        "POST",
+        `/purchases/${cancelled.id}/cancel`,
+        {},
+        tokenA,
+      );
+      assert.equal(cancel.status, 200);
+      assert.equal(((await cancel.json()) as Entity).status, "cancelled");
     },
   );
 

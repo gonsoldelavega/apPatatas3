@@ -234,7 +234,7 @@ export function SalesFormPage() {
               />
               <span>
                 <strong>Incluir condiciones de pago</strong>
-                <small>Desactivado para clientes que pagan al momento.</small>
+                <small>Déjalo desactivado cuando el pago sea al momento.</small>
               </span>
             </label>
             {includeTerms && (
