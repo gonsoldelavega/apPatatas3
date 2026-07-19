@@ -8,6 +8,11 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 import "./styles.css";
 
+if (import.meta.env.VITE_DEMO === "1") {
+  const { installDemoApi } = await import("./demo/mock");
+  installDemoApi();
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false },
