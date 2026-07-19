@@ -87,3 +87,4 @@ La PWA incorpora Ventas con borradores de albarán y factura, precio efectivo ed
 El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva el access token solo en memoria. Véanse [SECURITY.md](docs/SECURITY.md), [SALES_DOMAIN.md](docs/SALES_DOMAIN.md) y [E2E_TESTING.md](docs/E2E_TESTING.md).
 
 Este proyecto todavía no está conectado a ningún dato real ni a la aplicación productiva.
+Auditoría manual de staging.
