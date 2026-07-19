@@ -97,7 +97,7 @@ jobs:
           test -z "$(docker network ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
 
       - name: Deploy exact audited SHA to private staging
-        if: success() && github.event_name == 'push'
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         shell: bash
         env:
           FACTUPAPA_OWN_TAX_IDS: ${{ secrets.FACTUPAPA_OWN_TAX_IDS }}
