@@ -21,13 +21,7 @@
       crossorigin
     />
     <title>FactuPapa Next</title>
-    <script>
-      try {
-        var theme = localStorage.getItem("factupapa-theme");
-        if (theme === "dark" || theme === "light")
-          document.documentElement.dataset.theme = theme;
-      } catch (error) {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

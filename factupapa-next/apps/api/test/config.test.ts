@@ -60,6 +60,40 @@ test("la configuración aplica valores predeterminados seguros", () => {
   );
   assert.equal(config.internalMetricsAllowRemote, false);
   assert.deepEqual(config.importRetentionDays, { completed: 30, cancelled: 7, failed: 14 });
+  assert.deepEqual(config.ownTaxIds, []);
+  assert.equal(config.anthropicModel, "claude-haiku-4-5-20251001");
+  assert.equal(config.ocrDailyAttemptLimit, 5);
+  assert.equal(config.ocrMonthlyAttemptLimit, 50);
+  assert.equal(config.ocrMonthlyBudgetMicrousd, 400_000);
+});
+
+test("Anthropic exige NIF propio externo y limita el presupuesto a 0,40 USD", () => {
+  const base = {
+    DATABASE_URL: "postgresql://localhost/test",
+    JWT_SECRET: "x".repeat(32),
+    ANTHROPIC_API_KEY: "sk-ant-test-key",
+  };
+  assert.throws(() => loadConfig(base), /OWN_TAX_IDS/);
+  const configured = loadConfig({ ...base, OWN_TAX_IDS: " 00000000t " });
+  assert.deepEqual(configured.ownTaxIds, ["00000000T"]);
+  assert.throws(
+    () =>
+      loadConfig({
+        ...base,
+        OWN_TAX_IDS: "00000000T",
+        OCR_MONTHLY_BUDGET_USD: "0.41",
+      }),
+    /0.40/,
+  );
+  assert.throws(
+    () =>
+      loadConfig({
+        ...base,
+        OWN_TAX_IDS: "00000000T",
+        ANTHROPIC_MODEL: "claude-opus-4-1",
+      }),
+    /claude-haiku-4-5-20251001/,
+  );
 });
 
 test("la configuración acepta únicamente orígenes CORS exactos", () => {

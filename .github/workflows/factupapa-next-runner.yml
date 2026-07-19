@@ -2,7 +2,7 @@ name: FactuPapa Next Rootless Audit
 
 on:
   push:
-    branches: [design/factupapa-full-prototype]
+    branches: [design/factupapa-full-prototype, codex/factupapa-claude-fixes]
     paths:
       - 'factupapa-next/**'
       - '.github/workflows/factupapa-next-runner.yml'
@@ -99,4 +99,9 @@ jobs:
       - name: Deploy exact audited SHA to private staging
         if: success() && github.event_name == 'push'
         shell: bash
+        env:
+          FACTUPAPA_OWN_TAX_IDS: ${{ secrets.FACTUPAPA_OWN_TAX_IDS }}
+          FACTUPAPA_ANTHROPIC_API_KEY: ${{ secrets.FACTUPAPA_ANTHROPIC_API_KEY }}
+          FACTUPAPA_STAGING_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
+          FACTUPAPA_STAGING_PASSWORD: ${{ secrets.FACTUPAPA_STAGING_PASSWORD }}
         run: factupapa-next/scripts/deploy-private-staging.sh

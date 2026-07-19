@@ -96,10 +96,10 @@ test("descarta filas OCR cuyos importes no cuadran", () => {
 });
 test("el NIF del propio cliente extraído por regex se descarta con aviso", () => {
   const fields = extractPurchaseFields(
-    "FACTURA Número: FV-1 Fecha: 16/07/2026 NIF: 45313973V Base imponible 126,00 IVA 5,04 TOTAL 131,04",
+    "FACTURA Número: FV-1 Fecha: 16/07/2026 NIF: 00000000T Base imponible 126,00 IVA 5,04 TOTAL 131,04",
   );
-  assert.equal(fields.supplierTaxId, "45313973V");
-  const filtered = stripOwnTaxId(fields, ["45313973V"]);
+  assert.equal(fields.supplierTaxId, "00000000T");
+  const filtered = stripOwnTaxId(fields, ["00000000T"]);
   assert.equal(filtered.supplierTaxId, undefined);
   assert.ok(filtered.warnings?.includes("supplier_tax_id_own"));
 });

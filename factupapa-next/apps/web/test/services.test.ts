@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../src/api/client";
-import { contactsApi, importsApi, pricingApi, productsApi } from "../src/api/services";
+import {
+  contactsApi,
+  financeApi,
+  importsApi,
+  pricingApi,
+  productsApi,
+} from "../src/api/services";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -50,5 +56,21 @@ describe("contratos de importación", () => {
     expect(request).toHaveBeenNthCalledWith(1, "/imports/validate", expect.objectContaining({ method: "POST", timeoutMs: 30_000 }));
     expect(request).toHaveBeenNthCalledWith(2, "/imports/batch-id/confirm", { method: "POST", body: JSON.stringify({ strategy: "skip_existing" }), timeoutMs: 30_000 });
     expect(request).toHaveBeenNthCalledWith(3, "/imports/batch-id/cancel", { method: "POST", body: "{}" });
+  });
+});
+
+describe("contratos de OCR", () => {
+  it("consulta el consumo sin exponer configuración privada", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
+    await financeApi.ocrBudget();
+    expect(request).toHaveBeenCalledWith("/finance/ocr-budget");
+  });
+
+  it("usa el endpoint fiscal que solo devuelve compras confirmadas", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue([]);
+    await financeApi.confirmedPurchasesForExport("2026-01-01", "2026-12-31");
+    expect(request).toHaveBeenCalledWith(
+      "/purchases/export?from=2026-01-01&to=2026-12-31",
+    );
   });
 });

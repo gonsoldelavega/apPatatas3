@@ -119,7 +119,7 @@ cleanup_bootstrap_env
 trap - EXIT
 ```
 
-La contraseña debe tener entre 14 y 128 caracteres. El comando solo informa de éxito o error y no imprime email, contraseña, hash ni tokens.
+La contraseña del bootstrap debe tener entre 14 y 128 caracteres. El seed exclusivamente ficticio admite entre 6 y 128 para facilitar el acceso a entornos privados de demostración; esta excepción no se aplica al bootstrap ni a cuentas reales. Los comandos solo informan de éxito o error y no imprimen email, contraseña, hash ni tokens.
 
 El bootstrap es una excepción administrativa explícita a RLS y solo debe ejecutarse desde un entorno controlado con `DATABASE_ADMIN_URL`; esa variable nunca se entrega al contenedor `api`.
 

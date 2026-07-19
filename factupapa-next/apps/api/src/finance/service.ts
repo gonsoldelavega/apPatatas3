@@ -24,6 +24,11 @@ import {
   type VisionDocument,
 } from "./extraction-vision.js";
 import { recognizeWithTimeout } from "./ocr.js";
+import {
+  OcrBudget,
+  OcrBudgetExceededError,
+  type OcrBudgetLimits,
+} from "./ocr-budget.js";
 import type { PurchaseInput, RecurringExpenseInput } from "./validation.js";
 const extractionScore = (x: ExtractedPurchaseFields) =>
   (x.supplierTaxId ? 4 : 0) +
@@ -53,7 +58,7 @@ async function bestOcr(input: Buffer, filename: string) {
       b.page.confidence - a.page.confidence,
   )[0]!;
 }
-const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
+const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_tax_id "supplierTaxId",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
 const stockCtes = `purchase_entries as(
   select l.product_id,l.line_subtotal,
     case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end qty
@@ -74,6 +79,7 @@ const stockCtes = `purchase_entries as(
 )`;
 export class FinanceService {
   private readonly s3?: S3Client;
+  private readonly ocrBudget?: OcrBudget;
   constructor(
     private pool: Pool,
     private storage?: {
@@ -86,6 +92,7 @@ export class FinanceService {
       ownTaxIds: string[];
       anthropicApiKey?: string;
       visionModel?: string;
+      budget?: OcrBudgetLimits;
     },
   ) {
     if (storage)
@@ -98,10 +105,22 @@ export class FinanceService {
           secretAccessKey: storage.secretKey,
         },
       });
+    if (extraction?.budget)
+      this.ocrBudget = new OcrBudget(pool, extraction.budget);
+  }
+
+  async ocrBudgetStatus(i: SessionIdentity) {
+    if (!this.ocrBudget) throw new HttpError("not_found", 404);
+    return this.ocrBudget.status(i);
   }
   async uploadDocument(
     i: SessionIdentity,
-    input: { filename: unknown; mimeType: unknown; contentBase64: unknown },
+    input: {
+      filename: unknown;
+      mimeType: unknown;
+      contentBase64: unknown;
+      documentId?: unknown;
+    },
   ) {
     if (!this.s3 || !this.storage) throw new HttpError("conflict", 409);
     if (
@@ -113,7 +132,12 @@ export class FinanceService {
         input.mimeType,
       ) ||
       typeof input.contentBase64 !== "string" ||
-      !/^[-A-Za-z0-9+/]*={0,2}$/.test(input.contentBase64)
+      !/^[-A-Za-z0-9+/]*={0,2}$/.test(input.contentBase64) ||
+      (input.documentId != null &&
+        (typeof input.documentId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            input.documentId,
+          )))
     )
       throw new HttpError("invalid_request", 400);
     const body = Buffer.from(input.contentBase64, "base64"),
@@ -129,20 +153,59 @@ export class FinanceService {
               .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
           : body.subarray(0, 3).equals(Buffer.from([255, 216, 255]));
     if (!ok) throw new HttpError("invalid_request", 400);
+    const id = (input.documentId as string | undefined) ?? randomUUID(),
+      ext =
+        mime === "application/pdf"
+          ? "pdf"
+          : mime === "image/png"
+            ? "png"
+            : "jpg",
+      key = `${i.companyId}/purchases/${id}.${ext}`,
+      sha = createHash("sha256").update(body).digest("hex"),
+      isRetry = Boolean(input.documentId);
+    if (isRetry) {
+      await withTenantTransaction(this.pool, i, async (c) => {
+        const existing = (
+          await c.query(
+            `select 1 from documents d
+             where d.id=$1 and d.kind='purchase_invoice'
+               and d.sha256=$2 and d.status='needs_review'
+               and not exists(
+                 select 1 from purchase_invoices p where p.document_id=d.id
+               )`,
+            [id, sha],
+          )
+        ).rows[0];
+        if (!existing) throw new HttpError("conflict", 409);
+      });
+    }
     let extracted: ExtractedPurchaseFields = {};
     const visionEnabled = Boolean(this.extraction?.anthropicApiKey);
     let visionFailed = false;
+    let visionBudgetExhausted = false;
     const tryVision = async (document: VisionDocument) => {
       if (!this.extraction?.anthropicApiKey) return undefined;
+      const model = this.extraction.visionModel ?? DEFAULT_VISION_MODEL;
       try {
         return await extractPurchaseFieldsWithVision(document, {
           apiKey: this.extraction.anthropicApiKey,
           ownTaxIds: this.extraction.ownTaxIds,
-          ...(this.extraction.visionModel
-            ? { model: this.extraction.visionModel }
+          model,
+          ...(this.ocrBudget
+            ? {
+                beforeAttempt: () => this.ocrBudget!.reserve(i, model),
+                onAttemptSuccess: (reservationId, usage) =>
+                  this.ocrBudget!
+                    .complete(i, reservationId, usage)
+                    .catch(() => undefined),
+                onAttemptFailure: (reservationId) =>
+                  this.ocrBudget!.fail(i, reservationId),
+              }
             : {}),
         });
-      } catch {
+      } catch (error) {
+        if (error instanceof OcrBudgetExceededError)
+          visionBudgetExhausted = true;
         visionFailed = true;
         return undefined;
       }
@@ -248,27 +311,25 @@ export class FinanceService {
       extracted = {
         ...extracted,
         warnings: [
-          ...new Set([...(extracted.warnings ?? []), "vision_unavailable"]),
+          ...new Set([
+            ...(extracted.warnings ?? []),
+            visionBudgetExhausted
+              ? "vision_budget_exhausted"
+              : "vision_unavailable",
+          ]),
         ],
       };
-    const id = randomUUID(),
-      ext =
-        mime === "application/pdf"
-          ? "pdf"
-          : mime === "image/png"
-            ? "png"
-            : "jpg",
-      key = `${i.companyId}/purchases/${id}.${ext}`,
-      sha = createHash("sha256").update(body).digest("hex");
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.storage.bucket,
-        Key: key,
-        Body: body,
-        ContentType: mime,
-        Metadata: { sha256: sha },
-      }),
-    );
+    if (!isRetry) {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.storage.bucket,
+          Key: key,
+          Body: body,
+          ContentType: mime,
+          Metadata: { sha256: sha },
+        }),
+      );
+    }
     try {
       return await withTenantTransaction(
         this.pool,
@@ -307,6 +368,33 @@ export class FinanceService {
               ]),
             ],
           };
+          const provider =
+              normalized.source === "vision" || normalized.fieldConfidence
+                ? `anthropic-${this.extraction?.visionModel ?? DEFAULT_VISION_MODEL}`
+                : normalized.source === "ocr"
+                  ? "tesseract-spa-eng"
+                  : "local-pdf-text",
+            confidence =
+              normalized.ocrConfidence == null
+                ? null
+                : normalized.ocrConfidence / 100;
+          if (isRetry) {
+            const retried = (
+              await c.query(
+                `update documents
+                 set ocr_provider=$2,ocr_confidence=$3,extracted_data=$4,updated_at=now()
+                 where id=$1 and kind='purchase_invoice' and status='needs_review'
+                   and sha256=$5
+                   and not exists(
+                     select 1 from purchase_invoices p where p.document_id=documents.id
+                   )
+                 returning id,original_filename filename,mime_type "mimeType",byte_size::text "byteSize",status,extracted_data "extractedData"`,
+                [id, provider, confidence, normalized, sha],
+              )
+            ).rows[0];
+            if (!retried) throw new HttpError("conflict", 409);
+            return retried;
+          }
           return (
             await c.query(
               `insert into documents(id,company_id,kind,status,original_filename,storage_key,mime_type,byte_size,sha256,uploaded_by,ocr_provider,ocr_confidence,extracted_data)values($1,$2,'purchase_invoice','needs_review',$3,$4,$5,$6,$7,$8,$9,$10,$11)returning id,original_filename filename,mime_type "mimeType",byte_size::text "byteSize",status,extracted_data "extractedData"`,
@@ -319,12 +407,8 @@ export class FinanceService {
                 body.length,
                 sha,
                 i.userId,
-                normalized.source === "vision" || normalized.fieldConfidence
-                  ? `anthropic-${this.extraction?.visionModel ?? DEFAULT_VISION_MODEL}`
-                  : normalized.source === "ocr"
-                    ? "tesseract-spa-eng"
-                    : "local-pdf-text",
-                normalized.ocrConfidence == null ? null : normalized.ocrConfidence / 100,
+                provider,
+                confidence,
                 normalized,
               ],
             )
@@ -332,11 +416,12 @@ export class FinanceService {
         },
       );
     } catch (e) {
-      await this.s3
-        .send(
-          new DeleteObjectCommand({ Bucket: this.storage.bucket, Key: key }),
-        )
-        .catch(() => undefined);
+      if (!isRetry)
+        await this.s3
+          .send(
+            new DeleteObjectCommand({ Bucket: this.storage.bucket, Key: key }),
+          )
+          .catch(() => undefined);
       throw e;
     }
   }
@@ -372,6 +457,22 @@ export class FinanceService {
         (
           await c.query(
             `${select} where p.issue_date between $1 and $2 order by p.issue_date desc,p.id desc limit 500`,
+            [r.from, r.to],
+          )
+        ).rows,
+    );
+  }
+  async exportConfirmedPurchases(
+    i: SessionIdentity,
+    r: { from: string; to: string },
+  ) {
+    return withTenantTransaction(
+      this.pool,
+      i,
+      async (c) =>
+        (
+          await c.query(
+            `${select} where p.issue_date between $1 and $2 and p.status='confirmed' order by p.issue_date,p.id`,
             [r.from, r.to],
           )
         ).rows,

@@ -25,6 +25,7 @@ export function createFinanceRoutes(
           filename: body.filename,
           mimeType: body.mimeType,
           contentBase64: body.contentBase64,
+          documentId: body.documentId,
         }),
       );
       return true;
@@ -42,6 +43,10 @@ export function createFinanceRoutes(
       return true;
     }
     const id = await auth.authenticate(bearerToken(request));
+    if (url.pathname === "/finance/ocr-budget" && request.method === "GET") {
+      json(response, 200, await finance.ocrBudgetStatus(id));
+      return true;
+    }
     if (url.pathname === "/finance/summary" && request.method === "GET") {
       json(response, 200, await finance.summary(id, financeRange(url)));
       return true;
@@ -81,6 +86,14 @@ export function createFinanceRoutes(
         response,
         200,
         await finance.setStockLevel(id, validateStockLevel(await readJson(request))),
+      );
+      return true;
+    }
+    if (url.pathname === "/purchases/export" && request.method === "GET") {
+      json(
+        response,
+        200,
+        await finance.exportConfirmedPurchases(id, financeRange(url)),
       );
       return true;
     }

@@ -139,6 +139,7 @@ export interface PurchaseInvoice {
   supplierId: string | null;
   documentId: string | null;
   supplierName: string | null;
+  supplierTaxId: string | null;
   supplierInvoiceNumber: string | null;
   issueDate: string;
   dueDate: string | null;
@@ -157,6 +158,15 @@ export interface PurchaseInvoice {
       position: number;
     }
   >;
+}
+export interface OcrBudgetStatus {
+  dailyAttempts: number;
+  dailyLimit: number;
+  monthlyAttempts: number;
+  monthlyLimit: number;
+  accountedMicrousd: number;
+  budgetMicrousd: number;
+  remainingMicrousd: number;
 }
 export interface RecurringExpense {
   id: string;

@@ -8,6 +8,26 @@ async function login(page: Page) {
   await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
   await expect(page).toHaveURL(/\/$/);
 }
+test("el primer acceso es claro y legible aunque el sistema sea oscuro", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ colorScheme: "dark" });
+  const page = await context.newPage();
+  await page.goto("/login");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const appearance = await page.getByLabel("Email").evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      color: styles.color,
+      background: styles.backgroundColor,
+      border: styles.borderColor,
+    };
+  });
+  expect(appearance.color).toBe("rgb(20, 33, 61)");
+  expect(appearance.background).toBe("rgb(255, 255, 255)");
+  expect(appearance.border).not.toBe(appearance.background);
+  await context.close();
+});
 test("login genérico, restauración, logout y consola limpia", async ({
   page,
 }, testInfo) => {
@@ -40,7 +60,7 @@ test("login genérico, restauración, logout y consola limpia", async ({
 });
 test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
   await login(page);
-  await page.getByRole("link", { name: "Facturas" }).click();
+  await page.getByRole("link", { name: "Ventas" }).click();
   await expect(page.getByRole("heading", { name: "Ventas" })).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-albaranes.png`,

@@ -58,6 +58,12 @@ const finance = new FinanceService(
     : undefined,
   {
     ownTaxIds: config.ownTaxIds,
+    visionModel: config.anthropicModel,
+    budget: {
+      dailyAttempts: config.ocrDailyAttemptLimit,
+      monthlyAttempts: config.ocrMonthlyAttemptLimit,
+      monthlyMicrousd: config.ocrMonthlyBudgetMicrousd,
+    },
     ...(config.anthropicApiKey
       ? { anthropicApiKey: config.anthropicApiKey }
       : {}),

@@ -71,6 +71,16 @@ export function SalesPage() {
           Albaranes
         </button>
       </div>
+      <section className="sales-summary-card" aria-label="Resumen de ventas visibles">
+        <div>
+          <span>{tab === "invoice" ? "Facturado" : "Total albaranes"}</span>
+          <strong>{formatMoney(String(visibleTotal))}</strong>
+        </div>
+        <div>
+          <span>Documentos</span>
+          <strong>{items?.length ?? 0}</strong>
+        </div>
+      </section>
       <section className="filter-card">
         <Field
           label="Buscar"
@@ -104,10 +114,6 @@ export function SalesPage() {
         </SelectField>
       </section>
       <div className="sales-toolbar">
-        <span>
-          <small>{items?.length ?? 0} documentos</small>
-          <strong>{formatMoney(String(visibleTotal))}</strong>
-        </span>
         <Link
           className="compact-action"
           to={

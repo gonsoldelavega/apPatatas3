@@ -8,7 +8,7 @@ import {
   type VisionClient,
 } from "../src/finance/extraction-vision.js";
 
-const OWN_TAX_IDS = ["45313973V"];
+const OWN_TAX_IDS = ["00000000T"];
 
 const gaycaResponse = {
   supplierInvoiceNumber: "FVO06-00001684",
@@ -55,6 +55,7 @@ function fakeClient(payload: unknown, failures = 0): VisionClient & { calls: num
             { type: "text", text: `\`\`\`json\n${JSON.stringify(payload)}\n\`\`\`` },
           ],
           stop_reason: "end_turn",
+          usage: { input_tokens: 1_000, output_tokens: 200 },
         };
       },
     },
@@ -74,7 +75,7 @@ test("extrae la factura GAYCA con visión: campos normalizados y línea con desc
   assert.equal(result.total, "131.04");
   assert.equal(result.supplierName, "FRUTAS Y PATATAS GAYCA, S.A.");
   assert.equal(result.supplierTaxId, "A04037677");
-  assert.notEqual(result.supplierTaxId, "45313973V");
+  assert.notEqual(result.supplierTaxId, "00000000T");
   assert.deepEqual(result.lines, [
     {
       description: "PATATA LAVADA",
@@ -115,9 +116,81 @@ test("propaga el error tras agotar el reintento único", async () => {
   assert.equal(client.calls, 2);
 });
 
+test("no repite errores HTTP no transitorios", async () => {
+  const client = fakeClient(gaycaResponse);
+  client.messages.create = async () => {
+    client.calls += 1;
+    throw Object.assign(new Error("bad_request"), { status: 400 });
+  };
+  await assert.rejects(
+    extractPurchaseFieldsWithVision(
+      { kind: "text", text: "FACTURA" },
+      { apiKey: "test", ownTaxIds: OWN_TAX_IDS, client },
+    ),
+    /bad_request/,
+  );
+  assert.equal(client.calls, 1);
+});
+
+test("reserva cada intento y contabiliza tokens solo al completarlo", async () => {
+  const client = fakeClient(gaycaResponse, 1),
+    reserved: string[] = [],
+    failed: string[] = [],
+    completed: Array<{
+      id: string;
+      usage: { inputTokens: number; outputTokens: number };
+    }> = [];
+  await extractPurchaseFieldsWithVision(
+    { kind: "text", text: "FACTURA" },
+    {
+      apiKey: "test",
+      ownTaxIds: OWN_TAX_IDS,
+      client,
+      beforeAttempt: async () => {
+        const id = `reservation-${reserved.length + 1}`;
+        reserved.push(id);
+        return id;
+      },
+      onAttemptFailure: async (id) => {
+        failed.push(id);
+      },
+      onAttemptSuccess: async (id, usage) => {
+        completed.push({ id, usage });
+      },
+    },
+  );
+  assert.deepEqual(reserved, ["reservation-1", "reservation-2"]);
+  assert.deepEqual(failed, ["reservation-1"]);
+  assert.deepEqual(completed, [
+    {
+      id: "reservation-2",
+      usage: { inputTokens: 1_000, outputTokens: 200 },
+    },
+  ]);
+});
+
+test("no llama a Anthropic cuando el presupuesto rechaza la reserva", async () => {
+  const client = fakeClient(gaycaResponse);
+  await assert.rejects(
+    extractPurchaseFieldsWithVision(
+      { kind: "text", text: "FACTURA" },
+      {
+        apiKey: "test",
+        ownTaxIds: OWN_TAX_IDS,
+        client,
+        beforeAttempt: async () => {
+          throw new Error("ocr_budget_exhausted");
+        },
+      },
+    ),
+    /ocr_budget_exhausted/,
+  );
+  assert.equal(client.calls, 0);
+});
+
 test("nunca acepta el NIF del propio cliente como proveedor", () => {
   const result = normalizeVisionFields(
-    { ...gaycaResponse, supplierTaxId: "45313973V" },
+    { ...gaycaResponse, supplierTaxId: "00000000T" },
     OWN_TAX_IDS,
   );
   assert.equal(result.supplierTaxId, undefined);
@@ -174,9 +247,9 @@ test("descarta fechas y números inválidos sin romper", () => {
 });
 
 test("valida NIF, NIE y CIF españoles con letra de control", () => {
-  for (const valid of ["45313973V", "A04037677", "B04854154", "B42743211", "X1234567L"])
+  for (const valid of ["00000000T", "A04037677", "B04854154", "B42743211", "X1234567L"])
     assert.ok(isValidSpanishTaxId(valid), valid);
-  for (const invalid of ["45313973A", "A04037678", "B0485415", "12345", ""])
+  for (const invalid of ["00000000A", "A04037678", "B0485415", "12345", ""])
     assert.ok(!isValidSpanishTaxId(invalid), invalid);
 });
 

@@ -19,6 +19,7 @@ import type {
   ProductInput,
   SalesPreferences,
   PurchaseInvoice,
+  OcrBudgetStatus,
   PurchaseLineInput,
   RecurringExpense,
   StockItem,
@@ -301,6 +302,8 @@ export const salesPreferencesApi = {
 };
 
 export const financeApi = {
+  ocrBudget: () =>
+    apiClient.request<OcrBudgetStatus>("/finance/ocr-budget"),
   summary: (from?: string, to?: string) =>
     apiClient.request<FinanceSummary>(
       `/finance/summary${queryString({ from, to })}`,
@@ -313,12 +316,17 @@ export const financeApi = {
     apiClient.request<PurchaseInvoice[]>(
       `/purchases${queryString({ from, to })}`,
     ),
+  confirmedPurchasesForExport: (from?: string, to?: string) =>
+    apiClient.request<PurchaseInvoice[]>(
+      `/purchases/export${queryString({ from, to })}`,
+    ),
   purchase: (id: string) =>
     apiClient.request<PurchaseInvoice>(`/purchases/${id}`),
   uploadPurchaseDocument: (input: {
     filename: string;
     mimeType: string;
     contentBase64: string;
+    documentId?: string;
   }) =>
     apiClient.request<{
       id: string;

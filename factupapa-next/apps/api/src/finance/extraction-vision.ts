@@ -21,6 +21,7 @@ export interface VisionClient {
     }): Promise<{
       content: Array<{ type: string; text?: string }>;
       stop_reason?: string | null;
+      usage?: { input_tokens: number; output_tokens: number };
     }>;
   };
 }
@@ -31,6 +32,15 @@ export interface VisionOptions {
   model?: string;
   timeoutMs?: number;
   client?: VisionClient;
+  beforeAttempt?: () => Promise<string>;
+  onAttemptSuccess?: (
+    reservationId: string,
+    usage: { inputTokens: number; outputTokens: number },
+  ) => Promise<void>;
+  onAttemptFailure?: (
+    reservationId: string,
+    error: unknown,
+  ) => Promise<void>;
 }
 
 export const DEFAULT_VISION_MODEL = "claude-haiku-4-5";
@@ -288,6 +298,20 @@ function parseJsonResponse(text: string): unknown {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+function retryableVisionError(error: unknown): boolean {
+  const status =
+    error && typeof error === "object" && "status" in error
+      ? (error as { status?: unknown }).status
+      : undefined;
+  return (
+    typeof status !== "number" ||
+    status === 408 ||
+    status === 409 ||
+    status === 429 ||
+    status >= 500
+  );
+}
+
 export async function prepareVisionImage(input: Buffer): Promise<Buffer> {
   return sharp(input, { failOn: "warning", limitInputPixels: 40_000_000 })
     .autoOrient()
@@ -339,6 +363,7 @@ export async function extractPurchaseFieldsWithVision(
         ];
   let lastError: unknown = new Error("vision_unavailable");
   for (let attempt = 0; attempt < 2; attempt++) {
+    const reservationId = await options.beforeAttempt?.();
     try {
       const response = await client.messages.create({
         model,
@@ -350,9 +375,19 @@ export async function extractPurchaseFieldsWithVision(
         (block) => block.type === "text" && block.text,
       )?.text;
       if (!text) throw new Error("vision_empty_response");
+      if (reservationId && response.usage && options.onAttemptSuccess)
+        await options.onAttemptSuccess(reservationId, {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        });
       return normalizeVisionFields(parseJsonResponse(text), options.ownTaxIds);
     } catch (error) {
       lastError = error;
+      if (reservationId && options.onAttemptFailure)
+        await options.onAttemptFailure(reservationId, error).catch(
+          () => undefined,
+        );
+      if (!retryableVisionError(error)) break;
     }
   }
   throw lastError;

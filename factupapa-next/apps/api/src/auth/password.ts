@@ -19,6 +19,17 @@ export async function hashPassword(password: string): Promise<string> {
   return hash(password, options);
 }
 
+export async function hashFictitiousSeedPassword(
+  password: string,
+): Promise<string> {
+  if (password.length < 6 || password.length > 128) {
+    throw new Error(
+      "La contraseña ficticia de desarrollo debe tener entre 6 y 128 caracteres",
+    );
+  }
+  return hash(password, options);
+}
+
 export async function verifyPassword(passwordHash: string, password: string): Promise<boolean> {
   try {
     return await verify(passwordHash, password, options);

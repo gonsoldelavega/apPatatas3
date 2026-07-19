@@ -8,19 +8,23 @@ import {
   Upload,
   PackageCheck,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
+import { financeApi } from "../api/services";
 
 type ThemeChoice = "auto" | "light" | "dark";
 
 function storedTheme(): ThemeChoice {
   try {
     const value = localStorage.getItem("factupapa-theme");
-    return value === "light" || value === "dark" ? value : "auto";
+    return value === "auto" || value === "light" || value === "dark"
+      ? value
+      : "light";
   } catch {
-    return "auto";
+    return "light";
   }
 }
 
@@ -28,8 +32,7 @@ function applyTheme(theme: ThemeChoice) {
   if (theme === "auto") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
   try {
-    if (theme === "auto") localStorage.removeItem("factupapa-theme");
-    else localStorage.setItem("factupapa-theme", theme);
+    localStorage.setItem("factupapa-theme", theme);
   } catch {
     /* almacenamiento no disponible */
   }
@@ -38,6 +41,17 @@ function applyTheme(theme: ThemeChoice) {
 export function MorePage() {
   const auth = useAuth();
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
+  const ocrBudget = useQuery({
+    queryKey: ["ocr-budget"],
+    queryFn: financeApi.ocrBudget,
+  });
+  const usd = (microusd: number) =>
+    new Intl.NumberFormat("es-ES", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 3,
+    }).format(microusd / 1_000_000);
   return (
     <div className="page more-page">
       <header className="page-heading">
@@ -93,6 +107,21 @@ export function MorePage() {
           <p>Existencias, valor y venta potencial.</p>
         </div>
       </Link>
+      {ocrBudget.data && (
+        <section className="info-card">
+          <ShieldCheck />
+          <div>
+            <h2>Límite del OCR con IA</h2>
+            <p>
+              {usd(ocrBudget.data.accountedMicrousd)} contabilizados de{" "}
+              {usd(ocrBudget.data.budgetMicrousd)} este mes. Intentos:{" "}
+              {ocrBudget.data.dailyAttempts}/{ocrBudget.data.dailyLimit} hoy y{" "}
+              {ocrBudget.data.monthlyAttempts}/{ocrBudget.data.monthlyLimit}{" "}
+              este mes.
+            </p>
+          </div>
+        </section>
+      )}
       <section className="info-card">
         <Moon />
         <div>

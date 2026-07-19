@@ -103,11 +103,18 @@ export function PurchaseFormPage() {
     return sameUnit.length === 1 && unit === "kg" ? sameUnit[0].id : null;
   };
   const upload = useMutation({
-      mutationFn: async (f: File) =>
+      mutationFn: async ({
+        file,
+        retryDocumentId,
+      }: {
+        file: File;
+        retryDocumentId?: string;
+      }) =>
         financeApi.uploadPurchaseDocument({
-          filename: f.name,
-          mimeType: f.type,
-          contentBase64: await encoded(f),
+          filename: file.name,
+          mimeType: file.type,
+          contentBase64: await encoded(file),
+          ...(retryDocumentId ? { documentId: retryDocumentId } : {}),
         }),
       onSuccess: (d) => {
         setDocumentId(d.id);
@@ -251,8 +258,21 @@ export function PurchaseFormPage() {
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) {
+                setSupplierId("");
+                setNewSupplierName("");
+                setNewSupplierTaxId("");
+                setShowSupplierCreate(false);
+                setIgnoreDetectedStock(false);
+                setAcceptTotalMismatch(false);
+                setAcceptWarnings(false);
+                setNumber("");
+                setIssueDate(todayLocal());
+                setDueDate("");
+                setDocumentId(null);
+                setOcr(null);
+                setLines([empty()]);
                 setUploadedFile(f);
-                upload.mutate(f);
+                upload.mutate({ file: f });
               }
             }}
           />
@@ -269,7 +289,12 @@ export function PurchaseFormPage() {
           <button
             className="compact-action"
             type="button"
-            onClick={() => upload.mutate(uploadedFile)}
+            onClick={() =>
+              upload.mutate({
+                file: uploadedFile,
+                ...(documentId ? { retryDocumentId: documentId } : {}),
+              })
+            }
           >
             <RefreshCw />
             Reintentar extracción
@@ -348,6 +373,8 @@ export function PurchaseFormPage() {
                     "Alguna línea no cuadra (cantidad × precio − descuento).",
                   vision_unavailable:
                     "La lectura con IA no estaba disponible: se usó el OCR clásico.",
+                  vision_budget_exhausted:
+                    "Se alcanzó el límite de OCR con IA: se usó el OCR clásico sin coste.",
                   total_missing: "No se reconoció el total.",
                   issue_date_missing: "No se reconoció la fecha.",
                   possible_duplicate: "Posible factura duplicada.",

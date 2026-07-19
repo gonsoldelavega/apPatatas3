@@ -20,8 +20,8 @@ Proyecto paralelo e independiente para construir la siguiente generación de Fac
 
 ## Operación previa a beta
 
-La migración aditiva actual es `0011_company_sales_preferences.sql`; no altera `0000`–`0010`. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
-4. El OCR funciona como proceso separado para no bloquear la aplicación.
+La migración aditiva actual es `0014_ocr_usage_budget.sql`; no altera ninguna migración anterior. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
+4. La extracción de compras aplica límites persistentes antes de cada llamada de pago y usa Tesseract como fallback sin coste.
 5. La aplicación móvil y la aplicación web comparten API y modelos de datos.
 6. No se usan credenciales reales dentro del repositorio.
 7. Las migraciones hacia FactuPapa Next siempre son copiadas y reversibles; nunca destructivas.

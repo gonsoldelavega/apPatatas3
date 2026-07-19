@@ -26,7 +26,11 @@ export interface AppConfig {
   importRetentionDays: { completed: number; cancelled: number; failed: number };
   importCleanupLimit: number;
   anthropicApiKey?: string;
+  anthropicModel: string;
   ownTaxIds: string[];
+  ocrDailyAttemptLimit: number;
+  ocrMonthlyAttemptLimit: number;
+  ocrMonthlyBudgetMicrousd: number;
 }
 
 const placeholder = /^(changeme|change_me|password|secret|default|cambiar(?:_|$)|minioadmin)/i;
@@ -71,6 +75,33 @@ function readPositiveInteger(
     throw new Error(`${name} debe ser un entero positivo`);
   }
   return parsed;
+}
+
+function readBoundedPositiveInteger(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+  maximum: number,
+): number {
+  const parsed = readPositiveInteger(name, value, fallback);
+  if (parsed > maximum) throw new Error(`${name} no puede superar ${maximum}`);
+  return parsed;
+}
+
+function readOcrBudgetMicrousd(value: string | undefined): number {
+  const parsed = Number(value ?? "0.40");
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 0.4)
+    throw new Error("OCR_MONTHLY_BUDGET_USD debe estar entre 0 y 0.40");
+  return Math.floor(parsed * 1_000_000);
+}
+
+const anthropicOcrModel = "claude-haiku-4-5-20251001";
+
+function readAnthropicModel(value: string | undefined): string {
+  const model = value?.trim() || anthropicOcrModel;
+  if (model !== anthropicOcrModel)
+    throw new Error(`ANTHROPIC_MODEL debe ser ${anthropicOcrModel}`);
+  return model;
 }
 
 function readCorsOrigins(value: string | undefined): string[] {
@@ -152,6 +183,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (environment === "production" && corsAllowedOrigins.length === 0) throw new Error("CORS_ALLOWED_ORIGINS es obligatoria en producción");
   const s3Bucket = env.S3_BUCKET?.trim() || "factupapa-documents";
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(s3Bucket)) throw new Error("S3_BUCKET no es válido");
+  const ownTaxIds = [
+    ...new Set(
+      (env.OWN_TAX_IDS ?? "")
+        .split(",")
+        .map((value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""))
+        .filter(Boolean),
+    ),
+  ];
+  if (env.ANTHROPIC_API_KEY?.trim() && ownTaxIds.length === 0)
+    throw new Error("OWN_TAX_IDS es obligatorio cuando Anthropic está activado");
 
   return {
     environment,
@@ -215,14 +256,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ...(env.ANTHROPIC_API_KEY?.trim()
       ? { anthropicApiKey: env.ANTHROPIC_API_KEY.trim() }
       : {}),
-    ownTaxIds: [
-      ...new Set(
-        (env.OWN_TAX_IDS ?? "45313973V")
-          .split(",")
-          .map((value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""))
-          .filter(Boolean),
-      ),
-    ],
+    anthropicModel: readAnthropicModel(env.ANTHROPIC_MODEL),
+    ownTaxIds,
+    ocrDailyAttemptLimit: readBoundedPositiveInteger(
+      "OCR_DAILY_ATTEMPT_LIMIT",
+      env.OCR_DAILY_ATTEMPT_LIMIT,
+      5,
+      50,
+    ),
+    ocrMonthlyAttemptLimit: readBoundedPositiveInteger(
+      "OCR_MONTHLY_ATTEMPT_LIMIT",
+      env.OCR_MONTHLY_ATTEMPT_LIMIT,
+      50,
+      500,
+    ),
+    ocrMonthlyBudgetMicrousd: readOcrBudgetMicrousd(
+      env.OCR_MONTHLY_BUDGET_USD,
+    ),
   };
 }
 

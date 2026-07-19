@@ -142,7 +142,13 @@ export function ExpensesPage() {
         <h1>Gastos</h1>
         <p>Facturas recibidas y cargos fijos mensuales.</p>
       </header>
-      <section className="filter-card">
+      <nav className="business-tabs" aria-label="Secciones del negocio">
+        <a className="active" href="#compras">Compras</a>
+        <a href="#gastos-fijos">Gastos</a>
+        <Link to="/catalogo/productos">Productos</Link>
+        <Link to="/stock">Stock</Link>
+      </nav>
+      <section className="filter-card period-filter">
         <PeriodPicker value={period} onChange={setPeriod} />
       </section>
       <section className="expense-overview" aria-label="Resumen de gastos del periodo">
@@ -161,7 +167,7 @@ export function ExpensesPage() {
           </div>
         </dl>
       </section>
-      <section className="filter-card">
+      <section className="filter-card purchase-filters">
         <SelectField
           label="Categoría de compras"
           value={purchaseCategory}
@@ -283,7 +289,7 @@ export function ExpensesPage() {
           </Button>
         </section>
       )}
-      <section>
+      <section id="compras">
         <div className="section-heading">
           <span>
             <h2>Facturas de compra</h2>
@@ -309,7 +315,7 @@ export function ExpensesPage() {
           ))}
         </div>
       </section>
-      <section>
+      <section id="gastos-fijos">
         <div className="section-heading">
           <span>
             <h2>Gastos mensuales</h2>

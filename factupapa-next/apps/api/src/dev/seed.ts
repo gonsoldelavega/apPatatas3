@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { hashPassword } from "../auth/password.js";
+import { hashFictitiousSeedPassword } from "../auth/password.js";
 import { createDatabaseProbe } from "../database/client.js";
 
 const ids = {
@@ -35,7 +35,7 @@ async function main() {
   try {
     await client.query("begin");
     await client.query("select pg_advisory_xact_lock($1)", [2_026_071_501]);
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashFictitiousSeedPassword(password);
     await client.query(
       `insert into companies(id,name,tax_id,address) values($1,'Empresa Demo Ficticia','TEST-DEMO-000','{"city":"Ciudad Ficticia","country":"ES"}') on conflict(id) do update set name=excluded.name,tax_id=excluded.tax_id,address=excluded.address`,
       [ids.company],

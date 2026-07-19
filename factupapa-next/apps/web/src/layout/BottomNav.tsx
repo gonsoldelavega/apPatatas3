@@ -1,6 +1,6 @@
 import {
+  ContactRound,
   Home,
-  WalletCards,
   MoreHorizontal,
   Plus,
   ReceiptText,
@@ -11,8 +11,8 @@ import { NewMenu } from "./NewMenu";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home },
-  { to: "/ventas", label: "Facturas", icon: ReceiptText },
-  { to: "/gastos", label: "Gastos", icon: WalletCards },
+  { to: "/ventas", label: "Ventas", icon: ReceiptText },
+  { to: "/catalogo/contactos", label: "Contactos", icon: ContactRound },
   { to: "/mas", label: "Más", icon: MoreHorizontal },
 ];
 

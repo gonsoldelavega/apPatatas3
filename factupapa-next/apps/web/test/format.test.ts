@@ -7,6 +7,7 @@ import {
   formatTaxRate,
   formatUnitPrice,
 } from "../src/utils/format";
+import { csvBody, safeCsvCell } from "../src/utils/csv";
 
 describe("formato comercial español", () => {
   it("oculta precisión técnica sin perder el valor recibido", () => {
@@ -22,5 +23,15 @@ describe("formato comercial español", () => {
     expect(annualInvoiceSeries("fac", "2026-07-18")).toBe("FAC_2026");
     expect(formatDocumentNumber("FAC_2026", 100)).toBe("FAC-100/2026");
     expect(formatDocumentNumber("F", 1)).toBe("F-1");
+  });
+});
+
+describe("CSV para gestoría", () => {
+  it("escapa separadores y neutraliza fórmulas de Excel", () => {
+    expect(safeCsvCell("Proveedor; Uno")).toBe('"Proveedor; Uno"');
+    expect(safeCsvCell('="dato"')).toBe('"\'=\"\"dato\"\""');
+    expect(csvBody([["Número", "Total"], ["FAC-1", "10,40"]])).toBe(
+      "Número;Total\r\nFAC-1;10,40",
+    );
   });
 });

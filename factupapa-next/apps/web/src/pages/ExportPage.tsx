@@ -2,20 +2,16 @@ import { ArrowLeft, FileDown } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { Invoice } from "../api/types";
-import { contactsApi, financeApi, invoicesApi } from "../api/services";
+import { financeApi, invoicesApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { PeriodPicker } from "../ui/PeriodPicker";
 import { currentPeriod, periodLabel, periodRange } from "../utils/period";
-
-const escapeCell = (value: string) =>
-  /[";\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+import { csvBody } from "../utils/csv";
 
 const euros = (value: string) => value.replace(".", ",");
 
 function downloadCsv(filename: string, rows: string[][]) {
-  const body = rows
-    .map((row) => row.map((cell) => escapeCell(cell)).join(";"))
-    .join("\r\n");
+  const body = csvBody(rows);
   const blob = new Blob(["\ufeff", body], {
     type: "text/csv;charset=utf-8",
   });
@@ -40,8 +36,13 @@ const purchaseStatus: Record<string, string> = {
 
 async function allInvoices(range: { from?: string; to?: string }) {
   const items: Invoice[] = [];
-  for (let page = 1; page <= 20; page++) {
-    const result = await invoicesApi.list({ ...range, pageSize: 100, page });
+  for (let page = 1; ; page++) {
+    const result = await invoicesApi.list({
+      ...range,
+      status: "issued",
+      pageSize: 100,
+      page,
+    });
     items.push(...result.items);
     if (items.length >= result.total || !result.items.length) break;
   }
@@ -91,12 +92,9 @@ export function ExportPage() {
     setBusy("purchases");
     setError(false);
     try {
-      const [purchases, suppliers] = await Promise.all([
-        financeApi.purchases(range.from, range.to),
-        contactsApi.list({ type: "supplier", pageSize: 100 }),
-      ]);
-      const taxIds = new Map(
-        suppliers.items.map((supplier) => [supplier.id, supplier.taxId ?? ""]),
+      const purchases = await financeApi.confirmedPurchasesForExport(
+        range.from,
+        range.to,
       );
       downloadCsv(`compras_${periodLabel(period)}.csv`, [
         header,
@@ -104,7 +102,7 @@ export function ExportPage() {
           purchase.supplierInvoiceNumber ?? "",
           purchase.issueDate,
           purchase.supplierName ?? "",
-          purchase.supplierId ? (taxIds.get(purchase.supplierId) ?? "") : "",
+          purchase.supplierTaxId ?? "",
           euros(purchase.subtotal),
           euros(purchase.taxTotal),
           euros(purchase.total),
@@ -127,9 +125,9 @@ export function ExportPage() {
       </header>
       <section className="form-card">
         <p>
-          Descarga en CSV (compatible con Excel) las facturas emitidas y las
-          compras del periodo elegido, con número, fecha, NIF, base, IVA, total
-          y estado.
+          Descarga en CSV (compatible con Excel) únicamente las facturas emitidas
+          y las compras confirmadas del periodo elegido, con número, fecha, NIF,
+          base, IVA, total y estado.
         </p>
         <PeriodPicker value={period} onChange={setPeriod} />
         {error && (

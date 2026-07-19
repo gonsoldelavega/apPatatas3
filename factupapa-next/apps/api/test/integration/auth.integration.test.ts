@@ -14,6 +14,10 @@ import {
   type Database,
   type TenantContext,
 } from "../../src/database/client.js";
+import {
+  OcrBudget,
+  OcrBudgetExceededError,
+} from "../../src/finance/ocr-budget.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 const databaseAdminUrl = process.env.DATABASE_ADMIN_URL;
@@ -221,6 +225,7 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
         "purchase_invoice_lines",
         "recurring_expenses",
         "stock_adjustments",
+        "ocr_usage_events",
       ];
       const result = await adminDatabase.pool.query<{
         relname: string;
@@ -421,6 +426,26 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
       );
     },
   );
+});
+
+test("el presupuesto OCR es persistente, aislado y bloquea antes de exceder límites", async () => {
+  const budget = new OcrBudget(apiDatabase.pool, {
+    dailyAttempts: 2,
+    monthlyAttempts: 3,
+    monthlyMicrousd: 400_000,
+  });
+  const first = await budget.reserve(firstTenant, "claude-haiku-test");
+  await budget.complete(firstTenant, first, {
+    inputTokens: 1_000,
+    outputTokens: 100,
+  });
+  const second = await budget.reserve(firstTenant, "claude-haiku-test");
+  await budget.fail(firstTenant, second);
+  await assert.rejects(
+    budget.reserve(firstTenant, "claude-haiku-test"),
+    OcrBudgetExceededError,
+  );
+  await budget.reserve(secondTenant, "claude-haiku-test");
 });
 
 test("autenticación conserva login, rotación, reutilización, logout y /me", async (context) => {
