@@ -88,3 +88,4 @@ El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva 
 
 Este proyecto todavía no está conectado a ningún dato real ni a la aplicación productiva.
 Auditoría manual de staging.
+Auditoría manual de staging.
