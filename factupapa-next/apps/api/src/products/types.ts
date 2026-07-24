@@ -2,6 +2,7 @@ import type { ListQuery } from "../domain/validation.js";
 import type { Margin } from "../domain/money.js";
 
 export type ProductUnit = "kg" | "g" | "unit" | "box" | "custom";
+export type PackageKind = "none" | "bag" | "box" | "sack" | "tray" | "custom";
 
 export interface ProductRecord {
   id: string;
@@ -11,6 +12,11 @@ export interface ProductRecord {
   unit: ProductUnit;
   salePrice: string;
   estimatedCost: string | null;
+  packageKind: PackageKind;
+  packageLabel: string | null;
+  unitsPerPackage: string | null;
+  packageCost: string | null;
+  expectedLossRate: string;
   taxRate: string;
   isActive: boolean;
   createdAt: Date;
@@ -26,6 +32,11 @@ export interface ProductCreate {
   unit: ProductUnit;
   salePrice: string;
   estimatedCost?: string | null;
+  packageKind?: PackageKind;
+  packageLabel?: string | null;
+  unitsPerPackage?: string | null;
+  packageCost?: string | null;
+  expectedLossRate?: string;
   taxRate: string;
 }
 

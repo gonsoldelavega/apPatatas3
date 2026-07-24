@@ -12,6 +12,10 @@ export interface InvoiceLine {
   lineTax: string;
   lineTotal: string;
   position: number;
+  packageKind: "bag" | "box" | "sack" | "tray" | "custom" | null;
+  packageLabel: string | null;
+  packageQuantity: string | null;
+  unitsPerPackage: string | null;
 }
 export interface Invoice {
   id: string;
@@ -44,6 +48,9 @@ export interface Invoice {
   updatedAt: Date;
   lines: InvoiceLine[];
   deliveryNoteIds: string[];
+  paidTotal: string;
+  balanceDue: string;
+  paymentStatus: "unpaid" | "partial" | "paid" | "overdue";
 }
 export interface InvoiceCreate {
   contactId: string;
@@ -67,4 +74,5 @@ export interface InvoiceLineInput {
   unitPrice?: string;
   taxRate?: string;
   position?: number;
+  packageQuantity?: string;
 }

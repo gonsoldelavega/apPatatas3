@@ -15,6 +15,10 @@ import {
 } from "../../src/database/client.js";
 import { createFinanceRoutes } from "../../src/finance/routes.js";
 import { FinanceService } from "../../src/finance/service.js";
+import { AccountsService } from "../../src/accounts/service.js";
+import { createAccountsRoutes } from "../../src/accounts/routes.js";
+import { InvoiceService } from "../../src/invoices/service.js";
+import { createInvoiceRoutes } from "../../src/invoices/routes.js";
 import { PricingService } from "../../src/pricing/service.js";
 import { createPricingRoutes } from "../../src/pricing/routes.js";
 import { ProductService } from "../../src/products/service.js";
@@ -147,15 +151,35 @@ before(async () => {
     loginRateLimitWindowMs: 60_000,
   });
   const contacts = new ContactService(apiDatabase.pool);
-  const finance = new FinanceService(apiDatabase.pool);
+  const registryCsv = [
+    Array.from({ length: 22 }, (_, index) => `col${index + 1}`).join(","),
+    [
+      "22/07/2026", "22/07/2026 12:00:00", "COMPRA", "FACTURA",
+      "REG-001", "Proveedor del registro", "B12345678", "Patata de prueba",
+      "Materia prima", "100,00", "4", "4,00", "104,00", "PAGADA",
+      "Transferencia", "07", "3", "2026",
+      "https://drive.google.com/file/d/REGISTRY_FILE_001/view",
+      "factura-registro.pdf", "sí", "Documento ficticio de integración",
+    ].map((value) => `"${value.replaceAll('"', '""')}"`).join(","),
+  ].join("\n");
+  const finance = new FinanceService(
+    apiDatabase.pool,
+    undefined,
+    undefined,
+    { url: `data:text/csv;charset=utf-8,${encodeURIComponent(registryCsv)}` },
+  );
   const products = new ProductService(apiDatabase.pool);
   const pricing = new PricingService(apiDatabase.pool);
+  const accounts = new AccountsService(apiDatabase.pool);
+  const invoices = new InvoiceService(apiDatabase.pool);
   server = createApp({
     database: apiDatabase,
     auth,
     version: "business-integration",
     corsAllowedOrigins: ["http://integration.test"],
     routes: [
+      createAccountsRoutes(auth, accounts),
+      createInvoiceRoutes(auth, invoices),
       createFinanceRoutes(auth, finance),
       createPricingRoutes(auth, pricing),
       createContactRoutes(auth, contacts),
@@ -526,6 +550,123 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
         tokenA,
       );
       assert.equal(((await search.json()) as { total: number }).total, 0);
+    },
+  );
+
+  await context.test(
+    "sincroniza el registro de Drive sin duplicar compras ni pagos",
+    async () => {
+      const first = await request(
+        "POST",
+        "/purchases/registry-sync",
+        {},
+        tokenA,
+      );
+      assert.equal(first.status, 200);
+      assert.deepEqual(await first.json(), {
+        fetched: 1,
+        imported: 1,
+        skipped: 0,
+        drafts: 0,
+        paid: 1,
+      });
+      const second = await request(
+        "POST",
+        "/purchases/registry-sync",
+        {},
+        tokenA,
+      );
+      assert.equal(second.status, 200);
+      assert.deepEqual(await second.json(), {
+        fetched: 1,
+        imported: 0,
+        skipped: 1,
+        drafts: 0,
+        paid: 0,
+      });
+      const list = await request(
+        "GET",
+        "/purchases?from=2026-07-22&to=2026-07-22",
+        undefined,
+        tokenA,
+      );
+      const items = (await list.json()) as Entity[];
+      const imported = items.find(
+        (item) => item.supplierInvoiceNumber === "REG-001",
+      );
+      assert.equal(imported?.status, "confirmed");
+      assert.equal(imported?.paymentStatus, "paid");
+      assert.equal(imported?.sourceRegistryFilename, "factura-registro.pdf");
+    },
+  );
+
+  await context.test(
+    "envases, cobros parciales y cuenta del cliente conservan sus snapshots",
+    async () => {
+      const productUpdate = await request("PATCH",`/products/${productA.id}`,{
+        unit:"kg",packageKind:"bag",packageLabel:"Bolsa de prueba de 2,5 kg",
+        unitsPerPackage:"2.5",packageCost:"0.10",expectedLossRate:"10"
+      },tokenA);
+      assert.equal(productUpdate.status,200);
+      const created = await request("POST","/invoices",{
+        contactId:contactA.id,series:"TEST_2026",issueDate:"2026-07-20",
+        dueDate:"2026-07-21",applyContactDefaults:false
+      },tokenA);
+      assert.equal(created.status,201);
+      let invoice=(await created.json()) as Entity;
+      const line=await request("POST",`/invoices/${invoice.id}/lines`,{
+        productId:productA.id,quantity:"5",packageQuantity:"2",unitPrice:"1.60"
+      },tokenA);
+      assert.equal(line.status,201);
+      invoice=(await line.json()) as Entity;
+      const lines=invoice.lines as Entity[];
+      assert.equal(lines[0]?.packageQuantity,"2.0000");
+      assert.equal(lines[0]?.unitsPerPackage,"2.5000");
+      const issue=await request("POST",`/invoices/${invoice.id}/issue`,{},tokenA);
+      assert.equal(issue.status,200);
+      const first=await request("POST",`/invoices/${invoice.id}/payments`,{
+        amount:"4.16",paidAt:"2026-07-21T12:00:00Z",method:"transfer"
+      },tokenA);
+      assert.equal(first.status,201);
+      const detail=await request("GET",`/invoices/${invoice.id}`,undefined,tokenA);
+      const paid=(await detail.json()) as Entity;
+      assert.equal(paid.paymentStatus,"partial");
+      assert.equal(paid.paidTotal,"4.16");
+      const account=await request("GET",`/contacts/${contactA.id}/account`,undefined,tokenA);
+      assert.equal(account.status,200);
+      assert.equal((await account.json() as Entity).paidTotal,"4.16");
+      assert.equal((await request("POST",`/invoices/${invoice.id}/payments`,{
+        amount:"999",paidAt:"2026-07-21T12:00:00Z"
+      },tokenA)).status,409);
+    },
+  );
+
+  await context.test(
+    "producción descuenta materia prima, suma terminado y registra merma",
+    async () => {
+      const raw=await createProduct(tokenA,{name:"Patata bruta ficticia",sku:"RAW-PROD-1",salePrice:"1",estimatedCost:"0.5"});
+      const finished=await createProduct(tokenA,{name:"Patata terminada ficticia",sku:"FIN-PROD-1",salePrice:"1.6",estimatedCost:"0.7",
+        packageKind:"bag",packageLabel:"Bolsa 2,5 kg",unitsPerPackage:"2.5",packageCost:"0.1",expectedLossRate:"10"});
+      const supplier=await createContact(tokenA,{type:"supplier",legalName:"Proveedor producción",taxId:"TEST-PROD-SUP"});
+      const purchase=await request("POST","/purchases",{
+        supplierId:supplier.id,documentId:null,supplierInvoiceNumber:"PROD-IN-1",issueDate:"2026-07-20",
+        dueDate:null,category:"mercancia",notes:null,lines:[{productId:raw.id,description:"Materia prima",
+          quantity:"10",unit:"kg",unitCost:"0.5",taxRate:"4"}]
+      },tokenA);
+      assert.equal(purchase.status,201);
+      const purchaseId=((await purchase.json()) as Entity).id;
+      assert.equal((await request("POST",`/purchases/${purchaseId}/confirm`,{},tokenA)).status,200);
+      const run=await request("POST","/production-runs",{
+        inputProductId:raw.id,outputProductId:finished.id,occurredOn:"2026-07-20",
+        inputQuantity:"10",outputQuantity:"9",packageQuantity:"3.6",notes:"Producción ficticia"
+      },tokenA);
+      assert.equal(run.status,201);
+      const stock=await request("GET","/stock",undefined,tokenA);
+      const items=(await stock.json()) as Entity[];
+      assert.equal(items.find((item)=>item.productId===raw.id)?.quantity,"0.0000");
+      assert.equal(items.find((item)=>item.productId===finished.id)?.quantity,"9.0000");
+      const runs=await request("GET","/production-runs",undefined,tokenA);
+      assert.equal(((await runs.json()) as Entity[])[0]?.lossQuantity,"1.0000");
     },
   );
 

@@ -65,6 +65,7 @@ git -C "${repository}" diff --cached --quiet || { echo "Hay cambios versionados 
 
 upsert_private_environment_value "OWN_TAX_IDS" "${FACTUPAPA_OWN_TAX_IDS}"
 upsert_private_environment_value "ANTHROPIC_API_KEY" "${FACTUPAPA_ANTHROPIC_API_KEY}"
+upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
 unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY
 
 export COMPOSE_PROJECT_NAME=factupapa_staging
@@ -78,8 +79,22 @@ echo "Creando copia verificada previa al despliegue"
 (
   cd "${repository}/factupapa-next/apps/api"
   npm ci --no-audit --no-fund >/dev/null
-  BACKUP_ENVIRONMENT=staging BACKUP_DIRECTORY="${backup_directory}" \
-    BACKUP_MAX_COPIES=14 BACKUP_MAX_AGE_DAYS=30 npm run --silent backup:database >/dev/null
+  backup_result="$(
+    BACKUP_ENVIRONMENT=staging BACKUP_DIRECTORY="${backup_directory}" \
+      BACKUP_MAX_COPIES=14 BACKUP_MAX_AGE_DAYS=30 npm run --silent backup:database
+  )"
+  backup_dump="$(
+    BACKUP_RESULT="${backup_result}" node -e '
+      const rows = process.env.BACKUP_RESULT.trim().split(/\n/);
+      const value = JSON.parse(rows.at(-1));
+      if (value.status !== "verified" || typeof value.dump !== "string") process.exit(1);
+      process.stdout.write(value.dump);
+    '
+  )"
+  RESTORE_DUMP="${backup_dump}" RESTORE_ENVIRONMENT=staging \
+    RESTORE_TARGET=predeploy RESTORE_REPORT_DIRECTORY="${backup_directory}" \
+    npm run --silent restore:verify -- --confirm-isolated-restore >/dev/null
+  unset backup_result backup_dump
 )
 
 cd "${infrastructure}"

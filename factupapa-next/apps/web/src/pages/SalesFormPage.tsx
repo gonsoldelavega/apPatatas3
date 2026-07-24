@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   contactsApi,
   deliveryNotesApi,
@@ -10,6 +10,7 @@ import {
   productsApi,
   salesPreferencesApi,
 } from "../api/services";
+import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
@@ -27,6 +28,8 @@ type DraftSalesLine = {
   quantity: string;
   unitPrice: string;
   priceEdited: boolean;
+  entryMode: "quantity" | "packages";
+  packageQuantity: string;
 };
 
 function createDraftLine(): DraftSalesLine {
@@ -36,14 +39,18 @@ function createDraftLine(): DraftSalesLine {
     quantity: "1",
     unitPrice: "",
     priceEdited: false,
+    entryMode: "quantity",
+    packageQuantity: "1",
   };
 }
 
 export function SalesFormPage() {
-  const { kind } = useParams(),
+  const { user } = useAuth(),
+    { kind } = useParams(),
     invoice = kind === "factura",
     nav = useNavigate(),
-    [contactId, setContactId] = useState(""),
+    [searchParams] = useSearchParams(),
+    [contactId, setContactId] = useState(()=>searchParams.get("contactId") ?? ""),
     [lines, setLines] = useState<DraftSalesLine[]>(() => [createDraftLine()]),
     [series, setSeries] = useState("A"),
     [issueDate, setIssueDate] = useState(todayLocal()),
@@ -75,6 +82,24 @@ export function SalesFormPage() {
     }),
     prefix =
       prefs.data?.numberingMode === "live" ? prefs.data.invoicePrefix : "TEST";
+  const draftKey = `factupapa:sales-draft:${user?.company.id ?? "unknown"}:${user?.id ?? "unknown"}:${invoice ? "invoice" : "delivery"}`;
+  useEffect(()=>{
+    const saved=localStorage.getItem(draftKey);
+    if(!saved) return;
+    try {
+      const d=JSON.parse(saved) as Partial<{contactId:string;lines:DraftSalesLine[];issueDate:string;start:string;end:string;due:string;terms:string;info:string;includeTerms:boolean}>;
+      if(d.contactId)setContactId(d.contactId); if(d.lines?.length)setLines(d.lines);
+      if(d.issueDate)setIssueDate(d.issueDate); if(d.start)setStart(d.start); if(d.end)setEnd(d.end);
+      if(d.due)setDue(d.due); if(d.terms)setTerms(d.terms); if(d.info)setInfo(d.info);
+      if(typeof d.includeTerms==="boolean")setIncludeTerms(d.includeTerms);
+    } catch { localStorage.removeItem(draftKey); }
+  },[draftKey]);
+  useEffect(()=>{
+    const timer=window.setTimeout(()=>localStorage.setItem(draftKey,JSON.stringify({
+      contactId,lines,issueDate,start,end,due,terms,info,includeTerms
+    })),250);
+    return()=>window.clearTimeout(timer);
+  },[contactId,lines,issueDate,start,end,due,terms,info,includeTerms,draftKey]);
   const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
   useEffect(() => {
     if (!invoice) return;
@@ -142,6 +167,9 @@ export function SalesFormPage() {
               productId: line.productId,
               quantity: line.quantity.replace(",", "."),
               unitPrice: line.unitPrice.replace(",", "."),
+              ...(line.entryMode === "packages"
+                ? { packageQuantity: line.packageQuantity.replace(",", ".") }
+                : {}),
             })
           : await deliveryNotesApi.addLine(d.id, {
               productId: line.productId,
@@ -149,8 +177,10 @@ export function SalesFormPage() {
             });
       return result;
     },
-    onSuccess: (d) =>
-      nav(`/ventas/${invoice ? "facturas" : "albaranes"}/${d.id}`),
+    onSuccess: (d) => {
+      localStorage.removeItem(draftKey);
+      nav(`/ventas/${invoice ? "facturas" : "albaranes"}/${d.id}`);
+    },
   });
   return (
     <div className="page form-page sales-form-page">
@@ -330,7 +360,13 @@ export function SalesFormPage() {
           <h2>Productos</h2>
           {lines.map((line, index) => {
             const selected = products.data?.items.find((x) => x.id === line.productId),
-              packaging = bagLabel(line.quantity.replace(",", "."), selected?.unit ?? "");
+              hasPackaging = selected?.packageKind !== "none" && Boolean(selected?.unitsPerPackage),
+              quantity = line.entryMode === "packages" && selected?.unitsPerPackage
+                ? String(Number(line.packageQuantity.replace(",", ".")) * Number(selected.unitsPerPackage))
+                : line.quantity.replace(",", "."),
+              packaging = hasPackaging
+                ? `${line.entryMode === "packages" ? line.packageQuantity : formatQuantity(String(Number(quantity) / Number(selected?.unitsPerPackage)))} ${selected?.packageLabel ?? "envases"} · ${formatQuantity(quantity)} ${selected?.unit}`
+                : bagLabel(quantity, selected?.unit ?? "");
             return (
               <div className="sales-line-editor" key={line.clientId}>
                 <SelectField
@@ -367,11 +403,33 @@ export function SalesFormPage() {
                   <option value="">Selecciona</option>
                   {products.data?.items.map((x) => <option value={x.id} key={x.id}>{x.name}</option>)}
                 </SelectField>
-                <Field
-                  label={selected?.unit === "kg" ? "Cantidad en kg" : "Cantidad"}
-                  value={line.quantity}
-                  onChange={(e) => setLines((current) => current.map((x, n) => n === index ? { ...x, quantity: e.target.value } : x))}
-                />
+                {hasPackaging && (
+                  <div className="segmented segmented--compact" role="group" aria-label="Cómo introducir la cantidad">
+                    <button type="button" className={line.entryMode === "packages" ? "active" : ""}
+                      onClick={() => setLines((current) => current.map((x,n) => n === index ? {...x,entryMode:"packages"} : x))}>
+                      Por envases
+                    </button>
+                    <button type="button" className={line.entryMode === "quantity" ? "active" : ""}
+                      onClick={() => setLines((current) => current.map((x,n) => n === index ? {...x,entryMode:"quantity"} : x))}>
+                      Por {selected?.unit === "kg" ? "kg" : "cantidad"}
+                    </button>
+                  </div>
+                )}
+                {line.entryMode === "packages" && hasPackaging ? (
+                  <Field
+                    label={selected?.packageKind === "bag" ? "Número de bolsas" : "Número de envases"}
+                    inputMode="decimal"
+                    value={line.packageQuantity}
+                    onChange={(e) => setLines((current) => current.map((x,n) => n === index ? {...x,packageQuantity:e.target.value} : x))}
+                  />
+                ) : (
+                  <Field
+                    label={selected?.unit === "kg" ? "Cantidad en kg" : "Cantidad"}
+                    inputMode="decimal"
+                    value={line.quantity}
+                    onChange={(e) => setLines((current) => current.map((x, n) => n === index ? { ...x, quantity: e.target.value } : x))}
+                  />
+                )}
                 <Field
                   label={`Precio sin IVA${selected?.unit === "kg" ? " por kg" : ""}`}
                   inputMode="decimal"
@@ -407,7 +465,11 @@ export function SalesFormPage() {
           type="submit"
           icon={<Save />}
           busy={save.isPending}
-          disabled={!contactId || lines.some((line) => !line.productId || !line.quantity || Number(line.quantity.replace(",", ".")) <= 0 || !line.unitPrice || Number(line.unitPrice.replace(",", ".")) < 0)}
+          disabled={!contactId || lines.some((line) => !line.productId ||
+            (line.entryMode === "packages"
+              ? !line.packageQuantity || Number(line.packageQuantity.replace(",", ".")) <= 0
+              : !line.quantity || Number(line.quantity.replace(",", ".")) <= 0) ||
+            !line.unitPrice || Number(line.unitPrice.replace(",", ".")) < 0)}
         >
           {invoice ? "Revisar factura" : "Crear albarán"}
         </Button>

@@ -21,11 +21,13 @@ export function SalesPage() {
   const [period, setPeriod] = useState(currentPeriod("all")),
     [contactId, setContactId] = useState(""),
     [status, setStatus] = useState(""),
+    [paymentStatus, setPaymentStatus] = useState(""),
     [search, setSearch] = useState("");
   const filters = {
     pageSize: 100,
     contactId,
     status,
+    paymentStatus: tab === "invoice" ? paymentStatus : "",
     search,
     ...periodRange(period),
   };
@@ -98,6 +100,15 @@ export function SalesPage() {
           <option value="issued">Emitido</option>
           <option value="cancelled">Cancelado</option>
         </SelectField>
+        {tab === "invoice" && (
+          <SelectField label="Cobro" value={paymentStatus} onChange={(e)=>setPaymentStatus(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="unpaid">Pendientes</option>
+            <option value="partial">Cobro parcial</option>
+            <option value="overdue">Vencidas</option>
+            <option value="paid">Pagadas</option>
+          </SelectField>
+        )}
         <SelectField
           label="Cliente"
           value={contactId}
@@ -150,7 +161,9 @@ export function SalesPage() {
                   : item.issueDate}
               </small>
               <span className={`status status--${item.status}`}>
-                {statuses[item.status]}
+                {tab === "invoice" && (item as import("../api/types").Invoice).paymentStatus
+                  ? ({unpaid:"Pendiente",partial:"Parcial",overdue:"Vencida",paid:"Pagada"} as const)[(item as import("../api/types").Invoice).paymentStatus!]
+                  : statuses[item.status]}
               </span>
             </span>
             <strong className="entity-card__amount">

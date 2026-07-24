@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownRight, ArrowUpRight, PackageCheck, Plus, RefreshCw } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Factory, PackageCheck, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { financeApi } from "../api/services";
 import { Button } from "../ui/Button";
@@ -15,10 +15,17 @@ export function StockPage() {
       queryFn: () => financeApi.stockMovements(historyProductId || undefined),
     }),
     [open, setOpen] = useState(false),
+    [productionOpen,setProductionOpen]=useState(false),
+    [inputProductId,setInputProductId]=useState(""),
+    [outputProductId,setOutputProductId]=useState(""),
+    [inputQuantity,setInputQuantity]=useState(""),
+    [outputQuantity,setOutputQuantity]=useState(""),
+    [packageQuantity,setPackageQuantity]=useState(""),
     [productId, setProductId] = useState(""),
     [targetQuantity, setTargetQuantity] = useState(""),
     [sacks, setSacks] = useState(""),
     [looseKg, setLooseKg] = useState("");
+  const productionRuns=useQuery({queryKey:["production-runs"],queryFn:financeApi.productionRuns});
   const selected = q.data?.find((x) => x.productId === productId),
     target = selected?.unit === "kg"
       ? String(Number(sacks || 0) * 15 + Number((looseKg || "0").replace(",", ".")))
@@ -45,6 +52,14 @@ export function StockPage() {
       setOpen(false);
       return qc.invalidateQueries({ queryKey: ["stock"] });
     },
+  });
+  const produce=useMutation({
+    mutationFn:()=>financeApi.createProductionRun({
+      inputProductId,outputProductId,occurredOn:todayLocal(),inputQuantity:inputQuantity.replace(",","."),outputQuantity:outputQuantity.replace(",","."),
+      packageQuantity:packageQuantity ? packageQuantity.replace(",",".") : null,notes:null,
+    }),
+    onSuccess:async()=>{setProductionOpen(false);setInputQuantity("");setOutputQuantity("");setPackageQuantity("");
+      await Promise.all([qc.invalidateQueries({queryKey:["stock"]}),qc.invalidateQueries({queryKey:["stock-movements"]}),qc.invalidateQueries({queryKey:["production-runs"]})]);}
   });
   return (
     <div className="page stock-page">
@@ -86,6 +101,32 @@ export function StockPage() {
         <Plus />
         Ajustar existencias
       </button>
+      <button className="compact-action stock-adjust-action" onClick={()=>setProductionOpen(!productionOpen)} aria-expanded={productionOpen}>
+        <Factory /> Registrar producción
+      </button>
+      {productionOpen && (
+        <section className="form-card production-form">
+          <h2>Transformar materia prima</h2>
+          <SelectField label="Producto de entrada" value={inputProductId} onChange={(e)=>setInputProductId(e.target.value)}>
+            <option value="">Selecciona</option>{q.data?.map((x)=><option key={x.productId} value={x.productId}>{x.name} · {formatQuantity(x.quantity)} {x.unit}</option>)}
+          </SelectField>
+          <SelectField label="Producto terminado" value={outputProductId} onChange={(e)=>setOutputProductId(e.target.value)}>
+            <option value="">Selecciona</option>{q.data?.map((x)=><option key={x.productId} value={x.productId}>{x.name}</option>)}
+          </SelectField>
+          <div className="form-grid">
+            <Field label="Cantidad usada" inputMode="decimal" value={inputQuantity} onChange={(e)=>setInputQuantity(e.target.value)} />
+            <Field label="Cantidad obtenida" inputMode="decimal" value={outputQuantity} onChange={(e)=>setOutputQuantity(e.target.value)} />
+            <Field label="Envases preparados" inputMode="decimal" value={packageQuantity} onChange={(e)=>setPackageQuantity(e.target.value)} />
+          </div>
+          {inputQuantity && outputQuantity && <p className="production-summary">
+            Merma registrada: <strong>{formatQuantity(String(Math.max(0,Number(inputQuantity.replace(",","."))-Number(outputQuantity.replace(",",".")))))} kg</strong>
+          </p>}
+          <Button busy={produce.isPending} disabled={!inputProductId||!outputProductId||inputProductId===outputProductId||!inputQuantity||!outputQuantity} onClick={()=>produce.mutate()}>
+            Guardar producción
+          </Button>
+          {produce.isError && <p role="alert">No se pudo guardar. Comprueba el stock disponible y que la salida no supere la entrada.</p>}
+        </section>
+      )}
       {open && (
         <section className="form-card">
           <SelectField
@@ -206,6 +247,16 @@ export function StockPage() {
           {movements.data?.length === 0 && <p className="empty-copy">Todavía no hay movimientos.</p>}
         </div>
       </section>
+      {!!productionRuns.data?.length && (
+        <section className="stock-history">
+          <div className="section-heading"><div><p className="eyebrow">Elaboración</p><h2>Últimas producciones</h2></div></div>
+          <div className="movement-list">{productionRuns.data.slice(0,10).map((run)=><article key={run.id}>
+            <span className="movement-icon movement-icon--in"><Factory/></span>
+            <span><strong>{run.inputProductName} → {run.outputProductName}</strong><small>{run.occurredOn} · merma {formatQuantity(run.lossQuantity)}</small></span>
+            <strong>{formatQuantity(run.outputQuantity)}</strong>
+          </article>)}</div>
+        </section>
+      )}
     </div>
   );
 }

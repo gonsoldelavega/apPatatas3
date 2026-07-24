@@ -25,6 +25,11 @@ const blank: Values = {
   salePrice: "",
   estimatedCost: "",
   taxRate: "4",
+  packageKind: "none",
+  packageLabel: "",
+  unitsPerPackage: "",
+  packageCost: "",
+  expectedLossRate: "0",
 };
 const decimal = (value: string) => value.replace(",", ".");
 
@@ -66,6 +71,11 @@ export function ProductFormPage() {
           ? formatQuantity(product.data.estimatedCost)
           : "",
         taxRate: formatQuantity(product.data.taxRate),
+        packageKind: product.data.packageKind,
+        packageLabel: product.data.packageLabel ?? "",
+        unitsPerPackage: product.data.unitsPerPackage ? formatQuantity(product.data.unitsPerPackage) : "",
+        packageCost: product.data.packageCost ? formatQuantity(product.data.packageCost) : "",
+        expectedLossRate: formatQuantity(product.data.expectedLossRate),
       });
   }, [product.data, reset]);
   useEffect(() => {
@@ -84,6 +94,11 @@ export function ProductFormPage() {
           ? decimal(values.estimatedCost)
           : null,
         taxRate: decimal(values.taxRate),
+        packageKind: values.packageKind,
+        packageLabel: values.packageLabel?.trim() || null,
+        unitsPerPackage: values.packageKind === "none" ? null : decimal(values.unitsPerPackage),
+        packageCost: values.packageCost ? decimal(values.packageCost) : null,
+        expectedLossRate: decimal(values.expectedLossRate),
       };
       return id ? productsApi.update(id, input) : productsApi.create(input);
     },
@@ -167,6 +182,49 @@ export function ProductFormPage() {
           </SelectField>
         </section>
         <section className="form-card">
+          <h2>Formato y coste real</h2>
+          <SelectField label="Formato de venta" {...register("packageKind")}>
+            <option value="none">Sin envase</option>
+            <option value="bag">Bolsa</option>
+            <option value="box">Caja</option>
+            <option value="sack">Saco</option>
+            <option value="tray">Bandeja</option>
+            <option value="custom">Otro formato</option>
+          </SelectField>
+          {watch("packageKind") !== "none" && (
+            <div className="form-grid">
+              <Field
+                label={`Cantidad de ${watch("unit") === "kg" ? "kg" : "unidades"} por envase`}
+                inputMode="decimal"
+                placeholder="2,5"
+                error={errors.unitsPerPackage?.message}
+                {...register("unitsPerPackage")}
+              />
+              <Field
+                label="Coste de cada envase"
+                inputMode="decimal"
+                placeholder="0,095"
+                error={errors.packageCost?.message}
+                {...register("packageCost")}
+              />
+              <Field
+                label="Nombre visible (opcional)"
+                placeholder="Bolsa de 2,5 kg"
+                error={errors.packageLabel?.message}
+                {...register("packageLabel")}
+              />
+            </div>
+          )}
+          <Field
+            label="Merma prevista (%)"
+            inputMode="decimal"
+            placeholder="10"
+            error={errors.expectedLossRate?.message}
+            {...register("expectedLossRate")}
+          />
+          <p className="hint">Se usa para estimar el coste real de producto terminado y el margen.</p>
+        </section>
+        <section className="form-card">
           <h2>Precio e impuestos</h2>
           <div className="form-grid">
             <Field
@@ -197,7 +255,10 @@ export function ProductFormPage() {
                 {formatMoney(estimatedMargin.amount)} ·{" "}
                 {estimatedMargin.percentage}%
               </strong>
-              <small>Se calcula en la respuesta; nunca se almacena.</small>
+              <small>
+                Coste real estimado: {product.data?.realUnitCost ? formatMoney(product.data.realUnitCost) : "sin datos"}.
+                Incluye merma y envase.
+              </small>
             </div>
           )}{" "}
           {!id && watch("salePrice") && (

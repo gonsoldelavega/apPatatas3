@@ -39,7 +39,16 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        runtimeCaching: [],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        runtimeCaching: [
+          {
+            urlPattern: ({request}) => request.destination === "font",
+            handler: "CacheFirst",
+            options: { cacheName: "factupapa-fonts", expiration: { maxEntries: 12, maxAgeSeconds: 31_536_000 } },
+          },
+        ],
       },
     }),
   ],

@@ -23,6 +23,8 @@ import { SalesPreferencesService } from "./sales-preferences/service.js";
 import { createSalesPreferencesRoutes } from "./sales-preferences/routes.js";
 import { FinanceService } from "./finance/service.js";
 import { createFinanceRoutes } from "./finance/routes.js";
+import { AccountsService } from "./accounts/service.js";
+import { createAccountsRoutes } from "./accounts/routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -68,7 +70,16 @@ const finance = new FinanceService(
       ? { anthropicApiKey: config.anthropicApiKey }
       : {}),
   },
+  config.purchaseRegistryUrl
+    ? {
+        url: config.purchaseRegistryUrl,
+        ...(config.purchaseRegistryToken
+          ? { token: config.purchaseRegistryToken }
+          : {}),
+      }
+    : undefined,
 );
+const accounts = new AccountsService(database.pool);
 const server = createApp({
   database,
   auth,
@@ -102,6 +113,7 @@ const server = createApp({
       : {}),
   },
   routes: [
+    createAccountsRoutes(auth, accounts),
     createFinanceRoutes(auth, finance),
     createSalesPreferencesRoutes(auth, salesPreferences),
     createInvoiceRoutes(auth, invoices),

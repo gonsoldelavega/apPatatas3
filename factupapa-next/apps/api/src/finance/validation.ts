@@ -204,6 +204,25 @@ export function validateStockLevel(i: Json) {
     note: text(i.note, 1000),
   };
 }
+export interface ProductionRunInput {
+  inputProductId: string;
+  outputProductId: string;
+  occurredOn: string;
+  inputQuantity: string;
+  outputQuantity: string;
+  packageQuantity: string | null;
+  notes: string | null;
+}
+export function validateProductionRun(i: Json): ProductionRunInput {
+  allowed(i,["inputProductId","outputProductId","occurredOn","inputQuantity","outputQuantity","packageQuantity","notes"]);
+  const inputProductId=uuid(i.inputProductId,true)!, outputProductId=uuid(i.outputProductId,true)!,
+    inputQuantity=decimal(i.inputQuantity,true), outputQuantity=decimal(i.outputQuantity,true);
+  if(inputProductId===outputProductId || Number(outputQuantity)>Number(inputQuantity))
+    throw new HttpError("invalid_request",400);
+  return {inputProductId,outputProductId,occurredOn:date(i.occurredOn,true)!,inputQuantity,outputQuantity,
+    packageQuantity:i.packageQuantity==null||i.packageQuantity===""?null:decimal(i.packageQuantity),
+    notes:text(i.notes,1000)};
+}
 export function financeRange(url: URL) {
   const now = new Date(),
     month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`,

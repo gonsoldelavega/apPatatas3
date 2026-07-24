@@ -9,6 +9,7 @@ import {
   ReceiptText,
   XCircle,
   Trash2,
+  Banknote,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -17,6 +18,7 @@ import {
   invoicesApi,
   productsApi,
   salesPreferencesApi,
+  accountsApi,
 } from "../api/services";
 import { Button } from "../ui/Button";
 import type { Invoice } from "../api/types";
@@ -60,6 +62,10 @@ export function SalesDetailPage() {
     [draftDeliveryInput, setDraftDeliveryInput] = useState(""),
     [draftPaymentTerms, setDraftPaymentTerms] = useState(""),
     [draftGeneralInfo, setDraftGeneralInfo] = useState("");
+  const [showPayment, setShowPayment] = useState(false),
+    [paymentAmount, setPaymentAmount] = useState(""),
+    [paymentDate, setPaymentDate] = useState(todayLocal()),
+    [paymentMethod, setPaymentMethod] = useState("transfer");
   const documentQuery = useQuery({
     queryKey: [type, id],
     queryFn: () => api.get(id),
@@ -72,6 +78,28 @@ export function SalesDetailPage() {
   const products = useQuery({
     queryKey: ["sales-products"],
     queryFn: () => productsApi.list({ isActive: true, pageSize: 100 }),
+  });
+  const payments = useQuery({
+    queryKey: ["invoice-payments", id],
+    queryFn: () => accountsApi.invoicePayments(id),
+    enabled: invoice && documentQuery.data?.status === "issued",
+  });
+  const addPayment = useMutation({
+    mutationFn: () => accountsApi.addInvoicePayment(id, {
+      amount: paymentAmount.replace(",", "."),
+      paidAt: `${paymentDate}T12:00:00`,
+      method: paymentMethod,
+      reference: null,
+      notes: null,
+    }),
+    onSuccess: async () => {
+      setShowPayment(false); setPaymentAmount("");
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:[type,id]}),
+        queryClient.invalidateQueries({queryKey:["invoice-payments",id]}),
+        queryClient.invalidateQueries({queryKey:["invoices"]}),
+      ]);
+    },
   });
   useEffect(() => {
     if (!invoice || !documentQuery.data) return;
@@ -259,9 +287,11 @@ export function SalesDetailPage() {
                 {formatUnitPrice(line.unitPrice)}
                 {invoice ? ` · IVA ${formatTaxRate(line.taxRate)}` : ""}
               </small>
-              {bagLabel(line.quantity, line.unit) && (
+              {line.packageQuantity && line.unitsPerPackage ? (
+                <small>{formatQuantity(line.packageQuantity)} {line.packageLabel ?? "envases"} · {formatQuantity(line.unitsPerPackage)} {unitLabel(line.unit)} por envase</small>
+              ) : bagLabel(line.quantity, line.unit) ? (
                 <small>{bagLabel(line.quantity, line.unit)}</small>
-              )}
+              ) : null}
             </span>
             <span className="sales-line__amount">
               <strong>{formatMoney(line.lineTotal)}</strong>
@@ -292,6 +322,45 @@ export function SalesDetailPage() {
           </div>
         </div>
       </section>
+      {invoiceItem?.status === "issued" && (
+        <section className="detail-card payment-card">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Cobros</p>
+              <h2>{invoiceItem.paymentStatus === "paid" ? "Factura cobrada" : `${formatMoney(invoiceItem.balanceDue ?? invoiceItem.total)} pendientes`}</h2>
+            </div>
+            {invoiceItem.paymentStatus !== "paid" && (
+              <button className="compact-action" onClick={() => {
+                setPaymentAmount(formatQuantity(invoiceItem.balanceDue ?? invoiceItem.total));
+                setShowPayment((value) => !value);
+              }}><Banknote /> Registrar cobro</button>
+            )}
+          </div>
+          <div className="payment-progress" aria-label={`Cobrado ${formatMoney(invoiceItem.paidTotal ?? "0")}`}>
+            <span style={{width:`${Math.min(100, Number(invoiceItem.paidTotal ?? 0) / Math.max(Number(invoiceItem.total),.01) * 100)}%`}} />
+          </div>
+          <p><strong>{formatMoney(invoiceItem.paidTotal ?? "0")}</strong> cobrados de {formatMoney(invoiceItem.total)}</p>
+          {showPayment && (
+            <div className="inline-payment-form">
+              <Field label="Importe cobrado" inputMode="decimal" value={paymentAmount} onChange={(e)=>setPaymentAmount(e.target.value)} />
+              <Field label="Fecha" type="date" value={paymentDate} onChange={(e)=>setPaymentDate(e.target.value)} />
+              <SelectField label="Forma de pago" value={paymentMethod} onChange={(e)=>setPaymentMethod(e.target.value)}>
+                <option value="transfer">Transferencia</option><option value="cash">Efectivo</option>
+                <option value="card">Tarjeta</option><option value="direct_debit">Domiciliación</option><option value="other">Otra</option>
+              </SelectField>
+              <Button busy={addPayment.isPending} disabled={!paymentAmount || Number(paymentAmount.replace(",","."))<=0} onClick={()=>addPayment.mutate()}>
+                Guardar cobro
+              </Button>
+              {addPayment.isError && <p role="alert">No se pudo registrar. Comprueba que el importe no supera lo pendiente.</p>}
+            </div>
+          )}
+          {!!payments.data?.length && (
+            <div className="payment-list">
+              {payments.data.map((payment)=><p key={payment.id}><span>{new Date(payment.paidAt).toLocaleDateString("es-ES")} · {payment.method ?? "Sin método"}</span><strong>{formatMoney(payment.amount)}</strong></p>)}
+            </div>
+          )}
+        </section>
+      )}
       {item.status === "draft" && (
         <>
           {invoiceItem && (

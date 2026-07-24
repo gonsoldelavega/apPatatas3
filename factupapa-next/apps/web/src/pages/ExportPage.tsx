@@ -33,6 +33,12 @@ const purchaseStatus: Record<string, string> = {
   confirmed: "Confirmada",
   cancelled: "Cancelada",
 };
+const paymentStatus: Record<string, string> = {
+  unpaid: "Pendiente",
+  partial: "Parcial",
+  paid: "Pagada",
+  overdue: "Vencida",
+};
 
 async function allInvoices(range: { from?: string; to?: string }) {
   const items: Invoice[] = [];
@@ -54,7 +60,7 @@ export function ExportPage() {
   const [busy, setBusy] = useState<"sales" | "purchases" | null>(null);
   const [error, setError] = useState(false);
   const range = periodRange(period);
-  const header = [
+  const salesHeader = [
     "Número",
     "Fecha",
     "Cliente/Proveedor",
@@ -62,7 +68,25 @@ export function ExportPage() {
     "Base",
     "IVA",
     "Total",
-    "Estado",
+    "Estado factura",
+    "Estado cobro",
+    "Cobrado",
+    "Pendiente",
+    "Vencimiento",
+  ];
+  const purchasesHeader = [
+    "Número",
+    "Fecha",
+    "Cliente/Proveedor",
+    "NIF",
+    "Base",
+    "IVA",
+    "Total",
+    "Estado compra",
+    "Estado pago",
+    "Pagado",
+    "Pendiente",
+    "Vencimiento",
   ];
   const exportSales = async () => {
     setBusy("sales");
@@ -70,7 +94,7 @@ export function ExportPage() {
     try {
       const invoices = await allInvoices(range);
       downloadCsv(`facturas-emitidas_${periodLabel(period)}.csv`, [
-        header,
+        salesHeader,
         ...invoices.map((invoice) => [
           invoice.number != null ? `${invoice.series}-${invoice.number}` : "",
           invoice.issueDate,
@@ -80,6 +104,10 @@ export function ExportPage() {
           euros(invoice.taxTotal),
           euros(invoice.total),
           salesStatus[invoice.status] ?? invoice.status,
+          paymentStatus[invoice.paymentStatus ?? "unpaid"],
+          euros(invoice.paidTotal ?? "0"),
+          euros(invoice.balanceDue ?? invoice.total),
+          invoice.dueDate ?? "",
         ]),
       ]);
     } catch {
@@ -97,7 +125,7 @@ export function ExportPage() {
         range.to,
       );
       downloadCsv(`compras_${periodLabel(period)}.csv`, [
-        header,
+        purchasesHeader,
         ...purchases.map((purchase) => [
           purchase.supplierInvoiceNumber ?? "",
           purchase.issueDate,
@@ -107,6 +135,10 @@ export function ExportPage() {
           euros(purchase.taxTotal),
           euros(purchase.total),
           purchaseStatus[purchase.status] ?? purchase.status,
+          paymentStatus[purchase.paymentStatus],
+          euros(purchase.paidTotal),
+          euros(purchase.balanceDue),
+          purchase.dueDate ?? "",
         ]),
       ]);
     } catch {
@@ -127,7 +159,7 @@ export function ExportPage() {
         <p>
           Descarga en CSV (compatible con Excel) únicamente las facturas emitidas
           y las compras confirmadas del periodo elegido, con número, fecha, NIF,
-          base, IVA, total y estado.
+          base, IVA, total, vencimiento y situación de cobro o pago.
         </p>
         <PeriodPicker value={period} onChange={setPeriod} />
         {error && (

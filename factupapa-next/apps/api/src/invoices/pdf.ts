@@ -6,14 +6,15 @@ const decimal = (value: string, minimum = 0) => {
   return `${integer}${fraction ? `,${fraction}` : ""}`;
 };
 const money = (value: string) => `${decimal(value, 2)} EUR`;
-const bags = (quantity: string, unit: string) => {
-  if (unit !== "kg") return null;
-  const kg = Number(quantity),
-    count = Math.floor((kg + 1e-9) / 2.5),
-    remainder = Math.round((kg - count * 2.5) * 10_000) / 10_000;
-  if (!Number.isFinite(kg) || kg <= 0) return null;
-  const label = `${count} ${count === 1 ? "bolsa" : "bolsas"} de 2,5 kg`;
-  return remainder > 0 ? `${label} + ${decimal(String(remainder))} kg` : label;
+const packaging = (line: Invoice["lines"][number]) => {
+  if (!line.packageKind || !line.packageQuantity || !line.unitsPerPackage) return null;
+  const names = { bag: ["bolsa","bolsas"], box: ["caja","cajas"], sack: ["saco","sacos"],
+    tray: ["bandeja","bandejas"], custom: ["envase","envases"] } as const;
+  const count = Number(line.packageQuantity);
+  const noun = names[line.packageKind][Math.abs(count - 1) < 1e-9 ? 0 : 1];
+  return line.packageLabel
+    ? `${decimal(line.packageQuantity)} × ${line.packageLabel}`
+    : `${decimal(line.packageQuantity)} ${noun} de ${decimal(line.unitsPerPackage)} ${line.unit}`;
 };
 const date = (v: string) => v.split("-").reverse().join("/");
 const documentNumber = (series: string, number: number | null) => {
@@ -134,7 +135,7 @@ export async function createInvoicePdf(
         doc.addPage();
         y = 60;
       }
-      const packaging = bags(line.quantity, line.unit);
+      const packageText = packaging(line);
       doc
         .fontSize(9)
         .text(line.description, 56, y, { width: 200 })
@@ -145,13 +146,13 @@ export async function createInvoicePdf(
           align: "right",
         })
         .text(money(line.lineTotal), 462, y, { width: 85, align: "right" });
-      if (packaging)
+      if (packageText)
         doc
           .fontSize(7)
           .fillColor("#555555")
-          .text(packaging, 56, y + 12, { width: 200 })
+          .text(packageText, 56, y + 12, { width: 200 })
           .fillColor("#111111");
-      y += packaging ? 32 : 26;
+      y += packageText ? 32 : 26;
       doc
         .moveTo(48, y - 7)
         .lineTo(547, y - 7)

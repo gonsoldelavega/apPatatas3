@@ -1,6 +1,7 @@
 export type ContactType = "customer" | "supplier" | "both";
 export type InvoicePeriodMode = "manual" | "fortnightly";
 export type ProductUnit = "kg" | "g" | "unit" | "box" | "custom";
+export type PackageKind = "none" | "bag" | "box" | "sack" | "tray" | "custom";
 export type ImportEntityType =
   | "contacts"
   | "products"
@@ -83,6 +84,12 @@ export interface Product {
   unit: ProductUnit;
   salePrice: string;
   estimatedCost: string | null;
+  packageKind: PackageKind;
+  packageLabel: string | null;
+  unitsPerPackage: string | null;
+  packageCost: string | null;
+  expectedLossRate: string;
+  realUnitCost: string | null;
   taxRate: string;
   margin: Margin | null;
   isActive: boolean;
@@ -92,8 +99,9 @@ export interface Product {
 
 export type ProductInput = Omit<
   Product,
-  "id" | "margin" | "isActive" | "createdAt" | "updatedAt"
->;
+  "id" | "margin" | "realUnitCost" | "isActive" | "createdAt" | "updatedAt" |
+  "packageKind" | "packageLabel" | "unitsPerPackage" | "packageCost" | "expectedLossRate"
+> & Partial<Pick<Product,"packageKind" | "packageLabel" | "unitsPerPackage" | "packageCost" | "expectedLossRate">>;
 
 export interface EffectiveProduct {
   id: string;
@@ -153,6 +161,11 @@ export interface PurchaseInvoice {
   taxTotal: string;
   total: string;
   notes: string | null;
+  paidTotal: string;
+  balanceDue: string;
+  paymentStatus: "unpaid" | "partial" | "paid" | "overdue";
+  sourceRegistryUrl?: string | null;
+  sourceRegistryFilename?: string | null;
   lines?: Array<
     PurchaseLineInput & {
       id: string;
@@ -162,6 +175,13 @@ export interface PurchaseInvoice {
       position: number;
     }
   >;
+}
+export interface PurchaseRegistrySyncResult {
+  fetched: number;
+  imported: number;
+  skipped: number;
+  drafts: number;
+  paid: number;
 }
 export interface OcrBudgetStatus {
   dailyAttempts: number;
@@ -204,7 +224,7 @@ export interface StockMovement {
   productName: string;
   unit: ProductUnit;
   occurredOn: string;
-  kind: "purchase" | "sale" | "adjustment";
+  kind: "purchase" | "sale" | "adjustment" | "production";
   quantityDelta: string;
   reference: string;
 }
@@ -215,6 +235,9 @@ export interface FinanceSummary {
   balance: string;
   stockKg: string;
   potentialRevenue: string;
+  receivables: string;
+  overdueReceivables: string;
+  payables: string;
 }
 export interface MonthlyFinanceSummary {
   month: string;
@@ -300,6 +323,10 @@ export interface SalesLine {
   lineTax: string;
   lineTotal: string;
   position: number;
+  packageKind?: Exclude<PackageKind, "none"> | null;
+  packageLabel?: string | null;
+  packageQuantity?: string | null;
+  unitsPerPackage?: string | null;
 }
 export interface DeliveryNote {
   id: string;
@@ -327,6 +354,9 @@ export interface Invoice {
   paymentTerms: string | null;
   generalInformation: string | null;
   status: "draft" | "issued" | "cancelled";
+  paymentStatus?: "unpaid" | "partial" | "paid" | "overdue";
+  paidTotal?: string;
+  balanceDue?: string;
   notes: string | null;
   subtotal: string;
   taxTotal: string;
@@ -338,4 +368,44 @@ export interface Invoice {
   contactAddress: Address;
   lines?: SalesLine[];
   deliveryNoteIds?: string[];
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string | null;
+  purchaseInvoiceId: string | null;
+  contactId: string | null;
+  direction: "incoming" | "outgoing";
+  amount: string;
+  paidAt: string;
+  method: string | null;
+  reference: string | null;
+  notes: string | null;
+}
+
+export interface CustomerAccount {
+  contactId: string;
+  invoicedTotal: string;
+  paidTotal: string;
+  outstandingTotal: string;
+  overdueTotal: string;
+  invoiceCount: number;
+  lastInvoiceDate: string | null;
+  invoices: Invoice[];
+  payments: Payment[];
+  topProducts: Array<{ productId: string | null; name: string; quantity: string; total: string }>;
+}
+
+export interface ProductionRun {
+  id: string;
+  inputProductId: string;
+  inputProductName: string;
+  outputProductId: string;
+  outputProductName: string;
+  occurredOn: string;
+  inputQuantity: string;
+  outputQuantity: string;
+  lossQuantity: string;
+  packageQuantity: string | null;
+  notes: string | null;
 }

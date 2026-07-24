@@ -9,6 +9,11 @@ export const productProjection = `
   unit,
   sale_price as "salePrice",
   estimated_cost as "estimatedCost",
+  package_kind as "packageKind",
+  package_label as "packageLabel",
+  units_per_package as "unitsPerPackage",
+  package_cost as "packageCost",
+  expected_loss_rate as "expectedLossRate",
   tax_rate as "taxRate",
   is_active as "isActive",
   created_at as "createdAt",
@@ -21,11 +26,13 @@ function searchPattern(value: string): string {
 export class ProductRepository {
   async create(client: PoolClient, companyId: string, input: ProductCreate): Promise<ProductRecord> {
     const result = await client.query<ProductRecord & QueryResultRow>(
-      `insert into products(company_id, name, description, sku, unit, sale_price, estimated_cost, tax_rate)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+      `insert into products(company_id, name, description, sku, unit, sale_price, estimated_cost, tax_rate,
+         package_kind,package_label,units_per_package,package_cost,expected_loss_rate)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        returning ${productProjection}`,
       [companyId, input.name, input.description ?? null, input.sku ?? null, input.unit, input.salePrice,
-        input.estimatedCost ?? null, input.taxRate],
+        input.estimatedCost ?? null, input.taxRate, input.packageKind ?? "none", input.packageLabel ?? null,
+        input.unitsPerPackage ?? null, input.packageCost ?? null, input.expectedLossRate ?? "0"],
     );
     return result.rows[0]!;
   }
@@ -63,6 +70,8 @@ export class ProductRepository {
     const columns = {
       name: "name", description: "description", sku: "sku", unit: "unit", salePrice: "sale_price",
       estimatedCost: "estimated_cost", taxRate: "tax_rate", isActive: "is_active",
+      packageKind: "package_kind", packageLabel: "package_label", unitsPerPackage: "units_per_package",
+      packageCost: "package_cost", expectedLossRate: "expected_loss_rate",
     } as const;
     const entries = Object.entries(input) as [keyof ProductPatch, unknown][];
     const assignments = entries.map(([key], index) => `${columns[key]} = $${index + 2}`);

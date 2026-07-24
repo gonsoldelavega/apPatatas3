@@ -19,6 +19,7 @@ import type {
   ProductInput,
   SalesPreferences,
   PurchaseInvoice,
+  PurchaseRegistrySyncResult,
   OcrBudgetStatus,
   PurchaseLineInput,
   RecurringExpense,
@@ -26,6 +27,9 @@ import type {
   StockMovement,
   FinanceSummary,
   MonthlyFinanceSummary,
+  Payment,
+  CustomerAccount,
+  ProductionRun,
 } from "./types";
 
 function queryString(
@@ -241,7 +245,7 @@ export const invoicesApi = {
     }),
   addLine: (
     id: string,
-    input: { productId: string; quantity: string; unitPrice?: string },
+    input: { productId: string; quantity: string; unitPrice?: string; packageQuantity?: string },
   ) =>
     apiClient.request<Invoice>(`/invoices/${id}/lines`, {
       method: "POST",
@@ -320,6 +324,12 @@ export const financeApi = {
     apiClient.request<PurchaseInvoice[]>(
       `/purchases${queryString({ from, to })}`,
     ),
+  syncPurchaseRegistry: () =>
+    apiClient.request<PurchaseRegistrySyncResult>("/purchases/registry-sync", {
+      method: "POST",
+      body: "{}",
+      timeoutMs: 25_000,
+    }),
   confirmedPurchasesForExport: (from?: string, to?: string) =>
     apiClient.request<PurchaseInvoice[]>(
       `/purchases/export${queryString({ from, to })}`,
@@ -423,4 +433,32 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  productionRuns: () => apiClient.request<ProductionRun[]>("/production-runs"),
+  createProductionRun: (input: {
+    inputProductId:string; outputProductId:string; occurredOn:string;
+    inputQuantity:string; outputQuantity:string; packageQuantity:string|null; notes:string|null;
+  }) => apiClient.request<{id:string}>("/production-runs", {
+    method:"POST", body:JSON.stringify(input),
+  }),
+};
+
+export const accountsApi = {
+  customer: (contactId: string) =>
+    apiClient.request<CustomerAccount>(`/contacts/${contactId}/account`),
+  invoicePayments: (invoiceId: string) =>
+    apiClient.request<Payment[]>(`/invoices/${invoiceId}/payments`),
+  purchasePayments: (purchaseId: string) =>
+    apiClient.request<Payment[]>(`/purchases/${purchaseId}/payments`),
+  addInvoicePayment: (invoiceId: string, input: {
+    amount: string; paidAt: string; method: string | null; reference: string | null; notes: string | null;
+  }) => apiClient.request<Payment>(`/invoices/${invoiceId}/payments`, {
+    method: "POST", body: JSON.stringify(input),
+  }),
+  addPurchasePayment: (purchaseId: string, input: {
+    amount: string; paidAt: string; method: string | null; reference: string | null; notes: string | null;
+  }) => apiClient.request<Payment>(`/purchases/${purchaseId}/payments`, {
+    method: "POST", body: JSON.stringify(input),
+  }),
+  deletePayment: (id: string) =>
+    apiClient.request<void>(`/payments/${id}`, { method: "DELETE" }),
 };

@@ -48,6 +48,14 @@ export const productSchema = z.object({
   salePrice: decimal,
   estimatedCost: z.union([z.literal(""), decimal]),
   taxRate: z.string().regex(/^\d{1,3}(?:[.,]\d{1,3})?$/, "IVA no válido"),
+  packageKind: z.enum(["none", "bag", "box", "sack", "tray", "custom"]),
+  packageLabel: optionalText(80),
+  unitsPerPackage: z.union([z.literal(""), decimal]),
+  packageCost: z.union([z.literal(""), decimal]),
+  expectedLossRate: z.string().regex(/^\d{1,3}(?:[.,]\d{1,3})?$/, "Merma no válida"),
+}).superRefine((value, context) => {
+  if (value.packageKind !== "none" && !value.unitsPerPackage)
+    context.addIssue({ code: "custom", path: ["unitsPerPackage"], message: "Indica cuántas unidades contiene cada envase" });
 });
 
 export const priceSchema = z.object({

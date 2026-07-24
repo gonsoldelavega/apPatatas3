@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, FilePlus2, Receipt, Trash2 } from "lucide-react";
+import { CalendarClock, FilePlus2, Receipt, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { contactsApi, financeApi } from "../api/services";
@@ -47,6 +47,7 @@ export function ExpensesPage() {
     [purchaseCategory, setPurchaseCategory] = useState(""),
     [purchaseSupplier, setPurchaseSupplier] = useState(""),
     [purchaseStatus, setPurchaseStatus] = useState(""),
+    [purchasePaymentStatus, setPurchasePaymentStatus] = useState(""),
     partialRange = periodRange(period),
     r =
       partialRange.from && partialRange.to
@@ -103,6 +104,16 @@ export function ExpensesPage() {
     remove = useMutation({
       mutationFn: financeApi.deactivateRecurring,
       onSuccess: () => qc.invalidateQueries({ queryKey: ["recurring"] }),
+    }),
+    registrySync = useMutation({
+      mutationFn: financeApi.syncPurchaseRegistry,
+      onSuccess: async () => {
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["purchases"] }),
+          qc.invalidateQueries({ queryKey: ["suppliers"] }),
+          qc.invalidateQueries({ queryKey: ["finance-summary"] }),
+        ]);
+      },
     });
   const periodMonths = monthsOf(r.from, r.to),
     recurringInMonth =
@@ -123,7 +134,8 @@ export function ExpensesPage() {
         (x) =>
           (!purchaseCategory || x.category === purchaseCategory) &&
           (!purchaseSupplier || x.supplierId === purchaseSupplier) &&
-          (!purchaseStatus || x.status === purchaseStatus),
+          (!purchaseStatus || x.status === purchaseStatus) &&
+          (!purchasePaymentStatus || x.paymentStatus === purchasePaymentStatus),
       ) ?? [],
     purchaseTotal = filteredPurchases.reduce((total, x) => total + Number(x.total), 0),
     formInvalid =
@@ -193,7 +205,7 @@ export function ExpensesPage() {
           ))}
         </SelectField>
         <SelectField
-          label="Estado"
+          label="Estado del documento"
           value={purchaseStatus}
           onChange={(e) => setPurchaseStatus(e.target.value)}
         >
@@ -201,6 +213,17 @@ export function ExpensesPage() {
           <option value="draft">Borrador</option>
           <option value="confirmed">Confirmada</option>
           <option value="cancelled">Cancelada</option>
+        </SelectField>
+        <SelectField
+          label="Estado del pago"
+          value={purchasePaymentStatus}
+          onChange={(e) => setPurchasePaymentStatus(e.target.value)}
+        >
+          <option value="">Todos</option>
+          <option value="unpaid">Pendiente</option>
+          <option value="partial">Parcial</option>
+          <option value="overdue">Vencida</option>
+          <option value="paid">Pagada</option>
         </SelectField>
       </section>
       <div className="finance-actions">
@@ -212,7 +235,29 @@ export function ExpensesPage() {
           <CalendarClock />
           Gasto fijo
         </button>
+        <button
+          className="compact-action"
+          disabled={registrySync.isPending}
+          onClick={() => registrySync.mutate()}
+        >
+          <RefreshCw className={registrySync.isPending ? "spin" : ""} />
+          {registrySync.isPending ? "Sincronizando…" : "Sincronizar Drive"}
+        </button>
       </div>
+      {registrySync.data && (
+        <p className="action-feedback" role="status">
+          Registro sincronizado: {registrySync.data.imported} nuevas,{" "}
+          {registrySync.data.skipped} ya existentes
+          {registrySync.data.drafts
+            ? ` y ${registrySync.data.drafts} pendientes de revisar`
+            : ""}.
+        </p>
+      )}
+      {registrySync.isError && (
+        <p className="field-error" role="alert">
+          No se pudo leer el registro de Drive. Revisa la conexión del registro maestro.
+        </p>
+      )}
       {open && (
         <section className="form-card">
           <h2>Nuevo gasto mensual</h2>
@@ -307,6 +352,19 @@ export function ExpensesPage() {
                   {x.supplierInvoiceNumber || "Sin número"} · {x.issueDate}
                 </small>
                 <small>{cats[x.category] ?? x.category}</small>
+                {x.status === "confirmed" && (
+                  <small className={`payment-state payment-state--${x.paymentStatus}`}>
+                    {({
+                      unpaid: "Pendiente",
+                      partial: "Pago parcial",
+                      overdue: "Vencida",
+                      paid: "Pagada",
+                    } as const)[x.paymentStatus]}
+                    {x.paymentStatus !== "paid"
+                      ? ` · faltan ${formatMoney(x.balanceDue)}`
+                      : ""}
+                  </small>
+                )}
               </span>
               <strong className="entity-card__amount">
                 {formatMoney(x.total)}

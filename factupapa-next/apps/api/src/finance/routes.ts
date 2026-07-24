@@ -9,6 +9,7 @@ import {
   validateRecurringExpense,
   validateStockAdjustment,
   validateStockLevel,
+  validateProductionRun,
 } from "./validation.js";
 export function createFinanceRoutes(
   auth: AuthApplication,
@@ -57,6 +58,10 @@ export function createFinanceRoutes(
       json(response, 200, await finance.monthlySummary(id, months));
       return true;
     }
+    if (url.pathname === "/purchases/registry-sync" && request.method === "POST") {
+      json(response, 200, await finance.syncPurchaseRegistry(id));
+      return true;
+    }
     if (url.pathname === "/stock" && request.method === "GET") {
       json(response, 200, await finance.stock(id));
       return true;
@@ -88,6 +93,12 @@ export function createFinanceRoutes(
         await finance.setStockLevel(id, validateStockLevel(await readJson(request))),
       );
       return true;
+    }
+    if (url.pathname === "/production-runs" && request.method === "GET") {
+      json(response,200,await finance.productionRuns(id)); return true;
+    }
+    if (url.pathname === "/production-runs" && request.method === "POST") {
+      json(response,201,await finance.createProductionRun(id,validateProductionRun(await readJson(request)))); return true;
     }
     if (url.pathname === "/purchases/export" && request.method === "GET") {
       json(

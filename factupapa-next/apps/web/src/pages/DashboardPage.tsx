@@ -191,6 +191,16 @@ export function DashboardPage() {
             <span>Gastos fijos del mes</span>
             <strong>{formatMoney(summary.data.finance.recurring)}</strong>
           </article>
+          <article className={Number(summary.data.finance.overdueReceivables ?? 0) > 0 ? "metric-danger" : ""}>
+            <span>Clientes pendientes</span>
+            <strong>{formatMoney(summary.data.finance.receivables ?? "0")}</strong>
+            <small>{formatMoney(summary.data.finance.overdueReceivables ?? "0")} vencidos</small>
+          </article>
+          <article>
+            <span>Proveedores pendientes</span>
+            <strong>{formatMoney(summary.data.finance.payables ?? "0")}</strong>
+            <small>Compras confirmadas aún no pagadas</small>
+          </article>
         </section>
       )}
       {summary.data?.monthly.length ? (

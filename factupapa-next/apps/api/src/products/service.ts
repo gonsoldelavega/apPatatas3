@@ -8,7 +8,12 @@ import { ProductRepository } from "./repository.js";
 import type { ProductCreate, ProductListQuery, ProductPatch, ProductRecord } from "./types.js";
 
 function response(product: ProductRecord) {
-  return { ...product, margin: calculateMargin(product.salePrice, product.estimatedCost) };
+  const base = product.estimatedCost == null ? null : Number(product.estimatedCost),
+    lossFactor = 1 - Number(product.expectedLossRate) / 100,
+    packagingPerUnit = product.packageCost && product.unitsPerPackage
+      ? Number(product.packageCost) / Number(product.unitsPerPackage) : 0,
+    realUnitCost = base == null ? null : ((base / Math.max(lossFactor,0.0001)) + packagingPerUnit).toFixed(4);
+  return { ...product, realUnitCost, margin: calculateMargin(product.salePrice, realUnitCost) };
 }
 
 export class ProductService {

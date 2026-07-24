@@ -156,6 +156,7 @@ export function validateInvoiceLine(
     "unitPrice",
     "taxRate",
     "position",
+    "packageQuantity",
   ]);
   if (body.unit !== undefined && !units.has(body.unit as ProductUnit))
     throw new HttpError("invalid_request", 400);
@@ -178,6 +179,9 @@ export function validateInvoiceLine(
       : { unitPrice: decimalString(body.unitPrice, 12, 4) }),
     ...(body.taxRate === undefined ? {} : { taxRate: taxRate(body.taxRate) }),
     ...(body.position === undefined ? {} : { position: Number(body.position) }),
+    ...(body.packageQuantity === undefined
+      ? {}
+      : { packageQuantity: decimalString(body.packageQuantity, 12, 4) }),
   };
 }
 

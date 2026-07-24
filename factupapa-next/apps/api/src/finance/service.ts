@@ -58,7 +58,87 @@ async function bestOcr(input: Buffer, filename: string) {
       b.page.confidence - a.page.confidence,
   )[0]!;
 }
-const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_tax_id "supplierTaxId",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
+const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_tax_id "supplierTaxId",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes,p.source_registry_url "sourceRegistryUrl",p.source_registry_filename "sourceRegistryFilename",
+  coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)::text "paidTotal",
+  greatest(p.total-coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0),0)::text "balanceDue",
+  case when coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)>=p.total and p.total>0 then 'paid'
+    when coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)>0 then 'partial'
+    when p.status='confirmed' and p.due_date<current_date then 'overdue' else 'unpaid' end "paymentStatus"
+  from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
+
+function parseRegistryCsv(value: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], field = "", quoted = false;
+  const source = value.replace(/\r\n?/g, "\n");
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]!;
+    if (quoted) {
+      if (character === '"' && source[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else if (character === '"') quoted = false;
+      else field += character;
+    } else if (character === '"') quoted = true;
+    else if (character === ",") {
+      row.push(field);
+      field = "";
+    } else if (character === "\n") {
+      row.push(field);
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+      field = "";
+    } else field += character;
+  }
+  row.push(field);
+  if (row.some((cell) => cell.trim())) rows.push(row);
+  return rows.slice(1);
+}
+
+const registryText = (value: unknown) => String(value ?? "").trim();
+const registryMoney = (value: unknown) => {
+  const normalized = registryText(value)
+    .replace(/\s|€|%/g, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount >= 0 ? amount.toFixed(4) : null;
+};
+const registryDate = (value: unknown) => {
+  const text = registryText(value);
+  const spanish = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (spanish)
+    return `${spanish[3]}-${spanish[2]!.padStart(2, "0")}-${spanish[1]!.padStart(2, "0")}`;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+};
+const normalizedTaxId = (value: unknown) =>
+  registryText(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+const registryUrl = (value: unknown) => {
+  const text = registryText(value);
+  if (!text) return null;
+  try {
+    const parsed = new URL(text);
+    return parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+};
+const registryCategory = (value: unknown) => {
+  const category = registryText(value).toUpperCase();
+  if (/AUT[ÓO]NOM/.test(category)) return "autonomo";
+  if (/GESTOR/.test(category)) return "gestoria";
+  if (/TRANSPORTE/.test(category)) return "transporte";
+  if (/SUMINISTRO/.test(category)) return "suministros";
+  if (/ALQUILER/.test(category)) return "alquiler";
+  if (/IMPUEST/.test(category)) return "impuestos";
+  return "mercancia";
+};
+const registryKey = (row: string[]) => {
+  const link = registryText(row[18]);
+  const driveId =
+    link.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] ??
+    link.match(/[?&]id=([A-Za-z0-9_-]+)/)?.[1];
+  return driveId ?? createHash("sha256").update(row.join("\u001f")).digest("hex");
+};
 const stockCtes = `purchase_entries as(
   select l.product_id,l.line_subtotal,
     case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end qty
@@ -72,10 +152,16 @@ const stockCtes = `purchase_entries as(
   select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty from sold_entries l join products p on p.id=l.product_id group by l.product_id
 ),adjustment_quantities as(
   select product_id,sum(quantity_delta)qty from stock_adjustments group by product_id
+),production_quantities as(
+  select product_id,sum(qty)qty from(
+    select input_product_id product_id,-input_quantity qty from production_runs
+    union all select output_product_id,output_quantity from production_runs
+  )q group by product_id
 ),stock_rows as(
   select p.id,p.name,p.unit,p.sale_price,p.estimated_cost,b.average_cost,coalesce(b.average_cost,p.estimated_cost)current_cost,
-    (coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0))current_quantity
-  from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id left join adjustment_quantities a on a.product_id=p.id where p.is_active
+    (coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0)+coalesce(pr.qty,0))current_quantity
+  from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id
+    left join adjustment_quantities a on a.product_id=p.id left join production_quantities pr on pr.product_id=p.id where p.is_active
 )`;
 export class FinanceService {
   private readonly s3?: S3Client;
@@ -94,6 +180,7 @@ export class FinanceService {
       visionModel?: string;
       budget?: OcrBudgetLimits;
     },
+    private registry?: { url: string; token?: string },
   ) {
     if (storage)
       this.s3 = new S3Client({
@@ -107,6 +194,159 @@ export class FinanceService {
       });
     if (extraction?.budget)
       this.ocrBudget = new OcrBudget(pool, extraction.budget);
+  }
+
+  async syncPurchaseRegistry(i: SessionIdentity) {
+    if (!this.registry) throw new HttpError("purchase_registry_not_configured", 503);
+    const endpoint = new URL(this.registry.url);
+    if (this.registry.token) endpoint.searchParams.set("key", this.registry.token);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let rows: string[][];
+    try {
+      const response = await fetch(endpoint, {
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { Accept: "application/json,text/csv" },
+      });
+      const body = await response.text();
+      if (!response.ok) throw new HttpError("purchase_registry_unavailable", 502);
+      if (/^\s*[\[{]/.test(body)) {
+        const payload = JSON.parse(body) as { ok?: boolean; rows?: unknown[] };
+        if (payload.ok !== true || !Array.isArray(payload.rows))
+          throw new HttpError("purchase_registry_invalid", 502);
+        rows = payload.rows
+          .filter((row): row is unknown[] => Array.isArray(row))
+          .map((row) => row.map(registryText));
+      } else rows = parseRegistryCsv(body);
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      throw new HttpError("purchase_registry_unavailable", 502);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const purchases = rows.filter(
+      (row) => registryText(row[2]).toUpperCase() === "COMPRA",
+    );
+    return withTenantTransaction(this.pool, i, async (client) => {
+      let imported = 0, skipped = 0, drafts = 0, paid = 0;
+      for (const row of purchases) {
+        const key = registryKey(row);
+        const exists = await client.query(
+          "select 1 from purchase_invoices where source_registry_key=$1",
+          [key],
+        );
+        if (exists.rowCount) {
+          skipped += 1;
+          continue;
+        }
+        const issueDate = registryDate(row[0]),
+          supplierName = registryText(row[5]) || "Proveedor sin identificar",
+          taxId = normalizedTaxId(row[6]) || null,
+          invoiceNumber = registryText(row[4]) || null,
+          subtotal = registryMoney(row[9]),
+          taxTotal = registryMoney(row[11]),
+          total = registryMoney(row[12]),
+          taxRate = registryMoney(row[10]) ?? "0.0000";
+        if (!issueDate || !subtotal || !taxTotal || !total) {
+          skipped += 1;
+          continue;
+        }
+        let supplier = (
+          await client.query(
+            `select id,legal_name,tax_id,address from contacts
+             where is_active and kind in('supplier','both')
+               and (($1::text is not null and regexp_replace(upper(coalesce(tax_id,'')),'[^A-Z0-9]','','g')=$1)
+                 or lower(btrim(legal_name))=lower(btrim($2)))
+             order by case when $1::text is not null and regexp_replace(upper(coalesce(tax_id,'')),'[^A-Z0-9]','','g')=$1 then 0 else 1 end
+             limit 1`,
+            [taxId, supplierName],
+          )
+        ).rows[0];
+        if (!supplier) {
+          supplier = (
+            await client.query(
+              `insert into contacts(company_id,kind,legal_name,tax_id,address)
+               values($1,'supplier',$2,$3,'{}'::jsonb)
+               returning id,legal_name,tax_id,address`,
+              [i.companyId, supplierName, taxId],
+            )
+          ).rows[0];
+        }
+        if (invoiceNumber) {
+          const duplicate = await client.query(
+            `select 1 from purchase_invoices
+             where supplier_id=$1 and lower(btrim(supplier_invoice_number))=lower(btrim($2))
+               and status<>'cancelled'`,
+            [supplier.id, invoiceNumber],
+          );
+          if (duplicate.rowCount) {
+            skipped += 1;
+            continue;
+          }
+        }
+        const reviewed = /^S[IÍ]$/i.test(registryText(row[20]));
+        const canConfirm = reviewed && Boolean(invoiceNumber);
+        const purchaseId = (
+          await client.query(
+            `insert into purchase_invoices(
+               company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_address,
+               supplier_invoice_number,issue_date,category,notes,subtotal,tax_total,total,
+               created_by_user_id,source_registry_key,source_registry_url,source_registry_filename)
+             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+             returning id`,
+            [
+              i.companyId, supplier.id, supplier.legal_name, supplier.tax_id,
+              supplier.address, invoiceNumber, issueDate, registryCategory(row[8]),
+              [registryText(row[21]), "Importada del registro maestro"].filter(Boolean).join(" · "),
+              subtotal, taxTotal, total, i.userId, key, registryUrl(row[18]),
+              registryText(row[19]) || null,
+            ],
+          )
+        ).rows[0].id as string;
+        await client.query(
+          `insert into purchase_invoice_lines(
+             company_id,purchase_invoice_id,description,quantity,unit,unit_cost,tax_rate,
+             line_subtotal,line_tax,line_total,position)
+           values($1,$2,$3,1,'custom',$4,$5,$4,$6,$7,1)`,
+          [
+            i.companyId, purchaseId, registryText(row[7]) || "Compra",
+            subtotal, taxRate, taxTotal, total,
+          ],
+        );
+        if (canConfirm)
+          await client.query(
+            "update purchase_invoices set status='confirmed',confirmed_at=now() where id=$1",
+            [purchaseId],
+          );
+        else drafts += 1;
+        if (
+          canConfirm &&
+          /PAGAD|COBRAD|ABONAD/i.test(registryText(row[13]))
+        ) {
+          await client.query(
+            `insert into payments(company_id,purchase_invoice_id,contact_id,direction,amount,paid_at,method,reference,created_by_user_id)
+             values($1,$2,$3,'outgoing',$4,$5::date + time '12:00',$6,'Registro maestro',$7)`,
+            [
+              i.companyId, purchaseId, supplier.id, total, issueDate,
+              registryText(row[14]) || null, i.userId,
+            ],
+          );
+          paid += 1;
+        }
+        await recordAudit(client, {
+          companyId: i.companyId,
+          actorUserId: i.userId,
+          entityType: "purchase_invoice",
+          entityId: purchaseId,
+          action: "purchase_invoice.registry_imported",
+          after: { sourceRegistryKey: key, confirmed: canConfirm },
+        });
+        imported += 1;
+      }
+      return { fetched: purchases.length, imported, skipped, drafts, paid };
+    });
   }
 
   async ocrBudgetStatus(i: SessionIdentity) {
@@ -711,6 +951,14 @@ export class FinanceService {
             select a.id,a.product_id,a.occurred_on,'adjustment',a.quantity_delta,
               coalesce(a.note,case a.reason when 'loss' then 'Merma' when 'initial' then 'Stock inicial' when 'correction' then 'Recuento físico' else 'Ajuste' end)
             from stock_adjustments a
+            union all
+            select r.id,r.input_product_id,r.occurred_on,'production',-r.input_quantity,
+              'Materia prima usada en producción'
+            from production_runs r
+            union all
+            select r.id,r.output_product_id,r.occurred_on,'production',r.output_quantity,
+              coalesce(r.package_quantity::text||' envases producidos','Producción terminada')
+            from production_runs r
           )
           select m.id,m.product_id "productId",p.name "productName",p.unit,m.occurred_on::text "occurredOn",m.kind,m.quantity_delta::text "quantityDelta",m.reference
           from movements m join products p on p.id=m.product_id
@@ -720,6 +968,30 @@ export class FinanceService {
         )
       ).rows,
     );
+  }
+  async productionRuns(i: SessionIdentity) {
+    return withTenantTransaction(this.pool,i,async(c)=>(await c.query(
+      `select r.id,r.input_product_id "inputProductId",ip.name "inputProductName",
+        r.output_product_id "outputProductId",op.name "outputProductName",r.occurred_on::text "occurredOn",
+        r.input_quantity::text "inputQuantity",r.output_quantity::text "outputQuantity",
+        r.loss_quantity::text "lossQuantity",r.package_quantity::text "packageQuantity",r.notes
+       from production_runs r join products ip on ip.id=r.input_product_id join products op on op.id=r.output_product_id
+       order by r.occurred_on desc,r.id desc limit 100`)).rows);
+  }
+  async createProductionRun(i: SessionIdentity,x: import("./validation.js").ProductionRunInput) {
+    return withTenantTransaction(this.pool,i,async(c)=>{
+      const products=await c.query(`select id from products where id=any($1::uuid[]) and is_active`,[[x.inputProductId,x.outputProductId]]);
+      if(products.rowCount!==2) throw new HttpError("not_found",404);
+      const current=(await c.query(`with ${stockCtes} select current_quantity from stock_rows where id=$1`,[x.inputProductId])).rows[0];
+      if(!current || Number(current.current_quantity)<Number(x.inputQuantity)) throw new HttpError("conflict",409);
+      const row=(await c.query(
+        `insert into production_runs(company_id,input_product_id,output_product_id,occurred_on,input_quantity,output_quantity,package_quantity,notes,created_by_user_id)
+         values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
+        [i.companyId,x.inputProductId,x.outputProductId,x.occurredOn,x.inputQuantity,x.outputQuantity,x.packageQuantity,x.notes,i.userId])).rows[0];
+      await recordAudit(c,{companyId:i.companyId,actorUserId:i.userId,entityType:"production_run",entityId:row.id,
+        action:"production_run.created",after:x});
+      return row;
+    });
   }
   async setStockLevel(
     i: SessionIdentity,
@@ -765,7 +1037,22 @@ export class FinanceService {
       async (c) =>
         (
           await c.query(
-            `with period_sales as(select coalesce(sum(total),0)total from invoices where status='issued' and issue_date between $1 and $2),period_purchases as(select coalesce(sum(total),0)total from purchase_invoices where status='confirmed' and issue_date between $1 and $2),months as(select generate_series(date_trunc('month',$1::date::timestamp),date_trunc('month',$2::date::timestamp),interval'1 month')::date as month_start),period_recurring as(select coalesce(sum(r.amount),0)total from recurring_expenses r join months m on r.starts_on<=m.month_start+interval'1 month - 1 day' and(r.ends_on is null or r.ends_on>=m.month_start)),${stockCtes},stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential from stock_rows)select period_sales.total::text sales,period_purchases.total::text purchases,period_recurring.total::text recurring,(period_sales.total-period_purchases.total-period_recurring.total)::text balance,stock_totals.kg::text "stockKg",stock_totals.potential::text "potentialRevenue" from period_sales,period_purchases,period_recurring,stock_totals`,
+            `with period_sales as(select coalesce(sum(total),0)total from invoices where status='issued' and issue_date between $1 and $2),
+             period_purchases as(select coalesce(sum(total),0)total from purchase_invoices where status='confirmed' and issue_date between $1 and $2),
+             months as(select generate_series(date_trunc('month',$1::date::timestamp),date_trunc('month',$2::date::timestamp),interval'1 month')::date as month_start),
+             period_recurring as(select coalesce(sum(r.amount),0)total from recurring_expenses r join months m on r.starts_on<=m.month_start+interval'1 month - 1 day' and(r.ends_on is null or r.ends_on>=m.month_start)),
+             receivables as(select coalesce(sum(greatest(i.total-coalesce(p.paid,0),0)),0) total,
+               coalesce(sum(greatest(i.total-coalesce(p.paid,0),0)) filter(where i.due_date<current_date),0) overdue
+               from invoices i left join(select invoice_id,sum(amount)paid from payments where invoice_id is not null group by invoice_id)p on p.invoice_id=i.id where i.status='issued'),
+             payables as(select coalesce(sum(greatest(i.total-coalesce(p.paid,0),0)),0) total
+               from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed'),
+             ${stockCtes},
+             stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential from stock_rows)
+             select period_sales.total::text sales,period_purchases.total::text purchases,period_recurring.total::text recurring,
+               (period_sales.total-period_purchases.total-period_recurring.total)::text balance,
+               stock_totals.kg::text "stockKg",stock_totals.potential::text "potentialRevenue",
+               receivables.total::text receivables,receivables.overdue::text "overdueReceivables",payables.total::text payables
+             from period_sales,period_purchases,period_recurring,stock_totals,receivables,payables`,
             [r.from, r.to],
           )
         ).rows[0],

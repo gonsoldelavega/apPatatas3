@@ -129,7 +129,10 @@ export class InvoiceService {
         unit = input.unit,
         price = input.unitPrice,
         rate = input.taxRate,
-        productId = input.productId ?? null;
+        productId = input.productId ?? null,
+        packageKind: string | null = null,
+        packageLabel: string | null = null,
+        unitsPerPackage: string | null = null;
       if (productId) {
         const r = await c.query<
           {
@@ -138,9 +141,16 @@ export class InvoiceService {
             salePrice: string;
             taxRate: string;
             effectivePrice: string;
+            packageKind: string;
+            packageLabel: string | null;
+            unitsPerPackage: string | null;
           } & QueryResultRow
         >(
-          `select p.name,p.unit,p.sale_price "salePrice",p.tax_rate "taxRate",case when cp.is_active and cp.valid_from<=current_date then cp.price else p.sale_price end "effectivePrice" from products p left join contact_product_prices cp on cp.company_id=p.company_id and cp.product_id=p.id and cp.contact_id=$2 where p.id=$1 and p.is_active`,
+          `select p.name,p.unit,p.sale_price "salePrice",p.tax_rate "taxRate",
+             p.package_kind "packageKind",p.package_label "packageLabel",p.units_per_package "unitsPerPackage",
+             case when cp.is_active and cp.valid_from<=current_date then cp.price else p.sale_price end "effectivePrice"
+           from products p left join contact_product_prices cp on cp.company_id=p.company_id and cp.product_id=p.id and cp.contact_id=$2
+           where p.id=$1 and p.is_active`,
           [productId, inv.contactId],
         );
         const p = r.rows[0];
@@ -149,20 +159,33 @@ export class InvoiceService {
         unit ??= p.unit as never;
         price ??= p.effectivePrice;
         rate ??= p.taxRate;
+        if (p.packageKind !== "none" && p.unitsPerPackage) {
+          packageKind = p.packageKind;
+          packageLabel = p.packageLabel;
+          unitsPerPackage = p.unitsPerPackage;
+        }
       }
       if (!description || !unit || price === undefined || rate === undefined)
         throw new HttpError("invalid_request", 400);
-      const a = lineAmounts(input.quantity, price, rate),
+      const quantity = input.packageQuantity && unitsPerPackage
+          ? String(Number(input.packageQuantity) * Number(unitsPerPackage))
+          : input.quantity,
+        packageQuantity = packageKind && unitsPerPackage
+          ? (input.packageQuantity ?? String(Number(quantity) / Number(unitsPerPackage)))
+          : null,
+        a = lineAmounts(quantity, price, rate),
         position = input.position ?? inv.lines.length + 1;
       if (lineId) {
         const r = await c.query(
-          `update invoice_lines set product_id=$3,description=$4,quantity=$5,unit=$6,unit_price=$7,tax_rate=$8,line_subtotal=$9,line_tax=$10,line_total=$11,position=$12 where id=$1 and invoice_id=$2`,
+          `update invoice_lines set product_id=$3,description=$4,quantity=$5,unit=$6,unit_price=$7,tax_rate=$8,
+             line_subtotal=$9,line_tax=$10,line_total=$11,position=$12,package_kind=$13,package_label=$14,
+             package_quantity=$15,units_per_package=$16 where id=$1 and invoice_id=$2`,
           [
             lineId,
             id,
             productId,
             description,
-            input.quantity,
+            quantity,
             unit,
             price,
             rate,
@@ -170,18 +193,24 @@ export class InvoiceService {
             a.tax,
             a.total,
             position,
+            packageKind,
+            packageLabel,
+            packageQuantity,
+            unitsPerPackage,
           ],
         );
         if (!r.rowCount) throw new HttpError("not_found", 404);
       } else
         await c.query(
-          `insert into invoice_lines(company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,line_subtotal,line_tax,line_total,position) values($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12)`,
+          `insert into invoice_lines(company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,
+             line_subtotal,line_tax,line_total,position,package_kind,package_label,package_quantity,units_per_package)
+           values($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15,$16)`,
           [
             identity.companyId,
             id,
             productId,
             description,
-            input.quantity,
+            quantity,
             unit,
             price,
             rate,
@@ -189,6 +218,10 @@ export class InvoiceService {
             a.tax,
             a.total,
             position,
+            packageKind,
+            packageLabel,
+            packageQuantity,
+            unitsPerPackage,
           ],
         );
       await this.totals(c, id);

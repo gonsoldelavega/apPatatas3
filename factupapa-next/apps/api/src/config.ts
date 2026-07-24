@@ -31,6 +31,8 @@ export interface AppConfig {
   ocrDailyAttemptLimit: number;
   ocrMonthlyAttemptLimit: number;
   ocrMonthlyBudgetMicrousd: number;
+  purchaseRegistryUrl?: string;
+  purchaseRegistryToken?: string;
 }
 
 const placeholder = /^(changeme|change_me|password|secret|default|cambiar(?:_|$)|minioadmin)/i;
@@ -193,6 +195,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   ];
   if (env.ANTHROPIC_API_KEY?.trim() && ownTaxIds.length === 0)
     throw new Error("OWN_TAX_IDS es obligatorio cuando Anthropic está activado");
+  const purchaseRegistryUrl = env.PURCHASE_REGISTRY_WEBAPP_URL?.trim();
+  if (purchaseRegistryUrl) {
+    const registry = new URL(purchaseRegistryUrl);
+    if (registry.protocol !== "https:")
+      throw new Error("PURCHASE_REGISTRY_WEBAPP_URL debe usar HTTPS");
+  }
 
   return {
     environment,
@@ -273,6 +281,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ocrMonthlyBudgetMicrousd: readOcrBudgetMicrousd(
       env.OCR_MONTHLY_BUDGET_USD,
     ),
+    ...(purchaseRegistryUrl ? { purchaseRegistryUrl } : {}),
+    ...(env.PURCHASE_REGISTRY_WEBAPP_TOKEN?.trim()
+      ? { purchaseRegistryToken: env.PURCHASE_REGISTRY_WEBAPP_TOKEN.trim() }
+      : {}),
   };
 }
 
