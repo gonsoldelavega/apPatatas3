@@ -49,7 +49,7 @@ factupapa-next/
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
 - Redis: cola de trabajo para OCR y tareas pesadas.
 - API TypeScript: healthcheck, autenticación, catálogo, importaciones, albaranes, facturas y PDF.
-- Web React/TypeScript: PWA instalable con login, catálogo, importación supervisada y ventas.
+- Web React/TypeScript: PWA React/Vite mobile-first (actual).
 - Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.
 - Provisionador: asigna en cada arranque la contraseña local al rol limitado `factupapa_api`.
 - Worker: previsto para trabajos asíncronos; todavía no implementado.
@@ -89,3 +89,4 @@ El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva 
 Este proyecto todavía no está conectado a ningún dato real ni a la aplicación productiva.
 Auditoría manual de staging.
 Auditoría manual de staging, segundo intento.
+Auditoría manual de staging, tercer intento.
