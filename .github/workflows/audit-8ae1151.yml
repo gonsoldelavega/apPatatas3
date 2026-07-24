@@ -1,0 +1,74 @@
+name: Audit corrected FactuPapa commit
+
+on:
+  push:
+    branches: [codex/audit-8ae1151]
+
+permissions:
+  actions: write
+  statuses: write
+  contents: write
+
+jobs:
+  audit-and-watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_SHA: 8ae1151597d8e1e1bc0b7d07dbfd6f3521696702
+      TARGET_BRANCH: codex/factupapa-claude-fixes
+      WORKFLOW_FILE: factupapa-next-runner.yml
+    steps:
+      - name: Resolve or dispatch rootless audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          headers=(-H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28')
+          find_run() {
+            curl --fail-with-body --silent --show-error --get "${headers[@]}" \
+              --data-urlencode "branch=${TARGET_BRANCH}" --data-urlencode 'per_page=30' \
+              "${api}/actions/workflows/${WORKFLOW_FILE}/runs" |
+              jq -r --arg sha "${EXPECTED_SHA}" '[.workflow_runs[] | select(.head_sha==$sha)][0] // empty | [.id,.html_url] | @tsv'
+          }
+          found=''
+          for _ in 1 2 3; do
+            found="$(find_run)"
+            [ -n "${found}" ] && break
+            sleep 10
+          done
+          if [ -z "${found}" ]; then
+            curl --fail-with-body --silent --show-error --location --request POST "${headers[@]}" \
+              "${api}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
+              --data '{"ref":"codex/factupapa-claude-fixes"}'
+            for _ in $(seq 1 30); do
+              found="$(find_run)"
+              [ -n "${found}" ] && break
+              sleep 10
+            done
+          fi
+          test -n "${found}"
+          IFS=$'\t' read -r run_id run_url <<<"${found}"
+          payload="$(jq -n --arg state pending --arg context 'FactuPapa Rootless Audit' --arg description 'Auditoría corregida en ejecución' --arg target_url "${run_url}" '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          curl --fail-with-body --silent --show-error -X POST "${headers[@]}" --data "${payload}" "${api}/statuses/${EXPECTED_SHA}" >/dev/null
+          for _ in $(seq 1 180); do
+            run="$(curl --fail-with-body --silent --show-error "${headers[@]}" "${api}/actions/runs/${run_id}")"
+            status="$(jq -r '.status' <<<"${run}")"
+            if [ "${status}" = completed ]; then
+              conclusion="$(jq -r '.conclusion' <<<"${run}")"
+              state=failure
+              description="Auditoría finalizada: ${conclusion}"
+              [ "${conclusion}" = success ] && state=success && description='Auditoría rootless y despliegue completados'
+              payload="$(jq -n --arg state "${state}" --arg context 'FactuPapa Rootless Audit' --arg description "${description}" --arg target_url "${run_url}" '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+              curl --fail-with-body --silent --show-error -X POST "${headers[@]}" --data "${payload}" "${api}/statuses/${EXPECTED_SHA}" >/dev/null
+              [ "${state}" = success ] && exit 0
+              exit 1
+            fi
+            sleep 20
+          done
+          exit 1
+
+      - name: Remove observer branch
+        if: always()
+        shell: bash
+        run: git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" --delete codex/audit-8ae1151
