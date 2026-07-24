@@ -42,6 +42,33 @@ jobs:
           test -S "${DOCKER_HOST#unix://}"
           docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
 
+      - name: Recover existing private staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t staging_containers < <(
+            docker ps -aq \
+              --filter 'label=com.docker.compose.project=factupapa_staging'
+          )
+          if [ "${#staging_containers[@]}" -eq 0 ]; then
+            echo "No existing staging containers to recover"
+            exit 0
+          fi
+          docker start "${staging_containers[@]}" >/dev/null
+          for _ in $(seq 1 60); do
+            status="$(
+              curl --silent --output /dev/null --write-out '%{http_code}' \
+                http://127.0.0.1:14173/healthz || true
+            )"
+            [ "${status}" = "200" ] && exit 0
+            sleep 2
+          done
+          echo "Existing staging did not recover on port 14173" >&2
+          docker ps -a \
+            --filter 'label=com.docker.compose.project=factupapa_staging' \
+            --format 'table {{.Names}}\t{{.Status}}'
+          exit 1
+
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
