@@ -106,7 +106,9 @@ test("factura directa, ajustes comerciales y decimales legibles", async ({
 
   await page.goto("/ventas/nuevo/factura");
   await expect(page.getByText(/Serie TEST\/\d{4}/)).toBeVisible();
-  await page.getByLabel("Cliente", { exact: true }).selectOption({ index: 1 });
+  await page
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption({ index: 1 });
   await page.getByLabel("Producto").selectOption({ index: 1 });
   await page.getByLabel("Cantidad").fill("10");
   await page.getByRole("button", { name: "Revisar factura" }).click();
@@ -390,7 +392,7 @@ test("cliente quincenal, condiciones opcionales y precio editable", async ({
 
   await page.goto("/ventas/nuevo/factura");
   await page
-    .getByLabel("Cliente", { exact: true })
+    .getByRole("combobox", { name: "Cliente", exact: true })
     .selectOption({ label: customer });
   await expect(page.getByText("Periodo quincenal")).toBeVisible();
   await expect(page.locator(".invoice-period-summary strong")).toContainText(
