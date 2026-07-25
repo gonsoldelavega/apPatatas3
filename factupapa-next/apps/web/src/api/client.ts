@@ -1,6 +1,11 @@
 import type { AuthTokens } from "./types";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const PUBLIC_AUTH_PATHS = new Set([
+  "/auth/login",
+  "/auth/refresh",
+  "/auth/logout",
+]);
 
 export class ApiError extends Error {
   constructor(
@@ -94,7 +99,7 @@ export class ApiClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const method = (options.method ?? "GET").toUpperCase();
-    const authenticated = options.authenticated ?? !path.startsWith("/auth/");
+    const authenticated = options.authenticated ?? !PUBLIC_AUTH_PATHS.has(path);
     const response = await this.perform(path, options, authenticated);
 
     if (response.status === 401 && authenticated) {

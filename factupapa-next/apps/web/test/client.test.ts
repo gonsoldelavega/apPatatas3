@@ -48,6 +48,20 @@ describe("ApiClient", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("autentica las rutas privadas bajo /auth", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(json(tokens))
+      .mockResolvedValueOnce(json({ items: [] }));
+    const client = new ApiClient("http://api.test", fetcher);
+    await client.login("persona@example.test", "correcta");
+    await expect(client.request("/auth/sessions")).resolves.toEqual({
+      items: [],
+    });
+    const headers = fetcher.mock.calls[1]?.[1]?.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer access-1");
+  });
+
   it("renueva y repite solo una lectura idempotente expirada", async () => {
     const fetcher = vi
       .fn()
