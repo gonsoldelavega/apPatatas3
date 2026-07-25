@@ -12,6 +12,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   busy?: boolean;
 }
 
+const RAPID_TAP_LOCK_MS = 700;
+
 export function Button({
   variant = "primary",
   icon,
@@ -23,10 +25,18 @@ export function Button({
   ...props
 }: ButtonProps) {
   const clickLocked = useRef(false);
+  const unlockTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!busy) clickLocked.current = false;
   }, [busy]);
+
+  useEffect(
+    () => () => {
+      if (unlockTimer.current !== null) window.clearTimeout(unlockTimer.current);
+    },
+    [],
+  );
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (busy || disabled || clickLocked.current) {
@@ -37,11 +47,11 @@ export function Button({
     clickLocked.current = true;
     onClick?.(event);
 
-    // Las acciones síncronas pueden volver a usarse en el siguiente ciclo.
-    // Las mutaciones mantienen el bloqueo mediante la propiedad `busy`.
-    queueMicrotask(() => {
+    if (unlockTimer.current !== null) window.clearTimeout(unlockTimer.current);
+    unlockTimer.current = window.setTimeout(() => {
       if (!busy) clickLocked.current = false;
-    });
+      unlockTimer.current = null;
+    }, RAPID_TAP_LOCK_MS);
   };
 
   return (
