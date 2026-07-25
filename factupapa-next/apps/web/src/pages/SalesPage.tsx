@@ -3,6 +3,7 @@ import { FileText, Plus, ScrollText } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
+import type { Invoice } from "../api/types";
 import { EmptyState } from "../ui/EmptyState";
 import { Field } from "../ui/Field";
 import { PeriodPicker } from "../ui/PeriodPicker";
@@ -16,13 +17,24 @@ const statuses: Record<string, string> = {
   invoiced: "Facturado",
   cancelled: "Cancelado",
 };
+
+const paymentStatuses: Record<string, string> = {
+  unpaid: "Pendiente",
+  partial: "Parcial",
+  overdue: "Vencida",
+  paid: "Pagada",
+};
+
+type SalesTab = "invoice" | "delivery";
+
 export function SalesPage() {
-  const [tab, setTab] = useState<"delivery" | "invoice">("invoice");
-  const [period, setPeriod] = useState(currentPeriod("all")),
-    [contactId, setContactId] = useState(""),
-    [status, setStatus] = useState(""),
-    [paymentStatus, setPaymentStatus] = useState(""),
-    [search, setSearch] = useState("");
+  const [tab, setTab] = useState<SalesTab>("invoice");
+  const [period, setPeriod] = useState(currentPeriod("all"));
+  const [contactId, setContactId] = useState("");
+  const [status, setStatus] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [search, setSearch] = useState("");
+
   const filters = {
     pageSize: 100,
     contactId,
@@ -31,6 +43,7 @@ export function SalesPage() {
     search,
     ...periodRange(period),
   };
+
   const contacts = useQuery({
     queryKey: ["sales-filter-contacts"],
     queryFn: () => contactsApi.list({ isActive: true, pageSize: 100 }),
@@ -43,20 +56,31 @@ export function SalesPage() {
     queryKey: ["invoices", filters],
     queryFn: () => invoicesApi.list(filters),
   });
-  const items = tab === "delivery" ? notes.data?.items : invoices.data?.items;
+
+  const activeQuery = tab === "delivery" ? notes : invoices;
+  const items = activeQuery.data?.items;
   const visibleTotal = (items ?? []).reduce(
     (total, item) => total + Number(item.total),
     0,
   );
+
   return (
     <div className="page sales-page">
-      <header className="page-heading">
-        <p className="eyebrow">Operativa comercial</p>
-        <h1>Ventas</h1>
-        <p>Facturación directa y documentos de venta de tu empresa.</p>
+      <header className="page-heading page-heading--with-action">
+        <div>
+          <p className="eyebrow">Cobros y facturación</p>
+          <h1>Facturas</h1>
+          <p>Crea facturas directas, controla lo pendiente y registra los cobros.</p>
+        </div>
+        <Link className="compact-action" to="/ventas/nuevo/factura">
+          <Plus aria-hidden="true" />
+          Nueva factura
+        </Link>
       </header>
-      <div className="segmented" role="tablist">
+
+      <div className="segmented" role="tablist" aria-label="Tipo de documento">
         <button
+          type="button"
           role="tab"
           aria-selected={tab === "invoice"}
           className={tab === "invoice" ? "active" : ""}
@@ -65,17 +89,19 @@ export function SalesPage() {
           Facturas
         </button>
         <button
+          type="button"
           role="tab"
           aria-selected={tab === "delivery"}
           className={tab === "delivery" ? "active" : ""}
           onClick={() => setTab("delivery")}
         >
-          Albaranes
+          Albaranes pendientes
         </button>
       </div>
-      <section className="sales-summary-card" aria-label="Resumen de ventas visibles">
+
+      <section className="sales-summary-card" aria-label="Resumen visible">
         <div>
-          <span>{tab === "invoice" ? "Facturado" : "Total albaranes"}</span>
+          <span>{tab === "invoice" ? "Importe visible" : "Total pendiente"}</span>
           <strong>{formatMoney(String(visibleTotal))}</strong>
         </div>
         <div>
@@ -83,17 +109,19 @@ export function SalesPage() {
           <strong>{items?.length ?? 0}</strong>
         </div>
       </section>
-      <section className="filter-card">
+
+      <section className="filter-card" aria-label="Filtros de facturas">
         <Field
           label="Buscar"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Número, cliente o concepto"
+          onChange={(event) => setSearch(event.target.value)}
         />
         <PeriodPicker value={period} onChange={setPeriod} allowAll />
         <SelectField
           label="Estado"
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onChange={(event) => setStatus(event.target.value)}
         >
           <option value="">Todos</option>
           <option value="draft">Borrador</option>
@@ -101,7 +129,11 @@ export function SalesPage() {
           <option value="cancelled">Cancelado</option>
         </SelectField>
         {tab === "invoice" && (
-          <SelectField label="Cobro" value={paymentStatus} onChange={(e)=>setPaymentStatus(e.target.value)}>
+          <SelectField
+            label="Cobro"
+            value={paymentStatus}
+            onChange={(event) => setPaymentStatus(event.target.value)}
+          >
             <option value="">Todos</option>
             <option value="unpaid">Pendientes</option>
             <option value="partial">Cobro parcial</option>
@@ -112,66 +144,83 @@ export function SalesPage() {
         <SelectField
           label="Cliente"
           value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
+          onChange={(event) => setContactId(event.target.value)}
         >
           <option value="">Todos</option>
           {contacts.data?.items
-            .filter((x) => x.type !== "supplier")
-            .map((x) => (
-              <option value={x.id} key={x.id}>
-                {x.tradeName || x.legalName}
+            .filter((contact) => contact.type !== "supplier")
+            .map((contact) => (
+              <option value={contact.id} key={contact.id}>
+                {contact.tradeName || contact.legalName}
               </option>
             ))}
         </SelectField>
       </section>
-      <div className="sales-toolbar">
-        <Link
-          className="compact-action"
-          to={
-            tab === "delivery"
-              ? "/ventas/nuevo/albaran"
-              : "/ventas/nuevo/factura"
-          }
-        >
-          <Plus />
-          Crear {tab === "delivery" ? "albarán" : "factura"}
-        </Link>
-      </div>
-      {!items?.length && (
+
+      {activeQuery.isLoading && (
+        <div className="loading-card" role="status">Cargando documentos…</div>
+      )}
+
+      {activeQuery.isError && (
+        <div className="inline-error" role="alert">
+          <span>No se han podido cargar los documentos.</span>
+          <button type="button" onClick={() => void activeQuery.refetch()}>
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {!activeQuery.isLoading && !activeQuery.isError && !items?.length && (
         <EmptyState
-          title={`No hay ${tab === "delivery" ? "albaranes" : "facturas"}`}
-          description="Crea un primer borrador con datos exclusivamente ficticios."
+          title={tab === "delivery" ? "No hay albaranes pendientes" : "No hay facturas"}
+          description={
+            tab === "delivery"
+              ? "Los albaranes pendientes aparecerán aquí solo cuando existan."
+              : "Crea una factura directa para empezar a registrar tus ventas y cobros."
+          }
         />
       )}
-      <div className="card-list sales-list">
-        {items?.map((item) => (
-          <Link
-            className="entity-card"
-            key={item.id}
-            to={`/ventas/${tab === "delivery" ? "albaranes" : "facturas"}/${item.id}`}
-          >
-            <span className="entity-card__icon">
-              {tab === "delivery" ? <ScrollText /> : <FileText />}
-            </span>
-            <span className="entity-card__body">
-              <strong>{formatDocumentNumber(item.series, item.number)}</strong>
-              <small>
-                {tab === "invoice"
-                  ? `${(item as import("../api/types").Invoice).contactLegalName} · ${item.issueDate}`
-                  : item.issueDate}
-              </small>
-              <span className={`status status--${item.status}`}>
-                {tab === "invoice" && (item as import("../api/types").Invoice).paymentStatus
-                  ? ({unpaid:"Pendiente",partial:"Parcial",overdue:"Vencida",paid:"Pagada"} as const)[(item as import("../api/types").Invoice).paymentStatus!]
-                  : statuses[item.status]}
+
+      <div className="card-list sales-list" aria-busy={activeQuery.isLoading}>
+        {items?.map((item) => {
+          const invoice = tab === "invoice" ? (item as Invoice) : undefined;
+          const statusLabel = invoice?.paymentStatus
+            ? paymentStatuses[invoice.paymentStatus]
+            : statuses[item.status];
+
+          return (
+            <Link
+              className="entity-card"
+              key={item.id}
+              to={`/ventas/${tab === "delivery" ? "albaranes" : "facturas"}/${item.id}`}
+            >
+              <span className="entity-card__icon">
+                {tab === "delivery" ? <ScrollText /> : <FileText />}
               </span>
-            </span>
-            <strong className="entity-card__amount">
-              {formatMoney(item.total)}
-            </strong>
-          </Link>
-        ))}
+              <span className="entity-card__body">
+                <strong>{formatDocumentNumber(item.series, item.number)}</strong>
+                <small>
+                  {invoice
+                    ? `${invoice.contactLegalName} · ${item.issueDate}`
+                    : item.issueDate}
+                </small>
+                <span className={`status status--${item.status}`}>
+                  {statusLabel ?? item.status}
+                </span>
+              </span>
+              <strong className="entity-card__amount">{formatMoney(item.total)}</strong>
+            </Link>
+          );
+        })}
       </div>
+
+      {tab === "delivery" && (
+        <div className="sales-toolbar">
+          <Link className="secondary-action" to="/ventas/nuevo/albaran">
+            Crear albarán
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
