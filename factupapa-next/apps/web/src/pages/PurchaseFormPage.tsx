@@ -15,18 +15,36 @@ const emptyLine = (): DraftPurchaseLine => ({
   clientId: crypto.randomUUID(),
   productId: null,
   description: "",
-  quantity: "1",
+  quantity: "",
   unit: "kg",
   unitCost: "",
   taxRate: "4",
 });
+const decimal = (value: string) => value.replace(",", ".");
+const lineIsValid = (line: DraftPurchaseLine) => {
+  const quantity = Number(decimal(line.quantity));
+  const unitCost = Number(decimal(line.unitCost));
+  const taxRate = Number(decimal(line.taxRate));
+  return Boolean(
+    line.description.trim() &&
+      line.quantity.trim() &&
+      Number.isFinite(quantity) &&
+      quantity > 0 &&
+      line.unitCost.trim() &&
+      Number.isFinite(unitCost) &&
+      unitCost >= 0 &&
+      line.taxRate.trim() &&
+      Number.isFinite(taxRate) &&
+      taxRate >= 0 &&
+      taxRate <= 100,
+  );
+};
 
 const encoded = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
-    reader.onload = () =>
-      resolve(String(reader.result).split(",", 2)[1] ?? "");
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
     reader.readAsDataURL(file);
   });
 
@@ -51,8 +69,7 @@ export function PurchaseFormPage() {
 
   const suppliers = useQuery({
     queryKey: ["purchase-suppliers"],
-    queryFn: () =>
-      contactsApi.list({ type: "supplier", isActive: true, pageSize: 100 }),
+    queryFn: () => contactsApi.list({ type: "supplier", isActive: true, pageSize: 100 }),
   });
   const products = useQuery({
     queryKey: ["purchase-products"],
@@ -99,17 +116,23 @@ export function PurchaseFormPage() {
     },
   });
 
-  const validLines = lines
-    .filter((line) => line.description.trim() && line.unitCost.trim())
-    .map(({ clientId: _clientId, ...line }) => line);
+  const allLinesValid = lines.length > 0 && lines.every(lineIsValid);
+  const validLines = allLinesValid
+    ? lines.map(({ clientId: _clientId, ...line }) => ({
+        ...line,
+        quantity: decimal(line.quantity),
+        unitCost: decimal(line.unitCost),
+        taxRate: decimal(line.taxRate),
+      }))
+    : [];
   const total = useMemo(
     () =>
       validLines.reduce(
         (sum, line) =>
           sum +
-          Number(line.quantity || 0) *
-            Number(line.unitCost || 0) *
-            (1 + Number(line.taxRate || 0) / 100),
+          Number(line.quantity) *
+            Number(line.unitCost) *
+            (1 + Number(line.taxRate) / 100),
         0,
       ),
     [validLines],
@@ -150,7 +173,7 @@ export function PurchaseFormPage() {
   return (
     <div className="page form-page purchase-form-page">
       <header className="form-page__header">
-        <Link className="icon-button" to="/gastos" aria-label="Volver">
+        <Link className="icon-button" to="/gastos" aria-label="Volver a gastos">
           <ArrowLeft />
         </Link>
         <div>
@@ -209,19 +232,11 @@ export function PurchaseFormPage() {
         )}
         {upload.isPending && <p role="status">Guardando justificante…</p>}
         {documentId && <p className="success-note">Justificante protegido y vinculado.</p>}
-        {documentError && (
-          <div className="form-alert" role="alert">
-            {documentError}
-          </div>
-        )}
+        {documentError && <div className="form-alert" role="alert">{documentError}</div>}
         {upload.isError && (
           <div className="form-alert" role="alert">
             No se pudo guardar el justificante. Comprueba el formato y el tamaño.
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => documentFile && upload.mutate(documentFile)}
-            >
+            <Button type="button" variant="secondary" onClick={() => documentFile && upload.mutate(documentFile)}>
               Reintentar
             </Button>
           </div>
@@ -240,117 +255,51 @@ export function PurchaseFormPage() {
 
       <section className="form-card">
         <div className="section-heading">
-          <div>
-            <p className="eyebrow">Proveedor</p>
-            <h2>Datos de la compra</h2>
-          </div>
-          <button
-            className="compact-action"
-            type="button"
-            onClick={() => setShowSupplierCreate((current) => !current)}
-          >
-            <Building2 />
-            Nuevo proveedor
+          <div><p className="eyebrow">Proveedor</p><h2>Datos de la compra</h2></div>
+          <button className="compact-action" type="button" onClick={() => setShowSupplierCreate((current) => !current)}>
+            <Building2 /> Nuevo proveedor
           </button>
         </div>
-        <SelectField
-          label="Proveedor obligatorio"
-          value={supplierId}
-          onChange={(event) => setSupplierId(event.target.value)}
-        >
+        <SelectField label="Proveedor obligatorio" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
           <option value="">Selecciona un proveedor</option>
           {suppliers.data?.items.map((supplier) => (
-            <option key={supplier.id} value={supplier.id}>
-              {supplier.tradeName || supplier.legalName}
-            </option>
+            <option key={supplier.id} value={supplier.id}>{supplier.tradeName || supplier.legalName}</option>
           ))}
         </SelectField>
         {showSupplierCreate && (
           <div className="inline-create-card">
             <strong>Crear proveedor</strong>
-            <Field
-              label="Nombre legal"
-              value={newSupplierName}
-              onChange={(event) => setNewSupplierName(event.target.value)}
-            />
-            <Field
-              label="NIF"
-              value={newSupplierTaxId}
-              onChange={(event) =>
-                setNewSupplierTaxId(event.target.value.toUpperCase())
-              }
-            />
-            {createSupplier.isError && (
-              <p className="field-error" role="alert">
-                No se pudo crear. Comprueba si ya existe.
-              </p>
-            )}
+            <Field label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
+            <Field label="NIF" value={newSupplierTaxId} onChange={(event) => setNewSupplierTaxId(event.target.value.toUpperCase())} />
+            {createSupplier.isError && <p className="field-error" role="alert">No se pudo crear. Comprueba si ya existe.</p>}
             <div className="inline-create-card__actions">
-              <button type="button" onClick={() => setShowSupplierCreate(false)}>
-                Cancelar
-              </button>
-              <Button
-                type="button"
-                disabled={!newSupplierName.trim()}
-                busy={createSupplier.isPending}
-                onClick={() => createSupplier.mutate()}
-              >
+              <button type="button" onClick={() => setShowSupplierCreate(false)}>Cancelar</button>
+              <Button type="button" disabled={!newSupplierName.trim()} busy={createSupplier.isPending} onClick={() => createSupplier.mutate()}>
                 Crear y seleccionar
               </Button>
             </div>
           </div>
         )}
-        <Field
-          label="Número de factura del proveedor"
-          value={supplierInvoiceNumber}
-          onChange={(event) => setSupplierInvoiceNumber(event.target.value)}
-        />
+        <Field label="Número de factura del proveedor" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
         <div className="form-grid">
-          <Field
-            label="Fecha de emisión"
-            type="date"
-            value={issueDate}
-            onChange={(event) => setIssueDate(event.target.value)}
-          />
-          <Field
-            label="Fecha de vencimiento"
-            type="date"
-            value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-          />
+          <Field label="Fecha de emisión" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
+          <Field label="Fecha de vencimiento" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         </div>
-        <SelectField
-          label="Categoría"
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-        >
-          <option value="mercancia">Mercancía</option>
-          <option value="gestoria">Gestoría</option>
-          <option value="transporte">Transporte</option>
-          <option value="suministros">Suministros</option>
-          <option value="alquiler">Alquiler</option>
-          <option value="autonomo">Autónomo</option>
-          <option value="impuestos">Impuestos</option>
-          <option value="otros">Otros</option>
+        <SelectField label="Categoría" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <option value="mercancia">Mercancía</option><option value="gestoria">Gestoría</option>
+          <option value="transporte">Transporte</option><option value="suministros">Suministros</option>
+          <option value="alquiler">Alquiler</option><option value="autonomo">Autónomo</option>
+          <option value="impuestos">Impuestos</option><option value="otros">Otros</option>
         </SelectField>
-        <label className="field">
-          <span className="field__label">Notas</span>
-          <textarea
-            rows={3}
-            maxLength={4000}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
+        <label className="field"><span className="field__label">Notas</span>
+          <textarea rows={3} maxLength={4000} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
       </section>
 
       <section className="form-card">
         <div className="section-heading">
-          <div>
-            <p className="eyebrow">Detalle</p>
-            <h2>Conceptos</h2>
-          </div>
-          <strong>{total.toFixed(2)} €</strong>
+          <div><p className="eyebrow">Detalle</p><h2>Conceptos</h2></div>
+          <strong>{new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(total)}</strong>
         </div>
         {lines.map((line, index) => (
           <div className="purchase-line-editor" key={line.clientId}>
@@ -358,9 +307,7 @@ export function PurchaseFormPage() {
               label="Producto de stock"
               value={line.productId ?? ""}
               onChange={(event) => {
-                const product = products.data?.items.find(
-                  (item) => item.id === event.target.value,
-                );
+                const product = products.data?.items.find((item) => item.id === event.target.value);
                 patchLine(index, {
                   productId: event.target.value || null,
                   description: product?.name ?? line.description,
@@ -369,97 +316,37 @@ export function PurchaseFormPage() {
               }}
             >
               <option value="">No afecta al stock</option>
-              {products.data?.items.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
+              {products.data?.items.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
             </SelectField>
-            <Field
-              label="Descripción"
-              value={line.description}
-              onChange={(event) =>
-                patchLine(index, { description: event.target.value })
-              }
-            />
-            <Field
-              label="Cantidad"
-              inputMode="decimal"
-              value={line.quantity}
-              onChange={(event) =>
-                patchLine(index, { quantity: event.target.value })
-              }
-            />
-            <SelectField
-              label="Unidad"
-              value={line.unit}
-              onChange={(event) =>
-                patchLine(index, {
-                  unit: event.target.value as ProductUnit,
-                })
-              }
-            >
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="unit">unidad</option>
-              <option value="box">caja</option>
-              <option value="custom">otra</option>
+            <Field label="Descripción" value={line.description} onChange={(event) => patchLine(index, { description: event.target.value })} />
+            <Field label="Cantidad" inputMode="decimal" value={line.quantity} onChange={(event) => patchLine(index, { quantity: event.target.value })} />
+            <SelectField label="Unidad" value={line.unit} onChange={(event) => patchLine(index, { unit: event.target.value as ProductUnit })}>
+              <option value="kg">kg</option><option value="g">g</option><option value="unit">unidad</option>
+              <option value="box">caja</option><option value="custom">otra</option>
             </SelectField>
-            <Field
-              label="Coste unidad sin IVA"
-              inputMode="decimal"
-              value={line.unitCost}
-              onChange={(event) =>
-                patchLine(index, { unitCost: event.target.value })
-              }
-            />
-            <Field
-              label="IVA %"
-              inputMode="decimal"
-              value={line.taxRate}
-              onChange={(event) =>
-                patchLine(index, { taxRate: event.target.value })
-              }
-            />
+            <Field label="Coste unidad sin IVA" inputMode="decimal" value={line.unitCost} onChange={(event) => patchLine(index, { unitCost: event.target.value })} />
+            <Field label="IVA %" inputMode="decimal" value={line.taxRate} onChange={(event) => patchLine(index, { taxRate: event.target.value })} />
             {lines.length > 1 && (
-              <button
-                className="icon-button"
-                type="button"
-                aria-label={`Eliminar concepto ${index + 1}`}
-                onClick={() =>
-                  setLines((current) =>
-                    current.filter((_, position) => position !== index),
-                  )
-                }
-              >
+              <button className="icon-button" type="button" aria-label={`Eliminar concepto ${index + 1}`} onClick={() => setLines((current) => current.filter((_, position) => position !== index))}>
                 <Trash2 />
               </button>
             )}
           </div>
         ))}
-        <button
-          className="compact-action"
-          type="button"
-          onClick={() => setLines((current) => [...current, emptyLine()])}
-        >
-          <Plus />
-          Añadir concepto
+        {!allLinesValid && (
+          <p className="field-help" role="status">
+            Completa descripción, cantidad, coste e IVA de todos los conceptos.
+          </p>
+        )}
+        <button className="compact-action" type="button" onClick={() => setLines((current) => [...current, emptyLine()])}>
+          <Plus /> Añadir concepto
         </button>
       </section>
 
-      {save.isError && (
-        <div className="form-alert" role="alert">
-          No se pudo guardar la compra. Revisa proveedor, fechas e importes.
-        </div>
-      )}
+      {save.isError && <div className="form-alert" role="alert">No se pudo guardar la compra. Revisa proveedor, fechas e importes.</div>}
       <div className="sticky-submit">
         <Button
-          disabled={
-            !supplierId ||
-            validLines.length === 0 ||
-            upload.isPending ||
-            (Boolean(documentFile) && !documentId)
-          }
+          disabled={!supplierId || !issueDate || !allLinesValid || upload.isPending || (Boolean(documentFile) && !documentId)}
           busy={save.isPending}
           onClick={() => save.mutate()}
         >
