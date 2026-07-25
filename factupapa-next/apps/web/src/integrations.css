@@ -1,0 +1,36 @@
+.integration-card__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.integration-card__heading h2 {
+  margin: 0;
+}
+
+.connection-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.connection-status--off {
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+@media (max-width: 430px) {
+  .integration-card__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
