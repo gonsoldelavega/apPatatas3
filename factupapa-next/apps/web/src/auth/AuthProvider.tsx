@@ -23,12 +23,33 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const isTemporaryPreview =
+  typeof window !== "undefined" &&
+  window.location.hostname.endsWith(".vercel.app");
+
+const previewUser = {
+  id: "preview-user",
+  email: "demo@factupapa.local",
+  displayName: "Fernando",
+  role: "owner",
+  company: {
+    id: "preview-company",
+    name: "Gonsol de la Vega",
+  },
+} as CurrentUser;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<AuthStatus>("loading");
-  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [status, setStatus] = useState<AuthStatus>(
+    isTemporaryPreview ? "authenticated" : "loading",
+  );
+  const [user, setUser] = useState<CurrentUser | null>(
+    isTemporaryPreview ? previewUser : null,
+  );
 
   useEffect(() => {
+    if (isTemporaryPreview) return undefined;
+
     let active = true;
     const unsubscribe = apiClient.onSessionExpired(() => {
       queryClient.clear();
@@ -60,6 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
+      if (isTemporaryPreview) {
+        setUser(previewUser);
+        setStatus("authenticated");
+        return;
+      }
+
       try {
         queryClient.clear();
         await authApi.login(email, password);
@@ -86,6 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    if (isTemporaryPreview) {
+      setUser(previewUser);
+      setStatus("authenticated");
+      return;
+    }
+
     await authApi.logout().catch(() => undefined);
     queryClient.clear();
     setUser(null);
