@@ -8,6 +8,7 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 import "./styles.css";
 import "./navigation.css";
+import "./integrations.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
