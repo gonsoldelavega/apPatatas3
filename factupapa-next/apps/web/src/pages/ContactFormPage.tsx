@@ -3,12 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Save } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { contactsApi } from "../api/services";
 import type { ContactInput } from "../api/types";
@@ -39,11 +34,13 @@ const blank: Values = {
   paymentTermsText: "",
   defaultInvoiceInformation: "",
   applyInvoiceDefaults: false,
-  invoicePeriodMode: "manual",
+  invoicePeriodMode: "fortnightly",
 };
 const nullable = (value?: string) => value?.trim() || null;
 
 function payload(values: Values): ContactInput {
+  const customer = values.type !== "supplier";
+  const applyInvoiceDefaults = customer && values.applyInvoiceDefaults;
   return {
     type: values.type,
     legalName: values.legalName.trim(),
@@ -52,11 +49,13 @@ function payload(values: Values): ContactInput {
     email: nullable(values.email),
     phone: nullable(values.phone),
     notes: nullable(values.notes),
-    paymentTermsDays: values.paymentTermsDays,
-    paymentTermsText: nullable(values.paymentTermsText),
-    defaultInvoiceInformation: nullable(values.defaultInvoiceInformation),
-    applyInvoiceDefaults: values.applyInvoiceDefaults,
-    invoicePeriodMode: values.invoicePeriodMode,
+    paymentTermsDays: applyInvoiceDefaults ? values.paymentTermsDays : 0,
+    paymentTermsText: applyInvoiceDefaults ? nullable(values.paymentTermsText) : null,
+    defaultInvoiceInformation: applyInvoiceDefaults
+      ? nullable(values.defaultInvoiceInformation)
+      : null,
+    applyInvoiceDefaults,
+    invoicePeriodMode: customer ? values.invoicePeriodMode : "manual",
     address: Object.fromEntries(
       Object.entries({
         street: values.street,
@@ -94,6 +93,8 @@ export function ContactFormPage() {
     defaultValues: {
       ...blank,
       type: searchParams.get("tipo") === "supplier" ? "supplier" : "customer",
+      invoicePeriodMode:
+        searchParams.get("tipo") === "supplier" ? "manual" : "fortnightly",
     },
   });
   useEffect(() => {
@@ -154,7 +155,7 @@ export function ContactFormPage() {
         <Link
           to={id ? `/contactos/${id}` : "/catalogo/contactos"}
           className="icon-button"
-          aria-label="Volver"
+          aria-label="Volver al catálogo"
         >
           <ArrowLeft />
         </Link>
@@ -166,136 +167,66 @@ export function ContactFormPage() {
       <form onSubmit={handleSubmit((values) => save.mutate(values))} noValidate>
         <section className="form-card">
           <h2>Identidad</h2>
-          <SelectField
-            label="Tipo"
-            error={errors.type?.message}
-            {...register("type")}
-          >
+          <SelectField label="Tipo" error={errors.type?.message} {...register("type")}>
             <option value="customer">Cliente</option>
             <option value="supplier">Proveedor</option>
             <option value="both">Cliente y proveedor</option>
           </SelectField>
-          <Field
-            label="Nombre fiscal"
-            maxLength={200}
-            error={errors.legalName?.message}
-            {...register("legalName")}
-          />
-          <Field
-            label="Nombre comercial (opcional)"
-            maxLength={200}
-            error={errors.tradeName?.message}
-            {...register("tradeName")}
-          />
-          <Field
-            label="NIF (opcional)"
-            autoCapitalize="characters"
-            maxLength={32}
-            error={errors.taxId?.message}
-            {...register("taxId")}
-          />
+          <Field label="Nombre fiscal" maxLength={200} error={errors.legalName?.message} {...register("legalName")} />
+          <Field label="Nombre comercial (opcional)" maxLength={200} error={errors.tradeName?.message} {...register("tradeName")} />
+          <Field label="NIF (opcional)" autoCapitalize="characters" maxLength={32} error={errors.taxId?.message} {...register("taxId")} />
         </section>
         <section className="form-card">
           <h2>Contacto</h2>
-          <Field
-            label="Email (opcional)"
-            type="email"
-            inputMode="email"
-            maxLength={320}
-            error={errors.email?.message}
-            {...register("email")}
-          />
-          <Field
-            label="Teléfono (opcional)"
-            type="tel"
-            inputMode="tel"
-            maxLength={32}
-            error={errors.phone?.message}
-            {...register("phone")}
-          />
+          <Field label="Email (opcional)" type="email" inputMode="email" maxLength={320} error={errors.email?.message} {...register("email")} />
+          <Field label="Teléfono (opcional)" type="tel" inputMode="tel" maxLength={32} error={errors.phone?.message} {...register("phone")} />
         </section>
         <section className="form-card">
           <h2>Dirección</h2>
           <Field label="Calle" maxLength={200} {...register("street")} />
-          <Field
-            label="Línea adicional"
-            maxLength={200}
-            {...register("line2")}
-          />
+          <Field label="Línea adicional" maxLength={200} {...register("line2")} />
           <div className="form-grid">
-            <Field
-              label="Código postal"
-              maxLength={20}
-              {...register("postalCode")}
-            />
+            <Field label="Código postal" maxLength={20} {...register("postalCode")} />
             <Field label="Ciudad" maxLength={200} {...register("city")} />
           </div>
           <div className="form-grid">
-            <Field
-              label="Provincia"
-              maxLength={200}
-              {...register("province")}
-            />
-            <Field
-              label="País"
-              maxLength={2}
-              autoCapitalize="characters"
-              {...register("country")}
-            />
+            <Field label="Provincia" maxLength={200} {...register("province")} />
+            <Field label="País" maxLength={2} autoCapitalize="characters" {...register("country")} />
           </div>
         </section>
         <section className="form-card">
           <label className="field">
             <span className="field__label">Notas (opcional)</span>
-            <span className="field__control">
-              <textarea rows={4} maxLength={4000} {...register("notes")} />
-            </span>
+            <span className="field__control"><textarea rows={4} maxLength={4000} {...register("notes")} /></span>
           </label>
         </section>
         {contactType !== "supplier" && (
           <section className="form-card">
             <h2>Facturación habitual</h2>
-            <SelectField
-              label="Periodo habitual de sus facturas"
-              {...register("invoicePeriodMode")}
-            >
+            <SelectField label="Periodo habitual de sus facturas" {...register("invoicePeriodMode")}>
+              <option value="fortnightly">Quincenal: 1–15 y 16–último día</option>
               <option value="manual">Sin periodo automático</option>
-              <option value="fortnightly">
-                Quincenal: 1–15 y 16–último día
-              </option>
             </SelectField>
+            <p className="field-help">
+              Los clientes nuevos se configuran como quincenales. Puedes cambiarlo aquí cuando no corresponda.
+            </p>
             <label className="choice-row">
               <input type="checkbox" {...register("applyInvoiceDefaults")} />
               <span>
                 <strong>Incluir condiciones de pago por defecto</strong>
-                <small>
-                  Déjalo desactivado para clientes que pagan al momento.
-                </small>
+                <small>Déjalo desactivado para clientes que pagan al momento.</small>
               </span>
             </label>
             {includePaymentTerms && (
               <div className="conditional-fields">
-                <Field
-                  label="Días hasta vencimiento"
-                  type="number"
-                  min={0}
-                  max={365}
-                  {...register("paymentTermsDays", { valueAsNumber: true })}
-                />
+                <Field label="Días hasta vencimiento" type="number" min={0} max={365} {...register("paymentTermsDays", { valueAsNumber: true })} />
                 <label className="field">
                   <span>Condiciones y consecuencias del impago</span>
-                  <textarea
-                    rows={4}
-                    placeholder="Ej.: Pago en 3 días. En caso de demora…"
-                    {...register("paymentTermsText")}
-                  />
+                  <textarea rows={4} placeholder="Ej.: Pago en 3 días. En caso de demora…" {...register("paymentTermsText")} />
                 </label>
                 <label className="field">
                   <span>Otra información para la factura (opcional)</span>
-                  <textarea
-                    rows={3}
-                    {...register("defaultInvoiceInformation")}
-                  />
+                  <textarea rows={3} {...register("defaultInvoiceInformation")} />
                 </label>
               </div>
             )}
