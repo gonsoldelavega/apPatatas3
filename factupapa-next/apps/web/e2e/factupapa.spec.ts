@@ -407,18 +407,30 @@ test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
     page.getByText("Otra sesión", { exact: true }).first(),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Cerrar las demás sesiones" })
+    .getByRole("button", {
+      name: "Cerrar las demás sesiones",
+      exact: true,
+    })
     .click();
   await expect(page.getByRole("status")).toContainText(
     /Sesiones cerradas: [1-9]\d*/,
   );
 
   expect((await apiLogin(request, password)).status()).toBe(200);
-  await page.getByLabel("Contraseña actual").fill(password);
-  await page.getByLabel("Nueva contraseña").fill(nextPassword);
-  await page.getByLabel("Repite la nueva contraseña").fill(nextPassword);
   await page
-    .getByRole("button", { name: "Guardar nueva contraseña" })
+    .getByLabel("Contraseña actual", { exact: true })
+    .fill(password);
+  await page
+    .getByLabel("Nueva contraseña", { exact: true })
+    .fill(nextPassword);
+  await page
+    .getByLabel("Repite la nueva contraseña", { exact: true })
+    .fill(nextPassword);
+  await page
+    .getByRole("button", {
+      name: "Guardar nueva contraseña",
+      exact: true,
+    })
     .click();
   await expect(page.getByRole("status")).toContainText(
     "Contraseña actualizada",
