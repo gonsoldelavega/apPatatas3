@@ -11,6 +11,7 @@ import "./navigation.css";
 import "./integrations.css";
 import "./verde-tinta.css";
 import "./factupapa-premium.css";
+import "./premium-dashboard.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
