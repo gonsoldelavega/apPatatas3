@@ -1,15 +1,45 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, FileCheck2, FileUp, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Building2, FileCheck2, FileUp, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
+import { apiClient } from "../api/client";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import { todayLocal } from "../utils/format";
 
 type DraftPurchaseLine = PurchaseLineInput & { clientId: string };
+type Confidence = "high" | "medium" | "low";
+type ExtractedPurchase = {
+  supplierId?: string;
+  supplierName?: string;
+  supplierTaxId?: string;
+  supplierInvoiceNumber?: string;
+  issueDate?: string;
+  dueDate?: string;
+  subtotal?: string;
+  taxTotal?: string;
+  total?: string;
+  concept?: string;
+  purchasedSacks?: number;
+  purchasedQuantityKg?: string;
+  lines?: Array<{
+    description: string;
+    quantity: string;
+    unit: "kg" | "g" | "unit";
+    unitCost: string;
+    taxRate: string;
+    discount?: string;
+    lineTotal?: string;
+  }>;
+  ocrConfidence?: number;
+  source?: "pdf_text" | "ocr" | "vision";
+  fieldConfidence?: Record<string, Confidence>;
+  warnings?: string[];
+};
+type PurchaseDocumentResponse = { id: string; extractedData: ExtractedPurchase };
 
 const emptyLine = (): DraftPurchaseLine => ({
   clientId: crypto.randomUUID(),
@@ -39,7 +69,6 @@ const lineIsValid = (line: DraftPurchaseLine) => {
       taxRate <= 100,
   );
 };
-
 const encoded = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -64,6 +93,7 @@ export function PurchaseFormPage() {
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
+  const [ocr, setOcr] = useState<ExtractedPurchase | null>(null);
   const [lines, setLines] = useState<DraftPurchaseLine[]>([emptyLine()]);
   const selectedDocument = useRef<File | null>(null);
 
@@ -83,15 +113,83 @@ export function PurchaseFormPage() {
       ),
     );
 
+  const suggestProductId = (description: string, unit: ProductUnit) => {
+    const normalized = description.trim().toLowerCase();
+    if (!normalized) return null;
+    const exact = products.data?.items.find(
+      (product) =>
+        product.unit === unit &&
+        normalized.includes(product.name.trim().toLowerCase()),
+    );
+    if (exact) return exact.id;
+    const sameUnit = products.data?.items.filter((product) => product.unit === unit) ?? [];
+    return sameUnit.length === 1 && unit === "kg" ? sameUnit[0].id : null;
+  };
+
   const upload = useMutation({
     mutationFn: async (file: File) =>
-      financeApi.archivePurchaseDocument({
-        filename: file.name,
-        mimeType: file.type,
-        contentBase64: await encoded(file),
+      apiClient.request<PurchaseDocumentResponse>("/purchase-documents", {
+        method: "POST",
+        body: JSON.stringify({
+          filename: file.name,
+          mimeType: file.type,
+          contentBase64: await encoded(file),
+        }),
+        timeoutMs: 120_000,
       }),
-    onSuccess: ({ id }, file) => {
-      if (selectedDocument.current === file) setDocumentId(id);
+    onSuccess: ({ id, extractedData }, file) => {
+      if (selectedDocument.current !== file) return;
+      setDocumentId(id);
+      setOcr(extractedData);
+      if (extractedData.supplierId) setSupplierId(extractedData.supplierId);
+      setNewSupplierName(extractedData.supplierName ?? "");
+      setNewSupplierTaxId(extractedData.supplierTaxId ?? "");
+      if (extractedData.supplierInvoiceNumber)
+        setSupplierInvoiceNumber(extractedData.supplierInvoiceNumber);
+      if (extractedData.issueDate) setIssueDate(extractedData.issueDate);
+      if (extractedData.dueDate) setDueDate(extractedData.dueDate);
+      if (extractedData.lines?.length) {
+        setLines(
+          extractedData.lines.map(({ discount, lineTotal, ...line }) => ({
+            clientId: crypto.randomUUID(),
+            productId: suggestProductId(line.description, line.unit),
+            ...line,
+            unitCost:
+              lineTotal && Number(line.quantity) > 0 && Number(discount ?? 0) !== 0
+                ? String(Math.round((Number(lineTotal) / Number(line.quantity)) * 10_000) / 10_000)
+                : line.unitCost,
+          })),
+        );
+      } else if (
+        extractedData.concept ||
+        extractedData.subtotal ||
+        extractedData.purchasedQuantityKg
+      ) {
+        const quantity = extractedData.purchasedQuantityKg ?? "1";
+        const subtotal = extractedData.subtotal ?? "";
+        const taxRate =
+          subtotal && extractedData.taxTotal
+            ? String(Math.round((Number(extractedData.taxTotal) / Number(subtotal)) * 10_000) / 100)
+            : "4";
+        setLines([
+          {
+            clientId: crypto.randomUUID(),
+            productId: suggestProductId(
+              extractedData.concept ?? extractedData.supplierName ?? "",
+              extractedData.purchasedQuantityKg ? "kg" : "unit",
+            ),
+            description:
+              extractedData.concept ?? extractedData.supplierName ?? "Compra según factura",
+            quantity,
+            unit: extractedData.purchasedQuantityKg ? "kg" : "unit",
+            unitCost:
+              subtotal && Number(quantity) > 0
+                ? String(Math.round((Number(subtotal) / Number(quantity)) * 10_000) / 10_000)
+                : "",
+            taxRate,
+          },
+        ]);
+      }
     },
   });
 
@@ -110,8 +208,6 @@ export function PurchaseFormPage() {
     onSuccess: async (supplier) => {
       setSupplierId(supplier.id);
       setShowSupplierCreate(false);
-      setNewSupplierName("");
-      setNewSupplierTaxId("");
       await queryClient.invalidateQueries({ queryKey: ["purchase-suppliers"] });
     },
   });
@@ -167,8 +263,23 @@ export function PurchaseFormPage() {
     setDocumentFile(null);
     setDocumentId(null);
     setDocumentError(null);
+    setOcr(null);
     upload.reset();
   };
+
+  const warningLabel = (warning: string) =>
+    ({
+      totals_mismatch: "Los importes no cuadran: revisa base, IVA y total.",
+      supplier_tax_id_missing: "No se reconoció el NIF del proveedor.",
+      supplier_tax_id_own: "Se descartó tu propio NIF y se buscó el del proveedor.",
+      line_amount_mismatch: "Alguna línea no cuadra con cantidad, precio y descuento.",
+      vision_unavailable: "La visión no estaba disponible y se usó el OCR alternativo.",
+      total_missing: "No se reconoció el total.",
+      issue_date_missing: "No se reconoció la fecha.",
+      possible_duplicate: "Posible factura duplicada.",
+      ocr_failed: "La imagen no pudo leerse.",
+      low_confidence: "Lectura poco nítida: revisa todos los campos.",
+    })[warning] ?? "Campo pendiente de revisión.";
 
   return (
     <div className="page form-page purchase-form-page">
@@ -182,33 +293,35 @@ export function PurchaseFormPage() {
         </div>
       </header>
 
-      <section className="upload-card">
-        <p className="eyebrow">Justificante opcional</p>
-        <h2>Guardar factura original</h2>
+      <section className="upload-card purchase-capture-card">
+        <p className="eyebrow">Lectura automática</p>
+        <h2>Fotografía la factura</h2>
         <p>
-          Adjunta el PDF o la foto para conservarla junto a la compra. Los datos
-          se introducen manualmente o llegan desde el registro externo.
+          La IA extraerá proveedor, fechas, conceptos, cantidades, precios e IVA.
+          Nada se registra hasta que revises y guardes la compra.
         </p>
         {!documentFile ? (
           <label className="drop-zone">
             <FileUp />
-            <strong>Seleccionar PDF o foto</strong>
-            <span>Máximo 10 MB. No se envía a servicios de IA.</span>
+            <strong>Hacer foto o seleccionar factura</strong>
+            <span>JPG, PNG, HEIC o PDF · máximo 10 MB</span>
             <input
               className="sr-only"
               type="file"
               accept="application/pdf,image/jpeg,image/png,image/heic,image/heif"
+              capture="environment"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
                 if (file.size > 10_000_000) {
-                  setDocumentError("El justificante supera el límite de 10 MB.");
+                  setDocumentError("La factura supera el límite de 10 MB.");
                   return;
                 }
                 setDocumentError(null);
                 selectedDocument.current = file;
                 setDocumentFile(file);
                 setDocumentId(null);
+                setOcr(null);
                 upload.mutate(file);
               }}
             />
@@ -220,34 +333,43 @@ export function PurchaseFormPage() {
               <strong>{documentFile.name}</strong>
               <small>{(documentFile.size / 1024).toFixed(1)} KB</small>
             </span>
-            <button
-              className="icon-button"
-              type="button"
-              aria-label="Quitar justificante"
-              onClick={removeDocument}
-            >
+            <button className="icon-button" type="button" aria-label="Quitar factura" onClick={removeDocument}>
               <X />
             </button>
           </div>
         )}
-        {upload.isPending && <p role="status">Guardando justificante…</p>}
-        {documentId && <p className="success-note">Justificante protegido y vinculado.</p>}
+        {upload.isPending && (
+          <p className="ai-reading-status" role="status">
+            <Sparkles /> Mejorando imagen y leyendo la factura…
+          </p>
+        )}
+        {documentId && <p className="success-note">Factura leída, protegida y vinculada.</p>}
         {documentError && <div className="form-alert" role="alert">{documentError}</div>}
         {upload.isError && (
           <div className="form-alert" role="alert">
-            No se pudo guardar el justificante. Comprueba el formato y el tamaño.
+            No se pudo leer la factura. Puedes reintentarlo o introducir los datos manualmente.
             <Button type="button" variant="secondary" onClick={() => documentFile && upload.mutate(documentFile)}>
-              Reintentar
+              <RefreshCw /> Reintentar lectura
             </Button>
+          </div>
+        )}
+        {ocr && (
+          <div className="ocr-review" aria-label="Resultado de la lectura automática">
+            <strong>Lectura automática: {ocr.ocrConfidence ?? 0}%</strong>
+            <span>{ocr.source === "vision" ? "Anthropic Vision" : ocr.source === "pdf_text" ? "Texto del PDF interpretado" : "OCR alternativo"}</span>
+            {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
+            {ocr.total && <span>Total detectado: {ocr.total} €</span>}
+            {ocr.lines?.length ? <span>{ocr.lines.length} conceptos detectados para revisar.</span> : null}
+            {ocr.warnings?.map((warning) => <span className="field-error" key={warning}>{warningLabel(warning)}</span>)}
           </div>
         )}
         {documentPreview && (
           <details className="document-preview">
-            <summary>Ver justificante</summary>
+            <summary>Ver factura original</summary>
             {documentFile?.type === "application/pdf" ? (
-              <iframe src={documentPreview} title="Justificante de compra" />
+              <iframe src={documentPreview} title="Factura de compra" />
             ) : (
-              <img src={documentPreview} alt="Justificante de compra" />
+              <img src={documentPreview} alt="Factura de compra" />
             )}
           </details>
         )}
@@ -266,9 +388,14 @@ export function PurchaseFormPage() {
             <option key={supplier.id} value={supplier.id}>{supplier.tradeName || supplier.legalName}</option>
           ))}
         </SelectField>
+        {ocr?.supplierName && !ocr.supplierId && !showSupplierCreate && (
+          <button className="compact-action" type="button" onClick={() => setShowSupplierCreate(true)}>
+            <Building2 /> Crear proveedor detectado
+          </button>
+        )}
         {showSupplierCreate && (
           <div className="inline-create-card">
-            <strong>Crear proveedor</strong>
+            <strong>Revisar proveedor nuevo</strong>
             <Field label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
             <Field label="NIF" value={newSupplierTaxId} onChange={(event) => setNewSupplierTaxId(event.target.value.toUpperCase())} />
             {createSupplier.isError && <p className="field-error" role="alert">No se pudo crear. Comprueba si ya existe.</p>}
@@ -333,11 +460,7 @@ export function PurchaseFormPage() {
             )}
           </div>
         ))}
-        {!allLinesValid && (
-          <p className="field-help" role="status">
-            Completa descripción, cantidad, coste e IVA de todos los conceptos.
-          </p>
-        )}
+        {!allLinesValid && <p className="field-help" role="status">Completa descripción, cantidad, coste e IVA de todos los conceptos.</p>}
         <button className="compact-action" type="button" onClick={() => setLines((current) => [...current, emptyLine()])}>
           <Plus /> Añadir concepto
         </button>
