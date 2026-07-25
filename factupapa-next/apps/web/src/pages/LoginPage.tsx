@@ -1,4 +1,4 @@
-import { Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, ReceiptText, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -27,8 +27,9 @@ export function LoginPage() {
   } = useForm<LoginValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    document.title = "Acceso · FactuPapa Next";
+    document.title = "Acceso · FactuPapa";
   }, []);
+
   if (auth.status === "authenticated") return <Navigate to="/" replace />;
   const from = (location.state as { from?: string } | null)?.from ?? "/";
 
@@ -41,36 +42,46 @@ export function LoginPage() {
       setMessage(
         error instanceof Error && error.message.startsWith("No se")
           ? error.message
-          : "No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.",
+          : "No se ha podido conectar. Comprueba tus datos e inténtalo de nuevo.",
       );
     }
   };
 
   return (
-    <main className="login-page">
-      <section className="login-brand" aria-label="FactuPapa Next">
-        <div className="brand-mark">
-          F<span>·</span>
+    <main className="login-page login-page--product">
+      <section className="login-product" aria-label="FactuPapa">
+        <div className="login-product__topline">
+          <div className="login-product__logo" aria-hidden="true">
+            <ReceiptText />
+          </div>
+          <strong>FactuPapa</strong>
+          <span>Gestión sencilla</span>
         </div>
-        <p className="eyebrow">Gestión diaria, sin ruido</p>
-        <h1>
-          Tu negocio,
-          <br />
-          bien ordenado.
-        </h1>
-        <p>
-          Clientes, proveedores, productos e importaciones en una experiencia
-          diseñada para trabajar desde cualquier lugar.
-        </p>
+
+        <div className="login-product__message">
+          <p className="eyebrow">Tu negocio, bajo control</p>
+          <h1>Factura. Cobra. Decide.</h1>
+          <p>
+            Facturas, gastos, clientes y productos en una aplicación pensada
+            para trabajar rápido desde el móvil.
+          </p>
+        </div>
+
+        <div className="login-product__trust" aria-label="Ventajas de FactuPapa">
+          <span><ShieldCheck /> Datos protegidos</span>
+          <span><LockKeyhole /> Acceso privado</span>
+        </div>
       </section>
-      <section className="login-card">
+
+      <section className="login-card login-card--product">
         <header>
-          <LockKeyhole aria-hidden="true" />
           <div>
-            <p className="eyebrow">Acceso seguro</p>
-            <h2>Bienvenido de nuevo</h2>
+            <p className="eyebrow">Acceso a tu cuenta</p>
+            <h2>Hola de nuevo</h2>
+            <p>Introduce tus datos para continuar.</p>
           </div>
         </header>
+
         <form onSubmit={handleSubmit(submit)} noValidate>
           <Field
             label="Email"
@@ -85,15 +96,14 @@ export function LoginPage() {
             label="Contraseña"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
+            placeholder="Tu contraseña"
             error={errors.password?.message}
             suffix={
               <button
                 type="button"
                 className="field__action"
                 onClick={() => setShowPassword((value) => !value)}
-                aria-label={
-                  showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                }
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPassword ? <EyeOff /> : <Eye />}
               </button>
@@ -106,12 +116,12 @@ export function LoginPage() {
             </div>
           )}
           <Button type="submit" busy={isSubmitting}>
-            Entrar en FactuPapa
+            Entrar
           </Button>
         </form>
+
         <p className="security-note">
-          La sesión se mantiene solo en este navegador y nunca se guarda en
-          almacenamiento permanente.
+          Tu sesión permanece protegida en este dispositivo.
         </p>
       </section>
     </main>
