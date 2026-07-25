@@ -36,7 +36,7 @@ const previewUser = {
     id: "preview-company",
     name: "Gonsol de la Vega",
   },
-} as CurrentUser;
+} as unknown as CurrentUser;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
