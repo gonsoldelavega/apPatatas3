@@ -63,9 +63,9 @@ const SalesSettingsPage = lazy(() =>
 const SalesPage = lazy(() =>
   import("./pages/SalesPage").then((module) => ({ default: module.SalesPage })),
 );
-const SalesFormPage = lazy(() =>
-  import("./pages/SalesFormPage").then((module) => ({
-    default: module.SalesFormPage,
+const SalesFormRoute = lazy(() =>
+  import("./pages/SalesFormRoute").then((module) => ({
+    default: module.SalesFormRoute,
   })),
 );
 const SalesDetailPage = lazy(() =>
@@ -79,24 +79,28 @@ const NotFoundPage = lazy(() =>
   })),
 );
 const ExpensesPage = lazy(() =>
-  import("./pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
+  import("./pages/ExpensesPage").then((module) => ({
+    default: module.ExpensesPage,
+  })),
 );
 const PurchaseFormPage = lazy(() =>
-  import("./pages/PurchaseFormPage").then((m) => ({
-    default: m.PurchaseFormPage,
+  import("./pages/PurchaseFormPage").then((module) => ({
+    default: module.PurchaseFormPage,
   })),
 );
 const PurchaseDetailPage = lazy(() =>
-  import("./pages/PurchaseDetailPage").then((m) => ({
-    default: m.PurchaseDetailPage,
+  import("./pages/PurchaseDetailPage").then((module) => ({
+    default: module.PurchaseDetailPage,
   })),
 );
 const StockPage = lazy(() =>
-  import("./pages/StockPage").then((m) => ({ default: m.StockPage })),
+  import("./pages/StockPage").then((module) => ({
+    default: module.StockPage,
+  })),
 );
 const AccountSecurityPage = lazy(() =>
-  import("./pages/AccountSecurityPage").then((m) => ({
-    default: m.AccountSecurityPage,
+  import("./pages/AccountSecurityPage").then((module) => ({
+    default: module.AccountSecurityPage,
   })),
 );
 
@@ -109,7 +113,7 @@ export function App() {
           <Route element={<AppShell />}>
             <Route index element={<DashboardPage />} />
             <Route path="ventas" element={<SalesPage />} />
-            <Route path="ventas/nuevo/:kind" element={<SalesFormPage />} />
+            <Route path="ventas/nuevo/:kind" element={<SalesFormRoute />} />
             <Route path="ventas/:type/:id" element={<SalesDetailPage />} />
             <Route path="gastos" element={<ExpensesPage />} />
             <Route path="gastos/nuevo" element={<PurchaseFormPage />} />
