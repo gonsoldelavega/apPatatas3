@@ -396,65 +396,76 @@ test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
     ).toBe(204);
   }
 
-  await login(page);
-  expect((await apiLogin(request, password)).status()).toBe(200);
-  await page.goto("/ajustes/seguridad");
-  await expect(page.getByRole("heading", { name: "Seguridad" })).toBeVisible();
-  await expect(
-    page.getByText("Este dispositivo", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Otra sesión", { exact: true }).first(),
-  ).toBeVisible();
-  await page
-    .getByRole("button", {
-      name: "Cerrar las demás sesiones",
+  try {
+    await login(page);
+    expect((await apiLogin(request, password)).status()).toBe(200);
+    await page.goto("/ajustes/seguridad");
+    await expect(
+      page.getByRole("heading", { name: "Seguridad" }),
+    ).toBeVisible();
+    const currentSessions = page.getByText("Este dispositivo", {
       exact: true,
-    })
-    .click();
-  await expect(page.getByRole("status")).toContainText(
-    /Sesiones cerradas: [1-9]\d*/,
-  );
+    });
+    const otherSessions = page.getByText("Otra sesión", { exact: true });
+    await expect(currentSessions).toHaveCount(1);
+    await expect(otherSessions.first()).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: "Cerrar las demás sesiones",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: /Sesiones cerradas: [1-9]\d*/ }),
+    ).toBeVisible();
+    await expect(otherSessions).toHaveCount(0);
 
-  expect((await apiLogin(request, password)).status()).toBe(200);
-  await page
-    .getByLabel("Contraseña actual", { exact: true })
-    .fill(password);
-  await page
-    .getByLabel("Nueva contraseña", { exact: true })
-    .fill(nextPassword);
-  await page
-    .getByLabel("Repite la nueva contraseña", { exact: true })
-    .fill(nextPassword);
-  await page
-    .getByRole("button", {
-      name: "Guardar nueva contraseña",
-      exact: true,
-    })
-    .click();
-  await expect(page.getByRole("status")).toContainText(
-    "Contraseña actualizada",
-  );
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-seguridad.png`,
-    fullPage: true,
-  });
-
-  const changedLogin = await apiLogin(request, nextPassword);
-  expect(changedLogin.status()).toBe(200);
-  const { accessToken } = (await changedLogin.json()) as {
-    accessToken: string;
-  };
-  expect(
-    (
-      await changePasswordThroughApi(
-        request,
-        accessToken,
-        nextPassword,
-        password,
-      )
-    ).status(),
-  ).toBe(204);
+    expect((await apiLogin(request, password)).status()).toBe(200);
+    await page
+      .getByLabel("Contraseña actual", { exact: true })
+      .fill(password);
+    await page
+      .getByLabel("Nueva contraseña", { exact: true })
+      .fill(nextPassword);
+    await page
+      .getByLabel("Repite la nueva contraseña", { exact: true })
+      .fill(nextPassword);
+    await page
+      .getByRole("button", {
+        name: "Guardar nueva contraseña",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "Contraseña actualizada" }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `test-artifacts/${testInfo.project.name}-seguridad.png`,
+      fullPage: true,
+    });
+    expect((await apiLogin(request, nextPassword)).status()).toBe(200);
+  } finally {
+    const recoveryLogin = await apiLogin(request, nextPassword);
+    if (recoveryLogin.ok()) {
+      const { accessToken } = (await recoveryLogin.json()) as {
+        accessToken: string;
+      };
+      expect(
+        (
+          await changePasswordThroughApi(
+            request,
+            accessToken,
+            nextPassword,
+            password,
+          )
+        ).status(),
+      ).toBe(204);
+    }
+  }
 });
 
 test("una compra se puede confirmar y cancelar con respuesta visible", async ({
