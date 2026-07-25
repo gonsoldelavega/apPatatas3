@@ -400,8 +400,10 @@ test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
   expect((await apiLogin(request, password)).status()).toBe(200);
   await page.goto("/ajustes/seguridad");
   await expect(page.getByRole("heading", { name: "Seguridad" })).toBeVisible();
-  await expect(page.getByText("Este dispositivo")).toBeVisible();
-  await expect(page.getByText("Otra sesión")).toBeVisible();
+  await expect(
+    page.getByText("Este dispositivo", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Otra sesión", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Cerrar las demás sesiones" })
     .click();
