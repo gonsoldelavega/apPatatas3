@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci --prefix factupapa-next/apps/web",
+  "buildCommand": "npm run build --prefix factupapa-next/apps/web",
+  "outputDirectory": "factupapa-next/apps/web/dist",
   "rewrites": [
     {
       "source": "/((?!api/)(?!.*\\.).*)",
