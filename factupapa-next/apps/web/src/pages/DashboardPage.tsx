@@ -9,7 +9,6 @@ import {
   Plus,
   ReceiptText,
   ShoppingBag,
-  Sparkles,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -31,17 +30,7 @@ import {
   invoicesApi,
 } from "../api/services";
 import type { FinanceSummary, Invoice, MonthlyFinanceSummary } from "../api/types";
-import { useAuth } from "../auth/AuthProvider";
 import { formatDate, formatMoney } from "../utils/format";
-
-function greeting() {
-  const hour = new Date().getHours();
-  return hour < 13
-    ? "Buenos días"
-    : hour < 20
-      ? "Buenas tardes"
-      : "Buenas noches";
-}
 
 const monthLabel = (month: string) =>
   new Intl.DateTimeFormat("es-ES", { month: "short", year: "2-digit" }).format(
@@ -171,7 +160,6 @@ const previewSummary: DashboardSummary = {
 };
 
 export function DashboardPage() {
-  const { user } = useAuth();
   const summary = useQuery({
     queryKey: ["dashboard-summary"],
     enabled: !isPreview,
@@ -192,9 +180,7 @@ export function DashboardPage() {
           ["pending", "validated", "importing"].includes(item.status),
         ).length,
         pendingNotes: notes.total,
-        issuedInvoices: invoices.items.filter(
-          (invoice) => invoice.status === "issued",
-        ).length,
+        issuedInvoices: invoices.items.filter((invoice) => invoice.status === "issued").length,
         finance,
         monthly,
         recentInvoices: invoices.items
@@ -206,32 +192,24 @@ export function DashboardPage() {
 
   const data = isPreview ? previewSummary : summary.data;
   const result = Number(data?.finance.balance ?? 0);
-  const firstName = user?.displayName.split(" ")[0] || "Nando";
 
   return (
     <div className="page dashboard-page dashboard-premium">
       <header className="dashboard-topbar">
-        <div>
-          <div className="dashboard-brand">
-            <strong>FactuPapa</strong>
-            <span>
-              {new Intl.DateTimeFormat("es-ES", {
-                month: "long",
-                year: "numeric",
-              }).format(new Date())}
-            </span>
-          </div>
-          <h1>{greeting()}, {firstName}</h1>
-          <p>Lo importante de tu negocio, en una sola vista.</p>
+        <div className="dashboard-brand">
+          <strong>FactuPapa</strong>
+          <span>
+            {new Intl.DateTimeFormat("es-ES", {
+              month: "long",
+              year: "numeric",
+            }).format(new Date())}
+          </span>
         </div>
-        <span className="dashboard-avatar" aria-label="Perfil">
-          {firstName.slice(0, 1).toUpperCase()}
-        </span>
       </header>
 
       {summary.isError && !isPreview ? (
         <div className="inline-error" role="alert">
-          No se ha podido cargar el resumen.
+          Error al cargar el resumen.
           <button type="button" onClick={() => void summary.refetch()}>
             Reintentar
           </button>
@@ -245,9 +223,6 @@ export function DashboardPage() {
                 {data ? formatMoney(data.finance.balance) : "—"}
               </strong>
             </div>
-            <span className="result-card__trend">
-              <TrendingUp aria-hidden="true" /> Mes actual
-            </span>
           </div>
           <div className="result-card__metrics">
             <div><span>Facturado</span><b>{data ? formatMoney(data.finance.sales) : "—"}</b></div>
@@ -261,12 +236,12 @@ export function DashboardPage() {
         <div className="dashboard-actions__featured">
           <Link className="dashboard-action dashboard-action--primary" to="/ventas/nuevo/factura">
             <Plus aria-hidden="true" />
-            <span><strong>Nueva factura</strong><small>Crear y emitir</small></span>
+            <span><strong>Nueva factura</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
           <Link className="dashboard-action dashboard-action--capture" to="/gastos/nuevo?captura=1">
             <Camera aria-hidden="true" />
-            <span><strong>Fotografiar compra</strong><small>Subir factura y revisar datos</small></span>
+            <span><strong>Fotografiar compra</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
         </div>
@@ -278,44 +253,43 @@ export function DashboardPage() {
 
       <section className="dashboard-section attention-premium">
         <div className="dashboard-section__heading">
-          <div><span>Prioridad</span><h2>Necesita tu atención</h2></div>
-          <Sparkles aria-hidden="true" />
+          <h2>Pendientes</h2>
         </div>
         <div className="attention-list">
           {Number(data?.finance.overdueReceivables ?? 0) > 0 && (
             <Link to="/ventas" className="attention-row attention-row--danger">
               <CircleAlert aria-hidden="true" />
-              <span><strong>{formatMoney(data?.finance.overdueReceivables ?? "0")} vencidos</strong><small>Revisa las facturas fuera de plazo</small></span>
+              <span><strong>{formatMoney(data?.finance.overdueReceivables ?? "0")} vencidos</strong></span>
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
           {Boolean(data?.pendingNotes) && (
             <Link to="/ventas" className="attention-row">
               <FileText aria-hidden="true" />
-              <span><strong>{data?.pendingNotes} albaranes sin facturar</strong><small>Puedes convertirlos desde Ventas</small></span>
+              <span><strong>{data?.pendingNotes} albaranes sin facturar</strong></span>
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
           {Boolean(data?.pendingImports) && (
             <Link to="/importar" className="attention-row">
               <CircleAlert aria-hidden="true" />
-              <span><strong>{data?.pendingImports} importación pendiente</strong><small>Revisa los datos antes de confirmar</small></span>
+              <span><strong>{data?.pendingImports} importación pendiente</strong></span>
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
           {!Number(data?.finance.overdueReceivables ?? 0) && !data?.pendingNotes && !data?.pendingImports && (
-            <p className="dashboard-all-clear">Todo está al día.</p>
+            <p className="dashboard-all-clear">Sin pendientes</p>
           )}
         </div>
       </section>
 
       <section className="dashboard-section recent-premium">
         <div className="dashboard-section__heading">
-          <div><span>Actividad</span><h2>Últimas facturas</h2></div>
+          <h2>Últimas facturas</h2>
           <Link to="/ventas">Ver todas</Link>
         </div>
         <div className="premium-document-list">
-          {!data?.recentInvoices.length && <p className="empty-copy">Tu primera factura aparecerá aquí.</p>}
+          {!data?.recentInvoices.length && <p className="empty-copy">Sin facturas</p>}
           {data?.recentInvoices.map((item) => (
             <Link key={item.id} to={`/ventas/facturas/${item.id}`}>
               <span className="document-symbol"><FileText aria-hidden="true" /></span>
@@ -325,7 +299,15 @@ export function DashboardPage() {
               </span>
               <span className="document-amount">
                 <strong>{formatMoney(item.total)}</strong>
-                <small className={`payment-${item.paymentStatus ?? "unpaid"}`}>{item.paymentStatus === "paid" ? "Pagada" : item.paymentStatus === "partial" ? "Parcial" : item.paymentStatus === "overdue" ? "Vencida" : "Pendiente"}</small>
+                <small className={`payment-${item.paymentStatus ?? "unpaid"}`}>
+                  {item.paymentStatus === "paid"
+                    ? "Pagada"
+                    : item.paymentStatus === "partial"
+                      ? "Parcial"
+                      : item.paymentStatus === "overdue"
+                        ? "Vencida"
+                        : "Pendiente"}
+                </small>
               </span>
             </Link>
           ))}
@@ -333,10 +315,10 @@ export function DashboardPage() {
       </section>
 
       <details className="dashboard-insights">
-        <summary><span><strong>Más indicadores</strong><small>Stock, proveedores y evolución</small></span><ArrowRight aria-hidden="true" /></summary>
+        <summary><span><strong>Indicadores</strong></span><ArrowRight aria-hidden="true" /></summary>
         <div className="insight-grid">
-          <article><span>Stock disponible</span><strong>{data?.finance.stockKg ?? "—"} kg</strong><small>Venta potencial {data ? formatMoney(data.finance.potentialRevenue) : "—"}</small></article>
-          <article><span>Proveedores pendientes</span><strong>{data ? formatMoney(data.finance.payables) : "—"}</strong><small>Compras confirmadas sin pagar</small></article>
+          <article><span>Stock</span><strong>{data?.finance.stockKg ?? "—"} kg</strong><small>{data ? formatMoney(data.finance.potentialRevenue) : "—"} potencial</small></article>
+          <article><span>Proveedores pendientes</span><strong>{data ? formatMoney(data.finance.payables) : "—"}</strong></article>
           <article><span>Clientes activos</span><strong>{data?.customers ?? "—"}</strong><small>{data?.issuedInvoices ?? "—"} facturas emitidas</small></article>
         </div>
         {data?.monthly.length ? (
@@ -355,10 +337,10 @@ export function DashboardPage() {
         ) : null}
       </details>
 
-      <section className="dashboard-tools" aria-label="Herramientas del negocio">
+      <section className="dashboard-tools" aria-label="Herramientas">
         <Link to="/contactos/nuevo?tipo=customer"><Building2 aria-hidden="true" /><span>Nuevo cliente</span></Link>
         <Link to="/productos/nuevo"><Package aria-hidden="true" /><span>Nuevo producto</span></Link>
-        <Link to="/stock"><TrendingUp aria-hidden="true" /><span>Ver stock</span></Link>
+        <Link to="/stock"><TrendingUp aria-hidden="true" /><span>Stock</span></Link>
       </section>
     </div>
   );
