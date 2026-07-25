@@ -1,94 +1,106 @@
 # FactuPapa Next
 
-Proyecto paralelo e independiente para construir la siguiente generación de FactuPapa sin afectar a la aplicación actual.
+Nueva generación de FactuPapa, desarrollada de forma aislada para no afectar a la aplicación anterior ni a producción.
 
-## Estado
+## Estado actual
 
-- Rama de trabajo: `design/factupapa-full-prototype`
-- Producción actual: intocable
-- Objetivo inmediato: validar la primera PWA móvil contra la API y datos exclusivamente ficticios
-- Primera beta: uso exclusivo de Nando
-- Arquitectura: preparada para evolucionar a producto multiempresa y móvil
-- Aislamiento: RLS forzado y validado entre dos empresas con un rol API no propietario
-- Preparación beta: backup/restore verificable, observabilidad, retención y mapeo manual, todavía solo con datos ficticios
+- Rama activa de continuidad: `codex/factupapa-claude-fixes`.
+- Producción: fuera de alcance e intocable.
+- Staging: entorno privado con datos exclusivamente ficticios.
+- Objetivo: candidata beta móvil para uso interno de Nando.
+- Arquitectura: API TypeScript, PWA React/Vite, PostgreSQL con RLS forzado, Redis y almacenamiento S3 compatible.
+- Aislamiento: separación por empresa validada con un rol API no propietario.
+- Migración aditiva documentada más reciente: `0016_beta_operations.sql`.
 
 ## Principios
 
-1. Ningún cambio de esta carpeta debe modificar el funcionamiento de la aplicación actual.
-2. Todo servicio debe poder ejecutarse de forma aislada con Docker.
-3. Los datos se almacenan en PostgreSQL y los documentos en almacenamiento S3 compatible.
+1. Ningún cambio dentro de `factupapa-next/` debe modificar la FactuPapa antigua.
+2. Todo servicio debe poder ejecutarse de forma aislada mediante Docker.
+3. Los datos económicos y operativos se almacenan en PostgreSQL; los documentos se archivan en almacenamiento S3 compatible.
+4. FactuPapa no incorpora cámara, escáner, Anthropic, Tesseract ni OCR.
+5. Las compras llegan mediante alta manual o sincronización externa Drive → agente → Google Sheets.
+6. Los justificantes se conservan como adjuntos originales; la aplicación no interpreta su contenido.
+7. La aplicación web y cualquier cliente móvil futuro deben compartir API y modelos de dominio.
+8. No se usan credenciales, NIF ni datos reales dentro del repositorio.
+9. Las migraciones son únicamente aditivas; las migraciones existentes no se modifican.
 
-## Operación previa a beta
-
-La migración aditiva actual es `0016_beta_operations.sql`; no altera ninguna migración anterior. Los comandos principales de la API son `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`. Consulte [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md), [OPERATIONS.md](docs/OPERATIONS.md), [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md) y [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
-4. La extracción de compras aplica límites persistentes antes de cada llamada de pago y usa Tesseract como fallback sin coste.
-5. La aplicación móvil y la aplicación web comparten API y modelos de datos.
-6. No se usan credenciales reales dentro del repositorio.
-7. Las migraciones hacia FactuPapa Next siempre son copiadas y reversibles; nunca destructivas.
-
-## Estructura actual y prevista
+## Estructura
 
 ```text
 factupapa-next/
 ├── apps/
-│   ├── api/          API central mínima (actual)
-│   ├── web/          PWA React/Vite mobile-first (actual)
-│   ├── mobile/       aplicación iOS/Android (futuro)
-│   └── worker/       procesos en segundo plano (futuro)
+│   ├── api/          API TypeScript
+│   ├── web/          PWA React/Vite mobile-first
+│   ├── mobile/       reservado para un cliente móvil futuro
+│   └── worker/       reservado para procesos asíncronos futuros
 ├── packages/
 │   ├── database/     esquema y migraciones
 │   ├── contracts/    tipos compartidos
 │   └── ui/           sistema visual compartido
 ├── infrastructure/   Docker, proxy, copias y despliegue
-└── docs/             decisiones y manuales
+└── docs/             arquitectura, seguridad y operación
 ```
 
-## Servicios iniciales
+## Servicios
 
 - PostgreSQL: datos económicos y operativos.
-- MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
-- Redis: coordinación operativa y futuras tareas asíncronas.
-- API TypeScript: healthcheck, autenticación, catálogo, importaciones, albaranes, facturas y PDF.
-- Web React/TypeScript: PWA React/Vite mobile-first (actual).
-- Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.
-- Provisionador: asigna en cada arranque la contraseña local al rol limitado `factupapa_api`.
-- Worker: previsto para trabajos asíncronos; todavía no implementado.
+- MinIO: facturas, justificantes, PDF e imágenes.
+- Redis: coordinación operativa.
+- API TypeScript: autenticación, contactos, productos, importaciones, facturas, compras, stock, pagos y PDF.
+- Web React/TypeScript: PWA móvil principal.
+- Migrador: aplica cambios de esquema con credenciales administrativas aisladas de la API.
+- Provisionador: configura el rol limitado `factupapa_api`.
 
 ## Primer arranque técnico
 
 1. Entrar en `factupapa-next/infrastructure`.
 2. Copiar `.env.example` a `.env`.
-3. Sustituir todas las cadenas `CAMBIAR_...`. `DATABASE_ADMIN_URL` usa `POSTGRES_PASSWORD`; `DATABASE_URL` usa la contraseña distinta `API_DATABASE_PASSWORD`.
+3. Sustituir las cadenas `CAMBIAR_...` con valores locales ficticios. `DATABASE_ADMIN_URL` usa `POSTGRES_PASSWORD`; `DATABASE_URL` usa `API_DATABASE_PASSWORD`.
 4. Ejecutar `docker compose up --build -d`.
 5. Verificar `http://127.0.0.1:4100/health`, `http://127.0.0.1:4100/ready` y `http://127.0.0.1:4173`.
 
-## Aplicación web móvil
+## Aplicación web
 
-`apps/web` es la primera interfaz funcional de FactuPapa Next. Usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil ofrece Inicio, Ventas, Nuevo, Catálogo y Más; Importar vive en Más. La factura directa es el flujo inicial y el inicio puede adaptarse al uso configurado, sin mostrar albaranes como tarea principal cuando no se utilizan. Los importes comerciales se presentan con formato español legible, aunque la API conserva la precisión decimal completa.
+`apps/web` usa React, TypeScript, Vite, React Router, TanStack Query, React Hook Form y Zod. La navegación móvil objetivo es Inicio, Facturas, Gastos, Productos y Otros. La factura directa es el flujo principal; los albaranes no deben ocupar una posición protagonista cuando no se utilizan.
 
-La PWA es instalable desde el navegador y dispone de manifest, icono, service worker y shell offline. Los datos de la API no se cachean en el service worker. La URL se configura con `VITE_API_BASE_URL`; no hay URLs privadas ni secretos en el bundle.
+Los importes se presentan con formato español legible, mientras que la API transporta decimales como cadenas y PostgreSQL conserva la precisión mediante `numeric`.
 
-El access token permanece solo en memoria. El refresh token rotatorio se entrega exclusivamente como cookie `HttpOnly`, `SameSite=Strict`, con `Secure` configurable y ruta `/auth`; nunca aparece en JSON ni Web Storage. Una renovación concurrente se comparte entre peticiones y las mutaciones no se reenvían automáticamente tras un 401.
+La PWA dispone de manifest, iconos, service worker y shell offline. Los datos autenticados de la API no se cachean en el service worker. La URL se configura con `VITE_API_BASE_URL`; no se incluyen URLs privadas ni secretos en el bundle.
 
-La API incorpora login por email y contraseña, rotación de refresh tokens, logout y `GET /me`. No existe registro público: el primer usuario y su empresa se crean exclusivamente mediante el comando de bootstrap documentado en la guía de desarrollo.
+El access token permanece solo en memoria. El refresh token rotatorio se entrega mediante cookie `HttpOnly`, `SameSite=Strict`, con `Secure` configurable y ruta `/auth`. No existe registro público; el primer usuario y su empresa se crean con el procedimiento de bootstrap documentado.
 
-El primer dominio funcional incluye contactos de tipo cliente, proveedor o ambos; productos con unidades `kg`, `g`, `unit`, `box` y `custom`; y precios vigentes específicos por cliente con fallback automático al precio general. Las bajas son lógicas y todos los cambios se auditan. Los valores monetarios viajan como cadenas decimales y se almacenan como `numeric`, nunca como coma flotante.
+## Dominio funcional
 
-La importación admite CSV UTF-8 y JSON estructurado para contactos, productos y precios específicos. Primero crea una previsualización tenant aislada; no modifica el catálogo hasta que el usuario confirma una estrategia de conflicto. Los lotes se pueden cancelar, no se pueden confirmar dos veces y conservan únicamente datos normalizados y diagnósticos, nunca el archivo original completo.
+FactuPapa incluye contactos de tipo cliente, proveedor o ambos; productos con unidades comerciales configurables; precios generales y precios específicos por cliente; facturas directas; periodos quincenales; condiciones de pago opcionales; cobros parciales; deuda y vencimientos; compras; pagos a proveedores; producción; merma; stock y costes.
 
-Las consultas autenticadas se ejecutan en una transacción que fija `app.current_company_id` y `app.current_user_id` con alcance local. PostgreSQL aplica RLS incluso al propietario de las tablas; el rol conectado por la API no puede omitir ni desactivar esas políticas.
+Los datos comerciales necesarios quedan congelados en las líneas de los documentos emitidos. Los borradores de factura se conservan por usuario y empresa para reducir pérdidas de trabajo ante cortes de cobertura.
 
-La guía completa está en [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Las decisiones y límites actuales están en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Las compras pueden crearse manualmente o sincronizarse de forma idempotente desde el registro externo Drive → agente → Google Sheets, conservando el enlace al documento original. Los justificantes son archivos archivados, no entradas para un sistema OCR.
 
-## Ventas y sesión endurecida
+La importación de contactos, productos y precios exige previsualización, validación y una estrategia explícita de conflictos antes de escribir. El frontend incluye soporte técnico para leer archivos Excel compatibles; debe considerarse funcional únicamente cuando el recorrido completo de importación y sus pruebas lo confirmen.
 
-La PWA incorpora ventas directas, precios editables por cliente, periodos quincenales, condiciones opcionales, envases configurables, bolsas o kilos, cobros parciales, deuda, vencidos, pagos a proveedores, producción, merma, stock y costes reales. Los datos de envase quedan congelados en cada línea emitida. Los borradores de factura se conservan por usuario y empresa en el dispositivo ante cortes de cobertura. Las compras pueden sincronizarse de forma idempotente desde el registro maestro Drive/Gmail/Google Sheets y conservan el enlace al original. Cada despliegue privado crea una copia y prueba una restauración aislada antes de modificar el staging.
+VERI*FACTU, facturas rectificativas y factura electrónica legal están expresamente fuera de esta fase.
 
-VERI*FACTU, facturas rectificativas y factura electrónica legal quedan expresamente fuera de esta fase y se abordarán como bloque fiscal posterior.
+## Seguridad y aislamiento
 
-El refresh token reside exclusivamente en cookie HttpOnly; el frontend conserva el access token solo en memoria. Véanse [SECURITY.md](docs/SECURITY.md), [SALES_DOMAIN.md](docs/SALES_DOMAIN.md) y [E2E_TESTING.md](docs/E2E_TESTING.md).
+Las consultas autenticadas se ejecutan en transacciones que fijan `app.current_company_id` y `app.current_user_id` con alcance local. PostgreSQL aplica RLS forzado y el rol de la API no puede omitir ni desactivar esas políticas.
 
-Este proyecto todavía no está conectado a ningún dato real ni a la aplicación productiva.
-Auditoría manual de staging.
-Auditoría manual de staging, segundo intento.
-Auditoría manual de staging, tercer intento.
+No se deben publicar secretos, datos reales, trazas autenticadas ni artifacts con información privada.
+
+## Operación y documentación
+
+Los comandos operativos principales de la API incluyen `config:check`, `backup:database`, `restore:verify`, `backup:objects`, `cleanup:imports` y `recovery:full`.
+
+Consulte:
+
+- [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [SECURITY.md](docs/SECURITY.md)
+- [OPERATIONS.md](docs/OPERATIONS.md)
+- [BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md)
+- [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md)
+- [IMPORT_MAPPING.md](docs/IMPORT_MAPPING.md)
+- [SALES_DOMAIN.md](docs/SALES_DOMAIN.md)
+- [E2E_TESTING.md](docs/E2E_TESTING.md)
+
+El proyecto no está conectado a producción ni a datos reales.
