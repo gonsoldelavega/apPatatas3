@@ -23,32 +23,30 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const isTemporaryPreview =
-  typeof window !== "undefined" &&
-  window.location.hostname.endsWith(".vercel.app");
+const isExplicitDemo = import.meta.env.VITE_DEMO === "1";
 
-const previewUser = {
-  id: "preview-user",
-  email: "demo@factupapa.local",
-  displayName: "Fernando",
+const demoUser = {
+  id: "demo-user",
+  email: "demo@factupapa.test",
+  displayName: "Usuario Demo",
   role: "owner",
   company: {
-    id: "preview-company",
-    name: "Gonsol de la Vega",
+    id: "demo-company",
+    name: "Empresa Demo Ficticia",
   },
 } as unknown as CurrentUser;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<AuthStatus>(
-    isTemporaryPreview ? "authenticated" : "loading",
+    isExplicitDemo ? "authenticated" : "loading",
   );
   const [user, setUser] = useState<CurrentUser | null>(
-    isTemporaryPreview ? previewUser : null,
+    isExplicitDemo ? demoUser : null,
   );
 
   useEffect(() => {
-    if (isTemporaryPreview) return undefined;
+    if (isExplicitDemo) return undefined;
 
     let active = true;
     const unsubscribe = apiClient.onSessionExpired(() => {
@@ -81,8 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      if (isTemporaryPreview) {
-        setUser(previewUser);
+      if (isExplicitDemo) {
+        setUser(demoUser);
         setStatus("authenticated");
         return;
       }
@@ -113,8 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    if (isTemporaryPreview) {
-      setUser(previewUser);
+    if (isExplicitDemo) {
+      setUser(demoUser);
       setStatus("authenticated");
       return;
     }
