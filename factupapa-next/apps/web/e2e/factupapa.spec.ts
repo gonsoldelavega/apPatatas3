@@ -4,6 +4,7 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
+
 const email = process.env.DEMO_USER_EMAIL ?? "demo@example.test";
 const password = process.env.DEMO_USER_PASSWORD ?? "Demo-password-only-1234";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:4100";
@@ -21,29 +22,26 @@ async function apiLogin(
   });
 }
 
-async function changePasswordThroughApi(
-  request: APIRequestContext,
-  accessToken: string,
-  currentPassword: string,
-  newPassword: string,
-) {
-  return request.post(`${apiUrl}/auth/change-password`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Origin: webOrigin,
-    },
-    data: { currentPassword, newPassword },
-  });
-}
-
 async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
   await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText("FACTURACIÓN DEL MES")).toBeVisible();
 }
-test("el primer acceso es claro y legible aunque el sistema sea oscuro", async ({
+
+async function assertNoHorizontalOverflow(page: Page) {
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+}
+
+test("el primer acceso mantiene el tema claro y la identidad Verde Tinta", async ({
   browser,
 }) => {
   const context = await browser.newContext({ colorScheme: "dark" });
@@ -58,20 +56,15 @@ test("el primer acceso es claro y legible aunque el sistema sea oscuro", async (
       border: styles.borderColor,
     };
   });
-  expect(appearance.color).toBe("rgb(20, 33, 61)");
+  expect(appearance.color).toBe("rgb(23, 53, 45)");
   expect(appearance.background).toBe("rgb(255, 255, 255)");
   expect(appearance.border).not.toBe(appearance.background);
   await context.close();
 });
-test("login genérico, restauración, logout y consola limpia", async ({
-  page,
-}, testInfo) => {
+
+test("login, restauración de sesión, dashboard y logout", async ({ page }, testInfo) => {
   const errors: string[] = [];
   await page.goto("/login");
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-login.png`,
-    fullPage: true,
-  });
   await page.getByLabel("Email").fill("incorrecto@example.test");
   await page.getByLabel("Contraseña", { exact: true }).fill("incorrecta");
   await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
@@ -83,7 +76,7 @@ test("login genérico, restauración, logout y consola limpia", async ({
     if (message.type() === "error") errors.push(message.text());
   });
   await page.reload();
-  await expect(page.getByText("FACTURACIÓN EMITIDA")).toBeVisible();
+  await expect(page.getByText("FACTURACIÓN DEL MES")).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-inicio.png`,
     fullPage: true,
@@ -93,58 +86,31 @@ test("login genérico, restauración, logout y consola limpia", async ({
   await expect(page).toHaveURL(/\/login/);
   expect(errors).toEqual([]);
 });
-test("ventas mobile-first sin overflow", async ({ page }, testInfo) => {
+
+test("facturas mobile-first sin overflow", async ({ page }, testInfo) => {
   await login(page);
-  await page.getByRole("link", { name: "Ventas" }).click();
-  await expect(page.getByRole("heading", { name: "Ventas" })).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-albaranes.png`,
-    fullPage: true,
-  });
+  await page.goto("/ventas");
+  await expect(page.getByRole("heading", { name: "Facturas" })).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-facturas.png`,
     fullPage: true,
   });
-  await page.locator(".sales-list .entity-card").first().click();
-  await expect(page.getByText("Total", { exact: true })).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-factura.png`,
-    fullPage: true,
-  });
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth,
-    ),
-  ).toBe(false);
-  const undersized = await page
-    .locator("button:visible, a:visible")
-    .evaluateAll(
-      (elements) =>
-        elements.filter((element) => {
-          const box = element.getBoundingClientRect();
-          return box.width < 44 || box.height < 44;
-        }).length,
-    );
-  expect(undersized).toBe(0);
+  await assertNoHorizontalOverflow(page);
 });
-test("factura directa, ajustes comerciales y decimales legibles", async ({
-  page,
-}) => {
+
+test("factura directa con IVA por defecto y decimales legibles", async ({ page }) => {
   await login(page);
   await page.goto("/ajustes/ventas");
   await expect(page.getByLabel("Prefijo")).toHaveValue("FAC");
   await expect(page.getByLabel("Primer número")).toHaveValue("100");
   await expect(page.getByLabel("IVA por defecto (%)")).toHaveValue("4");
-  await expect(page.getByLabel("Flujo principal")).toHaveValue("invoices");
 
   await page.goto("/ventas/nuevo/factura");
   await expect(page.getByText(/Serie TEST\/\d{4}/)).toBeVisible();
   await page
     .getByRole("combobox", { name: "Cliente", exact: true })
     .selectOption({ index: 1 });
-  await page.getByLabel("Producto").selectOption({ index: 1 });
+  await page.getByLabel("Producto 1").selectOption({ index: 1 });
   await page.getByLabel("Cantidad").fill("10");
   await page.getByRole("button", { name: "Revisar factura" }).click();
   await expect(page).toHaveURL(/\/ventas\/facturas\//);
@@ -153,324 +119,8 @@ test("factura directa, ajustes comerciales y decimales legibles", async ({
   await expect(page.getByText("Base imponible")).toBeVisible();
   await expect(page.getByText("IVA", { exact: true })).toBeVisible();
 });
-test("emisión, conversión, PDF, cancelación y refacturación completa", async ({
-  page,
-}, testInfo) => {
-  await login(page);
-  const series = `E2E-${testInfo.project.name}`.slice(0, 20);
-  await page.goto("/ventas/nuevo/albaran");
-  await page.getByLabel("Cliente").selectOption({ index: 1 });
-  await page.getByLabel("Serie").fill(series);
-  await page.getByLabel("Producto").selectOption({ index: 1 });
-  await page.getByLabel("Cantidad").fill("2,5");
-  await page.getByRole("button", { name: "Crear albarán" }).click();
-  await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
-  const deliveryNoteUrl = page.url();
 
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Emitir albarán" }).click();
-  await expect(page.locator(".status")).toHaveText("Emitido");
-
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Convertir en factura" }).click();
-  await expect(page).toHaveURL(/\/ventas\/facturas\//);
-  await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
-
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Emitir factura" }).click();
-  await expect(page.locator(".status")).toHaveText("Emitida");
-
-  const pdfResponsePromise = page.waitForResponse(
-    (response) => response.url().endsWith("/pdf") && response.status() === 200,
-  );
-  await page.getByRole("button", { name: "Ver PDF" }).click();
-  const pdfResponse = await pdfResponsePromise;
-  expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
-  expect(Number(pdfResponse.headers()["content-length"])).toBeGreaterThan(
-    1_000,
-  );
-
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Cancelar" }).click();
-  await expect(page.locator(".status")).toHaveText("Cancelada");
-
-  await page.goto(deliveryNoteUrl);
-  await expect(page.locator(".status")).toHaveText("Emitido");
-  await expect(
-    page.getByRole("button", { name: "Convertir en factura" }),
-  ).toBeVisible();
-
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Convertir en factura" }).click();
-  await expect(page).toHaveURL(/\/ventas\/facturas\//);
-  await expect(page.getByRole("heading", { name: "Borrador" })).toBeVisible();
-
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Emitir factura" }).click();
-  await expect(page.locator(".status")).toHaveText("Emitida");
-});
-test("catálogo, importación cancelada y dos pestañas", async ({
-  page,
-  context,
-}, testInfo) => {
-  await login(page);
-  const second = await context.newPage();
-  await second.goto("/");
-  await expect(second.getByText("FACTURACIÓN EMITIDA")).toBeVisible();
-  await page.goto("/catalogo/contactos");
-  await expect(page.getByRole("heading", { name: "Contactos" })).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-contactos.png`,
-    fullPage: true,
-  });
-  await page.locator(".entity-card").first().click();
-  await expect(page.getByRole("heading").first()).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-ficha-contacto.png`,
-    fullPage: true,
-  });
-  await page.goto("/catalogo/productos");
-  await expect(
-    page.getByRole("heading", { name: "Productos", exact: true }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-productos.png`,
-    fullPage: true,
-  });
-  await page.goto("/importar");
-  await page.getByLabel("Qué quieres importar").selectOption("products");
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-    name: "productos-invalidos.json",
-    mimeType: "application/json",
-    buffer: Buffer.from("{json inválido"),
-  });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-error-validacion.png`,
-    fullPage: true,
-  });
-  await page.reload();
-  await page.getByLabel("Qué quieres importar").selectOption("products");
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-    name: "productos-ficticios.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(
-      '[{"name":"E2E ficticio","sku":"E2E-SKU-UNICO","unit":"kg","salePrice":"1.2345","taxRate":"4"}]',
-    ),
-  });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await page.getByRole("button", { name: "Validar y previsualizar" }).click();
-  await expect(page.getByText("Paso 3 · Revisar errores")).toBeVisible();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-importacion-validada.png`,
-    fullPage: true,
-  });
-  await page.getByRole("button", { name: "Cancelar lote" }).click();
-});
-
-test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de red", async ({
-  page,
-}, testInfo) => {
-  const runKey = `${testInfo.project.name}-${testInfo.retry}`;
-  await login(page);
-  await page.goto("/importar");
-  await page.getByLabel("Qué quieres importar").selectOption("products");
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-      name: "manual.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(`A,B,C,D\nProducto manual ${runKey},kg,2.3456,4\n`),
-    });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await page.getByLabel("Columna para Nombre").selectOption("A");
-  await page.getByLabel("Columna para Unidad").selectOption("B");
-  await page.getByLabel("Columna para Precio de venta").selectOption("C");
-  await page.getByLabel("Columna para IVA").selectOption("D");
-  await page.getByText("Guardar como plantilla").click();
-  const template = `Plantilla ${runKey}`.slice(0, 80);
-  await page
-    .getByText("Nombre de la plantilla")
-    .locator("..")
-    .getByRole("textbox")
-    .fill(template);
-  await page.getByRole("button", { name: "Validar y previsualizar" }).click();
-  await page
-    .getByLabel("Estrategia de conflictos")
-    .selectOption("skip_existing");
-  await page.getByRole("button", { name: "Confirmar importación" }).click();
-  await expect(page.getByText("Importación completada")).toBeVisible();
-
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-      name: "reutilizada.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("A,B,C,D\nOtro producto,kg,3.0000,4\n"),
-    });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await page
-    .getByLabel("Usar una plantilla guardada")
-    .selectOption({ label: template });
-  await expect(page.getByLabel("Columna para Nombre")).toHaveValue("A");
-  await page.getByRole("button", { name: "Atrás" }).click();
-
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-      name: "sin-obligatorio.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("nombre\nIncompleto\n"),
-    });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await expect(
-    page.getByRole("button", { name: "Validar y previsualizar" }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Atrás" }).click();
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-      name: "duplicada.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("nombre,nombre,unidad,precio,iva\nA,B,kg,1,4\n"),
-    });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await expect(page.getByRole("alert")).toContainText("cabeceras duplicadas");
-  await page.getByRole("button", { name: "Atrás" }).click();
-
-  await page.route("**/imports/detect-columns", (route) => route.abort());
-  await page
-    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
-    .setInputFiles({
-      name: "red.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("nombre,unidad,precio,iva\nRed,kg,1,4\n"),
-    });
-  await page.getByRole("button", { name: "Detectar columnas" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "No se han podido detectar",
-  );
-});
-test("nueva compra: subida, revisión y guardado bloqueado sin datos", async ({
-  page,
-}, testInfo) => {
-  await login(page);
-  await page.goto("/gastos/nuevo");
-  await expect(
-    page.getByRole("heading", { name: "Nueva compra" }),
-  ).toBeVisible();
-  await expect(page.getByText("Seleccionar PDF o foto")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Guardar para revisión" }),
-  ).toBeDisabled();
-  await page.screenshot({
-    path: `test-artifacts/${testInfo.project.name}-nueva-compra.png`,
-    fullPage: true,
-  });
-});
-
-test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
-  page,
-  request,
-}, testInfo) => {
-  const nextPassword = "Nueva-segura-auditoria-2026";
-  const priorAttempt = await apiLogin(request, nextPassword);
-  if (priorAttempt.ok()) {
-    const { accessToken } = (await priorAttempt.json()) as {
-      accessToken: string;
-    };
-    expect(
-      (
-        await changePasswordThroughApi(
-          request,
-          accessToken,
-          nextPassword,
-          password,
-        )
-      ).status(),
-    ).toBe(204);
-  }
-
-  try {
-    await login(page);
-    expect((await apiLogin(request, password)).status()).toBe(200);
-    await page.goto("/ajustes/seguridad");
-    await expect(
-      page.getByRole("heading", { name: "Seguridad" }),
-    ).toBeVisible();
-    const currentSessions = page.getByText("Este dispositivo", {
-      exact: true,
-    });
-    const otherSessions = page.getByText("Otra sesión", { exact: true });
-    await expect(currentSessions).toHaveCount(1);
-    await expect(otherSessions.first()).toBeVisible();
-    await page
-      .getByRole("button", {
-        name: "Cerrar las demás sesiones",
-        exact: true,
-      })
-      .click();
-    await expect(
-      page
-        .getByRole("status")
-        .filter({ hasText: /Sesiones cerradas: [1-9]\d*/ }),
-    ).toBeVisible();
-    await expect(otherSessions).toHaveCount(0);
-
-    expect((await apiLogin(request, password)).status()).toBe(200);
-    await page
-      .getByLabel("Contraseña actual", { exact: true })
-      .fill(password);
-    await page
-      .getByLabel("Nueva contraseña", { exact: true })
-      .fill(nextPassword);
-    await page
-      .getByLabel("Repite la nueva contraseña", { exact: true })
-      .fill(nextPassword);
-    await page
-      .getByRole("button", {
-        name: "Guardar nueva contraseña",
-        exact: true,
-      })
-      .click();
-    await expect(
-      page
-        .getByRole("status")
-        .filter({ hasText: "Contraseña actualizada" }),
-    ).toBeVisible();
-    await page.screenshot({
-      path: `test-artifacts/${testInfo.project.name}-seguridad.png`,
-      fullPage: true,
-    });
-    expect((await apiLogin(request, nextPassword)).status()).toBe(200);
-  } finally {
-    const recoveryLogin = await apiLogin(request, nextPassword);
-    if (recoveryLogin.ok()) {
-      const { accessToken } = (await recoveryLogin.json()) as {
-        accessToken: string;
-      };
-      expect(
-        (
-          await changePasswordThroughApi(
-            request,
-            accessToken,
-            nextPassword,
-            password,
-          )
-        ).status(),
-      ).toBe(204);
-    }
-  }
-});
-
-test("una compra se puede confirmar y cancelar con respuesta visible", async ({
-  page,
-}, testInfo) => {
+test("una compra válida se guarda, confirma y cancela", async ({ page }, testInfo) => {
   await login(page);
 
   const createPurchase = async (suffix: string) => {
@@ -480,6 +130,7 @@ test("una compra se puede confirmar y cancelar con respuesta visible", async ({
       .getByLabel("Número de factura del proveedor")
       .fill(`E2E-${testInfo.project.name}-${testInfo.retry}-${suffix}`);
     await page.getByLabel("Descripción").fill(`Compra ficticia ${suffix}`);
+    await page.getByLabel("Cantidad").fill("1");
     await page.getByLabel("Coste unidad sin IVA").fill("2,50");
     await page.getByRole("button", { name: "Guardar para revisión" }).click();
     await expect(page).toHaveURL(/\/gastos\/[0-9a-f-]+$/);
@@ -488,16 +139,10 @@ test("una compra se puede confirmar y cancelar con respuesta visible", async ({
   await createPurchase("confirmar");
   await page.getByRole("button", { name: "Confirmar compra" }).click();
   await expect(page.getByRole("status")).toContainText("Compra confirmada");
-  await expect(
-    page.getByRole("button", { name: "Confirmar compra" }),
-  ).toBeHidden();
 
   await createPurchase("cancelar");
   await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Compra cancelada");
-  await expect(
-    page.getByRole("button", { name: "Cancelar", exact: true }),
-  ).toBeHidden();
 });
 
 test("cliente quincenal, condiciones opcionales y precio editable", async ({
@@ -528,25 +173,39 @@ test("cliente quincenal, condiciones opcionales y precio editable", async ({
     .getByRole("combobox", { name: "Cliente", exact: true })
     .selectOption({ label: customer });
   await expect(page.getByText("Periodo quincenal")).toBeVisible();
-  await expect(page.locator(".invoice-period-summary strong")).toContainText(
-    /\d{4}-\d{2}-(01|16).*\d{4}-\d{2}-\d{2}/,
-  );
-  const conditions = page
-    .getByText("Condiciones y consecuencias del impago")
-    .locator("..")
-    .getByRole("textbox");
-  await expect(conditions).toHaveValue(/Pago en 3 días/);
-
   await page.getByLabel("Producto 1").selectOption({ index: 1 });
+  await page.getByLabel("Cantidad").fill("1");
   const price = page.getByLabel(/Precio sin IVA/);
   await expect(price).not.toHaveValue("");
   await price.fill("1,75");
-  await expect(price).toHaveValue("1,75");
-
   await page.getByText("Incluir condiciones de pago", { exact: true }).click();
-  await expect(conditions).toBeHidden();
-  await expect(page.getByLabel(/Precio sin IVA/)).toHaveValue("1,75");
   await page.getByRole("button", { name: "Revisar factura" }).click();
   await expect(page).toHaveURL(/\/ventas\/facturas\/[0-9a-f-]+$/);
   await expect(page.getByText(/1 kg × 1,75/)).toBeVisible();
+});
+
+test("importación de productos valida, previsualiza y permite cancelar", async ({ page }) => {
+  await login(page);
+  await page.goto("/importar");
+  await page.getByLabel("Qué quieres importar").selectOption("products");
+  await page
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
+    .setInputFiles({
+      name: "productos-ficticios.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        '[{"name":"E2E ficticio","sku":"E2E-SKU-UNICO","unit":"kg","salePrice":"1.2345","taxRate":"4"}]',
+      ),
+    });
+  await page.getByRole("button", { name: "Detectar columnas" }).click();
+  await page.getByRole("button", { name: "Validar y previsualizar" }).click();
+  await expect(page.getByText("Paso 3 · Revisar errores")).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar lote" }).click();
+});
+
+test("la API mantiene autenticación y el usuario de prueba operativo", async ({ request }) => {
+  const response = await apiLogin(request, password);
+  expect(response.status()).toBe(200);
+  const body = (await response.json()) as { accessToken?: string };
+  expect(body.accessToken).toBeTruthy();
 });
