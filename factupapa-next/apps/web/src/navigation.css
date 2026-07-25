@@ -1,0 +1,156 @@
+/* Navegación principal final de FactuPapa.
+ * Se mantiene separada mientras se consolida el sistema visual global.
+ */
+
+.bottom-nav {
+  height: calc(76px + env(safe-area-inset-bottom));
+  padding: 7px 8px env(safe-area-inset-bottom);
+  border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 -12px 34px rgb(8 15 33 / 10%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.nav-item {
+  position: relative;
+  min-width: 52px;
+  min-height: 58px;
+  gap: 4px;
+  padding: 7px 4px 6px;
+  border-radius: 16px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 120ms ease;
+}
+
+.nav-item::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  width: 28px;
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+  transform: scaleX(0.55);
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.nav-item svg {
+  transition: transform 150ms ease;
+}
+
+.nav-item--active {
+  color: var(--strong);
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+}
+
+.nav-item--active::before {
+  background: var(--gold);
+  transform: scaleX(1);
+}
+
+.nav-item--active svg {
+  transform: translateY(-1px);
+}
+
+.nav-item:active {
+  transform: scale(0.96);
+}
+
+.offline-banner {
+  position: sticky;
+  z-index: 35;
+  top: 0;
+  margin: 0 auto;
+  padding: 10px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--pending) 42%, var(--line));
+  color: var(--strong);
+  background: color-mix(in srgb, var(--warn-soft) 94%, transparent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+:root[data-theme="dark"] .bottom-nav {
+  background: rgb(10 20 18 / 92%);
+  border-top-color: rgb(255 255 255 / 8%);
+  box-shadow: 0 -16px 40px rgb(0 0 0 / 42%);
+}
+
+:root[data-theme="dark"] .nav-item--active {
+  background: rgb(232 200 121 / 10%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bottom-nav {
+    background: rgb(10 20 18 / 92%);
+    border-top-color: rgb(255 255 255 / 8%);
+    box-shadow: 0 -16px 40px rgb(0 0 0 / 42%);
+  }
+
+  :root:not([data-theme="light"]) .nav-item--active {
+    background: rgb(232 200 121 / 10%);
+  }
+}
+
+@media (min-width: 900px) {
+  .app-shell {
+    padding-bottom: 0;
+    padding-left: 104px;
+  }
+
+  .bottom-nav {
+    inset: 0 auto 0 0;
+    width: 104px;
+    height: 100vh;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, minmax(72px, auto));
+    align-content: center;
+    gap: 8px;
+    padding: 24px 14px;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    box-shadow: 12px 0 34px rgb(8 15 33 / 7%);
+  }
+
+  .nav-item {
+    min-height: 72px;
+    padding: 10px 6px;
+  }
+
+  .nav-item::before {
+    top: auto;
+    left: -7px;
+    width: 3px;
+    height: 28px;
+    transform: scaleY(0.55);
+  }
+
+  .nav-item--active::before {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item,
+  .nav-item::before,
+  .nav-item svg {
+    transition: none;
+  }
+
+  .nav-item:active,
+  .nav-item--active svg {
+    transform: none;
+  }
+}
