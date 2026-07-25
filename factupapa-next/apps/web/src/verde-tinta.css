@@ -1,0 +1,125 @@
+:root {
+  color: #17352d;
+  background: #f5f2e9;
+  --ink: #17352d;
+  --strong: #0d2b23;
+  --deep: #0b2a22;
+  --deep-2: #154438;
+  --ink-surface: #10362c;
+  --gold: #c69a43;
+  --gold-bright: #e5c777;
+  --gold-deep: #8f681e;
+  --ivory: #f5f2e9;
+  --white: #ffffff;
+  --positive: #2d7d5d;
+  --pending: #c7862f;
+  --error: #b94f49;
+  --muted: #6d7d76;
+  --line: #dcd8ca;
+  --surface: #fffefa;
+  --surface-soft: #ecefe9;
+  --warn-soft: #fbf2dc;
+  --shadow: 0 10px 30px rgb(13 43 35 / 9%);
+  --chart-income: #2d7d5d;
+  --chart-expense: #c7862f;
+  --chart-balance: #2f6558;
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color: #edf5f1;
+  background: #071b16;
+  --ink: #edf5f1;
+  --strong: #ffffff;
+  --deep: #071b16;
+  --deep-2: #0c3027;
+  --ink-surface: #0e382d;
+  --gold: #e5c777;
+  --gold-bright: #f0d892;
+  --gold-deep: #c69a43;
+  --ivory: #071b16;
+  --positive: #67b78f;
+  --pending: #dda84e;
+  --error: #e47b73;
+  --muted: #a7b8b1;
+  --line: #24483d;
+  --surface: #0d2a23;
+  --surface-soft: #09221c;
+  --warn-soft: #302817;
+  --shadow: 0 14px 38px rgb(0 0 0 / 42%);
+  --chart-income: #67b78f;
+  --chart-expense: #dda84e;
+  --chart-balance: #85bbaa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color: #edf5f1;
+    background: #071b16;
+    --ink: #edf5f1;
+    --strong: #ffffff;
+    --deep: #071b16;
+    --deep-2: #0c3027;
+    --ink-surface: #0e382d;
+    --gold: #e5c777;
+    --gold-bright: #f0d892;
+    --gold-deep: #c69a43;
+    --ivory: #071b16;
+    --positive: #67b78f;
+    --pending: #dda84e;
+    --error: #e47b73;
+    --muted: #a7b8b1;
+    --line: #24483d;
+    --surface: #0d2a23;
+    --surface-soft: #09221c;
+    --warn-soft: #302817;
+    --shadow: 0 14px 38px rgb(0 0 0 / 42%);
+    --chart-income: #67b78f;
+    --chart-expense: #dda84e;
+    --chart-balance: #85bbaa;
+  }
+}
+
+h1,
+h2,
+h3,
+.brand-row strong,
+.business-summary strong,
+.metric-grid strong {
+  font-family: var(--font-display);
+}
+
+.page-hero,
+.business-summary {
+  background:
+    radial-gradient(circle at top right, rgb(229 199 119 / 18%), transparent 38%),
+    linear-gradient(145deg, var(--deep-2), var(--deep));
+}
+
+.home-shortcut--primary,
+.button--primary {
+  background: linear-gradient(145deg, var(--deep-2), var(--deep));
+  box-shadow: 0 12px 28px rgb(13 43 35 / 18%);
+}
+
+.entity-card,
+.form-card,
+.detail-card,
+.info-card,
+.profile-card,
+.filter-card,
+.sales-summary-card,
+.attention-card,
+.monthly-balance {
+  border-color: color-mix(in srgb, var(--line) 88%, var(--deep) 12%);
+}
+
+.nav-item--active {
+  color: var(--deep);
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+}
+
+:root[data-theme="dark"] .nav-item--active {
+  color: var(--gold-bright);
+}
