@@ -82,6 +82,50 @@
   backdrop-filter: blur(18px);
 }
 
+.page-heading--with-action {
+  display: grid;
+  gap: 18px;
+  align-items: end;
+}
+
+.page-heading--with-action .compact-action {
+  width: 100%;
+  min-height: 52px;
+  justify-content: center;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgb(8 15 33 / 9%);
+}
+
+.loading-card {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  margin: 16px 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  color: var(--muted);
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.inline-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.inline-error button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid color-mix(in srgb, var(--error) 40%, var(--line));
+  border-radius: 12px;
+  color: var(--strong);
+  background: var(--surface);
+  font-weight: 750;
+}
+
 :root[data-theme="dark"] .bottom-nav {
   background: rgb(10 20 18 / 92%);
   border-top-color: rgb(255 255 255 / 8%);
@@ -101,6 +145,17 @@
 
   :root:not([data-theme="light"]) .nav-item--active {
     background: rgb(232 200 121 / 10%);
+  }
+}
+
+@media (min-width: 700px) {
+  .page-heading--with-action {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .page-heading--with-action .compact-action {
+    width: auto;
+    min-width: 180px;
   }
 }
 
