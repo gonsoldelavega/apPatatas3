@@ -403,7 +403,9 @@ test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
   await expect(
     page.getByText("Este dispositivo", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Otra sesión", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Otra sesión", { exact: true }).first(),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Cerrar las demás sesiones" })
     .click();
