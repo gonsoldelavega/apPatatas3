@@ -47,6 +47,10 @@ export function createApp(dependencies: AppDependencies): Server {
     refresh: (...args) => dependencies.auth.refresh(...args),
     logout: (...args) => dependencies.auth.logout(...args),
     me: (...args) => dependencies.auth.me(...args),
+    changePassword: (...args) => dependencies.auth.changePassword(...args),
+    activeSessions: (...args) => dependencies.auth.activeSessions(...args),
+    revokeOtherSessions: (...args) =>
+      dependencies.auth.revokeOtherSessions(...args),
     authenticate: async (...args) => {
       const identity = await dependencies.auth.authenticate(...args);
       const context = requestContext.getStore();

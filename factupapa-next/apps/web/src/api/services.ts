@@ -20,7 +20,6 @@ import type {
   SalesPreferences,
   PurchaseInvoice,
   PurchaseRegistrySyncResult,
-  OcrBudgetStatus,
   PurchaseLineInput,
   RecurringExpense,
   StockItem,
@@ -30,6 +29,7 @@ import type {
   Payment,
   CustomerAccount,
   ProductionRun,
+  ActiveSession,
 } from "./types";
 
 function queryString(
@@ -48,6 +48,18 @@ export const authApi = {
   login: (email: string, password: string) => apiClient.login(email, password),
   logout: () => apiClient.logout(),
   refresh: () => apiClient.refresh(),
+  sessions: () =>
+    apiClient.request<{ items: ActiveSession[] }>("/auth/sessions"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiClient.request<void>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+  revokeOtherSessions: () =>
+    apiClient.request<{ revoked: number }>("/auth/sessions/revoke-others", {
+      method: "POST",
+      body: "{}",
+    }),
 };
 
 export const contactsApi = {
@@ -310,8 +322,6 @@ export const salesPreferencesApi = {
 };
 
 export const financeApi = {
-  ocrBudget: () =>
-    apiClient.request<OcrBudgetStatus>("/finance/ocr-budget"),
   summary: (from?: string, to?: string) =>
     apiClient.request<FinanceSummary>(
       `/finance/summary${queryString({ from, to })}`,
@@ -336,45 +346,21 @@ export const financeApi = {
     ),
   purchase: (id: string) =>
     apiClient.request<PurchaseInvoice>(`/purchases/${id}`),
-  uploadPurchaseDocument: (input: {
+  archivePurchaseDocument: (input: {
     filename: string;
     mimeType: string;
     contentBase64: string;
-    documentId?: string;
   }) =>
     apiClient.request<{
       id: string;
-      extractedData: {
-        supplierId?: string;
-        supplierName?: string;
-        supplierTaxId?: string;
-        supplierInvoiceNumber?: string;
-        issueDate?: string;
-        dueDate?: string;
-        subtotal?: string;
-        taxTotal?: string;
-        total?: string;
-        concept?: string;
-        purchasedSacks?: number;
-        purchasedQuantityKg?: string;
-        lines?: Array<{
-          description: string;
-          quantity: string;
-          unit: "kg" | "g" | "unit";
-          unitCost: string;
-          taxRate: string;
-          discount?: string;
-          lineTotal?: string;
-        }>;
-        ocrConfidence?: number;
-        source?: "pdf_text" | "ocr" | "vision";
-        fieldConfidence?: Record<string, "high" | "medium" | "low">;
-        warnings?: string[];
-      };
+      filename: string;
+      mimeType: string;
+      byteSize: string;
+      status: string;
     }>("/purchase-documents", {
       method: "POST",
       body: JSON.stringify(input),
-      timeoutMs: 120000,
+      timeoutMs: 30_000,
     }),
   downloadPurchaseDocument: (id: string) =>
     apiClient.download(`/purchase-documents/${id}`),

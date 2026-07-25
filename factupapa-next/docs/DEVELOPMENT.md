@@ -243,7 +243,7 @@ Procedimiento manual en un entorno vacío y ficticio:
 6. repetir el mismo contenido y comprobar que retorna el mismo lote y que una nueva confirmación responde `409`;
 7. crear otro lote y cancelarlo, comprobando que ya no puede confirmarse.
 
-Antes de importar datos reales siguen pendientes mapeo manual de columnas, plantillas validadas con copias anonimizadas, política de retención/borrado de filas temporales, exportación neutralizada, copia/restauración, métricas y autorización operativa expresa. La PWA ya permite revisión móvil, estrategia explícita, confirmación y cancelación. Excel no está implementado. No debe ampliarse `IMPORT_MAX_BYTES` o `IMPORT_MAX_ROWS` sin medir memoria y duración transaccional.
+La PWA permite mapeo manual de columnas, plantillas por empresa, revisión móvil, estrategia explícita, confirmación y cancelación. Acepta CSV, JSON y la primera hoja de archivos `.xlsx`; Excel se convierte localmente a CSV sin ejecutar fórmulas ni macros. Antes de importar datos reales siguen siendo necesarias plantillas validadas con copias anonimizadas, política de retención, copia/restauración, métricas y autorización operativa expresa. No debe ampliarse `IMPORT_MAX_BYTES` o `IMPORT_MAX_ROWS` sin medir memoria y duración transaccional.
 
 ## Pruebas y controles
 

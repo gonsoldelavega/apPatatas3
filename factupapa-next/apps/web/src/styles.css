@@ -3590,3 +3590,109 @@ h3,
 .monthly-chart .recharts-legend-item-text {
   font-size: 0.8rem;
 }
+
+.field__hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.section-title-with-icon {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.section-title-with-icon > svg {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  color: var(--gold-deep);
+}
+
+.section-title-with-icon h2,
+.section-title-with-icon p {
+  margin: 0;
+}
+
+.section-title-with-icon p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.session-list {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+
+.session-row,
+.attachment-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.session-row__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--gold-deep);
+  background: rgb(214 166 73 / 13%);
+}
+
+.session-row__icon svg,
+.attachment-card > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.session-row strong,
+.session-row small,
+.attachment-card strong,
+.attachment-card small {
+  display: block;
+}
+
+.session-row small,
+.attachment-card small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.success-note {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.attachment-card {
+  margin-top: 12px;
+}
+
+.attachment-card > svg {
+  color: var(--success);
+}
+
+.purchase-form-page .section-heading {
+  align-items: center;
+}
+
+.purchase-form-page .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 520px) {
+  .purchase-form-page .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -94,6 +94,11 @@ const PurchaseDetailPage = lazy(() =>
 const StockPage = lazy(() =>
   import("./pages/StockPage").then((m) => ({ default: m.StockPage })),
 );
+const AccountSecurityPage = lazy(() =>
+  import("./pages/AccountSecurityPage").then((m) => ({
+    default: m.AccountSecurityPage,
+  })),
+);
 
 export function App() {
   return (
@@ -124,6 +129,7 @@ export function App() {
             <Route path="mas" element={<MorePage />} />
             <Route path="exportar" element={<ExportPage />} />
             <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
+            <Route path="ajustes/seguridad" element={<AccountSecurityPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

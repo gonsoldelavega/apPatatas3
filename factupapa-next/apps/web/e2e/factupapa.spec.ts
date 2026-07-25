@@ -204,7 +204,9 @@ test("catálogo, importación cancelada y dos pestañas", async ({
   });
   await page.goto("/importar");
   await page.getByLabel("Qué quieres importar").selectOption("products");
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({
+  await page
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
+    .setInputFiles({
     name: "productos-invalidos.json",
     mimeType: "application/json",
     buffer: Buffer.from("{json inválido"),
@@ -217,7 +219,9 @@ test("catálogo, importación cancelada y dos pestañas", async ({
   });
   await page.reload();
   await page.getByLabel("Qué quieres importar").selectOption("products");
-  await page.getByLabel("Seleccionar archivo CSV o JSON").setInputFiles({
+  await page
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
+    .setInputFiles({
     name: "productos-ficticios.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -242,7 +246,7 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
   await page.goto("/importar");
   await page.getByLabel("Qué quieres importar").selectOption("products");
   await page
-    .getByLabel("Seleccionar archivo CSV o JSON")
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
     .setInputFiles({
       name: "manual.csv",
       mimeType: "text/csv",
@@ -268,7 +272,7 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
   await expect(page.getByText("Importación completada")).toBeVisible();
 
   await page
-    .getByLabel("Seleccionar archivo CSV o JSON")
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
     .setInputFiles({
       name: "reutilizada.csv",
       mimeType: "text/csv",
@@ -282,7 +286,7 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
   await page.getByRole("button", { name: "Atrás" }).click();
 
   await page
-    .getByLabel("Seleccionar archivo CSV o JSON")
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
     .setInputFiles({
       name: "sin-obligatorio.csv",
       mimeType: "text/csv",
@@ -294,7 +298,7 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
   ).toBeDisabled();
   await page.getByRole("button", { name: "Atrás" }).click();
   await page
-    .getByLabel("Seleccionar archivo CSV o JSON")
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
     .setInputFiles({
       name: "duplicada.csv",
       mimeType: "text/csv",
@@ -306,7 +310,7 @@ test("mapeo manual, plantilla reutilizable, obligatorios, duplicados y error de 
 
   await page.route("**/imports/detect-columns", (route) => route.abort());
   await page
-    .getByLabel("Seleccionar archivo CSV o JSON")
+    .getByLabel("Seleccionar archivo Excel, CSV o JSON")
     .setInputFiles({
       name: "red.csv",
       mimeType: "text/csv",
@@ -331,6 +335,35 @@ test("nueva compra: subida, revisión y guardado bloqueado sin datos", async ({
   ).toBeDisabled();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-nueva-compra.png`,
+    fullPage: true,
+  });
+});
+
+test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.goto("/ajustes/seguridad");
+  await expect(page.getByRole("heading", { name: "Seguridad" })).toBeVisible();
+  await expect(page.getByText("Este dispositivo")).toBeVisible();
+  await expect(page.getByText("Otra sesión")).toBeVisible();
+  await page.getByLabel("Contraseña actual").fill("actual-muy-segura");
+  await page.getByLabel("Nueva contraseña").fill("nueva-muy-segura-2026");
+  await page
+    .getByLabel("Repite la nueva contraseña")
+    .fill("nueva-muy-segura-2026");
+  await page
+    .getByRole("button", { name: "Guardar nueva contraseña" })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Contraseña actualizada",
+  );
+  await page
+    .getByRole("button", { name: "Cerrar las demás sesiones" })
+    .click();
+  await expect(page.getByRole("status")).toContainText("Sesiones cerradas: 1");
+  await page.screenshot({
+    path: `test-artifacts/${testInfo.project.name}-seguridad.png`,
     fullPage: true,
   });
 });

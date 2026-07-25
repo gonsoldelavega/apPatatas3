@@ -38,6 +38,9 @@ const auth: AuthApplication = {
     company: { id: "company", name: "Test Company" },
     membership: { role: "owner" },
   }),
+  changePassword: async () => undefined,
+  activeSessions: async () => [],
+  revokeOtherSessions: async () => 0,
 };
 
 afterEach(async () => {

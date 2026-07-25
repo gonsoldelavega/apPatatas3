@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../src/api/client";
 import {
   contactsApi,
+  authApi,
   financeApi,
   importsApi,
   pricingApi,
@@ -59,11 +60,21 @@ describe("contratos de importación", () => {
   });
 });
 
-describe("contratos de OCR", () => {
-  it("consulta el consumo sin exponer configuración privada", async () => {
+describe("contratos operativos", () => {
+  it("archiva justificantes sin activar ningún lector automático", async () => {
     const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
-    await financeApi.ocrBudget();
-    expect(request).toHaveBeenCalledWith("/finance/ocr-budget");
+    await financeApi.archivePurchaseDocument({
+      filename: "factura.pdf",
+      mimeType: "application/pdf",
+      contentBase64: "JVBERi0=",
+    });
+    expect(request).toHaveBeenCalledWith(
+      "/purchase-documents",
+      expect.objectContaining({
+        method: "POST",
+        timeoutMs: 30_000,
+      }),
+    );
   });
 
   it("usa el endpoint fiscal que solo devuelve compras confirmadas", async () => {
@@ -71,6 +82,24 @@ describe("contratos de OCR", () => {
     await financeApi.confirmedPurchasesForExport("2026-01-01", "2026-12-31");
     expect(request).toHaveBeenCalledWith(
       "/purchases/export?from=2026-01-01&to=2026-12-31",
+    );
+  });
+
+  it("permite cambiar contraseña y cerrar otras sesiones", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
+    await authApi.changePassword("actual-segura", "nueva-muy-segura");
+    await authApi.revokeOtherSessions();
+    expect(request).toHaveBeenNthCalledWith(1, "/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: "actual-segura",
+        newPassword: "nueva-muy-segura",
+      }),
+    });
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      "/auth/sessions/revoke-others",
+      { method: "POST", body: "{}" },
     );
   });
 });

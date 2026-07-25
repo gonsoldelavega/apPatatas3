@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { hashPassword, verifyPassword } from "./password.js";
 import { LoginRateLimiter } from "./rate-limit.js";
-import { AuthRepository, type SessionIdentity } from "./repository.js";
+import {
+  AuthRepository,
+  type ActiveSession,
+  type SessionIdentity,
+} from "./repository.js";
 import {
   createRefreshToken,
   hashRefreshToken,
@@ -14,8 +18,10 @@ export class AuthError extends Error {
       | "invalid_credentials"
       | "too_many_requests"
       | "invalid_refresh_token"
+      | "invalid_current_password"
+      | "invalid_new_password"
       | "unauthorized",
-    readonly status: 401 | 429,
+    readonly status: 400 | 401 | 429,
   ) {
     super(code);
   }
@@ -46,6 +52,13 @@ export interface AuthApplication {
   authenticate(accessToken: string): Promise<SessionIdentity>;
   logout(refreshToken: string): Promise<void>;
   me(accessToken: string): Promise<CurrentUser>;
+  changePassword(
+    accessToken: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void>;
+  activeSessions(accessToken: string): Promise<ActiveSession[]>;
+  revokeOtherSessions(accessToken: string): Promise<number>;
 }
 
 export class AuthService implements AuthApplication {
@@ -173,5 +186,35 @@ export class AuthService implements AuthApplication {
       company: { id: identity.companyId, name: identity.companyName },
       membership: { role: identity.role },
     };
+  }
+
+  async changePassword(
+    accessToken: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const identity = await this.authenticate(accessToken);
+    const currentHash = await this.repository.passwordHash(identity);
+    if (!(await verifyPassword(currentHash, currentPassword)))
+      throw new AuthError("invalid_current_password", 400);
+    if (currentPassword === newPassword)
+      throw new AuthError("invalid_new_password", 400);
+    let nextHash: string;
+    try {
+      nextHash = await hashPassword(newPassword);
+    } catch {
+      throw new AuthError("invalid_new_password", 400);
+    }
+    await this.repository.changePassword(identity, nextHash);
+  }
+
+  async activeSessions(accessToken: string): Promise<ActiveSession[]> {
+    const identity = await this.authenticate(accessToken);
+    return this.repository.listActiveSessions(identity);
+  }
+
+  async revokeOtherSessions(accessToken: string): Promise<number> {
+    const identity = await this.authenticate(accessToken);
+    return this.repository.revokeOtherSessions(identity);
   }
 }

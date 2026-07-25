@@ -353,6 +353,113 @@ export class FinanceService {
     if (!this.ocrBudget) throw new HttpError("not_found", 404);
     return this.ocrBudget.status(i);
   }
+  async archiveDocument(
+    i: SessionIdentity,
+    input: {
+      filename: unknown;
+      mimeType: unknown;
+      contentBase64: unknown;
+    },
+  ) {
+    if (!this.s3 || !this.storage) throw new HttpError("conflict", 409);
+    if (
+      typeof input.filename !== "string" ||
+      !input.filename.trim() ||
+      input.filename.length > 255 ||
+      typeof input.mimeType !== "string" ||
+      !new Set([
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/heic",
+        "image/heif",
+      ]).has(input.mimeType) ||
+      typeof input.contentBase64 !== "string" ||
+      !/^[-A-Za-z0-9+/]*={0,2}$/.test(input.contentBase64)
+    )
+      throw new HttpError("invalid_request", 400);
+    const filename = input.filename.trim();
+    const body = Buffer.from(input.contentBase64, "base64");
+    if (!body.length || body.length > 10_000_000)
+      throw new HttpError("payload_too_large", 413);
+    const mime = input.mimeType;
+    const heifBrand = body.subarray(4, 12).toString("ascii");
+    const validSignature =
+      mime === "application/pdf"
+        ? body.subarray(0, 5).toString("ascii") === "%PDF-"
+        : mime === "image/png"
+          ? body
+              .subarray(0, 8)
+              .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+          : mime === "image/jpeg"
+            ? body.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+            : /^ftyp(?:heic|heix|hevc|hevx|mif1|msf1)$/.test(heifBrand);
+    if (!validSignature) throw new HttpError("invalid_request", 400);
+
+    const id = randomUUID();
+    const extension =
+      mime === "application/pdf"
+        ? "pdf"
+        : mime === "image/png"
+          ? "png"
+          : mime === "image/jpeg"
+            ? "jpg"
+            : "heic";
+    const key = `${i.companyId}/purchases/${id}.${extension}`;
+    const sha = createHash("sha256").update(body).digest("hex");
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.storage.bucket,
+        Key: key,
+        Body: body,
+        ContentType: mime,
+        Metadata: { sha256: sha },
+      }),
+    );
+    try {
+      return await withTenantTransaction(this.pool, i, async (client) => {
+        const row = (
+          await client.query(
+            `insert into documents(
+               id,company_id,kind,status,original_filename,storage_key,
+               mime_type,byte_size,sha256,uploaded_by,extracted_data)
+             values($1,$2,'purchase_invoice','uploaded',$3,$4,$5,$6,$7,$8,'{}'::jsonb)
+             returning id,original_filename filename,mime_type "mimeType",
+               byte_size::text "byteSize",status`,
+            [
+              id,
+              i.companyId,
+              filename,
+              key,
+              mime,
+              body.length,
+              sha,
+              i.userId,
+            ],
+          )
+        ).rows[0];
+        await recordAudit(client, {
+          companyId: i.companyId,
+          actorUserId: i.userId,
+          entityType: "document",
+          entityId: id,
+          action: "document.archived",
+          after: { kind: "purchase_invoice", mimeType: mime },
+        });
+        return row;
+      });
+    } catch (error) {
+      await this.s3
+        .send(
+          new DeleteObjectCommand({
+            Bucket: this.storage.bucket,
+            Key: key,
+          }),
+        )
+        .catch(() => undefined);
+      throw error;
+    }
+  }
   async uploadDocument(
     i: SessionIdentity,
     input: {

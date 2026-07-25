@@ -132,6 +132,29 @@ createServer(async (request, response) => {
       "Set-Cookie":
         "factupapa_refresh=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
     });
+  if (url.pathname === "/auth/sessions" && request.method === "GET")
+    return send(response, 200, {
+      items: [
+        {
+          familyId: "90000000-0000-4000-8000-000000000001",
+          createdAt: "2026-07-24T20:00:00Z",
+          lastUsedAt: "2026-07-25T08:30:00Z",
+          expiresAt: "2026-08-24T20:00:00Z",
+          current: true,
+        },
+        {
+          familyId: "90000000-0000-4000-8000-000000000002",
+          createdAt: "2026-07-23T09:00:00Z",
+          lastUsedAt: "2026-07-23T09:15:00Z",
+          expiresAt: "2026-08-23T09:00:00Z",
+          current: false,
+        },
+      ],
+    });
+  if (url.pathname === "/auth/change-password")
+    return send(response, 204);
+  if (url.pathname === "/auth/sessions/revoke-others")
+    return send(response, 200, { revoked: 1 });
   if (url.pathname === "/me")
     return send(response, 200, {
       id: "30000000-0000-4000-8000-000000000001",

@@ -123,6 +123,14 @@ export interface CurrentUser {
   membership: { role: string };
 }
 
+export interface ActiveSession {
+  familyId: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
 export interface AuthTokens {
   accessToken: string;
   tokenType: "Bearer";

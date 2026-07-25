@@ -16,6 +16,14 @@ export interface SessionIdentity extends Omit<UserContext, "passwordHash"> {
   familyId: string;
 }
 
+export interface ActiveSession {
+  familyId: string;
+  createdAt: Date;
+  lastUsedAt: Date;
+  expiresAt: Date;
+  current: boolean;
+}
+
 interface SessionRow extends QueryResultRow, SessionIdentity {
   sessionId: string;
   refreshTokenHash: string;
@@ -267,6 +275,104 @@ export class AuthRepository {
         return result.rows[0] ?? null;
       },
     );
+  }
+
+  async passwordHash(identity: SessionIdentity): Promise<string> {
+    return withTenantTransaction(this.pool, identity, async (client) => {
+      const row = (
+        await client.query<{ passwordHash: string } & QueryResultRow>(
+          `select password_hash as "passwordHash"
+           from users where id=$1 and is_active=true`,
+          [identity.userId],
+        )
+      ).rows[0];
+      if (!row?.passwordHash) throw new Error("Usuario sin contraseña activa");
+      return row.passwordHash;
+    });
+  }
+
+  async changePassword(
+    identity: SessionIdentity,
+    passwordHash: string,
+  ): Promise<void> {
+    await withTenantTransaction(this.pool, identity, async (client) => {
+      const changed = await client.query(
+        `update users
+         set password_hash=$2,updated_at=now()
+         where id=$1 and is_active=true`,
+        [identity.userId, passwordHash],
+      );
+      if (changed.rowCount !== 1) throw new Error("Usuario no disponible");
+      await client.query(
+        `update auth_sessions
+         set revoked_at=coalesce(revoked_at,now()),
+             revocation_reason=coalesce(revocation_reason,'password_changed')
+         where user_id=$1 and company_id=$2 and family_id<>$3
+           and revoked_at is null`,
+        [identity.userId, identity.companyId, identity.familyId],
+      );
+      await insertAudit(client, {
+        companyId: identity.companyId,
+        actorUserId: identity.userId,
+        entityId: identity.userId,
+        action: "auth.password_changed",
+      });
+    });
+  }
+
+  async listActiveSessions(
+    identity: SessionIdentity,
+  ): Promise<ActiveSession[]> {
+    return withTenantTransaction(this.pool, identity, async (client) => {
+      const result = await client.query<
+        Omit<ActiveSession, "current"> & QueryResultRow
+      >(
+        `select family_id as "familyId",
+                min(created_at) as "createdAt",
+                max(coalesce(last_used_at,created_at)) as "lastUsedAt",
+                max(expires_at) as "expiresAt"
+         from auth_sessions
+         where user_id=$1 and company_id=$2
+           and revoked_at is null and expires_at>now()
+         group by family_id
+         order by max(coalesce(last_used_at,created_at)) desc`,
+        [identity.userId, identity.companyId],
+      );
+      return result.rows.map((row) => ({
+        ...row,
+        current: row.familyId === identity.familyId,
+      }));
+    });
+  }
+
+  async revokeOtherSessions(identity: SessionIdentity): Promise<number> {
+    return withTenantTransaction(this.pool, identity, async (client) => {
+      const families = await client.query<{ familyId: string } & QueryResultRow>(
+        `select distinct family_id as "familyId"
+         from auth_sessions
+         where user_id=$1 and company_id=$2 and family_id<>$3
+           and revoked_at is null and expires_at>now()`,
+        [identity.userId, identity.companyId, identity.familyId],
+      );
+      if (families.rowCount) {
+        await client.query(
+          `update auth_sessions
+           set revoked_at=coalesce(revoked_at,now()),
+               revocation_reason=coalesce(revocation_reason,'user_revoked')
+           where user_id=$1 and company_id=$2 and family_id<>$3
+             and revoked_at is null`,
+          [identity.userId, identity.companyId, identity.familyId],
+        );
+        await insertAudit(client, {
+          companyId: identity.companyId,
+          actorUserId: identity.userId,
+          entityId: identity.userId,
+          action: "auth.other_sessions_revoked",
+          metadata: { families: families.rowCount },
+        });
+      }
+      return families.rowCount ?? 0;
+    });
   }
 
   async logout(

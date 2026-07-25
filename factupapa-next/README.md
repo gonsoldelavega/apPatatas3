@@ -47,7 +47,7 @@ factupapa-next/
 
 - PostgreSQL: datos económicos y operativos.
 - MinIO: almacenamiento de facturas, tickets, PDF e imágenes.
-- Redis: cola de trabajo para OCR y tareas pesadas.
+- Redis: coordinación operativa y futuras tareas asíncronas.
 - API TypeScript: healthcheck, autenticación, catálogo, importaciones, albaranes, facturas y PDF.
 - Web React/TypeScript: PWA React/Vite mobile-first (actual).
 - Migrador: aplica y registra cambios de esquema con credenciales administrativas aisladas de la API.

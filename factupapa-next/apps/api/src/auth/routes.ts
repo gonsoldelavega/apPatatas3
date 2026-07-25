@@ -90,6 +90,34 @@ export function createAuthRoutes(
       json(response, 200, await auth.me(bearerToken(request)));
       return true;
     }
+    if (request.method === "GET" && url.pathname === "/auth/sessions") {
+      json(response, 200, {
+        items: await auth.activeSessions(bearerToken(request)),
+      });
+      return true;
+    }
+    if (
+      request.method === "POST" &&
+      url.pathname === "/auth/sessions/revoke-others"
+    ) {
+      json(response, 200, {
+        revoked: await auth.revokeOtherSessions(bearerToken(request)),
+      });
+      return true;
+    }
+    if (
+      request.method === "POST" &&
+      url.pathname === "/auth/change-password"
+    ) {
+      const body = await readJson(request);
+      await auth.changePassword(
+        bearerToken(request),
+        requireString(body, "currentPassword", 128),
+        requireString(body, "newPassword", 128),
+      );
+      noContent(response);
+      return true;
+    }
     return false;
   };
 }

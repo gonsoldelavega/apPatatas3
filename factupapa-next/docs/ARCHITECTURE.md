@@ -154,10 +154,10 @@ Una migración ya aplicada no se repite. Si su contenido cambia, el proceso fall
 
 ## Decisiones pendientes
 
-- Recuperación y cambio de contraseña, segundo factor y gestión de dispositivos.
+- Recuperación externa de contraseña y segundo factor. El cambio autenticado y el cierre de otras sesiones ya están disponibles.
 - Cobros, rectificativas reales y cumplimiento fiscal; albaranes y facturas iniciales ya están aislados.
 - Worker de colas y contratos de trabajos asíncronos.
-- Integración real de documentos con MinIO.
+- Archivo manual de justificantes de compra en MinIO ya disponible; falta política legal de retención para datos reales.
 - Copias, restauración, HTTPS, métricas y logs estructurados antes de cualquier uso real.
 
 ## Aislamiento multiempresa con Row-Level Security

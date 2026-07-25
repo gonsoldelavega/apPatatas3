@@ -8,12 +8,10 @@ import {
   Upload,
   PackageCheck,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
-import { financeApi } from "../api/services";
 
 type ThemeChoice = "auto" | "light" | "dark";
 
@@ -41,17 +39,6 @@ function applyTheme(theme: ThemeChoice) {
 export function MorePage() {
   const auth = useAuth();
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
-  const ocrBudget = useQuery({
-    queryKey: ["ocr-budget"],
-    queryFn: financeApi.ocrBudget,
-  });
-  const usd = (microusd: number) =>
-    new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 3,
-    }).format(microusd / 1_000_000);
   return (
     <div className="page more-page">
       <header className="page-heading">
@@ -83,7 +70,7 @@ export function MorePage() {
         <Upload />
         <div>
           <h2>Importaciones</h2>
-          <p>Valida y confirma lotes ficticios de catálogo.</p>
+          <p>Importa Excel, CSV o JSON con revisión y control de duplicados.</p>
         </div>
       </Link>
       <Link className="info-card" to="/ajustes/ventas">
@@ -91,6 +78,13 @@ export function MorePage() {
         <div>
           <h2>Facturación</h2>
           <p>Configura serie, numeración inicial, IVA y pantalla principal.</p>
+        </div>
+      </Link>
+      <Link className="info-card" to="/ajustes/seguridad">
+        <ShieldCheck />
+        <div>
+          <h2>Seguridad</h2>
+          <p>Cambia tu contraseña y revisa las sesiones abiertas.</p>
         </div>
       </Link>
       <Link className="info-card" to="/exportar">
@@ -107,21 +101,6 @@ export function MorePage() {
           <p>Existencias, valor y venta potencial.</p>
         </div>
       </Link>
-      {ocrBudget.data && (
-        <section className="info-card">
-          <ShieldCheck />
-          <div>
-            <h2>Límite del OCR con IA</h2>
-            <p>
-              {usd(ocrBudget.data.accountedMicrousd)} contabilizados de{" "}
-              {usd(ocrBudget.data.budgetMicrousd)} este mes. Intentos:{" "}
-              {ocrBudget.data.dailyAttempts}/{ocrBudget.data.dailyLimit} hoy y{" "}
-              {ocrBudget.data.monthlyAttempts}/{ocrBudget.data.monthlyLimit}{" "}
-              este mes.
-            </p>
-          </div>
-        </section>
-      )}
       <section className="info-card">
         <Moon />
         <div>
@@ -168,7 +147,7 @@ export function MorePage() {
         Cerrar sesión
       </Button>
       <p className="version">
-        FactuPapa Next · Validación ficticia · Sin datos reales
+        FactuPapa Next · Beta privada
       </p>
     </div>
   );

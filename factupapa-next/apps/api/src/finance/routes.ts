@@ -22,11 +22,10 @@ export function createFinanceRoutes(
       json(
         response,
         201,
-        await finance.uploadDocument(id, {
+        await finance.archiveDocument(id, {
           filename: body.filename,
           mimeType: body.mimeType,
           contentBase64: body.contentBase64,
-          documentId: body.documentId,
         }),
       );
       return true;
@@ -44,10 +43,6 @@ export function createFinanceRoutes(
       return true;
     }
     const id = await auth.authenticate(bearerToken(request));
-    if (url.pathname === "/finance/ocr-budget" && request.method === "GET") {
-      json(response, 200, await finance.ocrBudgetStatus(id));
-      return true;
-    }
     if (url.pathname === "/finance/summary" && request.method === "GET") {
       json(response, 200, await finance.summary(id, financeRange(url)));
       return true;

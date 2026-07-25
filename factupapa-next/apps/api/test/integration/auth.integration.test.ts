@@ -629,6 +629,89 @@ test("autenticación conserva login, rotación, reutilización, logout y /me", a
     },
   );
 
+  await context.test(
+    "el usuario revisa sesiones, cierra las demás y cambia su contraseña",
+    async () => {
+      const current = await login();
+      const other = await login();
+      const listed = await jsonRequest(
+        "/auth/sessions",
+        undefined,
+        current.accessToken,
+      );
+      assert.equal(listed.status, 200);
+      const payload = (await listed.json()) as {
+        items: Array<{ current: boolean }>;
+      };
+      assert.ok(payload.items.length >= 2);
+      assert.equal(
+        payload.items.filter((session) => session.current).length,
+        1,
+      );
+
+      const revoked = await jsonRequest(
+        "/auth/sessions/revoke-others",
+        {},
+        current.accessToken,
+      );
+      assert.equal(revoked.status, 200);
+      assert.ok(((await revoked.json()) as { revoked: number }).revoked >= 1);
+      assert.equal(
+        (await jsonRequest("/me", undefined, current.accessToken)).status,
+        200,
+      );
+      assert.equal(
+        (await jsonRequest("/me", undefined, other.accessToken)).status,
+        401,
+      );
+
+      assert.equal(
+        (
+          await jsonRequest(
+            "/auth/change-password",
+            {
+              currentPassword: "incorrect-current-password",
+              newPassword: "new-integration-password-2026",
+            },
+            current.accessToken,
+          )
+        ).status,
+        400,
+      );
+      assert.equal(
+        (
+          await jsonRequest(
+            "/auth/change-password",
+            {
+              currentPassword: "integration-password-2026",
+              newPassword: "new-integration-password-2026",
+            },
+            current.accessToken,
+          )
+        ).status,
+        204,
+      );
+      assert.equal(
+        (
+          await jsonRequest("/auth/login", {
+            email: "owner@example.test",
+            password: "integration-password-2026",
+          })
+        ).status,
+        401,
+      );
+      assert.equal(
+        (
+          await jsonRequest("/auth/login", {
+            email: "owner@example.test",
+            password: "new-integration-password-2026",
+          })
+        ).status,
+        200,
+      );
+    },
+  );
+
   await context.test("rate limiting básico sigue activo", async () => {
     for (let attempt = 1; attempt <= 6; attempt += 1) {
       const response = await jsonRequest("/auth/login", {
@@ -654,6 +737,8 @@ test("autenticación conserva login, rotación, reutilización, logout y /me", a
         "auth.refresh_succeeded",
         "auth.refresh_reuse_detected",
         "auth.logout_succeeded",
+        "auth.other_sessions_revoked",
+        "auth.password_changed",
       ]) {
         assert.ok(
           result.rows.some((row) => row.action === action),

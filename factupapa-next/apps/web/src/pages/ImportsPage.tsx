@@ -10,6 +10,7 @@ import type {
   ImportStrategy,
 } from "../api/types";
 import { ImportReview } from "../imports/ImportReview";
+import { spreadsheetFileToCsv } from "../imports/spreadsheet";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { SelectField } from "../ui/SelectField";
@@ -148,19 +149,35 @@ export function ImportsPage() {
     reset();
     if (!selected) return;
     const extension = selected.name.toLowerCase().split(".").pop();
-    if (extension !== "csv" && extension !== "json") {
-      setFileError("Selecciona un archivo CSV o JSON.");
+    if (!new Set(["csv", "json", "xlsx"]).has(extension ?? "")) {
+      setFileError("Selecciona un archivo Excel, CSV o JSON.");
       return;
     }
-    if (selected.size > 1_048_576) {
-      setFileError("El archivo supera el límite actual de 1 MB.");
+    const maximumSize = extension === "xlsx" ? 5_242_880 : 1_048_576;
+    if (selected.size > maximumSize) {
+      setFileError(
+        extension === "xlsx"
+          ? "El archivo Excel supera el límite de 5 MB."
+          : "El archivo supera el límite actual de 1 MB.",
+      );
       return;
     }
     try {
       setFile(selected);
-      setContent(await selected.text());
-    } catch {
-      setFileError("No se ha podido leer el archivo local.");
+      const parsed =
+        extension === "xlsx"
+          ? await spreadsheetFileToCsv(selected)
+          : await selected.text();
+      if (new Blob([parsed]).size > 1_048_576)
+        throw new Error("La hoja convertida supera 1 MB.");
+      setContent(parsed);
+    } catch (error) {
+      setFile(null);
+      setFileError(
+        error instanceof Error && error.message
+          ? error.message
+          : "No se ha podido leer el archivo local.",
+      );
     }
   }
   function chooseTemplate(id: string) {
@@ -226,7 +243,9 @@ export function ImportsPage() {
             onClick={() => fileRef.current?.click()}
           >
             <FileUp />
-            <strong>{file ? file.name : "Seleccionar CSV o JSON"}</strong>
+            <strong>
+              {file ? file.name : "Seleccionar Excel, CSV o JSON"}
+            </strong>
             <span>
               {file
                 ? `${(file.size / 1024).toFixed(1)} KB`
@@ -237,8 +256,8 @@ export function ImportsPage() {
             ref={fileRef}
             className="sr-only"
             type="file"
-            aria-label="Seleccionar archivo CSV o JSON"
-            accept=".csv,.json,text/csv,application/json"
+            aria-label="Seleccionar archivo Excel, CSV o JSON"
+            accept=".xlsx,.csv,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) => void chooseFile(event.target.files?.[0])}
           />
           {fileError && (
@@ -254,7 +273,8 @@ export function ImportsPage() {
             Detectar columnas
           </Button>
           <p className="security-note">
-            No se ejecutan fórmulas ni contenido del archivo.
+            Se usa la primera hoja del Excel. No se ejecutan fórmulas ni
+            macros.
           </p>
         </section>
       )}
