@@ -36,11 +36,11 @@ function createDraftLine(): DraftSalesLine {
   return {
     clientId: crypto.randomUUID(),
     productId: "",
-    quantity: "1",
+    quantity: "",
     unitPrice: "",
     priceEdited: false,
     entryMode: "quantity",
-    packageQuantity: "1",
+    packageQuantity: "",
   };
 }
 
@@ -50,7 +50,7 @@ export function SalesFormPage() {
     invoice = kind === "factura",
     nav = useNavigate(),
     [searchParams] = useSearchParams(),
-    [contactId, setContactId] = useState(()=>searchParams.get("contactId") ?? ""),
+    [contactId, setContactId] = useState(() => searchParams.get("contactId") ?? ""),
     [lines, setLines] = useState<DraftSalesLine[]>(() => [createDraftLine()]),
     [series, setSeries] = useState("A"),
     [issueDate, setIssueDate] = useState(todayLocal()),
@@ -83,23 +83,55 @@ export function SalesFormPage() {
     prefix =
       prefs.data?.numberingMode === "live" ? prefs.data.invoicePrefix : "TEST";
   const draftKey = `factupapa:sales-draft:${user?.company.id ?? "unknown"}:${user?.id ?? "unknown"}:${invoice ? "invoice" : "delivery"}`;
-  useEffect(()=>{
-    const saved=localStorage.getItem(draftKey);
-    if(!saved) return;
+  useEffect(() => {
+    const saved = localStorage.getItem(draftKey);
+    if (!saved) return;
     try {
-      const d=JSON.parse(saved) as Partial<{contactId:string;lines:DraftSalesLine[];issueDate:string;start:string;end:string;due:string;terms:string;info:string;includeTerms:boolean}>;
-      if(d.contactId)setContactId(d.contactId); if(d.lines?.length)setLines(d.lines);
-      if(d.issueDate)setIssueDate(d.issueDate); if(d.start)setStart(d.start); if(d.end)setEnd(d.end);
-      if(d.due)setDue(d.due); if(d.terms)setTerms(d.terms); if(d.info)setInfo(d.info);
-      if(typeof d.includeTerms==="boolean")setIncludeTerms(d.includeTerms);
-    } catch { localStorage.removeItem(draftKey); }
-  },[draftKey]);
-  useEffect(()=>{
-    const timer=window.setTimeout(()=>localStorage.setItem(draftKey,JSON.stringify({
-      contactId,lines,issueDate,start,end,due,terms,info,includeTerms
-    })),250);
-    return()=>window.clearTimeout(timer);
-  },[contactId,lines,issueDate,start,end,due,terms,info,includeTerms,draftKey]);
+      const d = JSON.parse(saved) as Partial<{
+        contactId: string;
+        lines: DraftSalesLine[];
+        issueDate: string;
+        start: string;
+        end: string;
+        due: string;
+        terms: string;
+        info: string;
+        includeTerms: boolean;
+      }>;
+      if (d.contactId) setContactId(d.contactId);
+      if (d.lines?.length) setLines(d.lines);
+      if (d.issueDate) setIssueDate(d.issueDate);
+      if (d.start) setStart(d.start);
+      if (d.end) setEnd(d.end);
+      if (d.due) setDue(d.due);
+      if (d.terms) setTerms(d.terms);
+      if (d.info) setInfo(d.info);
+      if (typeof d.includeTerms === "boolean") setIncludeTerms(d.includeTerms);
+    } catch {
+      localStorage.removeItem(draftKey);
+    }
+  }, [draftKey]);
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () =>
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            contactId,
+            lines,
+            issueDate,
+            start,
+            end,
+            due,
+            terms,
+            info,
+            includeTerms,
+          }),
+        ),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [contactId, lines, issueDate, start, end, due, terms, info, includeTerms, draftKey]);
   const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
   useEffect(() => {
     if (!invoice) return;
@@ -182,10 +214,24 @@ export function SalesFormPage() {
       nav(`/ventas/${invoice ? "facturas" : "albaranes"}/${d.id}`);
     },
   });
+  const invalidLine = lines.some((line) => {
+    const amount = Number(
+      (line.entryMode === "packages" ? line.packageQuantity : line.quantity).replace(",", "."),
+    );
+    const price = Number(line.unitPrice.replace(",", "."));
+    return (
+      !line.productId ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !line.unitPrice ||
+      !Number.isFinite(price) ||
+      price < 0
+    );
+  });
   return (
     <div className="page form-page sales-form-page">
       <header className="form-page__header">
-        <Link className="icon-button" to="/ventas">
+        <Link className="icon-button" to="/ventas" aria-label="Volver a facturas">
           <ArrowLeft />
         </Link>
         <h1>{invoice ? "Nueva factura" : "Nuevo albarán"}</h1>
@@ -235,6 +281,7 @@ export function SalesFormPage() {
             type="date"
             value={issueDate}
             onChange={(e) => setIssueDate(e.target.value)}
+            required
           />
         </section>
         {invoice && (
@@ -334,6 +381,7 @@ export function SalesFormPage() {
                     {x}
                     <button
                       type="button"
+                      aria-label={`Eliminar fecha de entrega ${x}`}
                       onClick={() =>
                         setDeliveryDates((dates) =>
                           dates.filter((date) => date !== x),
@@ -364,7 +412,7 @@ export function SalesFormPage() {
               quantity = line.entryMode === "packages" && selected?.unitsPerPackage
                 ? String(Number(line.packageQuantity.replace(",", ".")) * Number(selected.unitsPerPackage))
                 : line.quantity.replace(",", "."),
-              packaging = hasPackaging
+              packaging = hasPackaging && quantity && Number.isFinite(Number(quantity))
                 ? `${line.entryMode === "packages" ? line.packageQuantity : formatQuantity(String(Number(quantity) / Number(selected?.unitsPerPackage)))} ${selected?.packageLabel ?? "envases"} · ${formatQuantity(quantity)} ${selected?.unit}`
                 : bagLabel(quantity, selected?.unit ?? "");
             return (
@@ -461,15 +509,16 @@ export function SalesFormPage() {
             <Plus /> Añadir producto
           </button>
         </section>
+        {save.isError && (
+          <div className="form-alert" role="alert">
+            No se pudo guardar el borrador. Revisa cliente, cantidades y precios e inténtalo de nuevo.
+          </div>
+        )}
         <Button
           type="submit"
           icon={<Save />}
           busy={save.isPending}
-          disabled={!contactId || lines.some((line) => !line.productId ||
-            (line.entryMode === "packages"
-              ? !line.packageQuantity || Number(line.packageQuantity.replace(",", ".")) <= 0
-              : !line.quantity || Number(line.quantity.replace(",", ".")) <= 0) ||
-            !line.unitPrice || Number(line.unitPrice.replace(",", ".")) < 0)}
+          disabled={!contactId || !issueDate || invalidLine}
         >
           {invoice ? "Revisar factura" : "Crear albarán"}
         </Button>
