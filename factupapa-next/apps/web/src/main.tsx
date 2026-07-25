@@ -9,6 +9,7 @@ import { ToastProvider } from "./ui/ToastProvider";
 import "./styles.css";
 import "./navigation.css";
 import "./integrations.css";
+import "./verde-tinta.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
