@@ -1,72 +1,36 @@
 import {
-  ContactRound,
+  Boxes,
   Home,
   MoreHorizontal,
-  Plus,
   ReceiptText,
+  ShoppingBag,
 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { NewMenu } from "./NewMenu";
+import { NavLink } from "react-router-dom";
 
 const items = [
-  { to: "/", label: "Inicio", icon: Home },
-  { to: "/ventas", label: "Ventas", icon: ReceiptText },
-  { to: "/catalogo/contactos", label: "Contactos", icon: ContactRound },
-  { to: "/mas", label: "Más", icon: MoreHorizontal },
-];
+  { to: "/", label: "Inicio", icon: Home, end: true },
+  { to: "/ventas", label: "Facturas", icon: ReceiptText },
+  { to: "/gastos", label: "Gastos", icon: ShoppingBag },
+  { to: "/catalogo/productos", label: "Productos", icon: Boxes },
+  { to: "/mas", label: "Otros", icon: MoreHorizontal },
+] as const;
 
 export function BottomNav() {
-  const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   return (
-    <>
-      <nav className="bottom-nav" aria-label="Navegación principal">
-        {items.slice(0, 2).map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            className={({ isActive }) =>
-              isActive ? "nav-item nav-item--active" : "nav-item"
-            }
-          >
-            <Icon size={21} aria-hidden="true" />
-            <span>{label}</span>
-          </NavLink>
-        ))}
-        <button
-          className="nav-new"
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-haspopup="dialog"
+    <nav className="bottom-nav" aria-label="Navegación principal">
+      {items.map(({ to, label, icon: Icon, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) =>
+            isActive ? "nav-item nav-item--active" : "nav-item"
+          }
         >
-          <span>
-            <Plus size={26} aria-hidden="true" />
-          </span>
-          <small>Nuevo</small>
-        </button>
-        {items.slice(2).map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              isActive ? "nav-item nav-item--active" : "nav-item"
-            }
-          >
-            <Icon size={21} aria-hidden="true" />
-            <span>{label}</span>
-          </NavLink>
-        ))}
-      </nav>
-      <NewMenu
-        open={open}
-        onClose={() => setOpen(false)}
-        onChoose={(path) => {
-          setOpen(false);
-          navigate(path);
-        }}
-      />
-    </>
+          <Icon size={21} aria-hidden="true" />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
   );
 }
