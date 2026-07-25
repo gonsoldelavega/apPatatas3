@@ -9,10 +9,15 @@ import { NavLink } from "react-router-dom";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home, end: true },
-  { to: "/ventas", label: "Facturas", icon: ReceiptText },
-  { to: "/gastos", label: "Gastos", icon: ShoppingBag },
-  { to: "/catalogo/productos", label: "Productos", icon: Boxes },
-  { to: "/mas", label: "Otros", icon: MoreHorizontal },
+  { to: "/ventas", label: "Facturas", icon: ReceiptText, end: false },
+  { to: "/gastos", label: "Gastos", icon: ShoppingBag, end: false },
+  {
+    to: "/catalogo/productos",
+    label: "Productos",
+    icon: Boxes,
+    end: false,
+  },
+  { to: "/mas", label: "Otros", icon: MoreHorizontal, end: false },
 ] as const;
 
 export function BottomNav() {
