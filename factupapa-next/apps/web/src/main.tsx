@@ -10,6 +10,7 @@ import "./styles.css";
 import "./navigation.css";
 import "./integrations.css";
 import "./verde-tinta.css";
+import "./factupapa-premium.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
