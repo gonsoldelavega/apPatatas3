@@ -1,6 +1,41 @@
-import { expect, test, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 const email = process.env.DEMO_USER_EMAIL ?? "demo@example.test";
 const password = process.env.DEMO_USER_PASSWORD ?? "Demo-password-only-1234";
+const apiUrl = process.env.API_URL ?? "http://127.0.0.1:4100";
+const webOrigin = new URL(
+  process.env.WEB_URL ?? "http://127.0.0.1:4173",
+).origin;
+
+async function apiLogin(
+  request: APIRequestContext,
+  candidatePassword: string,
+) {
+  return request.post(`${apiUrl}/auth/login`, {
+    headers: { Origin: webOrigin },
+    data: { email, password: candidatePassword },
+  });
+}
+
+async function changePasswordThroughApi(
+  request: APIRequestContext,
+  accessToken: string,
+  currentPassword: string,
+  newPassword: string,
+) {
+  return request.post(`${apiUrl}/auth/change-password`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Origin: webOrigin,
+    },
+    data: { currentPassword, newPassword },
+  });
+}
+
 async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
@@ -341,31 +376,69 @@ test("nueva compra: subida, revisión y guardado bloqueado sin datos", async ({
 
 test("seguridad permite cambiar contraseña y cerrar otras sesiones", async ({
   page,
+  request,
 }, testInfo) => {
+  const nextPassword = "Nueva-segura-auditoria-2026";
+  const priorAttempt = await apiLogin(request, nextPassword);
+  if (priorAttempt.ok()) {
+    const { accessToken } = (await priorAttempt.json()) as {
+      accessToken: string;
+    };
+    expect(
+      (
+        await changePasswordThroughApi(
+          request,
+          accessToken,
+          nextPassword,
+          password,
+        )
+      ).status(),
+    ).toBe(204);
+  }
+
   await login(page);
+  expect((await apiLogin(request, password)).status()).toBe(200);
   await page.goto("/ajustes/seguridad");
   await expect(page.getByRole("heading", { name: "Seguridad" })).toBeVisible();
   await expect(page.getByText("Este dispositivo")).toBeVisible();
   await expect(page.getByText("Otra sesión")).toBeVisible();
-  await page.getByLabel("Contraseña actual").fill("actual-muy-segura");
-  await page.getByLabel("Nueva contraseña").fill("nueva-muy-segura-2026");
   await page
-    .getByLabel("Repite la nueva contraseña")
-    .fill("nueva-muy-segura-2026");
+    .getByRole("button", { name: "Cerrar las demás sesiones" })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    /Sesiones cerradas: [1-9]\d*/,
+  );
+
+  expect((await apiLogin(request, password)).status()).toBe(200);
+  await page.getByLabel("Contraseña actual").fill(password);
+  await page.getByLabel("Nueva contraseña").fill(nextPassword);
+  await page.getByLabel("Repite la nueva contraseña").fill(nextPassword);
   await page
     .getByRole("button", { name: "Guardar nueva contraseña" })
     .click();
   await expect(page.getByRole("status")).toContainText(
     "Contraseña actualizada",
   );
-  await page
-    .getByRole("button", { name: "Cerrar las demás sesiones" })
-    .click();
-  await expect(page.getByRole("status")).toContainText("Sesiones cerradas: 1");
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-seguridad.png`,
     fullPage: true,
   });
+
+  const changedLogin = await apiLogin(request, nextPassword);
+  expect(changedLogin.status()).toBe(200);
+  const { accessToken } = (await changedLogin.json()) as {
+    accessToken: string;
+  };
+  expect(
+    (
+      await changePasswordThroughApi(
+        request,
+        accessToken,
+        nextPassword,
+        password,
+      )
+    ).status(),
+  ).toBe(204);
 });
 
 test("una compra se puede confirmar y cancelar con respuesta visible", async ({
