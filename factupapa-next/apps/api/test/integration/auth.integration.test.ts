@@ -632,6 +632,27 @@ test("autenticación conserva login, rotación, reutilización, logout y /me", a
   await context.test(
     "el usuario revisa sesiones, cierra las demás y cambia su contraseña",
     async () => {
+      const privileges = await adminDatabase.pool.query<{
+        canChangeOwnPassword: boolean;
+        canDeactivateUser: boolean;
+      }>(
+        `select
+           has_column_privilege(
+             'factupapa_api',
+             'public.users',
+             'password_hash',
+             'update'
+           ) as "canChangeOwnPassword",
+           has_column_privilege(
+             'factupapa_api',
+             'public.users',
+             'is_active',
+             'update'
+           ) as "canDeactivateUser"`,
+      );
+      assert.equal(privileges.rows[0]?.canChangeOwnPassword, true);
+      assert.equal(privileges.rows[0]?.canDeactivateUser, false);
+
       const current = await login();
       const other = await login();
       const listed = await jsonRequest(
