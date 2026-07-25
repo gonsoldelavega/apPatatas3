@@ -7,7 +7,6 @@ import type { SalesPreferences } from "../api/types";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { LoadingScreen } from "../ui/LoadingScreen";
-import { SelectField } from "../ui/SelectField";
 import { useToast } from "../ui/ToastProvider";
 import { formatQuantity } from "../utils/format";
 
@@ -28,26 +27,32 @@ export function SalesSettingsPage() {
     queryFn: salesPreferencesApi.get,
   });
   const [form, setForm] = useState<SalesPreferences>(defaults);
-  const [last, setLast] = useState(""),
-    [confirmation, setConfirmation] = useState("");
+  const [last, setLast] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+
   useEffect(() => {
-    if (preferences.data)
-      setForm({
-        ...preferences.data,
-        defaultTaxRate: formatQuantity(preferences.data.defaultTaxRate),
-      });
+    if (!preferences.data) return;
+    setForm({
+      ...preferences.data,
+      primarySalesFlow: "invoices",
+      defaultTaxRate: formatQuantity(preferences.data.defaultTaxRate),
+    });
   }, [preferences.data]);
+
   const save = useMutation({
-    mutationFn: () => salesPreferencesApi.update(form),
+    mutationFn: () =>
+      salesPreferencesApi.update({ ...form, primarySalesFlow: "invoices" }),
     onSuccess: async (saved) => {
       setForm({
         ...saved,
+        primarySalesFlow: "invoices",
         defaultTaxRate: formatQuantity(saved.defaultTaxRate),
       });
       await queryClient.invalidateQueries({ queryKey: ["sales-preferences"] });
       toast.show("Ajustes de facturación guardados");
     },
   });
+
   const activate = useMutation({
     mutationFn: () =>
       salesPreferencesApi.activateNumbering({
@@ -56,10 +61,14 @@ export function SalesSettingsPage() {
         year: new Date().getFullYear(),
         confirmation,
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["sales-preferences"] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["sales-preferences"] });
+      toast.show("Numeración real activada");
+    },
   });
+
   if (preferences.isLoading) return <LoadingScreen label="Cargando ajustes" />;
+
   return (
     <div className="page form-page">
       <header className="form-page__header">
@@ -71,6 +80,7 @@ export function SalesSettingsPage() {
           <h1>Facturación</h1>
         </div>
       </header>
+
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -124,22 +134,16 @@ export function SalesSettingsPage() {
             }
             required
           />
-          <SelectField
-            label="Flujo principal"
-            value={form.primarySalesFlow}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                primarySalesFlow: event.target
-                  .value as SalesPreferences["primarySalesFlow"],
-              })
-            }
-          >
-            <option value="invoices">Facturas directas</option>
-            <option value="adaptive">Adaptar según mi uso</option>
-            <option value="delivery_notes">Albaranes</option>
-          </SelectField>
+          <div className="automatic-number">
+            <span>Flujo comercial</span>
+            <strong>Facturas directas</strong>
+            <small>
+              Los albaranes solo se muestran cuando existe alguno pendiente de
+              facturar.
+            </small>
+          </div>
         </section>
+
         <section className="form-card">
           <h2>Puesta en marcha definitiva</h2>
           {form.numberingMode === "live" ? (
@@ -153,13 +157,15 @@ export function SalesSettingsPage() {
               <Field
                 label="Último número emitido"
                 type="number"
+                min="0"
+                step="1"
                 value={last}
-                onChange={(e) => setLast(e.target.value)}
+                onChange={(event) => setLast(event.target.value)}
               />
               <Field
                 label='Escribe "ACTIVAR NUMERACION REAL"'
                 value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
+                onChange={(event) => setConfirmation(event.target.value)}
               />
               <Button
                 type="button"
@@ -170,9 +176,16 @@ export function SalesSettingsPage() {
               >
                 Activar numeración real
               </Button>
+              {activate.isError && (
+                <div className="form-alert" role="alert">
+                  No se pudo activar la numeración real. Comprueba el último
+                  número y vuelve a intentarlo.
+                </div>
+              )}
             </>
           )}
         </section>
+
         {save.isError && (
           <div className="form-alert" role="alert">
             No se pudieron guardar los ajustes. Si la numeración ya comenzó, el
