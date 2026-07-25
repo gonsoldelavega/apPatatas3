@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
+  Camera,
   CircleAlert,
   FileText,
   Package,
@@ -257,13 +258,20 @@ export function DashboardPage() {
       )}
 
       <section className="dashboard-actions" aria-label="Acciones principales">
-        <Link className="dashboard-action dashboard-action--primary" to="/ventas/nuevo/factura">
-          <Plus aria-hidden="true" />
-          <span><strong>Nueva factura</strong><small>Crear y emitir</small></span>
-          <ArrowRight aria-hidden="true" />
-        </Link>
+        <div className="dashboard-actions__featured">
+          <Link className="dashboard-action dashboard-action--primary" to="/ventas/nuevo/factura">
+            <Plus aria-hidden="true" />
+            <span><strong>Nueva factura</strong><small>Crear y emitir</small></span>
+            <ArrowRight aria-hidden="true" />
+          </Link>
+          <Link className="dashboard-action dashboard-action--capture" to="/gastos/nuevo?captura=1">
+            <Camera aria-hidden="true" />
+            <span><strong>Fotografiar compra</strong><small>Subir factura y revisar datos</small></span>
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </div>
         <div className="dashboard-actions__secondary">
-          <Link to="/gastos/nuevo"><ShoppingBag aria-hidden="true" /><span>Compra</span></Link>
+          <Link to="/gastos/nuevo"><ShoppingBag aria-hidden="true" /><span>Compra manual</span></Link>
           <Link to="/ventas"><ReceiptText aria-hidden="true" /><span>Cobros</span></Link>
         </div>
       </section>
