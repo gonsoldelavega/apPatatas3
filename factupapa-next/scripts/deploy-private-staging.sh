@@ -17,8 +17,6 @@ esac
 
 : "${FACTUPAPA_OWN_TAX_IDS:?FACTUPAPA_OWN_TAX_IDS secret is required}"
 : "${FACTUPAPA_ANTHROPIC_API_KEY:?FACTUPAPA_ANTHROPIC_API_KEY secret is required}"
-: "${FACTUPAPA_STAGING_EMAIL:?FACTUPAPA_STAGING_EMAIL secret is required}"
-: "${FACTUPAPA_STAGING_PASSWORD:?FACTUPAPA_STAGING_PASSWORD secret is required}"
 
 upsert_private_environment_value() {
   local key="$1"
@@ -115,28 +113,6 @@ for service in postgres redis minio api web; do
   done
   test "${healthy}" = "healthy"
 done
-
-echo "Actualizando acceso ficticio del staging"
-APP_ENV=integration \
-  DEMO_USER_EMAIL="${FACTUPAPA_STAGING_EMAIL}" \
-  DEMO_USER_PASSWORD="${FACTUPAPA_STAGING_PASSWORD}" \
-  docker compose --profile tools run --build --rm \
-    -e APP_ENV -e DEMO_USER_EMAIL -e DEMO_USER_PASSWORD seed >/dev/null
-
-login_payload="$(
-  node -e 'process.stdout.write(JSON.stringify({email: process.env.FACTUPAPA_STAGING_EMAIL, password: process.env.FACTUPAPA_STAGING_PASSWORD}))'
-)"
-staging_origin="$(
-  node -e 'process.stdout.write((process.env.CORS_ALLOWED_ORIGINS || "").split(",")[0].trim())'
-)"
-test -n "${staging_origin}" || { echo "CORS_ALLOWED_ORIGINS no contiene un origen de staging" >&2; exit 1; }
-test "$(
-  curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-    --header 'Content-Type: application/json' \
-    --header "Origin: ${staging_origin}" \
-    --data-binary @- http://127.0.0.1:14100/auth/login <<<"${login_payload}"
-)" = "200"
-unset FACTUPAPA_STAGING_EMAIL FACTUPAPA_STAGING_PASSWORD login_payload staging_origin
 
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/health)" = "200"
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/ready)" = "200"
