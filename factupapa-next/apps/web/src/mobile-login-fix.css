@@ -1,0 +1,127 @@
+/* Compact mobile login layout: keeps the full form readable above the fold. */
+@media (max-width: 719px) {
+  .login-page--product {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  .login-product {
+    min-height: auto;
+    padding: calc(18px + env(safe-area-inset-top)) 20px 24px;
+  }
+
+  .login-product__topline {
+    gap: 10px;
+  }
+
+  .login-product__logo {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+  }
+
+  .login-product__topline strong {
+    font-size: 1.25rem;
+  }
+
+  .login-product__topline > span:last-child {
+    display: none;
+  }
+
+  .login-product__message {
+    margin-top: 34px;
+  }
+
+  .login-product__message .eyebrow {
+    margin-bottom: 10px;
+    font-size: 0.66rem;
+  }
+
+  .login-product__message h1 {
+    max-width: 100%;
+    margin-bottom: 12px;
+    font-size: clamp(2.35rem, 12vw, 3.25rem);
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+    overflow-wrap: anywhere;
+  }
+
+  .login-product__message > p:last-child {
+    display: -webkit-box;
+    margin-bottom: 0;
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .login-product__trust {
+    display: none;
+  }
+
+  .login-card--product {
+    flex: 1;
+    margin-top: -1px;
+    padding: 24px 22px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+  }
+
+  .login-card--product header {
+    margin-bottom: 18px;
+  }
+
+  .login-card--product header h2 {
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  .login-card--product header p:last-child {
+    margin-bottom: 0;
+    font-size: 0.95rem;
+  }
+
+  .login-card--product .field {
+    margin-bottom: 13px;
+  }
+
+  .login-card--product .field input {
+    min-height: 54px;
+    font-size: 1rem;
+  }
+
+  .login-card--product .button {
+    min-height: 54px;
+    margin-top: 2px;
+  }
+
+  .login-card--product .security-note {
+    margin-top: 14px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 390px), (max-height: 760px) {
+  .login-product {
+    padding-bottom: 18px;
+  }
+
+  .login-product__message {
+    margin-top: 22px;
+  }
+
+  .login-product__message h1 {
+    font-size: clamp(2rem, 11vw, 2.7rem);
+  }
+
+  .login-product__message > p:last-child {
+    display: none;
+  }
+
+  .login-card--product {
+    padding-top: 20px;
+  }
+}
