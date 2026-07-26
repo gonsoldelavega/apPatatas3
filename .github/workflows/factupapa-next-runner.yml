@@ -135,3 +135,13 @@ jobs:
           FACTUPAPA_OWN_TAX_IDS: ${{ secrets.FACTUPAPA_OWN_TAX_IDS }}
           FACTUPAPA_ANTHROPIC_API_KEY: ${{ secrets.FACTUPAPA_ANTHROPIC_API_KEY }}
         run: factupapa-next/scripts/deploy-private-staging.sh
+
+      - name: Import private legacy backup
+        if: >-
+          success() &&
+          github.event_name == 'push' &&
+          contains(github.event.head_commit.message, '[import-legacy]')
+        shell: bash
+        env:
+          IMPORT_USER_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
+        run: factupapa-next/scripts/import-private-legacy.sh "${GITHUB_WORKSPACE}"
