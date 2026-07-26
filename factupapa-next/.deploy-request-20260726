@@ -1,2 +1,3 @@
 Deploy the exact audited branch head to private staging.
-Requested: 2026-07-26
+Requested: 2026-07-26 18:20 Europe/Madrid
+Reason: trigger path-filtered audit, staging deploy, and private legacy import.
