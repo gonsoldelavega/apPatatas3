@@ -1,3 +1,4 @@
 Deploy the exact audited branch head to private staging.
-Requested: 2026-07-26 18:20 Europe/Madrid
-Reason: trigger path-filtered audit, staging deploy, and private legacy import.
+Requested: 2026-07-26 18:39 Europe/Madrid
+Reason: deploy compact mobile login layout.
+Target: ac01350f715a610b98a6cb672761ac0cc4909560
