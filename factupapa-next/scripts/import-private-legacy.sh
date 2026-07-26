@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+backup_file="${HOME}/private-import/legacy-backup.json"
+environment_file="${HOME}/staging/repo/factupapa-next/infrastructure/.env"
+override_file="${HOME}/staging/docker-compose.staging.yml"
+repository="${1:-${GITHUB_WORKSPACE:-}}"
+owner_email="${IMPORT_USER_EMAIL:-}"
+
+[ -n "${repository}" ] || { echo "Indica la ruta del repositorio desplegable" >&2; exit 1; }
+[ -n "${owner_email}" ] || { echo "Define IMPORT_USER_EMAIL" >&2; exit 1; }
+[ -f "${backup_file}" ] || { echo "No existe ${backup_file}" >&2; exit 1; }
+[ "$(stat -c '%a' "${backup_file}")" = "600" ] || { echo "El backup debe tener permisos 600" >&2; exit 1; }
+[ -f "${environment_file}" ] || { echo "No existe el entorno privado persistente" >&2; exit 1; }
+[ -f "${override_file}" ] || { echo "No existe el override de staging" >&2; exit 1; }
+[ -f "${repository}/factupapa-next/infrastructure/docker-compose.yml" ] || { echo "Repositorio no válido" >&2; exit 1; }
+
+export COMPOSE_PROJECT_NAME=factupapa_staging
+export COMPOSE_FILE="${repository}/factupapa-next/infrastructure/docker-compose.yml:${override_file}"
+set -a
+# shellcheck disable=SC1090
+source "${environment_file}"
+set +a
+
+run_import() {
+  docker compose --profile tools run --build --rm \
+    -v "${backup_file}:/private/legacy-backup.json:ro" \
+    -e LEGACY_BACKUP_FILE=/private/legacy-backup.json \
+    -e IMPORT_USER_EMAIL="${owner_email}" \
+    "$@" \
+    bootstrap npm run import:legacy:prod
+}
+
+echo "Validando copia histórica en modo simulación"
+run_import
+
+echo "Aplicando copia histórica idempotente"
+run_import -e LEGACY_IMPORT_APPLY=1
+
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/ready)" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14173/healthz)" = "200"
+echo "Importación histórica terminada y staging sano"
