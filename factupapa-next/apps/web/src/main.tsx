@@ -14,6 +14,7 @@ import "./factupapa-premium.css";
 import "./premium-dashboard.css";
 import "./purchase-capture-access.css";
 import "./more-page-refinement.css";
+import "./mobile-login-fix.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
