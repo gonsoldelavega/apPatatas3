@@ -18,12 +18,12 @@ describe("interfaz web", () => {
   it("muestra login con labels, contraseña visible bajo control y error de validación", async () => {
     const user = userEvent.setup();
     render(wrapper(<AuthProvider><Routes><Route path="*" element={<LoginPage />} /></Routes></AuthProvider>));
-    expect(await screen.findByRole("heading", { name: "Bienvenido de nuevo" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Hola de nuevo" })).toBeInTheDocument();
     const password = screen.getByLabelText("Contraseña");
     expect(password).toHaveAttribute("type", "password");
     await user.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
     expect(password).toHaveAttribute("type", "text");
-    await user.click(screen.getByRole("button", { name: "Entrar en FactuPapa" }));
+    await user.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByText("Introduce un email válido")).toBeInTheDocument();
   });
 
