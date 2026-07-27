@@ -5,6 +5,7 @@ import {
   AuthRepository,
   type ActiveSession,
   type SessionIdentity,
+  type UserContext,
 } from "./repository.js";
 import {
   createRefreshToken,
@@ -20,8 +21,9 @@ export class AuthError extends Error {
       | "invalid_refresh_token"
       | "invalid_current_password"
       | "invalid_new_password"
+      | "google_account_not_authorized"
       | "unauthorized",
-    readonly status: 400 | 401 | 429,
+    readonly status: 400 | 401 | 403 | 429,
   ) {
     super(code);
   }
@@ -48,6 +50,7 @@ export interface AuthApplication {
     password: string,
     rateLimitKey: string,
   ): Promise<AuthTokens>;
+  googleLogin?(email: string): Promise<AuthTokens>;
   refresh(refreshToken: string): Promise<AuthTokens>;
   authenticate(accessToken: string): Promise<SessionIdentity>;
   logout(refreshToken: string): Promise<void>;
@@ -103,6 +106,16 @@ export class AuthService implements AuthApplication {
     };
   }
 
+  private async createSession(user: UserContext): Promise<AuthTokens> {
+    const refreshToken = createRefreshToken();
+    const identity = await this.repository.createLoginSession(
+      user,
+      hashRefreshToken(refreshToken),
+      new Date(Date.now() + this.refreshTokenTtlMs),
+    );
+    return this.issueTokens(identity, refreshToken);
+  }
+
   async login(
     email: string,
     password: string,
@@ -132,13 +145,23 @@ export class AuthService implements AuthApplication {
     }
 
     this.rateLimiter.reset(rateLimitKey);
-    const refreshToken = createRefreshToken();
-    const identity = await this.repository.createLoginSession(
-      user,
-      hashRefreshToken(refreshToken),
-      new Date(Date.now() + this.refreshTokenTtlMs),
-    );
-    return this.issueTokens(identity, refreshToken);
+    return this.createSession(user);
+  }
+
+  async googleLogin(email: string): Promise<AuthTokens> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.repository.findUserByEmail(normalizedEmail);
+    if (!user) {
+      const auditEntityId = createHash("sha256")
+        .update(normalizedEmail)
+        .digest("hex");
+      await this.repository.recordLoginFailure(
+        auditEntityId,
+        "google_account_not_authorized",
+      );
+      throw new AuthError("google_account_not_authorized", 403);
+    }
+    return this.createSession(user);
   }
 
   async refresh(refreshToken: string): Promise<AuthTokens> {
