@@ -40,6 +40,7 @@ test("la configuración aplica valores predeterminados seguros", () => {
       corsAllowedOrigins: config.corsAllowedOrigins,
       authCookieSecure: config.authCookieSecure,
       authCookieName: config.authCookieName,
+      authCookiePath: config.authCookiePath,
     }, {
       host: "0.0.0.0",
       port: 4100,
@@ -56,6 +57,7 @@ test("la configuración aplica valores predeterminados seguros", () => {
       corsAllowedOrigins: [],
       authCookieSecure: false,
       authCookieName: "factupapa_refresh",
+      authCookiePath: "/auth",
     },
   );
   assert.equal(config.internalMetricsAllowRemote, false);
@@ -159,4 +161,46 @@ test("producción rechaza placeholders, dependencias ausentes y rol API igual al
   assert.throws(() => loadConfig({ DATABASE_URL: "postgresql://api:strong-password@db/app", DATABASE_ADMIN_URL: "postgresql://api:other-password@db/app", JWT_SECRET: "x".repeat(40) }), /rol API/);
   assert.throws(() => loadConfig({ APP_ENV: "production", DATABASE_URL: "postgresql://api:strong-password@db/app", JWT_SECRET: "x".repeat(40), AUTH_COOKIE_SECURE: "true" }), /Redis y MinIO/);
   assert.throws(() => loadConfig({ DATABASE_URL: "postgresql://api:strong-password@db/app", JWT_SECRET: "x".repeat(40), S3_ACCESS_KEY: "minioadmin" }), /S3_ACCESS_KEY/);
+});
+
+
+test("Google OAuth exige configuración completa, HTTPS y deriva la ruta de cookie", () => {
+  const base = {
+    DATABASE_URL: "postgresql://localhost/test",
+    JWT_SECRET: "x".repeat(32),
+  };
+  assert.throws(
+    () => loadConfig({ ...base, GOOGLE_OAUTH_CLIENT_ID: "client" }),
+    /Google OAuth requiere/,
+  );
+  const configured = loadConfig({
+    ...base,
+    APP_ENV: "integration",
+    REDIS_URL: "redis://localhost",
+    S3_ENDPOINT: "http://minio:9000",
+    S3_ACCESS_KEY: "storage",
+    S3_SECRET_KEY: "storage-secret",
+    GOOGLE_OAUTH_CLIENT_ID: "client.apps.googleusercontent.com",
+    GOOGLE_OAUTH_CLIENT_SECRET: "oauth-secret-value",
+    GOOGLE_OAUTH_REDIRECT_URI: "https://app.example.test/api/auth/google/callback",
+    GOOGLE_OAUTH_FRONTEND_URL: "https://app.example.test",
+  });
+  assert.equal(configured.authCookiePath, "/api/auth");
+  assert.equal(configured.googleOAuth?.clientId, "client.apps.googleusercontent.com");
+  assert.throws(
+    () =>
+      loadConfig({
+        ...base,
+        APP_ENV: "integration",
+        REDIS_URL: "redis://localhost",
+        S3_ENDPOINT: "http://minio:9000",
+        S3_ACCESS_KEY: "storage",
+        S3_SECRET_KEY: "storage-secret",
+        GOOGLE_OAUTH_CLIENT_ID: "client",
+        GOOGLE_OAUTH_CLIENT_SECRET: "oauth-secret-value",
+        GOOGLE_OAUTH_REDIRECT_URI: "http://app.example.test/api/auth/google/callback",
+        GOOGLE_OAUTH_FRONTEND_URL: "http://app.example.test",
+      }),
+    /HTTPS/,
+  );
 });
