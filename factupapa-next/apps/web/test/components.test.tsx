@@ -19,6 +19,9 @@ describe("interfaz web", () => {
     const user = userEvent.setup();
     render(wrapper(<AuthProvider><Routes><Route path="*" element={<LoginPage />} /></Routes></AuthProvider>));
     expect(await screen.findByRole("heading", { name: "Hola de nuevo" })).toBeInTheDocument();
+    const google = screen.getByRole("link", { name: "Continuar con Google" });
+    expect(google).toHaveAttribute("href", expect.stringMatching(/\/auth\/google$/));
+    expect(screen.getByText(/crea tu espacio privado/i)).toBeInTheDocument();
     const password = screen.getByLabelText("Contraseña");
     expect(password).toHaveAttribute("type", "password");
     await user.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
