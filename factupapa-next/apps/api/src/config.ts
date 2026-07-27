@@ -15,6 +15,13 @@ export interface AppConfig {
   corsAllowedOrigins: string[];
   authCookieSecure: boolean;
   authCookieName: string;
+  authCookiePath: string;
+  googleOAuth?: {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    frontendUrl: string;
+  };
   redisUrl?: string;
   s3Endpoint?: string;
   s3Bucket: string;
@@ -57,6 +64,16 @@ function readCookieName(value: string | undefined): string {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(name))
     throw new Error("AUTH_COOKIE_NAME no es válido");
   return name;
+}
+
+function readCookiePath(value: string | undefined, oauthRedirectUri?: string): string {
+  const derived = oauthRedirectUri
+    ? new URL(oauthRedirectUri).pathname.replace(/\/google\/callback$/, "")
+    : undefined;
+  const path = value?.trim() || derived || "/auth";
+  if (!path.startsWith("/") || path.includes("..") || /[;\r\n]/.test(path))
+    throw new Error("AUTH_COOKIE_PATH no es válido");
+  return path;
 }
 
 function readPort(value: string | undefined): number {
@@ -195,6 +212,32 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   ];
   if (env.ANTHROPIC_API_KEY?.trim() && ownTaxIds.length === 0)
     throw new Error("OWN_TAX_IDS es obligatorio cuando Anthropic está activado");
+  const oauthValues = [
+    env.GOOGLE_OAUTH_CLIENT_ID?.trim(),
+    env.GOOGLE_OAUTH_CLIENT_SECRET?.trim(),
+    env.GOOGLE_OAUTH_REDIRECT_URI?.trim(),
+    env.GOOGLE_OAUTH_FRONTEND_URL?.trim(),
+  ];
+  const hasGoogleOAuth = oauthValues.some(Boolean);
+  if (hasGoogleOAuth && oauthValues.some((value) => !value))
+    throw new Error("Google OAuth requiere client ID, secreto, redirección y frontend");
+  let googleOAuth: AppConfig["googleOAuth"];
+  if (hasGoogleOAuth) {
+    rejectPlaceholder("GOOGLE_OAUTH_CLIENT_SECRET", oauthValues[1]);
+    const redirect = new URL(oauthValues[2]!);
+    const frontend = new URL(oauthValues[3]!);
+    if (environment !== "development" && (redirect.protocol !== "https:" || frontend.protocol !== "https:"))
+      throw new Error("Google OAuth debe usar HTTPS fuera de desarrollo");
+    if (redirect.origin !== frontend.origin)
+      throw new Error("Google OAuth debe volver al mismo origen privado");
+    googleOAuth = {
+      clientId: oauthValues[0]!,
+      clientSecret: oauthValues[1]!,
+      redirectUri: redirect.toString(),
+      frontendUrl: frontend.origin,
+    };
+  }
+
   const purchaseRegistryUrl = env.PURCHASE_REGISTRY_WEBAPP_URL?.trim();
   if (purchaseRegistryUrl) {
     const registry = new URL(purchaseRegistryUrl);
@@ -247,6 +290,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     corsAllowedOrigins,
     authCookieSecure,
     authCookieName: readCookieName(env.AUTH_COOKIE_NAME),
+    authCookiePath: readCookiePath(env.AUTH_COOKIE_PATH, googleOAuth?.redirectUri),
+    ...(googleOAuth ? { googleOAuth } : {}),
     ...(env.REDIS_URL ? { redisUrl: env.REDIS_URL } : {}),
     ...(env.S3_ENDPOINT ? { s3Endpoint: env.S3_ENDPOINT } : {}),
     s3Bucket,
@@ -296,5 +341,6 @@ export function publicConfigSummary(config: AppConfig) {
     objectStorage: config.s3Endpoint ? "configured" : "disabled",
     metrics: config.internalMetricsToken ? "protected" : "local_only",
     visionExtraction: config.anthropicApiKey ? "configured" : "disabled",
+    googleLogin: config.googleOAuth ? "configured" : "disabled",
   };
 }
