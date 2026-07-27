@@ -1,4 +1,4 @@
 Deploy the exact audited branch head to private staging.
-Requested: 2026-07-26 18:39 Europe/Madrid
-Reason: deploy compact mobile login layout.
-Target: ac01350f715a610b98a6cb672761ac0cc4909560
+Requested: 2026-07-28 01:35 Europe/Madrid
+Reason: install tested Google OAuth registration and login.
+Target parent: 885f6b35780e2508f8aa36ceba05a44fc310be34
