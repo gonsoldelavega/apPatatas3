@@ -1,4 +1,5 @@
-import { AuthError, type AuthApplication } from "./service.js";
+import { AuthError, type AuthApplication, type AuthTokens } from "./service.js";
+import { GoogleOAuthService } from "./google.js";
 import { bearerToken, readJson, requireString } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
@@ -7,6 +8,7 @@ interface AuthCookieOptions {
   name: string;
   secure: boolean;
   maxAgeSeconds: number;
+  path?: string;
 }
 
 function cookieValue(
@@ -26,19 +28,32 @@ function cookieValue(
   }
 }
 
-function refreshCookie(options: AuthCookieOptions, token?: string): string {
+function cookieHeader(
+  name: string,
+  value: string | undefined,
+  options: { secure: boolean; path: string; maxAgeSeconds: number; sameSite: "Strict" | "Lax" },
+): string {
   const attributes = [
-    `${options.name}=${token ? encodeURIComponent(token) : ""}`,
+    `${name}=${value ? encodeURIComponent(value) : ""}`,
     "HttpOnly",
-    "SameSite=Strict",
-    "Path=/auth",
-    `Max-Age=${token ? options.maxAgeSeconds : 0}`,
+    `SameSite=${options.sameSite}`,
+    `Path=${options.path}`,
+    `Max-Age=${value ? options.maxAgeSeconds : 0}`,
   ];
   if (options.secure) attributes.push("Secure");
   return attributes.join("; ");
 }
 
-function publicTokens(tokens: Awaited<ReturnType<AuthApplication["login"]>>) {
+function refreshCookie(options: AuthCookieOptions, token?: string): string {
+  return cookieHeader(options.name, token, {
+    secure: options.secure,
+    path: options.path ?? "/auth",
+    maxAgeSeconds: options.maxAgeSeconds,
+    sameSite: "Strict",
+  });
+}
+
+function publicTokens(tokens: AuthTokens) {
   return {
     accessToken: tokens.accessToken,
     tokenType: tokens.tokenType,
@@ -46,11 +61,92 @@ function publicTokens(tokens: Awaited<ReturnType<AuthApplication["login"]>>) {
   };
 }
 
+function redirect(response: import("node:http").ServerResponse, location: string, cookies: string[] = []): void {
+  response.writeHead(302, {
+    location,
+    "cache-control": "no-store",
+    ...(cookies.length > 0 ? { "set-cookie": cookies } : {}),
+  });
+  response.end();
+}
+
+function externalAuthPath(callbackPath: string): string {
+  return callbackPath.slice(0, callbackPath.lastIndexOf("/google/callback")) || "/auth";
+}
+
+function internalCallbackPaths(callbackPath: string): Set<string> {
+  return new Set([
+    callbackPath,
+    callbackPath.startsWith("/api/") ? callbackPath.slice(4) : callbackPath,
+  ]);
+}
+
 export function createAuthRoutes(
   auth: AuthApplication,
   cookie: AuthCookieOptions,
+  google?: GoogleOAuthService,
 ): RouteHandler {
   return async ({ request, response, url }) => {
+    if (request.method === "GET" && url.pathname === "/auth/google") {
+      if (!google || !auth.googleLogin) {
+        json(response, 404, { error: "not_found" });
+        return true;
+      }
+      const authorization = google.createAuthorization();
+      const statePath = `${externalAuthPath(google.callbackPath)}/google`;
+      redirect(response, authorization.url, [
+        cookieHeader("factupapa_google_state", authorization.stateCookie, {
+          secure: cookie.secure,
+          path: statePath,
+          maxAgeSeconds: 600,
+          sameSite: "Lax",
+        }),
+      ]);
+      return true;
+    }
+
+    if (
+      request.method === "GET" &&
+      google &&
+      internalCallbackPaths(google.callbackPath).has(url.pathname)
+    ) {
+      const loginUrl = new URL(google.frontendLoginUrl);
+      const statePath = `${externalAuthPath(google.callbackPath)}/google`;
+      const clearState = cookieHeader("factupapa_google_state", undefined, {
+        secure: cookie.secure,
+        path: statePath,
+        maxAgeSeconds: 600,
+        sameSite: "Lax",
+      });
+      try {
+        const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
+        const stateCookie = cookieValue(
+          request.headers.cookie,
+          "factupapa_google_state",
+        );
+        if (!code || !state || !stateCookie || !auth.googleLogin) {
+          throw new Error("invalid_oauth_callback");
+        }
+        const identity = await google.exchange(code, state, stateCookie);
+        const tokens = await auth.googleLogin(identity.email);
+        loginUrl.searchParams.set("google", "success");
+        redirect(response, loginUrl.toString(), [
+          clearState,
+          refreshCookie(cookie, tokens.refreshToken),
+        ]);
+      } catch (error) {
+        loginUrl.searchParams.set(
+          "google",
+          error instanceof AuthError && error.code === "google_account_not_authorized"
+            ? "not_authorized"
+            : "failed",
+        );
+        redirect(response, loginUrl.toString(), [clearState]);
+      }
+      return true;
+    }
+
     if (request.method === "POST" && url.pathname === "/auth/login") {
       const body = await readJson(request);
       const tokens = await auth.login(
