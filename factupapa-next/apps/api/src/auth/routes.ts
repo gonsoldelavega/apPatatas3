@@ -129,19 +129,14 @@ export function createAuthRoutes(
           throw new Error("invalid_oauth_callback");
         }
         const identity = await google.exchange(code, state, stateCookie);
-        const tokens = await auth.googleLogin(identity.email);
+        const tokens = await auth.googleLogin(identity.email, identity.displayName);
         loginUrl.searchParams.set("google", "success");
         redirect(response, loginUrl.toString(), [
           clearState,
           refreshCookie(cookie, tokens.refreshToken),
         ]);
       } catch (error) {
-        loginUrl.searchParams.set(
-          "google",
-          error instanceof AuthError && error.code === "google_account_not_authorized"
-            ? "not_authorized"
-            : "failed",
-        );
+        loginUrl.searchParams.set("google", "failed");
         redirect(response, loginUrl.toString(), [clearState]);
       }
       return true;
