@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:http";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createAuthRoutes } from "./auth/routes.js";
 import { AuthError, type AuthApplication } from "./auth/service.js";
+import type { GoogleOAuthService } from "./auth/google.js";
 import type { DatabaseProbe } from "./database/client.js";
 import { HttpError } from "./http/errors.js";
 import { json } from "./http/response.js";
@@ -20,7 +21,8 @@ interface AppDependencies {
   routes?: RouteHandler[];
   now?: () => Date;
   corsAllowedOrigins?: string[];
-  authCookie?: { name: string; secure: boolean; maxAgeSeconds: number };
+  authCookie?: { name: string; secure: boolean; maxAgeSeconds: number; path?: string };
+  googleOAuth?: GoogleOAuthService;
   readiness?: Readiness;
   metrics?: { token?: string; allowRemote: boolean; pool?: Pool };
 }
@@ -44,6 +46,10 @@ function protectedMetrics(request: import("node:http").IncomingMessage, settings
 export function createApp(dependencies: AppDependencies): Server {
   const contextualAuth: AuthApplication = {
     login: (...args) => dependencies.auth.login(...args),
+    ...(dependencies.auth.googleLogin
+      ? { googleLogin: (...args: Parameters<NonNullable<AuthApplication["googleLogin"]>>) =>
+          dependencies.auth.googleLogin!(...args) }
+      : {}),
     refresh: (...args) => dependencies.auth.refresh(...args),
     logout: (...args) => dependencies.auth.logout(...args),
     me: (...args) => dependencies.auth.me(...args),
@@ -66,6 +72,7 @@ export function createApp(dependencies: AppDependencies): Server {
         secure: false,
         maxAgeSeconds: 2_592_000,
       },
+      dependencies.googleOAuth,
     ),
     ...(dependencies.routes ?? []),
   ];
