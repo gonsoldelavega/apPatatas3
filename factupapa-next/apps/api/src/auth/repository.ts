@@ -85,7 +85,7 @@ export class AuthRepository {
     return result.rowCount === 1 ? (result.rows[0] ?? null) : null;
   }
 
-  async createLoginSession(
+  async findOrRegisterGoogleUser(\n    email: string,\n    displayName: string,\n    generatedPasswordHash: string,\n  ): Promise<UserContext> {\n    const result = await this.pool.query<UserContext & QueryResultRow>(\n      `select\n         user_id as "userId",\n         company_id as "companyId",\n         email,\n         display_name as "displayName",\n         password_hash as "passwordHash",\n         company_name as "companyName",\n         membership_role as role\n       from auth_find_or_register_google_user($1, $2, $3)`,\n      [email, displayName, generatedPasswordHash],\n    );\n    const user = result.rows[0];\n    if (!user) throw new Error("No se pudo crear la cuenta de Google");\n    return user;\n  }\n\n  async createLoginSession(
     user: UserContext,
     refreshTokenHash: string,
     expiresAt: Date,
