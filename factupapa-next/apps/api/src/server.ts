@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 import { AuthRepository } from "./auth/repository.js";
 import { AuthService } from "./auth/service.js";
+import { GoogleOAuthService } from "./auth/google.js";
 import { loadConfig } from "./config.js";
 import { createDatabaseProbe } from "./database/client.js";
 import { ContactService } from "./contacts/service.js";
@@ -36,6 +37,9 @@ const auth = await AuthService.create({
   loginRateLimitMax: config.loginRateLimitMax,
   loginRateLimitWindowMs: config.loginRateLimitWindowMs,
 });
+const googleOAuth = config.googleOAuth
+  ? new GoogleOAuthService(config.googleOAuth)
+  : undefined;
 const contacts = new ContactService(database.pool);
 const products = new ProductService(database.pool);
 const pricing = new PricingService(database.pool);
@@ -89,7 +93,9 @@ const server = createApp({
     name: config.authCookieName,
     secure: config.authCookieSecure,
     maxAgeSeconds: config.refreshTokenTtlDays * 86_400,
+    path: config.authCookiePath,
   },
+  ...(googleOAuth ? { googleOAuth } : {}),
   readiness: createReadiness({
     database,
     timeoutMs: config.dependencyTimeoutMs,
