@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export interface GoogleOAuthConfig {
@@ -55,10 +55,9 @@ export class GoogleOAuthService {
     };
     const payload = encode(JSON.stringify(state));
     const stateCookie = `${payload}.${this.sign(payload)}`;
-    const challenge = createHmac("sha256", "")
+    const challenge = createHash("sha256")
       .update(verifier)
-      .digest()
-      .toString("base64url");
+      .digest("base64url");
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", this.config.clientId);
     url.searchParams.set("redirect_uri", this.config.redirectUri);
