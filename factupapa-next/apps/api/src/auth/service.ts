@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "./password.js";
 import { LoginRateLimiter } from "./rate-limit.js";
 import {
@@ -50,7 +50,7 @@ export interface AuthApplication {
     password: string,
     rateLimitKey: string,
   ): Promise<AuthTokens>;
-  googleLogin?(email: string): Promise<AuthTokens>;
+  googleLogin?(email: string, displayName: string): Promise<AuthTokens>;
   refresh(refreshToken: string): Promise<AuthTokens>;
   authenticate(accessToken: string): Promise<SessionIdentity>;
   logout(refreshToken: string): Promise<void>;
@@ -148,19 +148,16 @@ export class AuthService implements AuthApplication {
     return this.createSession(user);
   }
 
-  async googleLogin(email: string): Promise<AuthTokens> {
+  async googleLogin(email: string, displayName: string): Promise<AuthTokens> {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.repository.findUserByEmail(normalizedEmail);
-    if (!user) {
-      const auditEntityId = createHash("sha256")
-        .update(normalizedEmail)
-        .digest("hex");
-      await this.repository.recordLoginFailure(
-        auditEntityId,
-        "google_account_not_authorized",
-      );
-      throw new AuthError("google_account_not_authorized", 403);
-    }
+    const generatedPasswordHash = await hashPassword(
+      randomBytes(48).toString("base64url"),
+    );
+    const user = await this.repository.findOrRegisterGoogleUser(
+      normalizedEmail,
+      displayName,
+      generatedPasswordHash,
+    );
     return this.createSession(user);
   }
 
