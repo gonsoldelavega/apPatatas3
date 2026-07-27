@@ -16,6 +16,7 @@ interface OAuthState {
 
 export interface GoogleIdentity {
   email: string;
+  displayName: string;
 }
 
 function encode(value: string | Buffer): string {
@@ -121,7 +122,14 @@ export class GoogleOAuthService {
     ) {
       throw new Error("oauth_email_not_verified");
     }
-    return { email: verified.payload.email.trim().toLowerCase() };
+    const displayName =
+      typeof verified.payload.name === "string" && verified.payload.name.trim().length >= 2
+        ? verified.payload.name.trim().slice(0, 120)
+        : verified.payload.email.split("@")[0]!.slice(0, 120);
+    return {
+      email: verified.payload.email.trim().toLowerCase(),
+      displayName,
+    };
   }
 
   get callbackPath(): string {
