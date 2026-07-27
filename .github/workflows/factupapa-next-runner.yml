@@ -134,6 +134,8 @@ jobs:
         env:
           FACTUPAPA_OWN_TAX_IDS: ${{ secrets.FACTUPAPA_OWN_TAX_IDS }}
           FACTUPAPA_ANTHROPIC_API_KEY: ${{ secrets.FACTUPAPA_ANTHROPIC_API_KEY }}
+          FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID }}
+          FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET }}
         run: factupapa-next/scripts/deploy-private-staging.sh
 
       - name: Import private legacy backup
