@@ -17,6 +17,8 @@ esac
 
 : "${FACTUPAPA_OWN_TAX_IDS:?FACTUPAPA_OWN_TAX_IDS secret is required}"
 : "${FACTUPAPA_ANTHROPIC_API_KEY:?FACTUPAPA_ANTHROPIC_API_KEY secret is required}"
+: "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID:?FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID secret is required}"
+: "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET:?FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET secret is required}"
 
 upsert_private_environment_value() {
   local key="$1"
@@ -63,8 +65,12 @@ git -C "${repository}" diff --cached --quiet || { echo "Hay cambios versionados 
 
 upsert_private_environment_value "OWN_TAX_IDS" "${FACTUPAPA_OWN_TAX_IDS}"
 upsert_private_environment_value "ANTHROPIC_API_KEY" "${FACTUPAPA_ANTHROPIC_API_KEY}"
+upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_ID" "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID}"
+upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_SECRET" "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET}"
+upsert_private_environment_value "GOOGLE_OAUTH_REDIRECT_URI" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net/api/auth/google/callback"
+upsert_private_environment_value "GOOGLE_OAUTH_FRONTEND_URL" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
 upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
-unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY
+unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET
 
 export COMPOSE_PROJECT_NAME=factupapa_staging
 export COMPOSE_FILE="${infrastructure}/docker-compose.yml:${override_file}"
