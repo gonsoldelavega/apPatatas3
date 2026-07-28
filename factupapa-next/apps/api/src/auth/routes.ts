@@ -136,7 +136,16 @@ export function createAuthRoutes(
           refreshCookie(cookie, tokens.refreshToken),
         ]);
       } catch (error) {
-        loginUrl.searchParams.set("google", "failed");
+        const reason =
+          error instanceof Error &&
+          ["invalid_oauth_callback", "invalid_oauth_state"].includes(error.message)
+            ? "state"
+            : error instanceof Error && error.message === "oauth_exchange_failed"
+              ? "exchange"
+              : error instanceof Error && error.message === "oauth_email_not_verified"
+                ? "identity"
+                : "registration";
+        loginUrl.searchParams.set("google", reason);
         redirect(response, loginUrl.toString(), [clearState]);
       }
       return true;
