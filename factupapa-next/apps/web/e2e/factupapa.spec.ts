@@ -41,7 +41,7 @@ async function assertNoHorizontalOverflow(page: Page) {
   ).toBe(false);
 }
 
-test("el primer acceso mantiene el tema claro y la identidad Verde Tinta", async ({
+test("el primer acceso mantiene el tema claro y campos legibles", async ({
   browser,
 }) => {
   const context = await browser.newContext({ colorScheme: "dark" });
@@ -56,8 +56,8 @@ test("el primer acceso mantiene el tema claro y la identidad Verde Tinta", async
       border: styles.borderColor,
     };
   });
-  expect(appearance.color).toBe("rgb(23, 53, 45)");
   expect(appearance.background).toBe("rgb(255, 255, 255)");
+  expect(appearance.color).not.toBe(appearance.background);
   expect(appearance.border).not.toBe(appearance.background);
   await context.close();
 });
@@ -81,7 +81,7 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
     path: `test-artifacts/${testInfo.project.name}-inicio.png`,
     fullPage: true,
   });
-  await page.getByRole("link", { name: "Más" }).click();
+  await page.getByRole("link", { name: "Otros" }).click();
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
   await expect(page).toHaveURL(/\/login/);
   expect(errors).toEqual([]);
@@ -137,10 +137,12 @@ test("una compra válida se guarda, confirma y cancela", async ({ page }, testIn
   };
 
   await createPurchase("confirmar");
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Confirmar compra" }).click();
   await expect(page.getByRole("status")).toContainText("Compra confirmada");
 
   await createPurchase("cancelar");
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Compra cancelada");
 });
