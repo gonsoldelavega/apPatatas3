@@ -30,10 +30,20 @@ export function LoginPage() {
   useEffect(() => {
     document.title = "Acceso · FactuPapa";
     const google = new URLSearchParams(location.search).get("google");
-    if (google === "failed") {
-      setMessage(
+    const googleMessages: Record<string, string> = {
+      state:
+        "La sesión de Google caducó o perdió su cookie. Vuelve a intentarlo sin cambiar de navegador.",
+      exchange:
+        "Google aceptó el permiso, pero la credencial privada no coincide con este cliente.",
+      identity:
+        "Google no ha devuelto un correo verificado para esta cuenta.",
+      registration:
+        "Google ha validado la cuenta, pero no se ha podido crear tu espacio privado.",
+      failed:
         "No se ha podido completar el acceso con Google. Inténtalo de nuevo.",
-      );
+    };
+    if (google && googleMessages[google]) {
+      setMessage(googleMessages[google]);
     }
   }, [location.search]);
 
