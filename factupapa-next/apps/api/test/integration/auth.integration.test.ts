@@ -429,6 +429,28 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
   );
 });
 
+test("Google registra una cuenta nueva y reutiliza su empresa de forma idempotente", async () => {
+  const repository = new AuthRepository(apiDatabase.pool);
+  const passwordHash = await hashPassword("google-generated-integration-password");
+  const created = await repository.findOrRegisterGoogleUser(
+    "new-google-owner@example.test",
+    "New Google Owner",
+    passwordHash,
+  );
+  assert.equal(created.email, "new-google-owner@example.test");
+  assert.equal(created.role, "owner");
+  assert.equal(created.companyName, "New Google Owner · FactuPapa");
+
+  const repeated = await repository.findOrRegisterGoogleUser(
+    "new-google-owner@example.test",
+    "Changed Google Name",
+    await hashPassword("another-generated-integration-password"),
+  );
+  assert.equal(repeated.userId, created.userId);
+  assert.equal(repeated.companyId, created.companyId);
+  assert.equal(repeated.companyName, created.companyName);
+});
+
 test("el presupuesto OCR es persistente, aislado y bloquea antes de exceder límites", async () => {
   const budget = new OcrBudget(apiDatabase.pool, {
     dailyAttempts: 2,
