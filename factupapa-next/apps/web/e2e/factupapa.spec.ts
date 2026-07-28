@@ -28,7 +28,7 @@ async function login(page: Page) {
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("FACTURACIÓN DEL MES")).toBeVisible();
+  await expect(page.getByText("Resultado del mes")).toBeVisible();
 }
 
 async function assertNoHorizontalOverflow(page: Page) {
@@ -76,7 +76,7 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
     if (message.type() === "error") errors.push(message.text());
   });
   await page.reload();
-  await expect(page.getByText("FACTURACIÓN DEL MES")).toBeVisible();
+  await expect(page.getByText("Resultado del mes")).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-inicio.png`,
     fullPage: true,
