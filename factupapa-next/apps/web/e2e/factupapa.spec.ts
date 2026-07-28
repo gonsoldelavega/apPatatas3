@@ -26,7 +26,7 @@ async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
+  await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText("FACTURACIÓN DEL MES")).toBeVisible();
 }
@@ -67,7 +67,7 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
   await page.goto("/login");
   await page.getByLabel("Email").fill("incorrecto@example.test");
   await page.getByLabel("Contraseña", { exact: true }).fill("incorrecta");
-  await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
+  await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "No se ha podido iniciar sesión",
   );
