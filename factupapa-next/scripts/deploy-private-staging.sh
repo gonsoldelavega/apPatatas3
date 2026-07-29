@@ -69,6 +69,7 @@ upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_ID" "${FACTUPAPA_GOOGLE_OA
 upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_SECRET" "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET}"
 upsert_private_environment_value "GOOGLE_OAUTH_REDIRECT_URI" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net/api/auth/google/callback"
 upsert_private_environment_value "GOOGLE_OAUTH_FRONTEND_URL" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+upsert_private_environment_value "AUTH_COOKIE_PATH" "/api/auth"
 upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
 unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET
 
