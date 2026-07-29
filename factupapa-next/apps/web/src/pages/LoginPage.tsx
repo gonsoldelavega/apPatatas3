@@ -30,6 +30,17 @@ export function LoginPage() {
   useEffect(() => {
     document.title = "Acceso · FactuPapa";
     const google = new URLSearchParams(location.search).get("google");
+    if (google === "success") {
+      setMessage("Restaurando tu sesión de Google…");
+      void auth.restore().then((restored) => {
+        if (!restored) {
+          setMessage(
+            "Google ha validado tu cuenta, pero la sesión no ha podido restaurarse. Inténtalo de nuevo.",
+          );
+        }
+      });
+      return;
+    }
     const googleMessages: Record<string, string> = {
       state:
         "La sesión de Google caducó o perdió su cookie. Vuelve a intentarlo sin cambiar de navegador.",
@@ -45,7 +56,7 @@ export function LoginPage() {
     if (google && googleMessages[google]) {
       setMessage(googleMessages[google]);
     }
-  }, [location.search]);
+  }, [auth.restore, location.search]);
 
   if (auth.status === "authenticated") return <Navigate to="/" replace />;
   const from = (location.state as { from?: string } | null)?.from ?? "/";

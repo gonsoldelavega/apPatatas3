@@ -19,6 +19,17 @@ export interface GoogleIdentity {
   displayName: string;
 }
 
+export interface GoogleOAuthApplication {
+  createAuthorization(): { url: string; stateCookie: string };
+  exchange(
+    code: string,
+    nonce: string,
+    stateCookie: string,
+  ): Promise<GoogleIdentity>;
+  readonly callbackPath: string;
+  readonly frontendLoginUrl: string;
+}
+
 function encode(value: string | Buffer): string {
   return Buffer.from(value).toString("base64url");
 }
@@ -33,7 +44,7 @@ function equal(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export class GoogleOAuthService {
+export class GoogleOAuthService implements GoogleOAuthApplication {
   private readonly jwks = createRemoteJWKSet(
     new URL("https://www.googleapis.com/oauth2/v3/certs"),
   );

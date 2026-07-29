@@ -180,6 +180,29 @@ before(async () => {
     auth,
     version: "integration",
     corsAllowedOrigins: ["http://integration.test"],
+    authCookie: {
+      name: "factupapa_refresh",
+      secure: true,
+      maxAgeSeconds: 2_592_000,
+      path: "/api/auth",
+    },
+    googleOAuth: {
+      callbackPath: "/api/auth/google/callback",
+      frontendLoginUrl: "https://app.integration.test/login",
+      createAuthorization: () => ({
+        url: "https://accounts.google.test/authorize?state=valid-state",
+        stateCookie: "signed-state",
+      }),
+      exchange: async (code, state, stateCookie) => {
+        assert.equal(code, "valid-code");
+        assert.equal(state, "valid-state");
+        assert.equal(stateCookie, "signed-state");
+        return {
+          email: "new-google-user@example.test",
+          displayName: "New Google User",
+        };
+      },
+    },
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -449,6 +472,75 @@ test("Google registra una cuenta nueva y reutiliza su empresa de forma idempoten
   assert.equal(repeated.userId, created.userId);
   assert.equal(repeated.companyId, created.companyId);
   assert.equal(repeated.companyName, created.companyName);
+});
+
+test("callback Google emite cookie, redirige, refresca y autentica /me", async () => {
+  const start = await fetch(`${baseUrl}/auth/google`, {
+    redirect: "manual",
+  });
+  assert.equal(start.status, 302);
+  assert.equal(
+    start.headers.get("location"),
+    "https://accounts.google.test/authorize?state=valid-state",
+  );
+  const stateCookie = start.headers
+    .get("set-cookie")
+    ?.match(/factupapa_google_state=([^;]+)/)?.[1];
+  assert.equal(stateCookie, "signed-state");
+
+  const callback = await fetch(
+    `${baseUrl}/api/auth/google/callback?code=valid-code&state=valid-state`,
+    {
+      redirect: "manual",
+      headers: { cookie: `factupapa_google_state=${stateCookie}` },
+    },
+  );
+  assert.equal(callback.status, 302);
+  assert.equal(
+    callback.headers.get("location"),
+    "https://app.integration.test/login?google=success",
+  );
+  const setCookies = callback.headers.getSetCookie();
+  assert.ok(
+    setCookies.some(
+      (value) =>
+        value.startsWith("factupapa_refresh=") &&
+        value.includes("HttpOnly") &&
+        value.includes("Secure") &&
+        value.includes("SameSite=Strict") &&
+        value.includes("Path=/api/auth"),
+    ),
+  );
+  const refreshToken = setCookies
+    .find((value) => value.startsWith("factupapa_refresh="))
+    ?.match(/factupapa_refresh=([^;]+)/)?.[1];
+  assert.ok(refreshToken);
+
+  const refresh = await fetch(`${baseUrl}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "http://integration.test",
+      cookie: `factupapa_refresh=${refreshToken}`,
+    },
+    body: "{}",
+  });
+  assert.equal(refresh.status, 200);
+  const tokens = (await refresh.json()) as Omit<TokenResponse, "refreshToken">;
+  assert.ok(tokens.accessToken);
+
+  const me = await fetch(`${baseUrl}/me`, {
+    headers: { authorization: `Bearer ${tokens.accessToken}` },
+  });
+  assert.equal(me.status, 200);
+  const current = (await me.json()) as {
+    email: string;
+    company: { id: string };
+    membership: { role: string };
+  };
+  assert.equal(current.email, "new-google-user@example.test");
+  assert.equal(current.membership.role, "owner");
+  assert.ok(current.company.id);
 });
 
 test("el presupuesto OCR es persistente, aislado y bloquea antes de exceder límites", async () => {

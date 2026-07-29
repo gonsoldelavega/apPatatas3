@@ -1,5 +1,5 @@
 import { AuthError, type AuthApplication, type AuthTokens } from "./service.js";
-import { GoogleOAuthService } from "./google.js";
+import type { GoogleOAuthApplication } from "./google.js";
 import { bearerToken, readJson, requireString } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
@@ -84,7 +84,7 @@ function internalCallbackPaths(callbackPath: string): Set<string> {
 export function createAuthRoutes(
   auth: AuthApplication,
   cookie: AuthCookieOptions,
-  google?: GoogleOAuthService,
+  google?: GoogleOAuthApplication,
 ): RouteHandler {
   return async ({ request, response, url }) => {
     if (request.method === "GET" && url.pathname === "/auth/google") {

@@ -87,6 +87,64 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
   expect(errors).toEqual([]);
 });
 
+test("el callback Google restaura la sesión y entra en la aplicación", async ({
+  page,
+}) => {
+  const callbackUrl = `${apiUrl}/auth/google/callback?code=valid-code&state=valid-state`;
+  const apiPath = new URL(apiUrl).pathname.replace(/\/$/, "");
+  const cookiePath = `${apiPath}/auth` || "/auth";
+  let refreshReceivedCookie = false;
+
+  await page.route(callbackUrl, async (route) => {
+    await route.fulfill({
+      status: 302,
+      headers: {
+        location: `${webOrigin}/login?google=success`,
+        "set-cookie": `factupapa_refresh=google-e2e-refresh; HttpOnly; SameSite=Strict; Path=${cookiePath}`,
+        "cache-control": "no-store",
+      },
+    });
+  });
+  await page.route(`${apiUrl}/auth/refresh`, async (route) => {
+    refreshReceivedCookie =
+      route.request().headers().cookie?.includes("factupapa_refresh=") ?? false;
+    await route.fulfill({
+      status: refreshReceivedCookie ? 200 : 401,
+      contentType: "application/json",
+      body: JSON.stringify(
+        refreshReceivedCookie
+          ? {
+              accessToken: "google-e2e-access",
+              tokenType: "Bearer",
+              expiresIn: 900,
+            }
+          : { error: "invalid_refresh_token" },
+      ),
+    });
+  });
+  await page.route(`${apiUrl}/me`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "google-e2e-user",
+        email: "google-e2e@example.test",
+        displayName: "Google E2E",
+        company: { id: "google-e2e-company", name: "Empresa Google E2E" },
+        membership: { role: "owner" },
+      }),
+    });
+  });
+
+  await page.goto(callbackUrl);
+  await expect(page).toHaveURL(`${webOrigin}/`);
+  await expect(page.getByText("Resultado del mes")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hola de nuevo" })).toHaveCount(
+    0,
+  );
+  expect(refreshReceivedCookie).toBe(true);
+});
+
 test("facturas mobile-first sin overflow", async ({ page }, testInfo) => {
   await login(page);
   await page.goto("/ventas");

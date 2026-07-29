@@ -17,6 +17,7 @@ type AuthStatus = "loading" | "authenticated" | "anonymous";
 interface AuthContextValue {
   status: AuthStatus;
   user: CurrentUser | null;
+  restore(): Promise<boolean>;
   login(email: string, password: string): Promise<void>;
   logout(): Promise<void>;
 }
@@ -45,37 +46,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isExplicitDemo ? demoUser : null,
   );
 
+  const restore = useCallback(async (): Promise<boolean> => {
+    if (isExplicitDemo) return true;
+    try {
+      await authApi.refresh();
+      const current = await authApi.me();
+      setUser(current);
+      setStatus("authenticated");
+      return true;
+    } catch {
+      apiClient.clearSession();
+      queryClient.clear();
+      setUser(null);
+      setStatus("anonymous");
+      return false;
+    }
+  }, [queryClient]);
+
   useEffect(() => {
     if (isExplicitDemo) return undefined;
 
-    let active = true;
     const unsubscribe = apiClient.onSessionExpired(() => {
       queryClient.clear();
-      if (active) {
-        setUser(null);
-        setStatus("anonymous");
-      }
+      setUser(null);
+      setStatus("anonymous");
     });
-    const restore = async () => {
-      try {
-        await authApi.refresh();
-        const current = await authApi.me();
-        if (active) {
-          setUser(current);
-          setStatus("authenticated");
-        }
-      } catch {
-        apiClient.clearSession();
-        queryClient.clear();
-        if (active) setStatus("anonymous");
-      }
-    };
     void restore();
     return () => {
-      active = false;
       unsubscribe();
     };
-  }, [queryClient]);
+  }, [queryClient, restore]);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -124,8 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value = useMemo(
-    () => ({ status, user, login, logout }),
-    [status, user, login, logout],
+    () => ({ status, user, restore, login, logout }),
+    [status, user, restore, login, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
