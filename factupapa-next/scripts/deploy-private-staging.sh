@@ -69,7 +69,10 @@ upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_ID" "${FACTUPAPA_GOOGLE_OA
 upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_SECRET" "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET}"
 upsert_private_environment_value "GOOGLE_OAUTH_REDIRECT_URI" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net/api/auth/google/callback"
 upsert_private_environment_value "GOOGLE_OAUTH_FRONTEND_URL" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+upsert_private_environment_value "CORS_ALLOWED_ORIGINS" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+upsert_private_environment_value "AUTH_COOKIE_SECURE" "true"
 upsert_private_environment_value "AUTH_COOKIE_PATH" "/api/auth"
+upsert_private_environment_value "WEB_API_BASE_URL" "/api"
 upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
 unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET
 
@@ -79,6 +82,11 @@ set -a
 # shellcheck disable=SC1090
 source "${environment_file}"
 set +a
+
+test "${CORS_ALLOWED_ORIGINS}" = "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+test "${AUTH_COOKIE_SECURE}" = "true"
+test "${AUTH_COOKIE_PATH}" = "/api/auth"
+test "${WEB_API_BASE_URL}" = "/api"
 
 echo "Creando copia verificada previa al despliegue"
 (
