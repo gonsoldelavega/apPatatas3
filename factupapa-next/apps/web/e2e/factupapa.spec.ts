@@ -161,7 +161,9 @@ test("gastos se adapta al móvil y permite archivo o cámara", async ({
 }, testInfo) => {
   await login(page);
   await page.goto("/gastos");
-  await expect(page.getByRole("heading", { name: "Gastos" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Gastos", exact: true }),
+  ).toBeVisible();
   await expect(page.getByLabel("Estado del documento")).toBeVisible();
   await expect(page.getByLabel("Estado del pago")).toBeVisible();
   await assertNoHorizontalOverflow(page);
