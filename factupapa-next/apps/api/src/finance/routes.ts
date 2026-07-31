@@ -22,10 +22,11 @@ export function createFinanceRoutes(
       json(
         response,
         201,
-        await finance.archiveDocument(id, {
+        await finance.uploadDocument(id, {
           filename: body.filename,
           mimeType: body.mimeType,
           contentBase64: body.contentBase64,
+          documentId: body.documentId,
         }),
       );
       return true;

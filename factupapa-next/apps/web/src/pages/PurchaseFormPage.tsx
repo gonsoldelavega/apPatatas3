@@ -300,6 +300,7 @@ export function PurchaseFormPage() {
       supplier_tax_id_own: "Se descartó tu propio NIF y se buscó el del proveedor.",
       line_amount_mismatch: "Alguna línea no cuadra con cantidad, precio y descuento.",
       vision_unavailable: "La visión no estaba disponible y se usó el OCR alternativo.",
+      vision_budget_exhausted: "Se alcanzó el límite de lectura inteligente y se usó el OCR alternativo.",
       total_missing: "No se reconoció el total.",
       issue_date_missing: "No se reconoció la fecha.",
       possible_duplicate: "Posible factura duplicada.",
