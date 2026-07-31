@@ -71,7 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setStatus("anonymous");
     });
-    void restore();
+    const googleCallback =
+      new URLSearchParams(window.location.search).get("google") === "success";
+    if (!googleCallback) void restore();
     return () => {
       unsubscribe();
     };
