@@ -231,11 +231,16 @@ export function ExpensesPage() {
           <FilePlus2 />
           Registrar factura
         </Link>
-        <button className="compact-action" onClick={() => setOpen(!open)}>
+        <button
+          type="button"
+          className="compact-action"
+          onClick={() => setOpen(!open)}
+        >
           <CalendarClock />
           Gasto fijo
         </button>
         <button
+          type="button"
           className="compact-action"
           disabled={registrySync.isPending}
           onClick={() => registrySync.mutate()}
@@ -371,6 +376,19 @@ export function ExpensesPage() {
               </strong>
             </Link>
           ))}
+          {!purchases.isLoading && filteredPurchases.length === 0 && (
+            <div className="expense-empty-state">
+              <span className="expense-empty-state__icon">
+                <Receipt />
+              </span>
+              <div>
+                <strong>Aún no hay facturas de compra</strong>
+                <p>
+                  Registra una factura o cambia los filtros para ver otros resultados.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
       <section id="gastos-fijos">
@@ -418,6 +436,19 @@ export function ExpensesPage() {
               )}
             </article>
           ))}
+        {!recurring.isLoading && recurringInMonth.length === 0 && (
+          <div className="expense-empty-state">
+            <span className="expense-empty-state__icon expense-empty-state__icon--fixed">
+              <CalendarClock />
+            </span>
+            <div>
+              <strong>No hay gastos mensuales en este periodo</strong>
+              <p>
+                Añade alquileres, cuotas o servicios para tenerlos siempre controlados.
+              </p>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

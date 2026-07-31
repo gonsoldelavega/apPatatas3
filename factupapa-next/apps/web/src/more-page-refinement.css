@@ -27,6 +27,149 @@
   color: #ebc879;
 }
 
+.more-page .profile-card > div:last-child,
+.more-page .info-card__body {
+  min-width: 0;
+}
+
+.more-section {
+  margin-top: 24px;
+}
+
+.more-section__title {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.more-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.more-page .more-card-grid .info-card {
+  min-height: 108px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  margin: 0;
+  padding: 16px;
+}
+
+.more-page .more-card-grid .info-card--action {
+  grid-template-columns: 48px minmax(0, 1fr) 20px;
+}
+
+.more-page .info-card__icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: var(--deep);
+  background: color-mix(in srgb, var(--deep) 10%, var(--surface));
+}
+
+.more-page .info-card__icon svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 2;
+}
+
+.more-page .info-card__icon--contacts,
+.more-page .info-card__icon--mail,
+.more-page .info-card__icon--security,
+.more-page .info-card__icon--protected {
+  color: var(--positive);
+  background: color-mix(in srgb, var(--positive) 13%, var(--surface));
+}
+
+.more-page .info-card__icon--import,
+.more-page .info-card__icon--export {
+  color: var(--gold-deep);
+  background: color-mix(in srgb, var(--gold) 18%, var(--surface));
+}
+
+.more-page .info-card__icon--billing,
+.more-page .info-card__icon--theme {
+  color: #5968a9;
+  background: color-mix(in srgb, #7180c5 15%, var(--surface));
+}
+
+.more-page .info-card__icon--stock,
+.more-page .info-card__icon--install {
+  color: #397995;
+  background: color-mix(in srgb, #55a2bd 14%, var(--surface));
+}
+
+.more-page .info-card__body h2 {
+  margin: 1px 0 5px;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.more-page .info-card__body p {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.more-page .info-card > .info-card__chevron {
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.more-page .info-card--appearance .theme-switch {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.more-page > .button--danger {
+  width: 100%;
+  min-height: 52px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+@media (min-width: 700px) {
+  .more-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .more-page .more-card-grid .info-card {
+    height: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .more-page .profile-card {
+    align-items: flex-start;
+    padding: 18px;
+  }
+
+  .more-page .profile-avatar {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+  }
+
+  .more-page .profile-card h2 {
+    font-size: 1.05rem;
+  }
+
+  .more-page .profile-card p {
+    overflow-wrap: anywhere;
+  }
+}
+
 @media (prefers-contrast: more) {
   .more-page .profile-card {
     border-color: #ffffff;

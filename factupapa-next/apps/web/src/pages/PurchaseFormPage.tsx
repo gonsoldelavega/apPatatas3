@@ -1,5 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, FileCheck2, FileUp, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  Camera,
+  FileCheck2,
+  FileUp,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
@@ -51,6 +62,7 @@ const emptyLine = (): DraftPurchaseLine => ({
   taxRate: "4",
 });
 const decimal = (value: string) => value.replace(",", ".");
+const documentAccept = "application/pdf,image/jpeg,image/png,image/heic,image/heif";
 const lineIsValid = (line: DraftPurchaseLine) => {
   const quantity = Number(decimal(line.quantity));
   const unitCost = Number(decimal(line.unitCost));
@@ -267,6 +279,20 @@ export function PurchaseFormPage() {
     upload.reset();
   };
 
+  const selectDocument = (file?: File) => {
+    if (!file) return;
+    if (file.size > 10_000_000) {
+      setDocumentError("La factura supera el límite de 10 MB.");
+      return;
+    }
+    setDocumentError(null);
+    selectedDocument.current = file;
+    setDocumentFile(file);
+    setDocumentId(null);
+    setOcr(null);
+    upload.mutate(file);
+  };
+
   const warningLabel = (warning: string) =>
     ({
       totals_mismatch: "Los importes no cuadran: revisa base, IVA y total.",
@@ -295,37 +321,50 @@ export function PurchaseFormPage() {
 
       <section className="upload-card purchase-capture-card">
         <p className="eyebrow">Lectura automática</p>
-        <h2>Fotografía la factura</h2>
+        <h2>Añade la factura</h2>
         <p>
           La IA extraerá proveedor, fechas, conceptos, cantidades, precios e IVA.
           Nada se registra hasta que revises y guardes la compra.
         </p>
         {!documentFile ? (
-          <label className="drop-zone">
-            <FileUp />
-            <strong>Hacer foto o seleccionar factura</strong>
-            <span>JPG, PNG, HEIC o PDF · máximo 10 MB</span>
-            <input
-              className="sr-only"
-              type="file"
-              accept="application/pdf,image/jpeg,image/png,image/heic,image/heif"
-              capture="environment"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                if (file.size > 10_000_000) {
-                  setDocumentError("La factura supera el límite de 10 MB.");
-                  return;
-                }
-                setDocumentError(null);
-                selectedDocument.current = file;
-                setDocumentFile(file);
-                setDocumentId(null);
-                setOcr(null);
-                upload.mutate(file);
-              }}
-            />
-          </label>
+          <div className="purchase-capture-picker">
+            <div className="purchase-capture-actions">
+              <label className="purchase-capture-option purchase-capture-option--file">
+                <FileUp />
+                <span>
+                  <strong>Elegir archivo</strong>
+                  <small>PDF o imagen guardada</small>
+                </span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept={documentAccept}
+                  onChange={(event) => {
+                    selectDocument(event.currentTarget.files?.[0]);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <label className="purchase-capture-option purchase-capture-option--camera">
+                <Camera />
+                <span>
+                  <strong>Hacer foto</strong>
+                  <small>Abrir la cámara</small>
+                </span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(event) => {
+                    selectDocument(event.currentTarget.files?.[0]);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <p className="purchase-capture-hint">JPG, PNG, HEIC o PDF · máximo 10 MB</p>
+          </div>
         ) : (
           <div className="attachment-card">
             <FileCheck2 />

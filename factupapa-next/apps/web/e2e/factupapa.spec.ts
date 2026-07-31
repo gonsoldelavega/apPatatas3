@@ -156,6 +156,36 @@ test("facturas mobile-first sin overflow", async ({ page }, testInfo) => {
   await assertNoHorizontalOverflow(page);
 });
 
+test("gastos se adapta al móvil y permite archivo o cámara", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.goto("/gastos");
+  await expect(page.getByRole("heading", { name: "Gastos" })).toBeVisible();
+  await expect(page.getByLabel("Estado del documento")).toBeVisible();
+  await expect(page.getByLabel("Estado del pago")).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await page.screenshot({
+    path: `test-artifacts/${testInfo.project.name}-gastos.png`,
+    fullPage: true,
+  });
+
+  await page.goto("/gastos/nuevo");
+  await expect(page.getByText("Elegir archivo", { exact: true })).toBeVisible();
+  await expect(page.getByText("Hacer foto", { exact: true })).toBeVisible();
+  const fileInput = page.locator(
+    ".purchase-capture-option--file input[type=file]",
+  );
+  const cameraInput = page.locator(
+    ".purchase-capture-option--camera input[type=file]",
+  );
+  await expect(fileInput).not.toHaveAttribute("capture");
+  await expect(fileInput).toHaveAttribute("accept", /application\/pdf/);
+  await expect(cameraInput).toHaveAttribute("capture", "environment");
+  await expect(cameraInput).toHaveAttribute("accept", "image/*");
+  await assertNoHorizontalOverflow(page);
+});
+
 test("factura directa con IVA por defecto y decimales legibles", async ({ page }) => {
   await login(page);
   await page.goto("/ajustes/ventas");

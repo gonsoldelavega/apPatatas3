@@ -71,33 +71,93 @@
   letter-spacing: 0.09em;
 }
 
-.purchase-form-page .drop-zone {
-  min-height: 170px;
-  border: 1.5px dashed color-mix(in srgb, var(--deep) 32%, var(--line));
+.purchase-capture-picker {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--deep) 14%, var(--line));
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface-soft) 72%, var(--surface));
 }
 
-.purchase-form-page .drop-zone > svg {
-  width: 42px;
-  height: 42px;
-  padding: 10px;
-  border-radius: 14px;
+.purchase-capture-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.purchase-capture-option {
+  min-width: 0;
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: var(--strong);
+  background: var(--surface);
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 5%);
+}
+
+.purchase-capture-option > svg {
+  width: 38px;
+  height: 38px;
+  padding: 9px;
+  border-radius: 12px;
   color: #fff;
   background: var(--deep);
 }
 
-.purchase-form-page .drop-zone strong {
-  color: var(--strong);
-  font-size: 1rem;
+.purchase-capture-option--camera > svg {
+  color: var(--deep);
+  background: var(--gold-bright);
 }
 
-.purchase-form-page .drop-zone span {
-  max-width: 280px;
+.purchase-capture-option span,
+.purchase-capture-option strong,
+.purchase-capture-option small {
+  display: block;
+  min-width: 0;
+}
+
+.purchase-capture-option strong {
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.purchase-capture-option small {
+  margin-top: 4px;
   color: var(--muted);
-  font-size: 0.76rem;
-  line-height: 1.45;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.purchase-capture-hint {
+  margin: 11px 2px 1px;
+  color: var(--muted);
+  font-size: 0.7rem;
   text-align: center;
+}
+
+.purchase-capture-option:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgb(214 166 73 / 14%);
+}
+
+@media (max-width: 350px) {
+  .purchase-capture-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .purchase-capture-option {
+    min-height: 82px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: center;
+  }
 }
 
 @media (min-width: 720px) {

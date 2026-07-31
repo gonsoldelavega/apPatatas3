@@ -1,4 +1,5 @@
 import {
+  ChevronRight,
   FileDown,
   LogOut,
   Mail,
@@ -61,114 +62,158 @@ export function MorePage() {
         </div>
       </section>
 
-      <Link className="info-card" to="/catalogo/contactos">
-        <UsersRound />
-        <div>
-          <h2>Clientes y proveedores</h2>
-          <p>Contactos, condiciones comerciales, precios particulares y deuda.</p>
-        </div>
-      </Link>
+      <section className="more-section" aria-labelledby="more-business-title">
+        <h2 className="more-section__title" id="more-business-title">
+          Gestión del negocio
+        </h2>
+        <div className="more-card-grid">
+          <Link className="info-card info-card--action" to="/catalogo/contactos">
+            <span className="info-card__icon info-card__icon--contacts">
+              <UsersRound />
+            </span>
+            <div className="info-card__body">
+              <h2>Clientes y proveedores</h2>
+              <p>Contactos, condiciones comerciales, precios particulares y deuda.</p>
+            </div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
 
-      <Link className="info-card" to="/importar">
-        <Upload />
-        <div>
-          <h2>Importaciones</h2>
-          <p>Importa Excel, CSV o JSON con revisión y control de duplicados.</p>
-        </div>
-      </Link>
+          <Link className="info-card info-card--action" to="/importar">
+            <span className="info-card__icon info-card__icon--import">
+              <Upload />
+            </span>
+            <div className="info-card__body">
+              <h2>Importaciones</h2>
+              <p>Importa Excel, CSV o JSON con revisión y control de duplicados.</p>
+            </div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
 
-      <Link className="info-card" to="/ajustes/ventas">
-        <Settings2 />
-        <div>
-          <h2>Facturación</h2>
-          <p>Configura serie, numeración, IVA y preferencias comerciales.</p>
-        </div>
-      </Link>
+          <Link className="info-card info-card--action" to="/ajustes/ventas">
+            <span className="info-card__icon info-card__icon--billing">
+              <Settings2 />
+            </span>
+            <div className="info-card__body">
+              <h2>Facturación</h2>
+              <p>Configura serie, numeración, IVA y preferencias comerciales.</p>
+            </div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
 
-      <section className="info-card integration-card" aria-label="Estado de Gmail">
-        <Mail />
-        <div>
-          <div className="integration-card__heading">
-            <h2>Gmail</h2>
-            <span className="connection-status connection-status--off">No conectado</span>
-          </div>
-          <p>
-            Puedes descargar o compartir el PDF desde cada factura. El envío directo
-            por Gmail se habilitará únicamente cuando exista un conector autorizado.
-          </p>
-        </div>
-      </section>
-
-      <Link className="info-card" to="/ajustes/seguridad">
-        <ShieldCheck />
-        <div>
-          <h2>Seguridad</h2>
-          <p>Cambia tu contraseña y revisa las sesiones abiertas.</p>
-        </div>
-      </Link>
-
-      <Link className="info-card" to="/exportar">
-        <FileDown />
-        <div>
-          <h2>Exportar</h2>
-          <p>CSV de facturas y compras por mes, trimestre o año.</p>
-        </div>
-      </Link>
-
-      <Link className="info-card" to="/stock">
-        <PackageCheck />
-        <div>
-          <h2>Stock y producción</h2>
-          <p>Existencias, movimientos, merma, costes y venta potencial.</p>
-        </div>
-      </Link>
-
-      <section className="info-card">
-        <ShieldCheck />
-        <div>
-          <h2>Sesión protegida</h2>
-          <p>
-            El acceso permanece en memoria y la renovación usa una cookie HttpOnly
-            que JavaScript no puede leer.
-          </p>
+          <Link className="info-card info-card--action" to="/stock">
+            <span className="info-card__icon info-card__icon--stock">
+              <PackageCheck />
+            </span>
+            <div className="info-card__body">
+              <h2>Stock y producción</h2>
+              <p>Existencias, movimientos, merma, costes y venta potencial.</p>
+            </div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
         </div>
       </section>
 
-      <section className="info-card">
-        <Moon />
-        <div>
-          <h2>Apariencia</h2>
-          <p>Elige el tema de la aplicación.</p>
-          <div className="theme-switch" role="group" aria-label="Tema">
-            {(
-              [
-                ["auto", "Auto"],
-                ["light", "Claro"],
-                ["dark", "Oscuro"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={theme === value}
-                className={theme === value ? "theme-switch__active" : ""}
-                onClick={() => {
-                  setTheme(value);
-                  applyTheme(value);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      <section className="more-section" aria-labelledby="more-tools-title">
+        <h2 className="more-section__title" id="more-tools-title">
+          Herramientas
+        </h2>
+        <div className="more-card-grid">
+          <section className="info-card integration-card" aria-label="Estado de Gmail">
+            <span className="info-card__icon info-card__icon--mail">
+              <Mail />
+            </span>
+            <div className="info-card__body">
+              <div className="integration-card__heading">
+                <h2>Gmail</h2>
+                <span className="connection-status connection-status--off">No conectado</span>
+              </div>
+              <p>
+                Descarga o comparte el PDF desde cada factura. El envío directo estará
+                disponible cuando conectes Gmail.
+              </p>
+            </div>
+          </section>
+
+          <Link className="info-card info-card--action" to="/exportar">
+            <span className="info-card__icon info-card__icon--export">
+              <FileDown />
+            </span>
+            <div className="info-card__body">
+              <h2>Exportar</h2>
+              <p>CSV de facturas y compras por mes, trimestre o año.</p>
+            </div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
         </div>
       </section>
 
-      <section className="info-card">
-        <Smartphone />
-        <div>
-          <h2>Instalable</h2>
-          <p>Usa “Añadir a pantalla de inicio” para abrir FactuPapa como app.</p>
+      <section className="more-section" aria-labelledby="more-account-title">
+        <h2 className="more-section__title" id="more-account-title">
+          Cuenta y aplicación
+        </h2>
+        <div className="more-card-grid">
+          <Link className="info-card info-card--action" to="/ajustes/seguridad">
+            <span className="info-card__icon info-card__icon--security">
+              <ShieldCheck />
+            </span>
+            <div className="info-card__body">
+              <h2>Seguridad</h2>
+              <p>Cambia tu contraseña y revisa las sesiones abiertas.</p>
+            </div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
+
+          <section className="info-card">
+            <span className="info-card__icon info-card__icon--protected">
+              <ShieldCheck />
+            </span>
+            <div className="info-card__body">
+              <h2>Sesión protegida</h2>
+              <p>Tu acceso se renueva de forma segura sin exponer la sesión al navegador.</p>
+            </div>
+          </section>
+
+          <section className="info-card info-card--appearance">
+            <span className="info-card__icon info-card__icon--theme">
+              <Moon />
+            </span>
+            <div className="info-card__body">
+              <h2>Apariencia</h2>
+              <p>Elige el tema de la aplicación.</p>
+              <div className="theme-switch" role="group" aria-label="Tema">
+                {(
+                  [
+                    ["auto", "Auto"],
+                    ["light", "Claro"],
+                    ["dark", "Oscuro"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={theme === value}
+                    className={theme === value ? "theme-switch__active" : ""}
+                    onClick={() => {
+                      setTheme(value);
+                      applyTheme(value);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="info-card">
+            <span className="info-card__icon info-card__icon--install">
+              <Smartphone />
+            </span>
+            <div className="info-card__body">
+              <h2>Instalable</h2>
+              <p>Usa “Añadir a pantalla de inicio” para abrir FactuPapa como app.</p>
+            </div>
+          </section>
         </div>
       </section>
 
