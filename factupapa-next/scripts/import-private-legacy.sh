@@ -43,7 +43,7 @@ set +a
 
 run_import() {
   docker compose --profile tools build --quiet bootstrap >/dev/null
-  stream_backup | docker compose --profile tools run --no-build --rm \
+  stream_backup | docker compose --profile tools run --rm \
     -T \
     -e LEGACY_BACKUP_FILE=/tmp/legacy-backup.json \
     -e IMPORT_USER_EMAIL="${owner_email}" \
