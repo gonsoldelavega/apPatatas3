@@ -29,11 +29,16 @@ set +a
 
 run_import() {
   docker compose --profile tools run --build --rm \
-    -v "${backup_file}:/private/legacy-backup.json:ro" \
-    -e LEGACY_BACKUP_FILE=/private/legacy-backup.json \
+    -T \
+    -e LEGACY_BACKUP_FILE=/tmp/legacy-backup.json \
     -e IMPORT_USER_EMAIL="${owner_email}" \
     "$@" \
-    bootstrap npm run import:legacy:prod
+    bootstrap sh -ceu '
+      umask 077
+      trap '\''rm -f "${LEGACY_BACKUP_FILE}"'\'' EXIT
+      cat >"${LEGACY_BACKUP_FILE}"
+      node dist/imports/legacy-backup.js
+    ' <"${backup_file}"
 }
 
 echo "Validando copia histórica en modo simulación"
