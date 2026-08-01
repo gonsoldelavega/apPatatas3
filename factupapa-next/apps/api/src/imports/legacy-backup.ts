@@ -140,7 +140,7 @@ async function resolveOwner(client: PoolClient, email: string) {
     `select u.id user_id,m.company_id
        from users u join memberships m on m.user_id=u.id
       where lower(u.email)=lower($1) and m.role='owner'
-      order by m.created_at asc limit 1`,
+      order by u.created_at asc,m.company_id asc limit 1`,
     [email],
   );
   const owner = result.rows[0];
