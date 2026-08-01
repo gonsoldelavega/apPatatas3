@@ -41,6 +41,7 @@ set -a
 source "${environment_file}"
 set +a
 
+# Every apply is preceded by the same transactional dry-run used during review.
 run_import() {
   docker compose --profile tools build --quiet bootstrap >/dev/null
   stream_backup | docker compose --profile tools run --rm \
