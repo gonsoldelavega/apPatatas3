@@ -38,7 +38,8 @@ with target_user as (
          (select count(*) from invoices where company_id=membership.company_id) as invoices,
          (select count(*) from invoices where company_id=membership.company_id and source='legacy_backup') as legacy_invoices,
          (select count(*) from purchase_invoices where company_id=membership.company_id) as purchases,
-         (select count(*) from purchase_invoices where company_id=membership.company_id and source_registry_key like 'legacy-purchase:%') as legacy_purchases
+         (select count(*) from purchase_invoices where company_id=membership.company_id and source_registry_key like 'legacy-purchase:%') as legacy_purchases,
+         (select count(*) from recurring_expenses where company_id=membership.company_id) as recurring_expenses
     from ranked_memberships as membership
 )
 select json_build_object(
@@ -59,7 +60,8 @@ select json_build_object(
       'invoices', invoices,
       'legacyInvoices', legacy_invoices,
       'purchases', purchases,
-      'legacyPurchases', legacy_purchases
+      'legacyPurchases', legacy_purchases,
+      'recurringExpenses', recurring_expenses
     ) order by auth_position)
     from company_counts
   ), '[]'::json)
