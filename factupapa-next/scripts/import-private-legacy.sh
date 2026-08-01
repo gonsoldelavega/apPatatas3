@@ -16,6 +16,9 @@ case "${apply_import}" in
 esac
 [ -f "${backup_file}" ] || { echo "No existe ${backup_file}" >&2; exit 1; }
 [ "$(stat -c '%a' "${backup_file}")" = "600" ] || { echo "El backup debe tener permisos 600" >&2; exit 1; }
+
+backup_sha256="$(sha256sum "${backup_file}" | cut -d ' ' -f 1)"
+echo "Backup histórico SHA-256: ${backup_sha256}"
 [ -f "${environment_file}" ] || { echo "No existe el entorno privado persistente" >&2; exit 1; }
 [ -f "${override_file}" ] || { echo "No existe el override de staging" >&2; exit 1; }
 [ -f "${repository}/factupapa-next/infrastructure/docker-compose.yml" ] || { echo "Repositorio no válido" >&2; exit 1; }

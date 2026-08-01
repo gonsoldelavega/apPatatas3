@@ -15,6 +15,10 @@ interface LegacyBackup {
 }
 
 interface ImportStats {
+  clientsSource: number;
+  suppliersSource: number;
+  productsSource: number;
+  invoicesSource: number;
   contactsCreated: number;
   contactsReused: number;
   contactsSkipped: number;
@@ -51,6 +55,17 @@ const asRecords = (value: unknown): UnknownRecord[] =>
   Array.isArray(value)
     ? value.filter((item): item is UnknownRecord => Boolean(item) && typeof item === "object")
     : [];
+
+function extractLegacyBackup(value: unknown): LegacyBackup {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("El backup histórico no contiene un objeto JSON válido");
+  const envelope = value as UnknownRecord;
+  const candidate =
+    envelope.state && typeof envelope.state === "object" && !Array.isArray(envelope.state)
+      ? (envelope.state as UnknownRecord)
+      : envelope;
+  return candidate as LegacyBackup;
+}
 
 function stableUuid(namespace: string, legacyId: string): string {
   const hex = createHash("sha256").update(`${namespace}:${legacyId}`).digest("hex").slice(0, 32);
@@ -110,6 +125,10 @@ async function importBackup(
   apply: boolean,
 ): Promise<ImportStats> {
   const stats: ImportStats = {
+    clientsSource: asRecords(backup.clients).length,
+    suppliersSource: asRecords(backup.suppliers).length,
+    productsSource: asRecords(backup.products).length,
+    invoicesSource: asRecords(backup.invoices).length,
     contactsCreated: 0,
     contactsReused: 0,
     contactsSkipped: 0,
@@ -424,7 +443,7 @@ async function main() {
   const apply = process.env.LEGACY_IMPORT_APPLY === "1";
   if (!databaseUrl || !backupFile || !ownerEmail)
     throw new Error("DATABASE_ADMIN_URL, LEGACY_BACKUP_FILE e IMPORT_USER_EMAIL son obligatorias");
-  const backup = JSON.parse(await readFile(backupFile, "utf8")) as LegacyBackup;
+  const backup = extractLegacyBackup(JSON.parse(await readFile(backupFile, "utf8")));
   const database = createDatabaseProbe(databaseUrl);
   const client = await database.pool.connect();
   try {
