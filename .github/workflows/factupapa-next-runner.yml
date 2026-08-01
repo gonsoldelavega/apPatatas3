@@ -150,4 +150,4 @@ jobs:
         env:
           IMPORT_USER_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
           LEGACY_IMPORT_APPLY: ${{ contains(github.event.head_commit.message, '[import-legacy-apply]') && '1' || '0' }}
-        run: factupapa-next/scripts/import-private-legacy.sh "${GITHUB_WORKSPACE}"
+        run: bash factupapa-next/scripts/import-private-legacy.sh "${GITHUB_WORKSPACE}"
