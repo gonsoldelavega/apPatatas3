@@ -404,7 +404,7 @@ async function importBackup(
          contact_legal_name,contact_tax_id,contact_address,
          issuer_legal_name,issuer_tax_id,issuer_address)
        values($1,$2,$3,'sale',$4,$5,$6,'issued',$6::date + time '12:00',
-         $7,$8,$9,$10,'legacy_backup','manual',$11,$12,$13,$14::jsonb,
+         $7,$8,$9,$10,'legacy_backup','manual',$11,$12,$13,$14::date[],
          $15,$16,$17::jsonb,$18,$19,$20::jsonb)`,
       [
         invoiceId,
@@ -420,7 +420,7 @@ async function importBackup(
         owner.user_id,
         isoDate(record.periodStart),
         isoDate(record.periodEnd),
-        JSON.stringify(deliveryDates),
+        deliveryDates,
         contact.legal_name,
         contact.tax_id,
         JSON.stringify(contact.address ?? {}),

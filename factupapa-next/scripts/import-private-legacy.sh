@@ -42,7 +42,8 @@ source "${environment_file}"
 set +a
 
 run_import() {
-  stream_backup | docker compose --profile tools run --build --rm \
+  docker compose --profile tools build --quiet bootstrap >/dev/null
+  stream_backup | docker compose --profile tools run --no-build --rm \
     -T \
     -e LEGACY_BACKUP_FILE=/tmp/legacy-backup.json \
     -e IMPORT_USER_EMAIL="${owner_email}" \
