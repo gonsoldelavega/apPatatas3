@@ -13,6 +13,7 @@ interface LegacyBackup {
   products?: UnknownRecord[];
   invoices?: UnknownRecord[];
   purchases?: UnknownRecord[];
+  expenses?: UnknownRecord[];
 }
 
 interface ImportStats {
@@ -21,6 +22,9 @@ interface ImportStats {
   productsSource: number;
   invoicesSource: number;
   purchasesSource: number;
+  expensesSource: number;
+  recurringExpenseRowsSource: number;
+  nonRecurringExpensesSource: number;
   invoicePaymentsSource: number;
   purchasePaymentsSource: number;
   suppliersDiscoveredInPurchases: number;
@@ -41,6 +45,8 @@ interface ImportStats {
   purchaseDraftsCreated: number;
   purchaseNumbersAdjusted: number;
   purchasePaymentsCreated: number;
+  recurringExpensesCreated: number;
+  recurringExpensesReused: number;
 }
 
 const text = (value: unknown) => String(value ?? "").trim();
@@ -121,6 +127,91 @@ function mapUnit(value: unknown): "kg" | "g" | "unit" | "box" | "custom" {
   return "custom";
 }
 
+type RecurringCategory =
+  | "autonomo"
+  | "gestoria"
+  | "transporte"
+  | "suministros"
+  | "alquiler"
+  | "impuestos"
+  | "otros";
+
+interface LegacyRecurringDefinition {
+  key: string;
+  name: string;
+  category: RecurringCategory;
+  amount: number;
+  taxRate: number;
+  chargeDay: number;
+  startsOn: string;
+  supplierLegacyId: string | null;
+  sourceRows: number;
+}
+
+export function isLegacyRecurringExpense(record: UnknownRecord): boolean {
+  return (
+    /^exp-(?:gestoria|autonomos)-\d{4}-\d{2}$/i.test(text(record.id)) ||
+    normalizedName(record.notes).includes("gasto recurrente mensual automatico")
+  );
+}
+
+function recurringCategory(value: unknown): RecurringCategory {
+  const category = normalizedName(value);
+  if (category.includes("autonom") || category.includes("seguridad social")) return "autonomo";
+  if (category.includes("gestor")) return "gestoria";
+  if (category.includes("transport")) return "transporte";
+  if (category.includes("suministr")) return "suministros";
+  if (category.includes("alquiler")) return "alquiler";
+  if (category.includes("impuest")) return "impuestos";
+  return "otros";
+}
+
+export function legacyRecurringDefinitions(value: unknown): LegacyRecurringDefinition[] {
+  const groups = new Map<string, UnknownRecord[]>();
+  for (const record of asRecords(value).filter(isLegacyRecurringExpense)) {
+    const key = normalizedName(record.concept ?? record.name);
+    if (!key) continue;
+    const records = groups.get(key) ?? [];
+    records.push(record);
+    groups.set(key, records);
+  }
+  const definitions: LegacyRecurringDefinition[] = [];
+  for (const [key, records] of groups) {
+    const dated = records
+      .map((record) => ({ record, date: isoDate(record.date ?? record.issueDate) }))
+      .filter(
+        (item): item is { record: UnknownRecord; date: string } => Boolean(item.date),
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const latest = dated.at(-1);
+    const earliest = dated[0];
+    if (!latest || !earliest) continue;
+    const base = amount(latest.record.base);
+    const taxRate = Math.min(Math.max(amount(latest.record.ivaPct ?? latest.record.iva), 0), 100);
+    const explicitTotal = Number(latest.record.total);
+    const monthlyAmount = money(
+      Number.isFinite(explicitTotal) && explicitTotal >= 0
+        ? explicitTotal
+        : base * (1 + taxRate / 100),
+    );
+    const name = text(latest.record.concept ?? latest.record.name);
+    if (name.length < 2 || monthlyAmount < 0) continue;
+    const day = Number(latest.date.slice(8, 10));
+    definitions.push({
+      key,
+      name,
+      category: recurringCategory(latest.record.category),
+      amount: monthlyAmount,
+      taxRate: money(taxRate),
+      chargeDay: Math.min(Math.max(Number.isInteger(day) ? day : 1, 1), 28),
+      startsOn: earliest.date,
+      supplierLegacyId: nullableText(latest.record.supplierId),
+      sourceRows: records.length,
+    });
+  }
+  return definitions.sort((a, b) => a.key.localeCompare(b.key));
+}
+
 function addressFrom(record: UnknownRecord) {
   const address = nullableText(record.address);
   const postalCode = nullableText(record.cp);
@@ -154,6 +245,9 @@ async function importBackup(
   backup: LegacyBackup,
   owner: { user_id: string; company_id: string },
 ): Promise<ImportStats> {
+  const legacyExpenses = asRecords(backup.expenses);
+  const recurringDefinitions = legacyRecurringDefinitions(legacyExpenses);
+  const recurringExpenseRowsSource = legacyExpenses.filter(isLegacyRecurringExpense).length;
   const explicitSuppliers = asRecords(backup.suppliers);
   const explicitSupplierKeys = new Set(explicitSuppliers.map(contactKey));
   const explicitSupplierLegacyIds = new Set(
@@ -172,6 +266,9 @@ async function importBackup(
     productsSource: asRecords(backup.products).length,
     invoicesSource: asRecords(backup.invoices).length,
     purchasesSource: asRecords(backup.purchases).length,
+    expensesSource: legacyExpenses.length,
+    recurringExpenseRowsSource,
+    nonRecurringExpensesSource: legacyExpenses.length - recurringExpenseRowsSource,
     invoicePaymentsSource: asRecords(backup.invoices).filter(
       (invoice) => amount(invoice.amountPaid) > 0,
     ).length,
@@ -198,6 +295,8 @@ async function importBackup(
     purchaseDraftsCreated: 0,
     purchaseNumbersAdjusted: 0,
     purchasePaymentsCreated: 0,
+    recurringExpensesCreated: 0,
+    recurringExpensesReused: 0,
   };
   const settings = backup.settings ?? {};
   const companyName = nullableText(settings.companyName) ?? "Gonsol de la Vega";
@@ -295,6 +394,43 @@ async function importBackup(
   for (const [contactId, kinds] of contactKinds) {
     if (kinds.size > 1)
       await client.query("update contacts set kind='both',updated_at=now() where id=$1", [contactId]);
+  }
+
+  for (const definition of recurringDefinitions) {
+    const recurringId = stableUuid("legacy-recurring-expense", definition.key);
+    const existing = await client.query<{ id: string }>(
+      `select id from recurring_expenses
+        where company_id=$1 and
+          (id=$2 or lower(btrim(name))=lower(btrim($3)))
+        order by created_at asc limit 1`,
+      [owner.company_id, recurringId, definition.name],
+    );
+    if (existing.rows[0]) {
+      stats.recurringExpensesReused += 1;
+      continue;
+    }
+    await client.query(
+      `insert into recurring_expenses(
+         id,company_id,supplier_id,name,category,amount,tax_rate,charge_day,starts_on,
+         ends_on,is_active,notes,created_by_user_id)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$9,null,true,$10,$11)`,
+      [
+        recurringId,
+        owner.company_id,
+        definition.supplierLegacyId
+          ? (contactByLegacyId.get(definition.supplierLegacyId) ?? null)
+          : null,
+        definition.name,
+        definition.category,
+        definition.amount,
+        definition.taxRate,
+        definition.chargeDay,
+        definition.startsOn,
+        `Importado del respaldo historico (${definition.sourceRows} registros mensuales).`,
+        owner.user_id,
+      ],
+    );
+    stats.recurringExpensesCreated += 1;
   }
 
   const productByLegacyId = new Map<string, string>();
