@@ -43,20 +43,24 @@ const decimal = (value: string) => value.replace(",", "."),
   };
 
 export function ExpensesPage() {
-  const [period, setPeriod] = useState(currentPeriod()),
+  const [period, setPeriod] = useState(currentPeriod("all")),
     [purchaseCategory, setPurchaseCategory] = useState(""),
     [purchaseSupplier, setPurchaseSupplier] = useState(""),
     [purchaseStatus, setPurchaseStatus] = useState(""),
     [purchasePaymentStatus, setPurchasePaymentStatus] = useState(""),
     partialRange = periodRange(period),
-    r =
+    purchaseRange =
       partialRange.from && partialRange.to
         ? { from: partialRange.from, to: partialRange.to }
-        : (periodRange(currentPeriod()) as { from: string; to: string }),
+        : null,
+    recurringRange = (purchaseRange ?? periodRange(currentPeriod())) as {
+      from: string;
+      to: string;
+    },
     qc = useQueryClient(),
     purchases = useQuery({
-      queryKey: ["purchases", r],
-      queryFn: () => financeApi.purchases(r.from, r.to),
+      queryKey: ["purchases", purchaseRange ?? "all"],
+      queryFn: () => financeApi.purchases(purchaseRange?.from, purchaseRange?.to),
     }),
     recurring = useQuery({
       queryKey: ["recurring"],
@@ -72,7 +76,7 @@ export function ExpensesPage() {
     [amount, setAmount] = useState(""),
     [taxRate, setTaxRate] = useState("0"),
     [chargeDay, setChargeDay] = useState("1"),
-    [startsOn, setStartsOn] = useState(r.from),
+    [startsOn, setStartsOn] = useState(recurringRange.from),
     [notes, setNotes] = useState(""),
     [category, setCategory] = useState("gestoria"),
     [supplierId, setSupplierId] = useState("");
@@ -94,7 +98,7 @@ export function ExpensesPage() {
         setAmount("");
         setTaxRate("0");
         setChargeDay("1");
-        setStartsOn(r.from);
+        setStartsOn(recurringRange.from);
         setNotes("");
         setSupplierId("");
         setOpen(false);
@@ -115,7 +119,9 @@ export function ExpensesPage() {
         ]);
       },
     });
-  const periodMonths = monthsOf(r.from, r.to),
+  const periodMonths = purchaseRange
+      ? monthsOf(purchaseRange.from, purchaseRange.to)
+      : [],
     recurringInMonth =
       recurring.data
         ?.map((x) => ({
@@ -161,7 +167,7 @@ export function ExpensesPage() {
         <Link to="/stock">Stock</Link>
       </nav>
       <section className="filter-card period-filter">
-        <PeriodPicker value={period} onChange={setPeriod} />
+        <PeriodPicker value={period} onChange={setPeriod} allowAll />
       </section>
       <section className="expense-overview" aria-label="Resumen de gastos del periodo">
         <div>
@@ -174,7 +180,7 @@ export function ExpensesPage() {
             <dd>{formatMoney(String(purchaseTotal))}</dd>
           </div>
           <div>
-            <dt>Fijos</dt>
+            <dt>{period.kind === "all" ? "Fijos (elige periodo)" : "Fijos"}</dt>
             <dd>{formatMoney(String(recurringTotal))}</dd>
           </div>
         </dl>
@@ -396,7 +402,9 @@ export function ExpensesPage() {
           <span>
             <h2>Gastos mensuales</h2>
             <p>
-              {recurringInMonth.length} cargos aplican en {periodLabel(period)}
+              {period.kind === "all"
+                ? "Elige mes, trimestre o año para calcular los cargos"
+                : `${recurringInMonth.length} cargos aplican en ${periodLabel(period)}`}
             </p>
           </span>
           <strong>{formatMoney(String(recurringTotal))}</strong>
@@ -442,7 +450,11 @@ export function ExpensesPage() {
               <CalendarClock />
             </span>
             <div>
-              <strong>No hay gastos mensuales en este periodo</strong>
+              <strong>
+                {period.kind === "all"
+                  ? "Selecciona un periodo para ver los gastos mensuales"
+                  : "No hay gastos mensuales en este periodo"}
+              </strong>
               <p>
                 Añade alquileres, cuotas o servicios para tenerlos siempre controlados.
               </p>
