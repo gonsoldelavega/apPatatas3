@@ -19,6 +19,7 @@ interface ImportStats {
   suppliersSource: number;
   productsSource: number;
   invoicesSource: number;
+  paymentsSource: number;
   contactsCreated: number;
   contactsReused: number;
   contactsSkipped: number;
@@ -122,13 +123,14 @@ async function importBackup(
   client: PoolClient,
   backup: LegacyBackup,
   owner: { user_id: string; company_id: string },
-  apply: boolean,
 ): Promise<ImportStats> {
   const stats: ImportStats = {
     clientsSource: asRecords(backup.clients).length,
     suppliersSource: asRecords(backup.suppliers).length,
     productsSource: asRecords(backup.products).length,
     invoicesSource: asRecords(backup.invoices).length,
+    paymentsSource: asRecords(backup.invoices).filter((invoice) => amount(invoice.amountPaid) > 0)
+      .length,
     contactsCreated: 0,
     contactsReused: 0,
     contactsSkipped: 0,
@@ -147,12 +149,10 @@ async function importBackup(
     ...(nullableText(settings.companyAddress) ? { street: text(settings.companyAddress) } : {}),
     country: "ES",
   };
-  if (apply) {
-    await client.query(
-      `update companies set name=$2,tax_id=$3,address=$4::jsonb,updated_at=now() where id=$1`,
-      [owner.company_id, companyName, companyTaxId, JSON.stringify(companyAddress)],
-    );
-  }
+  await client.query(
+    `update companies set name=$2,tax_id=$3,address=$4::jsonb,updated_at=now() where id=$1`,
+    [owner.company_id, companyName, companyTaxId, JSON.stringify(companyAddress)],
+  );
 
   const contactByLegacyId = new Map<string, string>();
   const contactByKey = new Map<string, string>();
@@ -187,9 +187,8 @@ async function importBackup(
       } else {
         contactId = stableUuid("legacy-contact", key);
         stats.contactsCreated += 1;
-        if (apply) {
-          await client.query(
-            `insert into contacts(
+        await client.query(
+          `insert into contacts(
                id,company_id,kind,legal_name,tax_id,email,phone,address,notes,
                payment_terms_days,apply_invoice_defaults,invoice_period_mode)
              values($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12)
@@ -208,8 +207,7 @@ async function importBackup(
               Boolean(record.paymentTermsDefault),
               record.paymentTermsDefault ? "fortnightly" : "manual",
             ],
-          );
-        }
+        );
       }
       contactByKey.set(key, contactId);
     } else stats.contactsReused += 1;
@@ -218,11 +216,9 @@ async function importBackup(
     kinds.add(kind);
     contactKinds.set(contactId, kinds);
   }
-  if (apply) {
-    for (const [contactId, kinds] of contactKinds) {
-      if (kinds.size > 1)
-        await client.query("update contacts set kind='both',updated_at=now() where id=$1", [contactId]);
-    }
+  for (const [contactId, kinds] of contactKinds) {
+    if (kinds.size > 1)
+      await client.query("update contacts set kind='both',updated_at=now() where id=$1", [contactId]);
   }
 
   const productByLegacyId = new Map<string, string>();
@@ -247,9 +243,8 @@ async function importBackup(
       } else {
         productId = stableUuid("legacy-product", key);
         stats.productsCreated += 1;
-        if (apply) {
-          await client.query(
-            `insert into products(
+        await client.query(
+          `insert into products(
                id,company_id,name,description,sku,unit,sale_price,estimated_cost,tax_rate,
                package_kind,expected_loss_rate)
              values($1,$2,$3,$4,$5,$6,$7,$8,$9,'none',0)
@@ -265,8 +260,7 @@ async function importBackup(
               record.cost === undefined || record.cost === null ? null : money(amount(record.cost)),
               money(amount(record.ivaPct ?? record.iva, 4)),
             ],
-          );
-        }
+        );
       }
       productByName.set(key, productId);
     } else stats.productsReused += 1;
@@ -345,7 +339,6 @@ async function importBackup(
     highestInvoiceNumber = Math.max(highestInvoiceNumber, parsedNumber.number);
     seriesSeen.add(parsedNumber.series);
     stats.invoicesCreated += 1;
-    if (!apply) continue;
     await client.query(
       `insert into invoices(
          id,company_id,contact_id,direction,series,number,issue_date,status,issued_at,
@@ -422,7 +415,7 @@ async function importBackup(
     }
   }
 
-  if (apply && highestInvoiceNumber > 0) {
+  if (highestInvoiceNumber > 0) {
     for (const series of seriesSeen) {
       await client.query(
         `insert into document_sequences(company_id,document_type,series,next_number)
@@ -450,7 +443,7 @@ async function main() {
     await client.query("begin");
     await client.query("select pg_advisory_xact_lock($1)", [2_026_072_601]);
     const owner = await resolveOwner(client, ownerEmail);
-    const stats = await importBackup(client, backup, owner, apply);
+    const stats = await importBackup(client, backup, owner);
     if (apply) await client.query("commit");
     else await client.query("rollback");
     console.log(JSON.stringify({ mode: apply ? "apply" : "dry-run", ...stats }, null, 2));
