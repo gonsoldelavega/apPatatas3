@@ -153,9 +153,14 @@ async function importBackup(
   backup: LegacyBackup,
   owner: { user_id: string; company_id: string },
 ): Promise<ImportStats> {
-  const explicitSupplierKeys = new Set(asRecords(backup.suppliers).map(contactKey));
+  const explicitSuppliers = asRecords(backup.suppliers);
+  const explicitSupplierKeys = new Set(explicitSuppliers.map(contactKey));
+  const explicitSupplierLegacyIds = new Set(
+    explicitSuppliers.map((supplier) => text(supplier.id)).filter(Boolean),
+  );
   const purchaseSuppliersByKey = new Map<string, UnknownRecord>();
   for (const purchase of asRecords(backup.purchases)) {
+    if (explicitSupplierLegacyIds.has(text(purchase.supplierId))) continue;
     const supplier = purchaseSupplierRecord(purchase);
     if (supplier && !purchaseSuppliersByKey.has(supplier.key))
       purchaseSuppliersByKey.set(supplier.key, supplier.record);
@@ -494,7 +499,9 @@ async function importBackup(
     const legacyId = text(record.id);
     const issueDate = isoDate(record.issueDate ?? record.date);
     const supplierIdentity = purchaseSupplierRecord(record);
-    const supplierId = supplierIdentity ? contactByKey.get(supplierIdentity.key) : undefined;
+    const supplierId =
+      contactByLegacyId.get(text(record.supplierId)) ??
+      (supplierIdentity ? contactByKey.get(supplierIdentity.key) : undefined);
     if (!legacyId || !issueDate || !supplierId) {
       stats.purchaseInvoicesSkipped += 1;
       continue;
