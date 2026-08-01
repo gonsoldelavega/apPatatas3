@@ -6,9 +6,14 @@ environment_file="${HOME}/staging/repo/factupapa-next/infrastructure/.env"
 override_file="${HOME}/staging/docker-compose.staging.yml"
 repository="${1:-${GITHUB_WORKSPACE:-}}"
 owner_email="${IMPORT_USER_EMAIL:-}"
+apply_import="${LEGACY_IMPORT_APPLY:-0}"
 
 [ -n "${repository}" ] || { echo "Indica la ruta del repositorio desplegable" >&2; exit 1; }
 [ -n "${owner_email}" ] || { echo "Define IMPORT_USER_EMAIL" >&2; exit 1; }
+case "${apply_import}" in
+  0|1) ;;
+  *) echo "LEGACY_IMPORT_APPLY solo admite 0 o 1" >&2; exit 1 ;;
+esac
 [ -f "${backup_file}" ] || { echo "No existe ${backup_file}" >&2; exit 1; }
 [ "$(stat -c '%a' "${backup_file}")" = "600" ] || { echo "El backup debe tener permisos 600" >&2; exit 1; }
 [ -f "${environment_file}" ] || { echo "No existe el entorno privado persistente" >&2; exit 1; }
@@ -33,6 +38,11 @@ run_import() {
 
 echo "Validando copia histórica en modo simulación"
 run_import
+
+if [ "${apply_import}" != "1" ]; then
+  echo "Simulación histórica terminada; staging no se ha modificado"
+  exit 0
+fi
 
 echo "Aplicando copia histórica idempotente"
 run_import -e LEGACY_IMPORT_APPLY=1
