@@ -126,9 +126,12 @@ export function ExpensesPage() {
       recurring.data
         ?.map((x) => ({
           ...x,
-          appliedMonths: periodMonths.filter((m) =>
-            monthContains(m.start, m.end, x.startsOn, x.endsOn),
-          ).length,
+          appliedMonths:
+            period.kind === "all"
+              ? Number(x.isActive)
+              : periodMonths.filter((m) =>
+                  monthContains(m.start, m.end, x.startsOn, x.endsOn),
+                ).length,
         }))
         .filter((x) => x.appliedMonths > 0) ?? [],
     recurringTotal = recurringInMonth.reduce(
@@ -172,7 +175,11 @@ export function ExpensesPage() {
       <section className="expense-overview" aria-label="Resumen de gastos del periodo">
         <div>
           <span>Total del periodo</span>
-          <strong>{formatMoney(String(purchaseTotal + recurringTotal))}</strong>
+          <strong>
+            {formatMoney(
+              String(purchaseTotal + (period.kind === "all" ? 0 : recurringTotal)),
+            )}
+          </strong>
         </div>
         <dl>
           <div>
@@ -180,7 +187,7 @@ export function ExpensesPage() {
             <dd>{formatMoney(String(purchaseTotal))}</dd>
           </div>
           <div>
-            <dt>{period.kind === "all" ? "Fijos (elige periodo)" : "Fijos"}</dt>
+            <dt>{period.kind === "all" ? "Fijos / mes" : "Fijos"}</dt>
             <dd>{formatMoney(String(recurringTotal))}</dd>
           </div>
         </dl>
@@ -403,7 +410,7 @@ export function ExpensesPage() {
             <h2>Gastos mensuales</h2>
             <p>
               {period.kind === "all"
-                ? "Elige mes, trimestre o año para calcular los cargos"
+                ? `${recurringInMonth.length} gastos fijos activos`
                 : `${recurringInMonth.length} cargos aplican en ${periodLabel(period)}`}
             </p>
           </span>
@@ -452,7 +459,7 @@ export function ExpensesPage() {
             <div>
               <strong>
                 {period.kind === "all"
-                  ? "Selecciona un periodo para ver los gastos mensuales"
+                  ? "No hay gastos fijos activos"
                   : "No hay gastos mensuales en este periodo"}
               </strong>
               <p>
