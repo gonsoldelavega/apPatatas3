@@ -425,15 +425,14 @@ async function importBackup(
          operation_start_date,operation_end_date,delivery_dates,
          contact_legal_name,contact_tax_id,contact_address,
          issuer_legal_name,issuer_tax_id,issuer_address)
-       values($1,$2,$3,'sale',$4,null,$6,'draft',null,
-         $7,$8,$9,$10,'legacy_backup','manual',$11,$12,$13,$14::date[],
-         $15,$16,$17::jsonb,$18,$19,$20::jsonb)`,
+       values($1,$2,$3,'sale',$4,null,$5,'draft',null,
+         $6,$7,$8,$9,'legacy_backup','manual',$10,$11,$12,$13::date[],
+         $14,$15,$16::jsonb,$17,$18,$19::jsonb)`,
       [
         invoiceId,
         owner.company_id,
         contactId,
         parsedNumber.series,
-        parsedNumber.number,
         issueDate,
         subtotal,
         taxTotal,
