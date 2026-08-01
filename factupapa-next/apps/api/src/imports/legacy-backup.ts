@@ -272,8 +272,7 @@ async function importBackup(
     taxId: companyTaxId,
     address: companyAddress,
   };
-  let highestInvoiceNumber = 0;
-  const seriesSeen = new Set<string>();
+  const highestInvoiceNumberBySeries = new Map<string, number>();
   const invoices = asRecords(backup.invoices).sort((a, b) =>
     text(a.issueDate ?? a.date).localeCompare(text(b.issueDate ?? b.date)),
   );
@@ -336,8 +335,10 @@ async function importBackup(
     const taxTotal = money(normalizedLines.reduce((sum, line) => sum + line.tax, 0));
     const total = money(subtotal + taxTotal);
     const deliveryDates = [...new Set(normalizedLines.map((line) => line.deliveryDate).filter(Boolean))];
-    highestInvoiceNumber = Math.max(highestInvoiceNumber, parsedNumber.number);
-    seriesSeen.add(parsedNumber.series);
+    highestInvoiceNumberBySeries.set(
+      parsedNumber.series,
+      Math.max(highestInvoiceNumberBySeries.get(parsedNumber.series) ?? 0, parsedNumber.number),
+    );
     stats.invoicesCreated += 1;
     await client.query(
       `insert into invoices(
@@ -415,8 +416,8 @@ async function importBackup(
     }
   }
 
-  if (highestInvoiceNumber > 0) {
-    for (const series of seriesSeen) {
+  for (const [series, highestInvoiceNumber] of highestInvoiceNumberBySeries) {
+    if (highestInvoiceNumber > 0) {
       await client.query(
         `insert into document_sequences(company_id,document_type,series,next_number)
          values($1,'invoice',$2,$3)
