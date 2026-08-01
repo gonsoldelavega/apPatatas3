@@ -403,7 +403,7 @@ async function importBackup(
          operation_start_date,operation_end_date,delivery_dates,
          contact_legal_name,contact_tax_id,contact_address,
          issuer_legal_name,issuer_tax_id,issuer_address)
-       values($1,$2,$3,'sale',$4,$5,$6,'issued',$6::date + time '12:00',
+       values($1,$2,$3,'sale',$4,null,$6,'draft',null,
          $7,$8,$9,$10,'legacy_backup','manual',$11,$12,$13,$14::date[],
          $15,$16,$17::jsonb,$18,$19,$20::jsonb)`,
       [
@@ -452,6 +452,10 @@ async function importBackup(
         ],
       );
     }
+    await client.query(
+      "update invoices set number=$2,status='issued',issued_at=$3::date + time '12:00' where id=$1",
+      [invoiceId, parsedNumber.number, issueDate],
+    );
     const paidAmount = Math.min(Math.max(amount(record.amountPaid), 0), total);
     if (paidAmount > 0) {
       await client.query(
