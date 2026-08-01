@@ -27,6 +27,7 @@ interface ImportStats {
   contactsCreated: number;
   contactsReused: number;
   contactsSkipped: number;
+  contactPhonesNormalized: number;
   productsCreated: number;
   productsReused: number;
   productsSkipped: number;
@@ -183,6 +184,7 @@ async function importBackup(
     contactsCreated: 0,
     contactsReused: 0,
     contactsSkipped: 0,
+    contactPhonesNormalized: 0,
     productsCreated: 0,
     productsReused: 0,
     productsSkipped: 0,
@@ -244,6 +246,21 @@ async function importBackup(
         contactId = existing.rows[0].id;
         stats.contactsReused += 1;
       } else {
+        const originalPhone = nullableText(record.phone);
+        const importedPhone =
+          originalPhone && originalPhone.length > 32
+            ? originalPhone.replace(/\s+/g, "").slice(0, 32)
+            : originalPhone;
+        const contactNotes = [
+          nullableText(record.notes),
+          originalPhone && importedPhone !== originalPhone
+            ? `Telefono original del backup: ${originalPhone}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 4000) || null;
+        if (originalPhone && importedPhone !== originalPhone) stats.contactPhonesNormalized += 1;
         contactId = stableUuid("legacy-contact", key);
         stats.contactsCreated += 1;
         await client.query(
@@ -259,9 +276,9 @@ async function importBackup(
               legalName,
               nullableText(record.taxId ?? record.nif),
               nullableText(record.email),
-              nullableText(record.phone),
+              importedPhone,
               JSON.stringify(addressFrom(record)),
-              nullableText(record.notes),
+              contactNotes,
               0,
               Boolean(record.paymentTermsDefault),
               record.paymentTermsDefault ? "fortnightly" : "manual",
