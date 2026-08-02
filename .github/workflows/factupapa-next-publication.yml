@@ -12,11 +12,11 @@ permissions:
 
 concurrency:
   group: factupapa-next-publication
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish-funnel:
-    if: contains(github.event.head_commit.message, '[publish-public]')
+    if: false
     runs-on: [self-hosted, linux, x64, factupapa-next]
     timeout-minutes: 10
     steps:
