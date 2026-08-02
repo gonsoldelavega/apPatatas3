@@ -1,0 +1,59 @@
+name: Publish FactuPapa Next separately
+
+on:
+  push:
+    branches: [codex/factupapa-claude-fixes]
+    paths:
+      - 'factupapa-next/scripts/publish-public-funnel.sh'
+      - '.github/workflows/factupapa-next-publication.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factupapa-next-publication
+  cancel-in-progress: false
+
+jobs:
+  publish-funnel:
+    if: contains(github.event.head_commit.message, '[publish-public]')
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact publication SHA
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact SHA
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Publish the audited private staging through Funnel
+        shell: bash
+        run: bash factupapa-next/scripts/publish-public-funnel.sh
+
+  verify-from-public-internet:
+    needs: publish-funnel
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public web and API from outside the tailnet
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base_url="https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+          for _ in $(seq 1 30); do
+            web_status="$(curl --silent --show-error --output /tmp/factupapa-index.html --write-out '%{http_code}' "${base_url}/" || true)"
+            api_status="$(curl --silent --show-error --output /tmp/factupapa-health.json --write-out '%{http_code}' "${base_url}/api/health" || true)"
+            if [ "${web_status}" = "200" ] && [ "${api_status}" = "200" ]; then
+              grep -q '<title>FactuPapa Next</title>' /tmp/factupapa-index.html
+              grep -q '"status":"ok"' /tmp/factupapa-health.json
+              echo "FactuPapa Next es accesible publicamente y la API esta sana"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "La publicacion no quedo accesible desde Internet" >&2
+          exit 1
