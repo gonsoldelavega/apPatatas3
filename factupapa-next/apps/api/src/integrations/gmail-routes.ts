@@ -2,6 +2,7 @@ import type { AuthApplication } from "../auth/service.js";
 import { bearerToken } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
+import { HttpError } from "../http/errors.js";
 import { GmailIntegrationService } from "./gmail.js";
 
 function cookieValue(header: string | undefined, name: string): string | undefined {
@@ -34,16 +35,19 @@ function callbackPaths(path: string): Set<string> {
 
 export function createGmailRoutes(
   auth: AuthApplication,
-  service: GmailIntegrationService,
+  service: GmailIntegrationService | undefined,
   secureCookies: boolean,
 ): RouteHandler {
   return async ({ request, response, url }) => {
     if (request.method === "GET" && url.pathname === "/integrations/gmail") {
       const identity = await auth.authenticate(bearerToken(request));
-      json(response, 200, await service.status(identity));
+      json(response, 200, service
+        ? await service.status(identity)
+        : { available: false, connected: false, email: null, connectedAt: null });
       return true;
     }
     if (request.method === "POST" && url.pathname === "/integrations/gmail/connect") {
+      if (!service) throw new HttpError("not_found", 404);
       const identity = await auth.authenticate(bearerToken(request));
       const authorization = service.createAuthorization(identity);
       json(response, 200, { url: authorization.url }, {
@@ -52,12 +56,13 @@ export function createGmailRoutes(
       return true;
     }
     if (request.method === "DELETE" && url.pathname === "/integrations/gmail") {
+      if (!service) throw new HttpError("not_found", 404);
       const identity = await auth.authenticate(bearerToken(request));
       await service.disconnect(identity);
       noContent(response);
       return true;
     }
-    if (request.method === "GET" && callbackPaths(service.callbackPath).has(url.pathname)) {
+    if (request.method === "GET" && service && callbackPaths(service.callbackPath).has(url.pathname)) {
       const target = new URL(service.frontendMoreUrl);
       try {
         const code = url.searchParams.get("code");

@@ -146,13 +146,17 @@ export function MorePage() {
                     ? "Comprobando"
                     : gmail.data?.connected
                       ? "Conectado"
-                      : "No conectado"}
+                      : gmail.data?.available === false
+                        ? "No disponible"
+                        : "No conectado"}
                 </span>
               </div>
               <p>
                 {gmail.data?.connected
                   ? `Cuenta autorizada: ${gmail.data.email}. FactuPapa solo ha solicitado permiso para enviar.`
-                  : "Tu inicio de sesión identifica la cuenta, pero Gmail necesita un permiso separado de solo envío."}
+                  : gmail.data?.available === false
+                    ? "La conexión de Gmail no está configurada en este entorno."
+                    : "Tu inicio de sesión identifica la cuenta, pero Gmail necesita un permiso separado de solo envío."}
               </p>
               {gmailResult === "success" && (
                 <p className="integration-feedback integration-feedback--success">Gmail se ha conectado correctamente.</p>
@@ -175,7 +179,7 @@ export function MorePage() {
                 ) : (
                   <Button
                     busy={connectGmail.isPending}
-                    disabled={gmail.isLoading || gmail.isError}
+                    disabled={gmail.isLoading || gmail.isError || gmail.data?.available === false}
                     onClick={() => {
                       if (gmailResult) {
                         const next = new URLSearchParams(searchParams);

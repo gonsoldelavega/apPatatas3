@@ -63,6 +63,7 @@ export const authApi = {
 };
 
 export interface GmailConnection {
+  available: boolean;
   connected: boolean;
   email: string | null;
   connectedAt: string | null;

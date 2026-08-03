@@ -19,6 +19,7 @@ interface GmailOAuthState {
 }
 
 export interface GmailConnection {
+  available: boolean;
   connected: boolean;
   email: string | null;
   connectedAt: string | null;
@@ -173,8 +174,8 @@ export class GmailIntegrationService {
       );
       const row = result.rows[0];
       return row
-        ? { connected: true, email: row.googleEmail, connectedAt: row.connectedAt }
-        : { connected: false, email: null, connectedAt: null };
+        ? { available: true, connected: true, email: row.googleEmail, connectedAt: row.connectedAt }
+        : { available: true, connected: false, email: null, connectedAt: null };
     });
   }
 

@@ -131,9 +131,7 @@ const server = createApp({
       : {}),
   },
   routes: [
-    ...(gmail
-      ? [createGmailRoutes(auth, gmail, config.authCookieSecure)]
-      : []),
+    createGmailRoutes(auth, gmail, config.authCookieSecure),
     createAccountsRoutes(auth, accounts),
     createFinanceRoutes(auth, finance),
     createSalesPreferencesRoutes(auth, salesPreferences),
