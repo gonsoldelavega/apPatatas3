@@ -62,6 +62,23 @@ export const authApi = {
     }),
 };
 
+export interface GmailConnection {
+  connected: boolean;
+  email: string | null;
+  connectedAt: string | null;
+}
+
+export const gmailApi = {
+  status: () => apiClient.request<GmailConnection>("/integrations/gmail"),
+  connect: () =>
+    apiClient.request<{ url: string }>("/integrations/gmail/connect", {
+      method: "POST",
+      body: "{}",
+    }),
+  disconnect: () =>
+    apiClient.request<void>("/integrations/gmail", { method: "DELETE" }),
+};
+
 export const contactsApi = {
   list: (params: {
     search?: string;
@@ -257,7 +274,7 @@ export const invoicesApi = {
     }),
   addLine: (
     id: string,
-    input: { productId: string; quantity: string; unitPrice?: string; packageQuantity?: string },
+    input: { productId: string; quantity: string; unitPrice?: string; packageQuantity?: string; deliveryDate?: string | null },
   ) =>
     apiClient.request<Invoice>(`/invoices/${id}/lines`, {
       method: "POST",

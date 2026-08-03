@@ -54,6 +54,7 @@ export function SalesDetailPage() {
   const queryClient = useQueryClient();
   const [newProductId, setNewProductId] = useState(""),
     [newQuantity, setNewQuantity] = useState("1"),
+    [newDeliveryDate, setNewDeliveryDate] = useState(todayLocal()),
     [draftIssueDate, setDraftIssueDate] = useState(todayLocal()),
     [draftDueDate, setDraftDueDate] = useState(""),
     [draftStartDate, setDraftStartDate] = useState(""),
@@ -113,14 +114,21 @@ export function SalesDetailPage() {
     setDraftGeneralInfo(current.generalInformation ?? "");
   }, [documentQuery.data, invoice]);
   const editLine = useMutation({
-    mutationFn: async (input: { action: "add"; productId: string; quantity: string } | { action: "delete"; lineId: string }) => {
-      if (input.action === "add")
-        await api.addLine(id, { productId: input.productId, quantity: input.quantity });
+    mutationFn: async (input: { action: "add"; productId: string; quantity: string; deliveryDate?: string } | { action: "delete"; lineId: string }) => {
+      if (input.action === "add" && invoice)
+        await invoicesApi.addLine(id, {
+          productId: input.productId,
+          quantity: input.quantity,
+          deliveryDate: input.deliveryDate || null,
+        });
+      else if (input.action === "add")
+        await deliveryNotesApi.addLine(id, { productId: input.productId, quantity: input.quantity });
       else await api.deleteLine(id, input.lineId);
     },
     onSuccess: async () => {
       setNewProductId("");
       setNewQuantity("1");
+      setNewDeliveryDate(todayLocal());
       await queryClient.invalidateQueries({ queryKey: [type, id] });
     },
   });
@@ -292,6 +300,9 @@ export function SalesDetailPage() {
               ) : bagLabel(line.quantity, line.unit) ? (
                 <small>{bagLabel(line.quantity, line.unit)}</small>
               ) : null}
+              {line.deliveryDate && (
+                <small>Entrega: {line.deliveryDate.split("-").reverse().join("/")}</small>
+              )}
             </span>
             <span className="sales-line__amount">
               <strong>{formatMoney(line.lineTotal)}</strong>
@@ -468,12 +479,25 @@ export function SalesDetailPage() {
               {products.data?.items.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
             </SelectField>
             <Field label="Cantidad" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
+            {invoice && (
+              <Field
+                label="Fecha de entrega"
+                type="date"
+                value={newDeliveryDate}
+                onChange={(e) => setNewDeliveryDate(e.target.value)}
+              />
+            )}
             <Button
               variant="secondary"
               icon={<Plus />}
               busy={editLine.isPending}
               disabled={!newProductId || Number(newQuantity.replace(",", ".")) <= 0}
-              onClick={() => editLine.mutate({ action: "add", productId: newProductId, quantity: newQuantity.replace(",", ".") })}
+              onClick={() => editLine.mutate({
+                action: "add",
+                productId: newProductId,
+                quantity: newQuantity.replace(",", "."),
+                deliveryDate: newDeliveryDate,
+              })}
             >
               Añadir línea
             </Button>

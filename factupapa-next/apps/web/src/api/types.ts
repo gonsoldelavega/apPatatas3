@@ -331,6 +331,7 @@ export interface SalesLine {
   lineTax: string;
   lineTotal: string;
   position: number;
+  deliveryDate?: string | null;
   packageKind?: Exclude<PackageKind, "none"> | null;
   packageLabel?: string | null;
   packageQuantity?: string | null;

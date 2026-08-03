@@ -30,6 +30,7 @@ type DraftSalesLine = {
   priceEdited: boolean;
   entryMode: "quantity" | "packages";
   packageQuantity: string;
+  deliveryDate: string;
 };
 
 function createDraftLine(): DraftSalesLine {
@@ -41,6 +42,7 @@ function createDraftLine(): DraftSalesLine {
     priceEdited: false,
     entryMode: "quantity",
     packageQuantity: "",
+    deliveryDate: todayLocal(),
   };
 }
 
@@ -99,7 +101,13 @@ export function SalesFormPage() {
         includeTerms: boolean;
       }>;
       if (d.contactId) setContactId(d.contactId);
-      if (d.lines?.length) setLines(d.lines);
+      if (d.lines?.length)
+        setLines(
+          d.lines.map((line) => ({
+            ...line,
+            deliveryDate: line.deliveryDate || todayLocal(),
+          })),
+        );
       if (d.issueDate) setIssueDate(d.issueDate);
       if (d.start) setStart(d.start);
       if (d.end) setEnd(d.end);
@@ -178,6 +186,9 @@ export function SalesFormPage() {
   }, [effectivePrices.data]);
   const save = useMutation({
     mutationFn: async () => {
+      const lineDeliveryDates = invoice
+        ? lines.map((line) => line.deliveryDate).filter(Boolean)
+        : [];
       const d = invoice
         ? await invoicesApi.create({
             contactId,
@@ -186,7 +197,7 @@ export function SalesFormPage() {
             dueDate: due || null,
             operationStartDate: start || null,
             operationEndDate: end || null,
-            deliveryDates,
+            deliveryDates: [...new Set([...deliveryDates, ...lineDeliveryDates])].sort(),
             paymentTerms: terms || null,
             generalInformation: info || null,
             applyContactDefaults: includeTerms,
@@ -202,6 +213,7 @@ export function SalesFormPage() {
               ...(line.entryMode === "packages"
                 ? { packageQuantity: line.packageQuantity.replace(",", ".") }
                 : {}),
+              deliveryDate: line.deliveryDate || null,
             })
           : await deliveryNotesApi.addLine(d.id, {
               productId: line.productId,
@@ -451,6 +463,22 @@ export function SalesFormPage() {
                   <option value="">Selecciona</option>
                   {products.data?.items.map((x) => <option value={x.id} key={x.id}>{x.name}</option>)}
                 </SelectField>
+                {invoice && (
+                  <Field
+                    label="Fecha de entrega de este producto"
+                    type="date"
+                    value={line.deliveryDate}
+                    onChange={(e) =>
+                      setLines((current) =>
+                        current.map((item, n) =>
+                          n === index
+                            ? { ...item, deliveryDate: e.target.value }
+                            : item,
+                        ),
+                      )
+                    }
+                  />
+                )}
                 {hasPackaging && (
                   <div className="segmented segmented--compact" role="group" aria-label="Cómo introducir la cantidad">
                     <button type="button" className={line.entryMode === "packages" ? "active" : ""}

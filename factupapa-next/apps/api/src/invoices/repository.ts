@@ -20,6 +20,7 @@ const projection = `id, contact_id "contactId", number, series, issue_date::text
 const lineProjection = `id, product_id "productId", description, quantity, unit,
   unit_price "unitPrice", tax_rate "taxRate", line_subtotal "lineSubtotal",
   line_tax "lineTax", line_total "lineTotal", position,
+  delivery_date::text "deliveryDate",
   package_kind "packageKind",package_label "packageLabel",
   package_quantity "packageQuantity",units_per_package "unitsPerPackage"`;
 

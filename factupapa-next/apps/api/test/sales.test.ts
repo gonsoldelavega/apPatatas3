@@ -62,6 +62,7 @@ test("el PDF emitido es A4, acotado y reproducible desde el snapshot", async () 
         packageLabel: null,
         packageQuantity: null,
         unitsPerPackage: null,
+        deliveryDate: null,
         position: 1,
       },
     ],

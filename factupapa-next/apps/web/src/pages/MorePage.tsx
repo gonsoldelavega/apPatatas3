@@ -11,8 +11,10 @@ import {
   Upload,
   UsersRound,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { gmailApi } from "../api/services";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
 
@@ -42,6 +44,20 @@ function applyTheme(theme: ThemeChoice) {
 export function MorePage() {
   const auth = useAuth();
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const gmail = useQuery({ queryKey: ["gmail-connection"], queryFn: gmailApi.status });
+  const connectGmail = useMutation({
+    mutationFn: gmailApi.connect,
+    onSuccess: ({ url }) => window.location.assign(url),
+  });
+  const disconnectGmail = useMutation({
+    mutationFn: gmailApi.disconnect,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["gmail-connection"] });
+    },
+  });
+  const gmailResult = searchParams.get("gmail");
 
   return (
     <div className="page more-page">
@@ -125,12 +141,54 @@ export function MorePage() {
             <div className="info-card__body">
               <div className="integration-card__heading">
                 <h2>Gmail</h2>
-                <span className="connection-status connection-status--off">No conectado</span>
+                <span className={`connection-status ${gmail.data?.connected ? "connection-status--on" : "connection-status--off"}`}>
+                  {gmail.isLoading
+                    ? "Comprobando"
+                    : gmail.data?.connected
+                      ? "Conectado"
+                      : "No conectado"}
+                </span>
               </div>
               <p>
-                Descarga o comparte el PDF desde cada factura. El envío directo estará
-                disponible cuando conectes Gmail.
+                {gmail.data?.connected
+                  ? `Cuenta autorizada: ${gmail.data.email}. FactuPapa solo ha solicitado permiso para enviar.`
+                  : "Tu inicio de sesión identifica la cuenta, pero Gmail necesita un permiso separado de solo envío."}
               </p>
+              {gmailResult === "success" && (
+                <p className="integration-feedback integration-feedback--success">Gmail se ha conectado correctamente.</p>
+              )}
+              {gmailResult === "error" && (
+                <p className="integration-feedback integration-feedback--error">No se pudo conectar Gmail. Inténtalo de nuevo.</p>
+              )}
+              <div className="integration-card__actions">
+                {gmail.data?.connected ? (
+                  <Button
+                    variant="secondary"
+                    busy={disconnectGmail.isPending}
+                    onClick={() => {
+                      if (window.confirm("¿Desconectar esta cuenta de Gmail?"))
+                        disconnectGmail.mutate();
+                    }}
+                  >
+                    Desconectar Gmail
+                  </Button>
+                ) : (
+                  <Button
+                    busy={connectGmail.isPending}
+                    disabled={gmail.isLoading || gmail.isError}
+                    onClick={() => {
+                      if (gmailResult) {
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("gmail");
+                        setSearchParams(next, { replace: true });
+                      }
+                      connectGmail.mutate();
+                    }}
+                  >
+                    Conectar Gmail
+                  </Button>
+                )}
+              </div>
             </div>
           </section>
 

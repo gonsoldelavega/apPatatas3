@@ -12,6 +12,7 @@ export interface InvoiceLine {
   lineTax: string;
   lineTotal: string;
   position: number;
+  deliveryDate: string | null;
   packageKind: "bag" | "box" | "sack" | "tray" | "custom" | null;
   packageLabel: string | null;
   packageQuantity: string | null;
@@ -75,4 +76,5 @@ export interface InvoiceLineInput {
   taxRate?: string;
   position?: number;
   packageQuantity?: string;
+  deliveryDate?: string | null;
 }

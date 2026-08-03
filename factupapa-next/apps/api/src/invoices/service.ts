@@ -179,7 +179,7 @@ export class InvoiceService {
         const r = await c.query(
           `update invoice_lines set product_id=$3,description=$4,quantity=$5,unit=$6,unit_price=$7,tax_rate=$8,
              line_subtotal=$9,line_tax=$10,line_total=$11,position=$12,package_kind=$13,package_label=$14,
-             package_quantity=$15,units_per_package=$16 where id=$1 and invoice_id=$2`,
+             package_quantity=$15,units_per_package=$16,delivery_date=$17 where id=$1 and invoice_id=$2`,
           [
             lineId,
             id,
@@ -197,14 +197,15 @@ export class InvoiceService {
             packageLabel,
             packageQuantity,
             unitsPerPackage,
+            input.deliveryDate ?? null,
           ],
         );
         if (!r.rowCount) throw new HttpError("not_found", 404);
       } else
         await c.query(
           `insert into invoice_lines(company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,
-             line_subtotal,line_tax,line_total,position,package_kind,package_label,package_quantity,units_per_package)
-           values($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15,$16)`,
+             line_subtotal,line_tax,line_total,position,package_kind,package_label,package_quantity,units_per_package,delivery_date)
+           values($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
           [
             identity.companyId,
             id,
@@ -222,6 +223,7 @@ export class InvoiceService {
             packageLabel,
             packageQuantity,
             unitsPerPackage,
+            input.deliveryDate ?? null,
           ],
         );
       await this.totals(c, id);
@@ -358,7 +360,11 @@ export class InvoiceService {
       );
       if (!invoice) throw new HttpError("not_found", 404);
       await c.query(
-        `insert into invoice_lines(company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,line_subtotal,line_tax,line_total,position) select company_id,$1,product_id,description,quantity,unit,unit_price,tax_rate,0,line_subtotal,line_tax,line_total,row_number() over(order by delivery_note_id,position) from delivery_note_lines where delivery_note_id=any($2::uuid[])`,
+        `insert into invoice_lines(company_id,invoice_id,product_id,description,quantity,unit,unit_price,tax_rate,discount_rate,line_subtotal,line_tax,line_total,position,delivery_date)
+         select l.company_id,$1,l.product_id,l.description,l.quantity,l.unit,l.unit_price,l.tax_rate,0,l.line_subtotal,l.line_tax,l.line_total,
+           row_number() over(order by l.delivery_note_id,l.position),d.issue_date
+         from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id
+         where l.delivery_note_id=any($2::uuid[])`,
         [invoice.id, input.deliveryNoteIds],
       );
       for (const noteId of input.deliveryNoteIds)

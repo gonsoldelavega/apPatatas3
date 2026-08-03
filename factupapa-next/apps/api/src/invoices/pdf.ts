@@ -136,6 +136,9 @@ export async function createInvoicePdf(
         y = 60;
       }
       const packageText = packaging(line);
+      const deliveryText = line.deliveryDate
+        ? `Entrega: ${date(line.deliveryDate)}`
+        : null;
       doc
         .fontSize(9)
         .text(line.description, 56, y, { width: 200 })
@@ -146,13 +149,14 @@ export async function createInvoicePdf(
           align: "right",
         })
         .text(money(line.lineTotal), 462, y, { width: 85, align: "right" });
-      if (packageText)
+      const lineDetails = [deliveryText, packageText].filter(Boolean).join(" · ");
+      if (lineDetails)
         doc
           .fontSize(7)
           .fillColor("#555555")
-          .text(packageText, 56, y + 12, { width: 200 })
+          .text(lineDetails, 56, y + 12, { width: 200 })
           .fillColor("#111111");
-      y += packageText ? 32 : 26;
+      y += lineDetails ? 32 : 26;
       doc
         .moveTo(48, y - 7)
         .lineTo(547, y - 7)

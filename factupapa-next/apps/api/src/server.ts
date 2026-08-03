@@ -26,6 +26,8 @@ import { FinanceService } from "./finance/service.js";
 import { createFinanceRoutes } from "./finance/routes.js";
 import { AccountsService } from "./accounts/service.js";
 import { createAccountsRoutes } from "./accounts/routes.js";
+import { GmailIntegrationService } from "./integrations/gmail.js";
+import { createGmailRoutes } from "./integrations/gmail-routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -39,6 +41,16 @@ const auth = await AuthService.create({
 });
 const googleOAuth = config.googleOAuth
   ? new GoogleOAuthService(config.googleOAuth)
+  : undefined;
+const gmail = config.googleOAuth
+  ? new GmailIntegrationService(database.pool, {
+      ...config.googleOAuth,
+      redirectUri: new URL(
+        "/api/integrations/gmail/callback",
+        config.googleOAuth.frontendUrl,
+      ).toString(),
+      encryptionSecret: config.jwtSecret,
+    })
   : undefined;
 const contacts = new ContactService(database.pool);
 const products = new ProductService(database.pool);
@@ -119,6 +131,9 @@ const server = createApp({
       : {}),
   },
   routes: [
+    ...(gmail
+      ? [createGmailRoutes(auth, gmail, config.authCookieSecure)]
+      : []),
     createAccountsRoutes(auth, accounts),
     createFinanceRoutes(auth, finance),
     createSalesPreferencesRoutes(auth, salesPreferences),
