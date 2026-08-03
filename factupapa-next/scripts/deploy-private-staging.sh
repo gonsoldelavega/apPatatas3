@@ -9,6 +9,8 @@ override_file="${staging_root}/docker-compose.staging.yml"
 backup_directory="${staging_root}/backups"
 expected_sha="${GITHUB_SHA:?GITHUB_SHA is required}"
 branch="${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}"
+public_host="factupapa-next.46-62-226-95.sslip.io"
+public_origin="https://${public_host}"
 
 case "${branch}" in
   design/factupapa-full-prototype|codex/factupapa-claude-fixes) ;;
@@ -67,9 +69,11 @@ upsert_private_environment_value "OWN_TAX_IDS" "${FACTUPAPA_OWN_TAX_IDS}"
 upsert_private_environment_value "ANTHROPIC_API_KEY" "${FACTUPAPA_ANTHROPIC_API_KEY}"
 upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_ID" "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID}"
 upsert_private_environment_value "GOOGLE_OAUTH_CLIENT_SECRET" "${FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET}"
-upsert_private_environment_value "GOOGLE_OAUTH_REDIRECT_URI" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net/api/auth/google/callback"
-upsert_private_environment_value "GOOGLE_OAUTH_FRONTEND_URL" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
-upsert_private_environment_value "CORS_ALLOWED_ORIGINS" "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+upsert_private_environment_value "PUBLIC_HOST" "${public_host}"
+upsert_private_environment_value "PUBLIC_BIND_ADDRESS" "0.0.0.0"
+upsert_private_environment_value "GOOGLE_OAUTH_REDIRECT_URI" "${public_origin}/api/auth/google/callback"
+upsert_private_environment_value "GOOGLE_OAUTH_FRONTEND_URL" "${public_origin}"
+upsert_private_environment_value "CORS_ALLOWED_ORIGINS" "${public_origin}"
 upsert_private_environment_value "AUTH_COOKIE_SECURE" "true"
 upsert_private_environment_value "AUTH_COOKIE_PATH" "/api/auth"
 upsert_private_environment_value "WEB_API_BASE_URL" "/api"
@@ -83,7 +87,9 @@ set -a
 source "${environment_file}"
 set +a
 
-test "${CORS_ALLOWED_ORIGINS}" = "https://ubuntu-4gb-hel1-1.tail6dd682.ts.net"
+test "${PUBLIC_HOST}" = "${public_host}"
+test "${PUBLIC_BIND_ADDRESS}" = "0.0.0.0"
+test "${CORS_ALLOWED_ORIGINS}" = "${public_origin}"
 test "${AUTH_COOKIE_SECURE}" = "true"
 test "${AUTH_COOKIE_PATH}" = "/api/auth"
 test "${WEB_API_BASE_URL}" = "/api"
@@ -111,14 +117,14 @@ echo "Creando copia verificada previa al despliegue"
 )
 
 cd "${infrastructure}"
-docker compose config --quiet
+docker compose --profile public config --quiet
 docker compose build
-docker compose up -d
+docker compose --profile public up -d
 
-for service in postgres redis minio api web; do
+for service in postgres redis minio api web caddy; do
   healthy=""
   for _ in $(seq 1 60); do
-    container="$(docker compose ps -q "${service}")"
+    container="$(docker compose --profile public ps -q "${service}")"
     if [ -n "${container}" ]; then
       healthy="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container}")"
       [ "${healthy}" = "healthy" ] && break
@@ -132,5 +138,17 @@ done
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/health)" = "200"
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/ready)" = "200"
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14173/healthz)" = "200"
+
+public_status=""
+for _ in $(seq 1 90); do
+  public_status="$(
+    curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+      "${public_origin}/healthz" || true
+  )"
+  [ "${public_status}" = "200" ] && break
+  sleep 2
+done
+test "${public_status}" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${public_origin}/api/health")" = "200"
 test "$(docker ps -q --filter 'label=com.docker.compose.project=n8n')" = ""
-echo "Staging privado actualizado al SHA ${expected_sha}"
+echo "FactuPapa Next publicado en ${public_origin} con el SHA ${expected_sha}"

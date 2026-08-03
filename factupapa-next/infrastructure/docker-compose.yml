@@ -193,6 +193,33 @@ services:
     cap_drop: [ALL]
     cap_add: [CHOWN, SETGID, SETUID]
 
+  caddy:
+    profiles: [public]
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+    ports:
+      - "${PUBLIC_BIND_ADDRESS:-127.0.0.1}:80:80"
+      - "${PUBLIC_BIND_ADDRESS:-127.0.0.1}:443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks: [factupapa]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp]
+
   bootstrap:
     profiles: [tools]
     build:
@@ -230,3 +257,5 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  caddy_data:
+  caddy_config:

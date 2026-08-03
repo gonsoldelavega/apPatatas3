@@ -161,3 +161,33 @@ jobs:
           LEGACY_IMPORT_APPLY: ${{ contains(github.event.head_commit.message, '[import-legacy-apply]') && '1' || '0' }}
           LEGACY_BACKUP_GZIP_BASE64: ${{ secrets.FACTUPAPA_LEGACY_BACKUP_GZIP_BASE64 }}
         run: bash factupapa-next/scripts/import-private-legacy.sh "${GITHUB_WORKSPACE}"
+
+  verify-publication:
+    needs: rootless-audit
+    if: >-
+      success() &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-staging]'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify FactuPapa Next from the public Internet
+        shell: bash
+        env:
+          PUBLIC_ORIGIN: https://factupapa-next.46-62-226-95.sslip.io
+        run: |
+          set -Eeuo pipefail
+          for _ in $(seq 1 30); do
+            web_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${PUBLIC_ORIGIN}/healthz" || true)"
+            api_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${PUBLIC_ORIGIN}/api/health" || true)"
+            if [ "${web_status}" = "200" ] && [ "${api_status}" = "200" ]; then
+              curl --silent --show-error "${PUBLIC_ORIGIN}/" | grep -q '<title>FactuPapa Next</title>'
+              echo "FactuPapa Next responde por HTTPS desde Internet"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "FactuPapa Next no responde correctamente desde Internet" >&2
+          exit 1
