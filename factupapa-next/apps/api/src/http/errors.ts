@@ -10,7 +10,11 @@ export class HttpError extends Error {
       | "payload_too_large"
       | "purchase_registry_not_configured"
       | "purchase_registry_unavailable"
-      | "purchase_registry_invalid",
+      | "purchase_registry_invalid"
+      | "gmail_not_connected"
+      | "gmail_recipient_missing"
+      | "gmail_reauthorization_required"
+      | "gmail_send_failed",
     readonly status: 400 | 403 | 404 | 409 | 413 | 502 | 503,
   ) {
     super(code);

@@ -78,6 +78,11 @@ export const gmailApi = {
     }),
   disconnect: () =>
     apiClient.request<void>("/integrations/gmail", { method: "DELETE" }),
+  sendInvoice: (invoiceId: string) =>
+    apiClient.request<{ sent: true; email: string; messageId: string }>(
+      `/invoices/${invoiceId}/send-gmail`,
+      { method: "POST", body: "{}", timeoutMs: 30_000 },
+    ),
 };
 
 export const contactsApi = {

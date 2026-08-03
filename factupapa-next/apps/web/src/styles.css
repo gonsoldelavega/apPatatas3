@@ -2902,6 +2902,33 @@ body {
 .document-actions .compact-action {
   min-height: 50px;
 }
+.invoice-action-card {
+  scroll-margin-top: 1rem;
+}
+.document-actions--invoice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+.document-actions--invoice .button {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+}
+.action-feedback {
+  margin: 0.85rem 0 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  color: var(--strong);
+  background: var(--surface-soft);
+  font-weight: 700;
+}
+.action-feedback--error {
+  color: var(--danger);
+}
+#invoice-edit {
+  scroll-margin-top: 1rem;
+}
 .purchase-detail-page .detail-card:first-of-type {
   color: var(--white);
   background:

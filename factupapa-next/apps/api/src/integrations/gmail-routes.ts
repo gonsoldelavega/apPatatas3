@@ -1,5 +1,5 @@
 import type { AuthApplication } from "../auth/service.js";
-import { bearerToken } from "../http/request.js";
+import { bearerToken, requireUuid } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
 import { HttpError } from "../http/errors.js";
@@ -60,6 +60,13 @@ export function createGmailRoutes(
       const identity = await auth.authenticate(bearerToken(request));
       await service.disconnect(identity);
       noContent(response);
+      return true;
+    }
+    const sendInvoice = url.pathname.match(/^\/invoices\/([^/]+)\/send-gmail$/);
+    if (request.method === "POST" && sendInvoice) {
+      if (!service) throw new HttpError("gmail_not_connected", 409);
+      const identity = await auth.authenticate(bearerToken(request));
+      json(response, 200, await service.sendInvoice(identity, requireUuid(sendInvoice[1])));
       return true;
     }
     if (request.method === "GET" && service && callbackPaths(service.callbackPath).has(url.pathname)) {

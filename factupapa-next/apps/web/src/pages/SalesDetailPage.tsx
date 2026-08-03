@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  Download,
+  Eye,
+  Mail,
+  MessageCircle,
+  Pencil,
   Plus,
   Printer,
-  Share2,
   FileCheck2,
   ReceiptText,
   XCircle,
@@ -19,7 +21,9 @@ import {
   productsApi,
   salesPreferencesApi,
   accountsApi,
+  gmailApi,
 } from "../api/services";
+import { ApiError } from "../api/client";
 import { Button } from "../ui/Button";
 import type { Invoice } from "../api/types";
 import { EmptyState } from "../ui/EmptyState";
@@ -62,7 +66,8 @@ export function SalesDetailPage() {
     [draftDeliveryDates, setDraftDeliveryDates] = useState<string[]>([]),
     [draftDeliveryInput, setDraftDeliveryInput] = useState(""),
     [draftPaymentTerms, setDraftPaymentTerms] = useState(""),
-    [draftGeneralInfo, setDraftGeneralInfo] = useState("");
+    [draftGeneralInfo, setDraftGeneralInfo] = useState(""),
+    [actionMessage, setActionMessage] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false),
     [paymentAmount, setPaymentAmount] = useState(""),
     [paymentDate, setPaymentDate] = useState(todayLocal()),
@@ -150,43 +155,42 @@ export function SalesDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [type, id] }),
   });
   const pdf = useMutation({
-    mutationFn: () => invoicesApi.downloadPdf(id),
-    onSuccess: (blob) => {
+    mutationFn: async (target: Window | null) => ({
+      blob: await invoicesApi.downloadPdf(id),
+      target,
+    }),
+    onSuccess: ({ blob, target }) => {
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (target) target.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     },
+    onError: (_error, target) => target?.close(),
   });
-  const downloadPdf = useMutation({
-      mutationFn: () => invoicesApi.downloadPdf(id),
-      onSuccess: (b) => {
-        const u = URL.createObjectURL(b),
-          a = document.createElement("a");
-        a.href = u;
-        a.download = "factura.pdf";
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(u), 60000);
-      },
-    }),
-    sharePdf = useMutation({
+  const shareWhatsApp = useMutation({
       mutationFn: () => invoicesApi.downloadPdf(id),
       onSuccess: async (b) => {
-        const f = new File([b], "factura.pdf", { type: "application/pdf" });
+        const current = documentQuery.data as Invoice | undefined,
+          subject = current?.number
+            ? `Factura ${formatDocumentNumber(current.series, current.number)}`
+            : "Factura",
+          filename = `${subject.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`,
+          f = new File([b], filename, { type: "application/pdf" });
         if (navigator.canShare?.({ files: [f] })) {
-          await navigator.share({ title: "Factura", files: [f] });
+          await navigator.share({
+            title: subject,
+            text: `${subject} de FactuPapa`,
+            files: [f],
+          });
           return;
         }
         const u = URL.createObjectURL(b),
-          a = document.createElement("a"),
-          current = documentQuery.data as Invoice | undefined,
-          subject = current?.number
-            ? `Factura ${formatDocumentNumber(current.series, current.number)}`
-            : "Factura";
+          a = document.createElement("a");
         a.href = u;
-        a.download = `${subject.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+        a.download = filename;
         a.click();
         setTimeout(() => URL.revokeObjectURL(u), 60000);
-        window.location.href = `mailto:${encodeURIComponent(current?.contactEmail ?? "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent("Adjunto la factura en PDF. Si no se adjunta automáticamente, usa el archivo descargado.")}`;
+        window.location.href = `https://wa.me/?text=${encodeURIComponent(`${subject}. He descargado el PDF para adjuntarlo.`)}`;
       },
     }),
     printPdf = useMutation({
@@ -204,6 +208,22 @@ export function SalesDetailPage() {
         }, 60000);
       },
     });
+  const sendEmail = useMutation({
+    mutationFn: () => gmailApi.sendInvoice(id),
+    onMutate: () => setActionMessage(null),
+    onSuccess: ({ email }) =>
+      setActionMessage(`Factura enviada correctamente a ${email}.`),
+    onError: (error) => {
+      const code = error instanceof ApiError ? error.code : "gmail_send_failed";
+      setActionMessage(({
+        gmail_not_connected: "Conecta Gmail desde Otros para poder enviar facturas.",
+        gmail_recipient_missing: "Este cliente no tiene un correo válido. Añádelo en Clientes y proveedores.",
+        gmail_reauthorization_required: "La autorización de Gmail ha caducado. Vuelve a conectarlo desde Otros.",
+        gmail_send_failed: "Gmail no pudo enviar la factura. Comprueba que la API de Gmail esté activa e inténtalo de nuevo.",
+        conflict: "Sólo se pueden enviar facturas emitidas.",
+      } as Record<string, string>)[code] ?? "No se pudo enviar la factura.");
+    },
+  });
   const convert = useMutation({
     mutationFn: () =>
       invoicesApi.fromDeliveryNotes({
@@ -375,7 +395,7 @@ export function SalesDetailPage() {
       {item.status === "draft" && (
         <>
           {invoiceItem && (
-            <section className="form-card">
+            <section className="form-card" id="invoice-edit">
               <h2>Datos de la factura</h2>
               <div className="form-grid">
                 <Field
@@ -515,6 +535,86 @@ export function SalesDetailPage() {
           </Button>
         </>
       )}
+      {invoice && (
+        <section className="detail-card invoice-action-card" aria-labelledby="invoice-actions-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Acciones</p>
+              <h2 id="invoice-actions-title">Gestionar factura</h2>
+            </div>
+          </div>
+          <div className="document-actions document-actions--invoice">
+            <Button
+              variant="secondary"
+              icon={<MessageCircle />}
+              busy={shareWhatsApp.isPending}
+              disabled={item.status !== "issued"}
+              onClick={() => shareWhatsApp.mutate()}
+            >
+              WhatsApp
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Mail />}
+              busy={sendEmail.isPending}
+              disabled={item.status !== "issued"}
+              onClick={() => {
+                const recipient = invoiceItem?.contactEmail;
+                const message = recipient
+                  ? `¿Enviar ahora la factura por Gmail a ${recipient}?`
+                  : "Este cliente no tiene correo. ¿Comprobarlo igualmente?";
+                if (window.confirm(message)) sendEmail.mutate();
+              }}
+            >
+              Correo
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Printer />}
+              busy={printPdf.isPending}
+              disabled={item.status !== "issued"}
+              onClick={() => printPdf.mutate()}
+            >
+              Imprimir
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Eye />}
+              busy={pdf.isPending}
+              disabled={item.status !== "issued"}
+              onClick={() => pdf.mutate(window.open("", "_blank"))}
+            >
+              Ver PDF
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Pencil />}
+              onClick={() => {
+                if (item.status === "draft") {
+                  document.getElementById("invoice-edit")?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                  return;
+                }
+                window.alert("Una factura emitida no se puede modificar. Para corregirla, cancélala y crea una nueva para conservar el historial contable.");
+              }}
+            >
+              Editar
+            </Button>
+          </div>
+          {item.status === "draft" && (
+            <p className="form-hint">Termina de editar y emite la factura para enviarla, imprimirla o ver su PDF.</p>
+          )}
+          {item.status === "cancelled" && (
+            <p className="form-hint">Las acciones de envío y PDF sólo están disponibles en facturas emitidas.</p>
+          )}
+          {actionMessage && <p className="action-feedback" role="status">{actionMessage}</p>}
+          {(pdf.isError || printPdf.isError || shareWhatsApp.isError) && (
+            <p className="action-feedback action-feedback--error" role="alert">No se pudo preparar el PDF. Inténtalo de nuevo.</p>
+          )}
+        </section>
+      )}
       {item.status === "issued" && (
         <>
           <Button
@@ -528,34 +628,7 @@ export function SalesDetailPage() {
           >
             Cancelar
           </Button>
-          {invoice ? (
-            <div className="document-actions">
-              <Button
-                variant="secondary"
-                icon={<Download />}
-                onClick={() => pdf.mutate()}
-              >
-                Ver PDF
-              </Button>
-              <Button variant="secondary" onClick={() => downloadPdf.mutate()}>
-                Descargar
-              </Button>
-              <Button
-                variant="secondary"
-                icon={<Share2 />}
-                onClick={() => sharePdf.mutate()}
-              >
-                WhatsApp / email
-              </Button>
-              <Button
-                variant="secondary"
-                icon={<Printer />}
-                onClick={() => printPdf.mutate()}
-              >
-                Imprimir
-              </Button>
-            </div>
-          ) : (
+          {!invoice && (
             <Button
               variant="secondary"
               icon={<ReceiptText />}
