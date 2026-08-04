@@ -363,6 +363,10 @@ export const financeApi = {
       body: "{}",
       timeoutMs: 25_000,
     }),
+  purchaseRegistryStatus: () =>
+    apiClient.request<{ configured: boolean; label: string }>(
+      "/purchases/registry-status",
+    ),
   confirmedPurchasesForExport: (from?: string, to?: string) =>
     apiClient.request<PurchaseInvoice[]>(
       `/purchases/export${queryString({ from, to })}`,

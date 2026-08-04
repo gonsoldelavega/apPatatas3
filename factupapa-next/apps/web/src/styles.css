@@ -1921,6 +1921,42 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.invoice-list-card {
+  position: relative;
+}
+.invoice-list-card > .entity-card {
+  min-height: 112px;
+  padding-bottom: 48px;
+}
+.invoice-card-actions {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.invoice-card-actions button,
+.invoice-card-actions a {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+.invoice-card-actions button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.invoice-card-actions svg {
+  width: 17px;
+  height: 17px;
+}
 
 /* Keep the final action reachable above the iOS browser chrome and app nav. */
 @media (max-width: 959px) {
@@ -2925,6 +2961,28 @@ body {
 }
 .action-feedback--error {
   color: var(--danger);
+}
+.drive-sync-help {
+  margin: 0.1rem 0 1rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.drive-sync-help summary {
+  color: var(--strong);
+  font-weight: 800;
+  cursor: pointer;
+}
+.drive-sync-help p {
+  margin: 0.65rem 0 0;
+}
+.drive-sync-help__state {
+  color: var(--ink);
+  font-weight: 700;
 }
 #invoice-edit {
   scroll-margin-top: 1rem;

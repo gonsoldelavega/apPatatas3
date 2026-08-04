@@ -58,6 +58,10 @@ export function createFinanceRoutes(
       json(response, 200, await finance.syncPurchaseRegistry(id));
       return true;
     }
+    if (url.pathname === "/purchases/registry-status" && request.method === "GET") {
+      json(response, 200, finance.purchaseRegistryStatus());
+      return true;
+    }
     if (url.pathname === "/stock" && request.method === "GET") {
       json(response, 200, await finance.stock(id));
       return true;

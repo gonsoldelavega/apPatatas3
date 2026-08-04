@@ -28,15 +28,28 @@
   letter-spacing: -0.03em;
 }
 
-.dashboard-brand span {
+.dashboard-month-picker {
+  display: block;
+}
+
+.dashboard-month-picker input {
+  min-height: 34px;
+  max-width: 145px;
   padding: 5px 9px;
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted);
   background: var(--surface);
+  font: inherit;
   font-size: 0.7rem;
   font-weight: 700;
-  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.dashboard-month-picker input:focus {
+  outline: 0;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgb(214 166 73 / 14%);
 }
 
 .dashboard-topbar h1 {

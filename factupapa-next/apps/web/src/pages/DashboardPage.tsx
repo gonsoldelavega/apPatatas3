@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   TrendingUp,
 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Bar,
@@ -31,6 +32,7 @@ import {
 } from "../api/services";
 import type { FinanceSummary, Invoice, MonthlyFinanceSummary } from "../api/types";
 import { formatDate, formatMoney } from "../utils/format";
+import { currentPeriod, periodRange } from "../utils/period";
 
 const monthLabel = (month: string) =>
   new Intl.DateTimeFormat("es-ES", { month: "short", year: "2-digit" }).format(
@@ -160,8 +162,15 @@ const previewSummary: DashboardSummary = {
 };
 
 export function DashboardPage() {
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => currentPeriod("month").month,
+  );
+  const selectedRange = periodRange({
+    ...currentPeriod("month"),
+    month: selectedMonth,
+  });
   const summary = useQuery({
-    queryKey: ["dashboard-summary"],
+    queryKey: ["dashboard-summary", selectedMonth],
     enabled: !isPreview,
     queryFn: async (): Promise<DashboardSummary> => {
       const [customers, imports, notes, invoices, finance, monthly] =
@@ -169,8 +178,12 @@ export function DashboardPage() {
           contactsApi.list({ isActive: true, pageSize: 1 }),
           importsApi.list(1, 100),
           deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
-          invoicesApi.list({ pageSize: 100 }),
-          financeApi.summary(),
+          invoicesApi.list({
+            pageSize: 100,
+            from: selectedRange.from,
+            to: selectedRange.to,
+          }),
+          financeApi.summary(selectedRange.from, selectedRange.to),
           financeApi.monthlySummary(6),
         ]);
 
@@ -198,12 +211,17 @@ export function DashboardPage() {
       <header className="dashboard-topbar">
         <div className="dashboard-brand">
           <strong>FactuPapa</strong>
-          <span>
-            {new Intl.DateTimeFormat("es-ES", {
-              month: "long",
-              year: "numeric",
-            }).format(new Date())}
-          </span>
+          <label className="dashboard-month-picker">
+            <span className="sr-only">Mes del resumen</span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => {
+                if (event.target.value) setSelectedMonth(event.target.value);
+              }}
+              aria-label="Mes del resumen"
+            />
+          </label>
         </div>
       </header>
 
@@ -218,7 +236,7 @@ export function DashboardPage() {
         <section className="result-card" aria-busy={summary.isLoading}>
           <div className="result-card__heading">
             <div>
-              <span>Resultado del mes</span>
+              <span>Resultado de {monthLabel(selectedMonth)}</span>
               <strong className={result >= 0 ? "is-positive" : "is-negative"}>
                 {data ? formatMoney(data.finance.balance) : "—"}
               </strong>
@@ -285,7 +303,7 @@ export function DashboardPage() {
 
       <section className="dashboard-section recent-premium">
         <div className="dashboard-section__heading">
-          <h2>Últimas facturas</h2>
+          <h2>Facturas del mes</h2>
           <Link to="/ventas">Ver todas</Link>
         </div>
         <div className="premium-document-list">

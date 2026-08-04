@@ -1,5 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { FileText, Plus, ScrollText } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  Ellipsis,
+  FileText,
+  MessageCircle,
+  Plus,
+  Printer,
+  ScrollText,
+} from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
@@ -26,6 +33,46 @@ const paymentStatuses: Record<string, string> = {
 };
 
 type SalesTab = "invoice" | "delivery";
+type InvoiceQuickAction = "whatsapp" | "print";
+
+const invoiceFilename = (invoice: Invoice) =>
+  `${formatDocumentNumber(invoice.series, invoice.number).replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+
+async function runInvoiceQuickAction(
+  invoice: Invoice,
+  action: InvoiceQuickAction,
+): Promise<void> {
+  const blob = await invoicesApi.downloadPdf(invoice.id);
+  if (action === "whatsapp") {
+    const title = `Factura ${formatDocumentNumber(invoice.series, invoice.number)}`;
+    const file = new File([blob], invoiceFilename(invoice), {
+      type: "application/pdf",
+    });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title, text: title, files: [file] });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const download = document.createElement("a");
+    download.href = url;
+    download.download = invoiceFilename(invoice);
+    download.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    window.location.href = `https://wa.me/?text=${encodeURIComponent(`${title}. He descargado el PDF para adjuntarlo.`)}`;
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const frame = document.createElement("iframe");
+  frame.hidden = true;
+  frame.src = url;
+  frame.onload = () => frame.contentWindow?.print();
+  document.body.append(frame);
+  window.setTimeout(() => {
+    frame.remove();
+    URL.revokeObjectURL(url);
+  }, 60_000);
+}
 
 export function SalesPage() {
   const [tab, setTab] = useState<SalesTab>("invoice");
@@ -34,6 +81,15 @@ export function SalesPage() {
   const [status, setStatus] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [search, setSearch] = useState("");
+  const quickAction = useMutation({
+    mutationFn: ({
+      invoice,
+      action,
+    }: {
+      invoice: Invoice;
+      action: InvoiceQuickAction;
+    }) => runInvoiceQuickAction(invoice, action),
+  });
 
   const filters = {
     pageSize: 100,
@@ -188,12 +244,9 @@ export function SalesPage() {
             ? paymentStatuses[invoice.paymentStatus]
             : statuses[item.status];
 
-          return (
-            <Link
-              className="entity-card"
-              key={item.id}
-              to={`/ventas/${tab === "delivery" ? "albaranes" : "facturas"}/${item.id}`}
-            >
+          const detailUrl = `/ventas/${tab === "delivery" ? "albaranes" : "facturas"}/${item.id}`;
+          const card = (
+            <Link className="entity-card" to={detailUrl}>
               <span className="entity-card__icon">
                 {tab === "delivery" ? <ScrollText /> : <FileText />}
               </span>
@@ -211,8 +264,51 @@ export function SalesPage() {
               <strong className="entity-card__amount">{formatMoney(item.total)}</strong>
             </Link>
           );
+
+          if (!invoice) return <div key={item.id}>{card}</div>;
+
+          const actionBusy =
+            quickAction.isPending && quickAction.variables?.invoice.id === invoice.id;
+          return (
+            <article className="invoice-list-card" key={item.id}>
+              {card}
+              <div className="invoice-card-actions" aria-label={`Acciones de ${formatDocumentNumber(item.series, item.number)}`}>
+                {item.status === "issued" && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Enviar factura por WhatsApp"
+                      title="WhatsApp"
+                      disabled={actionBusy}
+                      onClick={() => quickAction.mutate({ invoice, action: "whatsapp" })}
+                    >
+                      <MessageCircle aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Imprimir factura"
+                      title="Imprimir"
+                      disabled={actionBusy}
+                      onClick={() => quickAction.mutate({ invoice, action: "print" })}
+                    >
+                      <Printer aria-hidden="true" />
+                    </button>
+                  </>
+                )}
+                <Link to={detailUrl} aria-label="Ver todas las opciones de la factura" title="Más opciones">
+                  <Ellipsis aria-hidden="true" />
+                </Link>
+              </div>
+            </article>
+          );
         })}
       </div>
+
+      {quickAction.isError && (
+        <p className="action-feedback action-feedback--error" role="alert">
+          No se pudo preparar el PDF. Inténtalo de nuevo.
+        </p>
+      )}
 
       {tab === "delivery" && (
         <div className="sales-toolbar">

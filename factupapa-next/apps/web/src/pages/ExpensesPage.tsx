@@ -3,6 +3,7 @@ import { CalendarClock, FilePlus2, Receipt, RefreshCw, Trash2 } from "lucide-rea
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { contactsApi, financeApi } from "../api/services";
+import { ApiError } from "../api/client";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { PeriodPicker } from "../ui/PeriodPicker";
@@ -70,6 +71,10 @@ export function ExpensesPage() {
       queryKey: ["suppliers"],
       queryFn: () =>
         contactsApi.list({ type: "supplier", isActive: true, pageSize: 100 }),
+    }),
+    registryStatus = useQuery({
+      queryKey: ["purchase-registry-status"],
+      queryFn: financeApi.purchaseRegistryStatus,
     });
   const [open, setOpen] = useState(false),
     [name, setName] = useState(""),
@@ -255,13 +260,35 @@ export function ExpensesPage() {
         <button
           type="button"
           className="compact-action"
-          disabled={registrySync.isPending}
+          disabled={
+            registrySync.isPending ||
+            registryStatus.isLoading ||
+            registryStatus.data?.configured !== true
+          }
           onClick={() => registrySync.mutate()}
         >
           <RefreshCw className={registrySync.isPending ? "spin" : ""} />
-          {registrySync.isPending ? "Sincronizando…" : "Sincronizar Drive"}
+          {registrySync.isPending ? "Importando…" : "Importar registro Drive"}
         </button>
       </div>
+      <details className="drive-sync-help">
+        <summary>¿Qué hace el registro de Drive?</summary>
+        <p>
+          Importa compras nuevas desde una hoja o CSV maestro preparado para
+          FactuPapa. No sube tus facturas a Drive ni lee tus carpetas personales.
+        </p>
+        {registryStatus.data?.configured === false && (
+          <p className="drive-sync-help__state">
+            No hay ningún registro maestro configurado, por eso la importación
+            está desactivada. Puedes seguir cargando facturas con foto o archivo.
+          </p>
+        )}
+        {registryStatus.data?.configured === true && (
+          <p className="drive-sync-help__state">
+            Registro conectado. El botón busca filas nuevas y evita duplicados.
+          </p>
+        )}
+      </details>
       {registrySync.data && (
         <p className="action-feedback" role="status">
           Registro sincronizado: {registrySync.data.imported} nuevas,{" "}
@@ -273,7 +300,10 @@ export function ExpensesPage() {
       )}
       {registrySync.isError && (
         <p className="field-error" role="alert">
-          No se pudo leer el registro de Drive. Revisa la conexión del registro maestro.
+          {registrySync.error instanceof ApiError &&
+          registrySync.error.code === "purchase_registry_not_configured"
+            ? "No hay un registro maestro configurado."
+            : "No se pudo leer el registro maestro de Drive. Comprueba que la hoja publicada siga disponible."}
         </p>
       )}
       {open && (

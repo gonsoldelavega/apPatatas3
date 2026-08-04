@@ -349,6 +349,13 @@ export class FinanceService {
     });
   }
 
+  purchaseRegistryStatus() {
+    return {
+      configured: Boolean(this.registry),
+      label: "Registro maestro de compras",
+    };
+  }
+
   async ocrBudgetStatus(i: SessionIdentity) {
     if (!this.ocrBudget) throw new HttpError("not_found", 404);
     return this.ocrBudget.status(i);
