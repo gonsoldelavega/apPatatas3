@@ -237,7 +237,7 @@ test("una compra válida se guarda, confirma y cancela", async ({ page }, testIn
   await expect(page.getByRole("status")).toContainText("Compra cancelada");
 });
 
-test("cliente quincenal, condiciones opcionales y precio editable", async ({
+test("factura quincenal, condiciones legales y precio editable", async ({
   page,
 }, testInfo) => {
   const key = `${testInfo.project.name}-${testInfo.retry}`;
@@ -248,15 +248,6 @@ test("cliente quincenal, condiciones opcionales y precio editable", async ({
   await page
     .getByLabel("Periodo habitual de sus facturas")
     .selectOption("fortnightly");
-  await page
-    .getByText("Incluir condiciones de pago por defecto")
-    .click();
-  await page.getByLabel("Días hasta vencimiento").fill("3");
-  await page
-    .getByText("Condiciones y consecuencias del impago")
-    .locator("..")
-    .getByRole("textbox")
-    .fill("Pago en 3 días. La demora podrá suspender nuevos pedidos.");
   await page.getByRole("button", { name: "Guardar contacto" }).click();
   await expect(page).toHaveURL(/\/contactos\/[0-9a-f-]+$/);
 
@@ -265,12 +256,21 @@ test("cliente quincenal, condiciones opcionales y precio editable", async ({
     .getByRole("combobox", { name: "Cliente", exact: true })
     .selectOption({ label: customer });
   await expect(page.getByText("Periodo quincenal")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Factura quincenal" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Fecha límite de pago")).not.toHaveValue("");
+  await expect(
+    page.getByLabel("Condiciones y consecuencias del impago"),
+  ).toHaveValue(/Ley 3\/2004/);
   await page.getByLabel("Producto 1").selectOption({ index: 1 });
+  await expect(
+    page.getByLabel("Fecha de entrega (obligatoria)"),
+  ).not.toHaveValue("");
   await page.getByLabel("Cantidad").fill("1");
   const price = page.getByLabel(/Precio sin IVA/);
   await expect(price).not.toHaveValue("");
   await price.fill("1,75");
-  await page.getByText("Incluir condiciones de pago", { exact: true }).click();
   await page.getByRole("button", { name: "Revisar factura" }).click();
   await expect(page).toHaveURL(/\/ventas\/facturas\/[0-9a-f-]+$/);
   await expect(page.getByText(/1 kg × 1,75/)).toBeVisible();

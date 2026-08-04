@@ -21,6 +21,12 @@ import {
 } from "../utils/format";
 import { bagLabel } from "../utils/packaging";
 import { addCalendarDays, fortnightFor } from "../utils/invoice-period";
+import {
+  STANDARD_PAYMENT_DAYS,
+  STANDARD_PAYMENT_TERMS,
+} from "../utils/payment-terms";
+
+type InvoiceMode = "single" | "fortnightly";
 
 type DraftSalesLine = {
   clientId: string;
@@ -58,12 +64,12 @@ export function SalesFormPage() {
     [issueDate, setIssueDate] = useState(todayLocal()),
     [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
-    [deliveryDates, setDeliveryDates] = useState<string[]>([]),
-    [deliveryInput, setDeliveryInput] = useState(""),
-    [due, setDue] = useState(""),
-    [terms, setTerms] = useState(""),
-    [info, setInfo] = useState(""),
-    [includeTerms, setIncludeTerms] = useState(false);
+    [invoiceMode, setInvoiceMode] = useState<InvoiceMode>("single"),
+    [due, setDue] = useState(() =>
+      addCalendarDays(todayLocal(), STANDARD_PAYMENT_DAYS),
+    ),
+    [terms, setTerms] = useState(STANDARD_PAYMENT_TERMS),
+    [info, setInfo] = useState("");
   const prefs = useQuery({
       queryKey: ["sales-preferences"],
       queryFn: salesPreferencesApi.get,
@@ -98,7 +104,7 @@ export function SalesFormPage() {
         due: string;
         terms: string;
         info: string;
-        includeTerms: boolean;
+        invoiceMode: InvoiceMode;
       }>;
       if (d.contactId) setContactId(d.contactId);
       if (d.lines?.length)
@@ -114,7 +120,7 @@ export function SalesFormPage() {
       if (d.due) setDue(d.due);
       if (d.terms) setTerms(d.terms);
       if (d.info) setInfo(d.info);
-      if (typeof d.includeTerms === "boolean") setIncludeTerms(d.includeTerms);
+      if (d.invoiceMode) setInvoiceMode(d.invoiceMode);
     } catch {
       localStorage.removeItem(draftKey);
     }
@@ -133,35 +139,48 @@ export function SalesFormPage() {
             due,
             terms,
             info,
-            includeTerms,
+            invoiceMode,
           }),
         ),
       250,
     );
     return () => window.clearTimeout(timer);
-  }, [contactId, lines, issueDate, start, end, due, terms, info, includeTerms, draftKey]);
+  }, [
+    contactId,
+    lines,
+    issueDate,
+    start,
+    end,
+    due,
+    terms,
+    info,
+    invoiceMode,
+    draftKey,
+  ]);
   const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
   useEffect(() => {
     if (!invoice) return;
-    const applyTerms = Boolean(selectedContact?.applyInvoiceDefaults);
-    setIncludeTerms(applyTerms);
-    setTerms(applyTerms ? selectedContact?.paymentTermsText ?? "" : "");
     setInfo(
-      applyTerms ? selectedContact?.defaultInvoiceInformation ?? "" : "",
+      selectedContact?.applyInvoiceDefaults
+        ? selectedContact.defaultInvoiceInformation ?? ""
+        : "",
     );
   }, [contactId, invoice, selectedContact]);
   useEffect(() => {
-    if (!invoice || !includeTerms || !selectedContact?.paymentTermsDays) {
-      setDue("");
-      return;
-    }
-    if (selectedContact.paymentTermsDays > 0) {
-      setDue(addCalendarDays(issueDate, selectedContact.paymentTermsDays));
-    }
-  }, [includeTerms, invoice, issueDate, selectedContact]);
+    if (!invoice) return;
+    setDue(addCalendarDays(issueDate, STANDARD_PAYMENT_DAYS));
+  }, [invoice, issueDate]);
   useEffect(() => {
     if (!invoice) return;
-    if (selectedContact?.invoicePeriodMode === "fortnightly") {
+    setInvoiceMode(
+      selectedContact?.invoicePeriodMode === "fortnightly"
+        ? "fortnightly"
+        : "single",
+    );
+  }, [contactId, invoice, selectedContact?.invoicePeriodMode]);
+  useEffect(() => {
+    if (!invoice) return;
+    if (invoiceMode === "fortnightly") {
       const period = fortnightFor(issueDate);
       setStart(period.start);
       setEnd(period.end);
@@ -169,7 +188,7 @@ export function SalesFormPage() {
       setStart("");
       setEnd("");
     }
-  }, [contactId, invoice, issueDate, selectedContact?.invoicePeriodMode]);
+  }, [invoice, invoiceMode, issueDate]);
   useEffect(() => {
     if (!effectivePrices.data) return;
     setLines((current) =>
@@ -197,10 +216,10 @@ export function SalesFormPage() {
             dueDate: due || null,
             operationStartDate: start || null,
             operationEndDate: end || null,
-            deliveryDates: [...new Set([...deliveryDates, ...lineDeliveryDates])].sort(),
+            deliveryDates: [...new Set(lineDeliveryDates)].sort(),
             paymentTerms: terms || null,
             generalInformation: info || null,
-            applyContactDefaults: includeTerms,
+            applyContactDefaults: false,
           })
         : await deliveryNotesApi.create({ contactId, series, issueDate });
       let result = d;
@@ -237,7 +256,10 @@ export function SalesFormPage() {
       amount <= 0 ||
       !line.unitPrice ||
       !Number.isFinite(price) ||
-      price < 0
+      price < 0 ||
+      (invoice &&
+        invoiceMode === "fortnightly" &&
+        (!line.deliveryDate || line.deliveryDate < start || line.deliveryDate > end))
     );
   });
   return (
@@ -299,112 +321,61 @@ export function SalesFormPage() {
         {invoice && (
           <section className="form-card">
             <h2>Periodo y pago</h2>
-            {selectedContact?.invoicePeriodMode === "fortnightly" && (
+            <div
+              className="segmented"
+              role="group"
+              aria-label="Tipo de factura"
+            >
+              <button
+                type="button"
+                className={invoiceMode === "single" ? "active" : ""}
+                aria-pressed={invoiceMode === "single"}
+                onClick={() => setInvoiceMode("single")}
+              >
+                Factura puntual
+              </button>
+              <button
+                type="button"
+                className={invoiceMode === "fortnightly" ? "active" : ""}
+                aria-pressed={invoiceMode === "fortnightly"}
+                onClick={() => setInvoiceMode("fortnightly")}
+              >
+                Factura quincenal
+              </button>
+            </div>
+            {invoiceMode === "fortnightly" && (
               <div className="invoice-period-summary">
                 <span>Periodo quincenal</span>
                 <strong>{start} — {end}</strong>
-                <small>Calculado automáticamente según la fecha de emisión.</small>
+                <small>
+                  La fecha de entrega será obligatoria en cada producto.
+                </small>
               </div>
             )}
-            <label className="choice-row">
-              <input
-                type="checkbox"
-                checked={includeTerms}
-                onChange={(event) => {
-                  const checked = event.target.checked;
-                  setIncludeTerms(checked);
-                  setTerms(checked ? selectedContact?.paymentTermsText ?? "" : "");
-                  setInfo(
-                    checked
-                      ? selectedContact?.defaultInvoiceInformation ?? ""
-                      : "",
-                  );
-                }}
+            <div className="conditional-fields">
+              <Field
+                label="Fecha límite de pago"
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                required
               />
-              <span>
-                <strong>Incluir condiciones de pago</strong>
-                <small>Déjalo desactivado cuando el pago sea al momento.</small>
-              </span>
-            </label>
-            {includeTerms && (
-              <div className="conditional-fields">
-                <Field
-                  label="Fecha límite de pago"
-                  type="date"
-                  value={due}
-                  onChange={(e) => setDue(e.target.value)}
+              <label className="field">
+                <span>Condiciones y consecuencias del impago</span>
+                <textarea
+                  rows={6}
+                  value={terms}
+                  onChange={(e) => setTerms(e.target.value)}
+                  required
                 />
-                <label className="field">
-                  <span>Condiciones y consecuencias del impago</span>
-                  <textarea
-                    rows={4}
-                    value={terms}
-                    onChange={(e) => setTerms(e.target.value)}
-                  />
-                </label>
-              </div>
-            )}
-            {selectedContact?.applyInvoiceDefaults && includeTerms && (
-              <p className="field-help">
-                Se han cargado las condiciones habituales de{" "}
-                {selectedContact.tradeName || selectedContact.legalName}. Puedes
-                corregirlas antes de revisar la factura.
-              </p>
-            )}
+              </label>
+            </div>
+            <p className="field-help">
+              El vencimiento se calcula a tres días naturales de la emisión.
+              Puedes revisar el texto antes de guardar.
+            </p>
             <details className="form-options">
               <summary>Más opciones de la factura</summary>
-              <div className="form-grid">
-                <Field
-                  label="Periodo desde"
-                  type="date"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                />
-                <Field
-                  label="Periodo hasta"
-                  type="date"
-                  value={end}
-                  onChange={(e) => setEnd(e.target.value)}
-                />
-              </div>
-              <div className="delivery-date-editor">
-                <Field
-                  label="Añadir fecha de entrega"
-                  type="date"
-                  value={deliveryInput}
-                  onChange={(e) => setDeliveryInput(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="compact-action"
-                  onClick={() => {
-                    if (deliveryInput && !deliveryDates.includes(deliveryInput)) {
-                      setDeliveryDates((x) => [...x, deliveryInput].sort());
-                      setDeliveryInput("");
-                    }
-                  }}
-                >
-                  <Plus /> Añadir
-                </button>
-              </div>
-              <div className="delivery-date-list">
-                {deliveryDates.map((x) => (
-                  <span key={x}>
-                    {x}
-                    <button
-                      type="button"
-                      aria-label={`Eliminar fecha de entrega ${x}`}
-                      onClick={() =>
-                        setDeliveryDates((dates) =>
-                          dates.filter((date) => date !== x),
-                        )
-                      }
-                    >
-                      <X />
-                    </button>
-                  </span>
-                ))}
-              </div>
               <label className="field">
                 <span>Información adicional (opcional)</span>
                 <textarea
@@ -426,7 +397,13 @@ export function SalesFormPage() {
                 : line.quantity.replace(",", "."),
               packaging = hasPackaging && quantity && Number.isFinite(Number(quantity))
                 ? `${line.entryMode === "packages" ? line.packageQuantity : formatQuantity(String(Number(quantity) / Number(selected?.unitsPerPackage)))} ${selected?.packageLabel ?? "envases"} · ${formatQuantity(quantity)} ${selected?.unit}`
-                : bagLabel(quantity, selected?.unit ?? "");
+                : bagLabel(quantity, selected?.unit ?? ""),
+              deliveryDateError =
+                invoice &&
+                invoiceMode === "fortnightly" &&
+                (!line.deliveryDate || line.deliveryDate < start || line.deliveryDate > end)
+                  ? `Debe estar entre ${start} y ${end}`
+                  : undefined;
             return (
               <div className="sales-line-editor" key={line.clientId}>
                 <SelectField
@@ -465,9 +442,11 @@ export function SalesFormPage() {
                 </SelectField>
                 {invoice && (
                   <Field
-                    label="Fecha de entrega de este producto"
+                    label={`Fecha de entrega${invoiceMode === "fortnightly" ? " (obligatoria)" : " (opcional)"}`}
                     type="date"
                     value={line.deliveryDate}
+                    required={invoiceMode === "fortnightly"}
+                    error={deliveryDateError}
                     onChange={(e) =>
                       setLines((current) =>
                         current.map((item, n) =>

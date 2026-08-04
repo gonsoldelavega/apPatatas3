@@ -265,6 +265,19 @@ export class InvoiceService {
       if (!before) throw new HttpError("not_found", 404);
       if (before.status !== "draft" || !before.lines.length)
         throw new HttpError("conflict", 409);
+      const isFortnightly = Boolean(
+        before.operationStartDate && before.operationEndDate,
+      );
+      if (
+        isFortnightly &&
+        before.lines.some(
+          (line) =>
+            !line.deliveryDate ||
+            line.deliveryDate < before.operationStartDate! ||
+            line.deliveryDate > before.operationEndDate!,
+        )
+      )
+        throw new HttpError("invalid_request", 400);
       await c.query(
         "insert into company_sales_preferences(company_id) values($1) on conflict(company_id) do nothing",
         [identity.companyId],

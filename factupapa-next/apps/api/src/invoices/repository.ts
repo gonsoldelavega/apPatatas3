@@ -1,5 +1,9 @@
 import type { PoolClient, QueryResultRow } from "pg";
 import type { Invoice, InvoiceCreate, InvoiceLine } from "./types.js";
+import {
+  STANDARD_PAYMENT_DAYS,
+  STANDARD_PAYMENT_TERMS,
+} from "./payment-terms.js";
 
 const projection = `id, contact_id "contactId", number, series, issue_date::text "issueDate",
   due_date::text "dueDate", status, notes, subtotal, tax_total "taxTotal", total,
@@ -62,13 +66,11 @@ export class InvoiceRepository {
         legalName: string;
         taxId: string | null;
         address: Record<string, string>;
-        paymentTermsDays: number;
-        paymentTermsText: string | null;
         defaultInvoiceInformation: string | null;
         applyInvoiceDefaults: boolean;
       } & QueryResultRow
     >(
-      `select legal_name "legalName",tax_id "taxId",address,payment_terms_days "paymentTermsDays",payment_terms_text "paymentTermsText",default_invoice_information "defaultInvoiceInformation",apply_invoice_defaults "applyInvoiceDefaults" from contacts
+      `select legal_name "legalName",tax_id "taxId",address,default_invoice_information "defaultInvoiceInformation",apply_invoice_defaults "applyInvoiceDefaults" from contacts
        where id = $1 and is_active and kind in ('customer', 'both')`,
       [input.contactId],
     );
@@ -90,7 +92,7 @@ export class InvoiceRepository {
       `insert into invoices(company_id,contact_id,direction,series,number,issue_date,due_date,operation_start_date,operation_end_date,delivery_dates,payment_terms,general_information,
          status, notes, source, source_type, created_by_user_id, contact_legal_name, contact_tax_id, contact_address,
          issuer_legal_name, issuer_tax_id, issuer_address)
-       values($1,$2,'sale',$3,null,$4,coalesce($5,case when $14::boolean then $4::date + $15::integer else null end),$6,$7,$8,coalesce($9,case when $14::boolean then $16::text else null end),coalesce($10,case when $14::boolean then $17::text else null end),'draft',$11,'native',$12,$13,$18,$19,$20,$21,$22,$23)
+       values($1,$2,'sale',$3,null,$4,coalesce($5,$4::date + $22::integer),$6,$7,$8,coalesce($9,$23::text),coalesce($10,case when $14::boolean then $15::text else null end),'draft',$11,'native',$12,$13,$16,$17,$18,$19,$20,$21)
        returning id`,
       [
         companyId,
@@ -107,8 +109,6 @@ export class InvoiceRepository {
         source,
         userId,
         (input.applyContactDefaults ?? true) && snapshot.applyInvoiceDefaults,
-        snapshot.paymentTermsDays,
-        snapshot.paymentTermsText,
         snapshot.defaultInvoiceInformation,
         snapshot.legalName,
         snapshot.taxId,
@@ -116,6 +116,8 @@ export class InvoiceRepository {
         issuer.legalName,
         issuer.taxId,
         issuer.address,
+        STANDARD_PAYMENT_DAYS,
+        STANDARD_PAYMENT_TERMS,
       ],
     );
     return this.get(client, result.rows[0]!.id);
