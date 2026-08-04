@@ -7,7 +7,11 @@ export default defineConfig({
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI
-    ? [["line"], ["html", { outputFolder: "playwright-report", open: "never" }]]
+    ? [
+        ["line"],
+        ["html", { outputFolder: "playwright-report", open: "never" }],
+        ["./e2e/github-annotations-reporter.ts"],
+      ]
     : "list",
   use: {
     baseURL: process.env.WEB_URL ?? "http://127.0.0.1:4173",
