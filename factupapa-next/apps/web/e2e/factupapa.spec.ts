@@ -28,7 +28,7 @@ async function login(page: Page) {
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("Resultado del mes")).toBeVisible();
+  await expect(page.getByText(/^Resultado de /)).toBeVisible();
 }
 
 async function assertNoHorizontalOverflow(page: Page) {
@@ -76,7 +76,7 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
     if (message.type() === "error") errors.push(message.text());
   });
   await page.reload();
-  await expect(page.getByText("Resultado del mes")).toBeVisible();
+  await expect(page.getByText(/^Resultado de /)).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-inicio.png`,
     fullPage: true,
@@ -138,7 +138,7 @@ test("el callback Google restaura la sesión y entra en la aplicación", async (
 
   await page.goto(callbackUrl);
   await expect(page).toHaveURL(`${webOrigin}/`);
-  await expect(page.getByText("Resultado del mes")).toBeVisible();
+  await expect(page.getByText(/^Resultado de /)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Hola de nuevo" })).toHaveCount(
     0,
   );
