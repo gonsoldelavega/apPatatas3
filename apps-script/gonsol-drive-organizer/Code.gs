@@ -351,6 +351,7 @@ const GONSOL_SUPPLIERS = [
 ];
 
 function processPurchaseInvoicesDaily() {
+  ensurePurchaseInvoiceSchedule_();
   let gmailImport = null;
   try {
     gmailImport = importInvoicesFromGmail_();
@@ -476,6 +477,17 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
 }
 
 function setupDailyPurchaseInvoiceTrigger() {
+  installPurchaseInvoiceTriggers_();
+}
+
+function ensurePurchaseInvoiceSchedule_() {
+  const versionKey = 'purchaseInvoiceTriggerScheduleVersion';
+  if (PropertiesService.getScriptProperties().getProperty(versionKey) === 'v2') return;
+  installPurchaseInvoiceTriggers_();
+  PropertiesService.getScriptProperties().setProperty(versionKey, 'v2');
+}
+
+function installPurchaseInvoiceTriggers_() {
   deleteTriggersForFunction_('processPurchaseInvoicesDaily');
   [8, 12, 16, 20].forEach(function(hour) {
     ScriptApp
