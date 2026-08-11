@@ -101,17 +101,18 @@ function jsonOutput_(payload) {
 const GONSOL_GMAIL_IMPORT = {
   enabled: true,
   processedLabel: 'FACTURAS_IMPORTADAS',
-  after: '2026/07/01',
-  senders: [
-    'gayca@frutasypatatasgayca.com',
-    'facturaelectronicasolred@facturasolred.repsol.com'
-  ],
-  maxThreadsPerRun: 20
+  auditSheetName: 'IMPORT_EMAIL_LOG',
+  stateKey: 'gmailInvoiceImportCursorV2',
+  timezone: 'Europe/Madrid',
+  overlapHours: 2,
+  initialLookbackHours: 14,
+  searchLookbackDays: 30,
+  maxThreadsPerRun: 100
 };
 
 /**
- * Ejecutar UNA VEZ a mano tras desplegar con permisos nuevos: fuerza la pantalla
- * de autorización (incluye Gmail y Drive). No modifica nada; solo pide los permisos.
+ * Ejecutar una vez tras desplegar si Apps Script solicita autorización.
+ * Solo comprueba permisos de Gmail y Drive; no mueve ni registra facturas.
  */
 function autorizarPermisos() {
   var gmailNoLeidos = GmailApp.getInboxUnreadCount();
@@ -120,34 +121,133 @@ function autorizarPermisos() {
   return { gmailNoLeidos: gmailNoLeidos, carpetaRaiz: carpetaRaiz };
 }
 
+/**
+ * Importador incremental de adjuntos de factura de cualquier proveedor.
+ * Consulta solamente una ventana desde el último ciclo correcto con solape.
+ * El libro IMPORT_EMAIL_LOG conserva el ID de mensaje y SHA-256 del adjunto:
+ * un solape o una ejecución repetida nunca crea una segunda copia.
+ */
 function importInvoicesFromGmail_() {
-  if (!GONSOL_GMAIL_IMPORT.enabled) return [];
+  if (!GONSOL_GMAIL_IMPORT.enabled) return { status: 'disabled', imported: 0 };
+
+  const now = new Date();
+  const props = PropertiesService.getScriptProperties();
+  const previous = Number(props.getProperty(GONSOL_GMAIL_IMPORT.stateKey) || 0);
+  const initialStart = now.getTime() - GONSOL_GMAIL_IMPORT.initialLookbackHours * 60 * 60 * 1000;
+  const overlapStart = previous
+    ? previous - GONSOL_GMAIL_IMPORT.overlapHours * 60 * 60 * 1000
+    : initialStart;
+  const windowStart = new Date(Math.max(overlapStart, now.getTime() - GONSOL_GMAIL_IMPORT.searchLookbackDays * 24 * 60 * 60 * 1000));
+
   const label = GmailApp.getUserLabelByName(GONSOL_GMAIL_IMPORT.processedLabel)
     || GmailApp.createLabel(GONSOL_GMAIL_IMPORT.processedLabel);
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
-  const imported = [];
-  GONSOL_GMAIL_IMPORT.senders.forEach(function(sender) {
-    const query = 'from:' + sender
-      + ' has:attachment filename:pdf'
-      + ' after:' + GONSOL_GMAIL_IMPORT.after
-      + ' -label:' + GONSOL_GMAIL_IMPORT.processedLabel;
-    const threads = GmailApp.search(query, 0, GONSOL_GMAIL_IMPORT.maxThreadsPerRun);
-    threads.forEach(function(thread) {
-      thread.getMessages().forEach(function(message) {
-        message.getAttachments({ includeInlineImages: false, includeAttachments: true }).forEach(function(attachment) {
-          const name = attachment.getName();
-          if (!/\.pdf$/i.test(name)) return;
-          // No duplicar si el archivo ya esta en la bandeja de entrada.
-          if (inputFolder.getFilesByName(name).hasNext()) return;
-          inputFolder.createFile(attachment.copyBlob().setName(name));
-          imported.push(name);
-        });
+  const spreadsheet = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
+  const auditSheet = getOrCreateSheet_(spreadsheet, GONSOL_GMAIL_IMPORT.auditSheetName);
+  ensureEmailImportAuditHeader_(auditSheet);
+  const known = buildEmailImportIndex_(auditSheet);
+
+  // GmailSearch limita la búsqueda a 30 días; el filtro horario exacto se hace
+  // con la fecha real de cada mensaje, no por nombre ni por proveedor.
+  const query = 'in:anywhere has:attachment -in:sent newer_than:' + GONSOL_GMAIL_IMPORT.searchLookbackDays + 'd';
+  const threads = GmailApp.search(query, 0, GONSOL_GMAIL_IMPORT.maxThreadsPerRun);
+  const summary = {
+    windowStart: windowStart.toISOString(),
+    windowEnd: now.toISOString(),
+    scannedThreads: threads.length,
+    scannedMessages: 0,
+    imported: 0,
+    alreadyKnown: 0,
+    ignoredAttachments: 0,
+    importedFiles: []
+  };
+
+  threads.forEach(function(thread) {
+    let touched = false;
+    thread.getMessages().forEach(function(message) {
+      const messageDate = message.getDate();
+      if (messageDate < windowStart || messageDate > now) return;
+      summary.scannedMessages++;
+
+      message.getAttachments({ includeInlineImages: false, includeAttachments: true }).forEach(function(attachment) {
+        if (!isSupportedInvoiceAttachment_(attachment)) {
+          summary.ignoredAttachments++;
+          return;
+        }
+
+        const bytes = attachment.getBytes();
+        const digest = sha256Hex_(bytes);
+        const sourceKey = message.getId() + ':' + digest;
+        if (known[sourceKey]) {
+          summary.alreadyKnown++;
+          touched = true;
+          return;
+        }
+
+        const originalName = attachment.getName() || 'adjunto';
+        const stagedName = 'EMAIL_' + message.getId() + '_' + originalName;
+        const file = inputFolder.createFile(attachment.copyBlob().setName(stagedName));
+        auditSheet.appendRow([
+          sourceKey,
+          message.getId(),
+          Utilities.formatDate(messageDate, GONSOL_GMAIL_IMPORT.timezone, 'yyyy-MM-dd HH:mm:ss'),
+          message.getFrom(),
+          message.getSubject(),
+          originalName,
+          digest,
+          file.getId(),
+          file.getUrl(),
+          'importado',
+          Utilities.formatDate(now, GONSOL_GMAIL_IMPORT.timezone, 'yyyy-MM-dd HH:mm:ss')
+        ]);
+        known[sourceKey] = true;
+        touched = true;
+        summary.imported++;
+        summary.importedFiles.push(file.getName());
       });
-      thread.addLabel(label);
     });
+    if (touched) thread.addLabel(label);
   });
-  if (imported.length) console.log('Gmail import: ' + JSON.stringify(imported));
-  return imported;
+
+  // Solo se avanza el cursor cuando la pasada completa termina sin excepción.
+  props.setProperty(GONSOL_GMAIL_IMPORT.stateKey, String(now.getTime()));
+  console.log('Gmail import: ' + JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function ensureEmailImportAuditHeader_(sheet) {
+  if (sheet.getLastRow() > 0) return;
+  sheet.appendRow([
+    'Clave origen', 'ID mensaje Gmail', 'Fecha correo', 'Remitente', 'Asunto',
+    'Nombre adjunto', 'SHA-256', 'ID archivo Drive', 'Enlace Drive', 'Estado', 'Importado el'
+  ]);
+  sheet.setFrozenRows(1);
+}
+
+function buildEmailImportIndex_(sheet) {
+  const index = {};
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return index;
+  sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues().forEach(function(row) {
+    if (row[0]) index[row[0]] = true;
+  });
+  return index;
+}
+
+function isSupportedInvoiceAttachment_(attachment) {
+  const name = String(attachment.getName() || '');
+  const contentType = String(attachment.getContentType() || '');
+  return /\.(pdf|jpe?g|png|tiff?)$/i.test(name)
+    || /^(application\/pdf|image\/(jpeg|png|tiff))$/i.test(contentType);
+}
+
+function sha256Hex_(bytes) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
+    .map(function(byte) {
+      const value = byte < 0 ? byte + 256 : byte;
+      return ('0' + value.toString(16)).slice(-2);
+    })
+    .join('');
 }
 
 const GONSOL_MONTHS = [
@@ -251,11 +351,11 @@ const GONSOL_SUPPLIERS = [
 ];
 
 function processPurchaseInvoicesDaily() {
-  // Primero trae las facturas nuevas que hayan llegado por email (GAYCA);
-  // despues se procesan junto con las escaneadas, por el mismo flujo.
+  let gmailImport = null;
   try {
-    importInvoicesFromGmail_();
+    gmailImport = importInvoicesFromGmail_();
   } catch (error) {
+    // El cursor no avanza si falla; la siguiente ejecución recupera la ventana.
     console.error('Gmail import fallo (se continua con la bandeja): ' + error);
   }
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
@@ -297,8 +397,9 @@ function processPurchaseInvoicesDaily() {
   rebuildMonthlyPurchasesSummary_(sheet);
   reorganizePurchasesByMonth_();
 
-  console.log(JSON.stringify(results, null, 2));
-  return results;
+  const execution = { gmailImport: gmailImport, processedFiles: results };
+  console.log(JSON.stringify(execution, null, 2));
+  return execution;
 }
 
 /**
@@ -342,9 +443,14 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
   const now = new Date();
 
   if (extracted.confidence < GONSOL_CONFIG.minConfidence || extracted.requiresReview) {
-    appendRegistryRow_(sheet, buildRegistryRow_(extracted, file, now, 'no', 'Revision manual: datos insuficientes'));
+    // Un documento no revisado no se registra como gasto.
     moveFileToFolder_(file, reviewFolder);
-    return { fileName: file.getName(), status: 'review', confidence: extracted.confidence };
+    return {
+      fileName: file.getName(),
+      status: 'review',
+      confidence: extracted.confidence,
+      reason: extracted.observations || 'Datos insuficientes o incoherentes'
+    };
   }
 
   const duplicateKey = makeDuplicateKey_(extracted.provider, extracted.invoiceNumber, extracted.total);
@@ -354,11 +460,11 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
   }
 
   const destination = getDestinationFolder_(extracted.year, extracted.quarter, extracted.month);
-  const newName = buildPurchaseFileName_(extracted);
+  const newName = buildPurchaseFileName_(extracted, file);
   file.setName(newName);
   moveFileToFolder_(file, destination);
 
-  appendRegistryRow_(sheet, buildRegistryRow_(extracted, file, now, 'sí', 'OCR automatico'));
+  appendRegistryRow_(sheet, buildRegistryRow_(extracted, file, now, 'sí', 'OCR automático · importación Gmail/Drive'));
   duplicateIndex[duplicateKey] = true;
 
   return {
@@ -371,12 +477,16 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
 
 function setupDailyPurchaseInvoiceTrigger() {
   deleteTriggersForFunction_('processPurchaseInvoicesDaily');
-  ScriptApp
-    .newTrigger('processPurchaseInvoicesDaily')
-    .timeBased()
-    .everyDays(1)
-    .atHour(7)
-    .create();
+  [8, 12, 16, 20].forEach(function(hour) {
+    ScriptApp
+      .newTrigger('processPurchaseInvoicesDaily')
+      .timeBased()
+      .atHour(hour)
+      .nearMinute(0)
+      .everyDays(1)
+      .inTimezone('Europe/Madrid')
+      .create();
+  });
 }
 
 function testPurchaseInvoiceOcrOnly() {
@@ -522,7 +632,7 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
 
   const date = extractDate_(clean, originalFileName);
   const total = extractTotal_(clean);
-  const tax = extractTax_(clean, total, profile ? profile.defaultIva : '');
+  const tax = extractTax_(clean);
   const provider = profile ? profile.name : extractProvider_(clean, upper, originalFileName);
   const nif = extractSupplierNif_(upper, profile);
   const invoiceNumber = extractInvoiceNumber_(clean, upper, profile);
@@ -546,10 +656,17 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
   if (!provider) missing.push('proveedor');
   if (!invoiceNumber) missing.push('numero');
   if (!total) missing.push('total');
+  if (tax.base === '') missing.push('base imponible');
+  if (tax.ivaPercent === '') missing.push('tipo IVA');
+  if (tax.ivaAmount === '') missing.push('cuota IVA');
 
-  // Para proveedores conocidos basta con fecha + total para registrar:
-  // el numero puede faltar (se marca en observaciones) y aun asi entra en la hoja.
-  const requiresReview = supplierKnown ? (!date || !total) : (missing.length > 0);
+  const taxMismatch = tax.base !== '' && tax.ivaAmount !== '' && total !== ''
+    && Math.abs((Number(tax.base) + Number(tax.ivaAmount)) - Number(total)) > 0.02;
+  if (taxMismatch) missing.push('base/IVA no cuadra con total');
+
+  // No se registra ningún gasto si falta número, fecha, proveedor o desglose fiscal
+  // explícito en el documento original; los proveedores conocidos no son excepción.
+  const requiresReview = missing.length > 0;
 
   const confidence = calculateConfidence_(missing, nif, tax.base, category, supplierKnown);
 
@@ -670,34 +787,13 @@ function extractTotal_(text) {
   return maxMoneyMatch_(text, patterns);
 }
 
-function extractTax_(text, total, defaultIvaPercent) {
-  let ivaPercent = extractIvaPercent_(text);
-  let ivaAmount = extractIvaAmount_(text);
-  let base = extractBase_(text);
-
-  // Para alimentacion el IVA habitual es 4%: si no se lee, usamos el del proveedor.
-  if (ivaPercent === '' && defaultIvaPercent !== '' && defaultIvaPercent != null) {
-    ivaPercent = defaultIvaPercent;
-  }
-
-  if (!base && total && ivaPercent !== '') {
-    base = roundMoney_(Number(total) / (1 + Number(ivaPercent) / 100));
-  }
-
-  if (base && total) {
-    const computedIva = roundMoney_(Number(total) - Number(base));
-    if (!ivaAmount || ivaAmount >= Number(base) * 0.5 || Math.abs(Number(ivaAmount) - computedIva) > 0.05) {
-      ivaAmount = computedIva;
-    }
-    if (ivaPercent === '') {
-      ivaPercent = inferIvaPercent_(base, total);
-    }
-  }
-
+function extractTax_(text) {
+  // Solo se conservan importes y tipo de IVA que estén escritos en la factura.
+  // No se calcula ni se infiere ninguna cifra contable a partir del total.
   return {
-    base: base,
-    ivaPercent: ivaPercent,
-    ivaAmount: ivaAmount || (base && total ? roundMoney_(Number(total) - Number(base)) : '')
+    base: extractBase_(text),
+    ivaPercent: extractIvaPercent_(text),
+    ivaAmount: extractIvaAmount_(text)
   };
 }
 
@@ -787,7 +883,7 @@ function classifyPurchaseCategory_(upper) {
   if (/PATATA|AGRIA|MONALISA|KENNEBEC|FRUTA|VERDURA/.test(upper)) return 'Materia prima';
   if (/BOLSA|ENVASE|VACIO|VACÍO|PLASTICO|PLÁSTICO/.test(upper)) return 'Envases';
   if (/CAJA|LIMPIEZA|CONSUMIBLE|GUANTE|ETIQUETA/.test(upper)) return 'Material auxiliar';
-  return 'Materia prima';
+  return '';
 }
 
 function buildRegistryRow_(data, file, registeredAt, reviewed, observations) {
@@ -1034,11 +1130,14 @@ function moveFileToFolder_(file, destinationFolder) {
   file.moveTo(destinationFolder);
 }
 
-function buildPurchaseFileName_(data) {
+function buildPurchaseFileName_(data, file) {
   const provider = slugFilePart_(shortProviderName_(data.provider));
   const number = slugFilePart_(data.invoiceNumber);
   const total = toSpanishMoney_(data.total);
-  return data.dateText + '_FACTURA_COMPRA_' + provider + '_' + number + '_' + total + '.pdf';
+  const originalName = file && file.getName ? file.getName() : '';
+  const extensionMatch = String(originalName).match(/\.([A-Za-z0-9]{2,5})$/);
+  const extension = extensionMatch ? '.' + extensionMatch[1].toLowerCase() : '.pdf';
+  return data.dateText + '_FACTURA_COMPRA_' + provider + '_' + number + '_' + total + extension;
 }
 
 function shortProviderName_(provider) {
