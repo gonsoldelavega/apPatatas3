@@ -160,7 +160,7 @@ export function LoginPage() {
             </div>
           )}
           <Button type="submit" busy={isSubmitting}>
-            Entrar
+            Entrar en FactuPapa
           </Button>
         </form>
 

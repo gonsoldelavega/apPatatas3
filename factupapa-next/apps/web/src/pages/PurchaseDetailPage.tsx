@@ -26,6 +26,9 @@ export function PurchaseDetailPage() {
   const [showPayment, setShowPayment] = useState(false);
   const [amount, setAmount] = useState("");
   const [paidOn, setPaidOn] = useState(todayLocal());
+  const [pendingTransition, setPendingTransition] = useState<
+    "confirm" | "cancel" | null
+  >(null);
 
   const purchase = useQuery({
     queryKey: ["purchase", id],
@@ -36,6 +39,7 @@ export function PurchaseDetailPage() {
     mutationFn: (requestedAction: "confirm" | "cancel") =>
       financeApi.transitionPurchase(id, requestedAction),
     onSuccess: async (updatedPurchase, requestedAction) => {
+      setPendingTransition(null);
       queryClient.setQueryData(["purchase", id], updatedPurchase);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["purchases"] }),
@@ -129,12 +133,7 @@ export function PurchaseDetailPage() {
 
   const requestTransition = (requestedAction: "confirm" | "cancel") => {
     if (transition.isPending) return;
-    const confirmed = window.confirm(
-      requestedAction === "confirm"
-        ? "La compra se confirmará y afectará al stock y a los saldos. ¿Continuar?"
-        : "La compra quedará cancelada. ¿Continuar?",
-    );
-    if (confirmed) transition.mutate(requestedAction);
+    setPendingTransition(requestedAction);
   };
 
   return (
@@ -304,27 +303,66 @@ export function PurchaseDetailPage() {
       </section>
 
       {item.status === "draft" && (
-        <div className="document-actions">
-          <Button
-            type="button"
-            icon={<CheckCircle2 />}
-            busy={transition.isPending && transition.variables === "confirm"}
-            disabled={transition.isPending || !item.lines?.length}
-            onClick={() => requestTransition("confirm")}
-          >
-            Confirmar compra
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            icon={<XCircle />}
-            busy={transition.isPending && transition.variables === "cancel"}
-            disabled={transition.isPending}
-            onClick={() => requestTransition("cancel")}
-          >
-            Cancelar
-          </Button>
-        </div>
+        <>
+          <div className="document-actions">
+            <Button
+              type="button"
+              icon={<CheckCircle2 />}
+              disabled={transition.isPending || !item.lines?.length}
+              onClick={() => requestTransition("confirm")}
+            >
+              Confirmar compra
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              icon={<XCircle />}
+              disabled={transition.isPending}
+              onClick={() => requestTransition("cancel")}
+            >
+              Cancelar
+            </Button>
+          </div>
+          {pendingTransition && (
+            <section
+              className="detail-card transition-confirmation"
+              role="alertdialog"
+              aria-labelledby="purchase-transition-title"
+              aria-describedby="purchase-transition-description"
+            >
+              <h2 id="purchase-transition-title">
+                {pendingTransition === "confirm"
+                  ? "¿Confirmar esta compra?"
+                  : "¿Cancelar esta compra?"}
+              </h2>
+              <p id="purchase-transition-description">
+                {pendingTransition === "confirm"
+                  ? "Actualizará el stock y los saldos. Revisa los conceptos antes de continuar."
+                  : "La compra quedará cancelada y no afectará al stock."}
+              </p>
+              <div className="document-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={transition.isPending}
+                  onClick={() => setPendingTransition(null)}
+                >
+                  Volver
+                </Button>
+                <Button
+                  type="button"
+                  variant={pendingTransition === "cancel" ? "danger" : "primary"}
+                  busy={transition.isPending}
+                  onClick={() => transition.mutate(pendingTransition)}
+                >
+                  {pendingTransition === "confirm"
+                    ? "Sí, confirmar compra"
+                    : "Sí, cancelar compra"}
+                </Button>
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {item.status === "draft" && !item.lines?.length && (

@@ -26,7 +26,9 @@ describe("interfaz web", () => {
     expect(password).toHaveAttribute("type", "password");
     await user.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
     expect(password).toHaveAttribute("type", "text");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Entrar en FactuPapa" }),
+    );
     expect(await screen.findByText("Introduce un email válido")).toBeInTheDocument();
   });
 

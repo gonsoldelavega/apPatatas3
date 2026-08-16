@@ -387,7 +387,7 @@ export function PurchaseFormPage() {
         {documentError && <div className="form-alert" role="alert">{documentError}</div>}
         {upload.isError && (
           <div className="form-alert" role="alert">
-            No se pudo leer la factura. Puedes reintentarlo o introducir los datos manualmente.
+            No se pudo leer ni adjuntar la factura. Puedes reintentarlo o guardar la compra con los datos introducidos manualmente.
             <Button type="button" variant="secondary" onClick={() => documentFile && upload.mutate(documentFile)}>
               <RefreshCw /> Reintentar lectura
             </Button>
@@ -509,7 +509,7 @@ export function PurchaseFormPage() {
       {save.isError && <div className="form-alert" role="alert">No se pudo guardar la compra. Revisa proveedor, fechas e importes.</div>}
       <div className="sticky-submit">
         <Button
-          disabled={!supplierId || !issueDate || !allLinesValid || upload.isPending || (Boolean(documentFile) && !documentId)}
+          disabled={!supplierId || !issueDate || !allLinesValid || upload.isPending}
           busy={save.isPending}
           onClick={() => save.mutate()}
         >

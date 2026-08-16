@@ -9,8 +9,10 @@ import { ToastProvider } from "./ui/ToastProvider";
 import "./styles.css";
 import "./navigation.css";
 import "./integrations.css";
-import "./verde-tinta.css";
 import "./factupapa-premium.css";
+// The product theme is the final token/visual layer. Keep it after the
+// generic premium foundation so its Verde Tinta palette wins the cascade.
+import "./verde-tinta.css";
 import "./premium-dashboard.css";
 import "./purchase-capture-access.css";
 import "./more-page-refinement.css";

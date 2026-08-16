@@ -26,7 +26,7 @@ async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText(/^Resultado de /)).toBeVisible();
 }
@@ -67,7 +67,7 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
   await page.goto("/login");
   await page.getByLabel("Email").fill("incorrecto@example.test");
   await page.getByLabel("Contraseña", { exact: true }).fill("incorrecta");
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "No se ha podido iniciar sesión",
   );
@@ -227,13 +227,16 @@ test("una compra válida se guarda, confirma y cancela", async ({ page }, testIn
   };
 
   await createPurchase("confirmar");
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Confirmar compra" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText(
+    "Actualizará el stock y los saldos",
+  );
+  await page.getByRole("button", { name: "Sí, confirmar compra" }).click();
   await expect(page.getByRole("status")).toContainText("Compra confirmada");
 
   await createPurchase("cancelar");
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await page.getByRole("button", { name: "Sí, cancelar compra" }).click();
   await expect(page.getByRole("status")).toContainText("Compra cancelada");
 });
 

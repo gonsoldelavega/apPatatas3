@@ -177,3 +177,13 @@
     transform: translateY(-1px);
   }
 }
+.transition-confirmation {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  display: grid;
+  gap: 0.75rem;
+}
+
+.transition-confirmation h2,
+.transition-confirmation p {
+  margin: 0;
+}
