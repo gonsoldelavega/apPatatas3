@@ -240,7 +240,7 @@ test("una compra válida se guarda, confirma y cancela", async ({ page }, testIn
   await expect(page.getByRole("status")).toContainText("Compra cancelada");
 });
 
-test("factura quincenal, condiciones legales y precio editable", async ({
+test("factura quincenal sin condiciones por defecto y precio editable", async ({
   page,
 }, testInfo) => {
   const key = `${testInfo.project.name}-${testInfo.retry}`;
@@ -251,8 +251,29 @@ test("factura quincenal, condiciones legales y precio editable", async ({
   await page
     .getByLabel("Periodo habitual de sus facturas")
     .selectOption("fortnightly");
+  const includeTerms = page.getByRole("checkbox", {
+    name: "Incluir condiciones de pago en las facturas",
+  });
+  await expect(includeTerms).not.toBeChecked();
+  await expect(page.getByLabel("Condiciones y consecuencias del impago")).toHaveCount(0);
+  await includeTerms.check();
+  await page.getByLabel("Condiciones y consecuencias del impago").fill("Condición conservada E2E");
   await page.getByRole("button", { name: "Guardar contacto" }).click();
   await expect(page).toHaveURL(/\/contactos\/[0-9a-f-]+$/);
+
+  await page.goto(`${page.url()}/editar`);
+  await expect(includeTerms).toBeChecked();
+  await includeTerms.uncheck();
+  await expect(page.getByLabel("Condiciones y consecuencias del impago")).toHaveCount(0);
+  await page.getByRole("button", { name: "Guardar contacto" }).click();
+  await expect(page).toHaveURL(/\/contactos\/[0-9a-f-]+$/);
+
+  await page.goto(`${page.url()}/editar`);
+  await expect(includeTerms).not.toBeChecked();
+  await includeTerms.check();
+  await expect(page.getByLabel("Condiciones y consecuencias del impago")).toHaveValue("Condición conservada E2E");
+  await includeTerms.uncheck();
+  await page.getByRole("button", { name: "Guardar contacto" }).click();
 
   await page.goto("/ventas/nuevo/factura");
   await page
@@ -265,7 +286,7 @@ test("factura quincenal, condiciones legales y precio editable", async ({
   await expect(page.getByLabel("Fecha límite de pago")).not.toHaveValue("");
   await expect(
     page.getByLabel("Condiciones y consecuencias del impago"),
-  ).toHaveValue(/Ley 3\/2004/);
+  ).toHaveCount(0);
   await page.getByLabel("Producto 1").selectOption({ index: 1 });
   await expect(
     page.getByLabel("Fecha de entrega (obligatoria)"),
@@ -277,6 +298,7 @@ test("factura quincenal, condiciones legales y precio editable", async ({
   await page.getByRole("button", { name: "Revisar factura" }).click();
   await expect(page).toHaveURL(/\/ventas\/facturas\/[0-9a-f-]+$/);
   await expect(page.getByText(/1 kg × 1,75/)).toBeVisible();
+  await expect(page.getByText(/Condiciones:/)).toHaveCount(0);
 });
 
 test("importación de productos valida, previsualiza y permite cancelar", async ({ page }) => {

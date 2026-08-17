@@ -49,11 +49,9 @@ function payload(values: Values): ContactInput {
     email: nullable(values.email),
     phone: nullable(values.phone),
     notes: nullable(values.notes),
-    paymentTermsDays: applyInvoiceDefaults ? values.paymentTermsDays : 0,
-    paymentTermsText: applyInvoiceDefaults ? nullable(values.paymentTermsText) : null,
-    defaultInvoiceInformation: applyInvoiceDefaults
-      ? nullable(values.defaultInvoiceInformation)
-      : null,
+    paymentTermsDays: values.paymentTermsDays,
+    paymentTermsText: nullable(values.paymentTermsText),
+    defaultInvoiceInformation: nullable(values.defaultInvoiceInformation),
     applyInvoiceDefaults,
     invoicePeriodMode: customer ? values.invoicePeriodMode : "manual",
     address: Object.fromEntries(
@@ -213,7 +211,7 @@ export function ContactFormPage() {
             <label className="choice-row">
               <input type="checkbox" {...register("applyInvoiceDefaults")} />
               <span>
-                <strong>Incluir condiciones de pago por defecto</strong>
+                <strong>Incluir condiciones de pago en las facturas</strong>
                 <small>Déjalo desactivado para clientes que pagan al momento.</small>
               </span>
             </label>

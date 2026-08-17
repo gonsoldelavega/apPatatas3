@@ -21,10 +21,7 @@ import {
 } from "../utils/format";
 import { bagLabel } from "../utils/packaging";
 import { addCalendarDays, fortnightFor } from "../utils/invoice-period";
-import {
-  STANDARD_PAYMENT_DAYS,
-  STANDARD_PAYMENT_TERMS,
-} from "../utils/payment-terms";
+import { STANDARD_PAYMENT_DAYS } from "../utils/payment-terms";
 
 type InvoiceMode = "single" | "fortnightly";
 
@@ -68,7 +65,7 @@ export function SalesFormPage() {
     [due, setDue] = useState(() =>
       addCalendarDays(todayLocal(), STANDARD_PAYMENT_DAYS),
     ),
-    [terms, setTerms] = useState(STANDARD_PAYMENT_TERMS),
+    [terms, setTerms] = useState(""),
     [info, setInfo] = useState("");
   const prefs = useQuery({
       queryKey: ["sales-preferences"],
@@ -160,6 +157,11 @@ export function SalesFormPage() {
   const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
   useEffect(() => {
     if (!invoice) return;
+    setTerms(
+      selectedContact?.applyInvoiceDefaults
+        ? selectedContact.paymentTermsText ?? ""
+        : "",
+    );
     setInfo(
       selectedContact?.applyInvoiceDefaults
         ? selectedContact.defaultInvoiceInformation ?? ""
@@ -360,19 +362,20 @@ export function SalesFormPage() {
                 onChange={(e) => setDue(e.target.value)}
                 required
               />
-              <label className="field">
-                <span>Condiciones y consecuencias del impago</span>
-                <textarea
-                  rows={6}
-                  value={terms}
-                  onChange={(e) => setTerms(e.target.value)}
-                  required
-                />
-              </label>
+              {selectedContact?.applyInvoiceDefaults && (
+                <label className="field">
+                  <span>Condiciones y consecuencias del impago</span>
+                  <textarea
+                    rows={6}
+                    value={terms}
+                    onChange={(e) => setTerms(e.target.value)}
+                  />
+                </label>
+              )}
             </div>
             <p className="field-help">
               El vencimiento se calcula a tres días naturales de la emisión.
-              Puedes revisar el texto antes de guardar.
+              Las condiciones solo se añaden si están activadas en el cliente.
             </p>
             <details className="form-options">
               <summary>Más opciones de la factura</summary>

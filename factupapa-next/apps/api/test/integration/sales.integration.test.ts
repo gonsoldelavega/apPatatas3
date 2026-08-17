@@ -167,6 +167,33 @@ test("preferencias de venta son tenant-aware y arrancan la factura en FAC-100/a�
   );
 });
 
+test("las condiciones guardadas solo se aplican cuando el cliente las activa", async () => {
+  await withTenantTransaction(api.pool, identity, async (client) => {
+    await client.query(
+      `update contacts set payment_terms_text=$2, apply_invoice_defaults=false where id=$1`,
+      [customerId, "Condición conservada de prueba"],
+    );
+  });
+  const withoutTerms = await invoices.create(identity, {
+    contactId: customerId, series: "TERMS_OFF_2026", issueDate: "2026-07-15",
+  });
+  assert.equal(withoutTerms?.paymentTerms, null);
+
+  await withTenantTransaction(api.pool, identity, async (client) => {
+    await client.query(`update contacts set apply_invoice_defaults=true where id=$1`, [customerId]);
+  });
+  const withTerms = await invoices.create(identity, {
+    contactId: customerId, series: "TERMS_ON_2026", issueDate: "2026-07-15",
+  });
+  assert.equal(withTerms?.paymentTerms, "Condición conservada de prueba");
+
+  const explicitlyWithoutTerms = await invoices.create(identity, {
+    contactId: customerId, series: "TERMS_OVERRIDE_2026", issueDate: "2026-07-15",
+    applyContactDefaults: false,
+  });
+  assert.equal(explicitlyWithoutTerms?.paymentTerms, null);
+});
+
 test("albarán aplica precio específico, snapshot, numeración, bloqueo y aislamiento", async () => {
   const draft = await delivery.create(identity, {
     contactId: customerId,
