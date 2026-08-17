@@ -165,8 +165,15 @@ test("facturas mobile-first sin overflow", async ({ page }, testInfo) => {
 
 test("la navegación inferior conserva foco, estado y transición de sección", async ({
   page,
-}) => {
+}, testInfo) => {
   await login(page);
+  const captureReference = async (screen: string) => {
+    if (testInfo.project.name !== "mobile-390") return;
+    await page.waitForTimeout(260);
+    await page.screenshot({
+      path: testInfo.outputPath(`reference-${screen}-390.png`),
+    });
+  };
   const viewTransitionSupported = await page.evaluate(() => {
     const target = window as typeof window & { __viewTransitionCount?: number };
     const original = document.startViewTransition?.bind(document);
@@ -184,16 +191,17 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
   const navigation = page.getByRole("navigation", {
     name: "Navegación principal",
   });
-  await expect(page.getByRole("link", { name: "Inicio" })).toHaveAttribute(
+  await expect(navigation.getByRole("link", { name: "Inicio" })).toHaveAttribute(
     "aria-current",
     "page",
   );
   await expect(navigation).toHaveCSS("--active-nav-index", "0");
+  await captureReference("inicio");
 
-  await page.getByRole("link", { name: "Facturas" }).click();
+  await navigation.getByRole("link", { name: "Facturas", exact: true }).click();
   await expect(page).toHaveURL(/\/ventas$/);
   await expect(page.getByRole("heading", { name: "Facturas" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Facturas" })).toHaveAttribute(
+  await expect(navigation.getByRole("link", { name: "Facturas" })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -202,8 +210,9 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
     (window as typeof window & { __viewTransitionCount?: number })
       .__viewTransitionCount ?? 0,
   )).toBe(viewTransitionSupported && !reducedMotion ? 1 : 0);
+  await captureReference("facturas");
 
-  await page.getByRole("link", { name: "Gastos" }).click();
+  await navigation.getByRole("link", { name: "Gastos" }).click();
   await expect(page).toHaveURL(/\/gastos$/);
   await expect(page.getByRole("heading", { name: "Gastos", exact: true })).toBeVisible();
   await expect(navigation).toHaveCSS("--active-nav-index", "2");
@@ -211,6 +220,36 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
     (window as typeof window & { __viewTransitionCount?: number })
       .__viewTransitionCount ?? 0,
   )).toBe(viewTransitionSupported && !reducedMotion ? 2 : 0);
+  await captureReference("gastos");
+
+  await navigation.getByRole("link", { name: "Productos" }).click();
+  await expect(page).toHaveURL(/\/catalogo\/productos$/);
+  await expect(page.getByRole("heading", { name: "Productos" })).toBeVisible();
+  await expect(navigation).toHaveCSS("--active-nav-index", "3");
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __viewTransitionCount?: number })
+      .__viewTransitionCount ?? 0,
+  )).toBe(viewTransitionSupported && !reducedMotion ? 3 : 0);
+  await captureReference("productos");
+
+  await navigation.getByRole("link", { name: "Otros" }).click();
+  await expect(page).toHaveURL(/\/mas$/);
+  await expect(page.getByRole("heading", { name: "Otros" })).toBeVisible();
+  await expect(navigation).toHaveCSS("--active-nav-index", "4");
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __viewTransitionCount?: number })
+      .__viewTransitionCount ?? 0,
+  )).toBe(viewTransitionSupported && !reducedMotion ? 4 : 0);
+  await captureReference("otros");
+
+  await navigation.getByRole("link", { name: "Inicio" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText(/^Resultado de /)).toBeVisible();
+  await expect(navigation).toHaveCSS("--active-nav-index", "0");
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __viewTransitionCount?: number })
+      .__viewTransitionCount ?? 0,
+  )).toBe(viewTransitionSupported && !reducedMotion ? 5 : 0);
   await assertNoHorizontalOverflow(page);
 });
 

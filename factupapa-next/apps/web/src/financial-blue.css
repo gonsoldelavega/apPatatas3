@@ -1,28 +1,28 @@
 /* FactuPapa Financial Blue — authoritative palette and interaction layer. */
 
 :root {
-  color: #101d35;
-  background: #f7f5ef;
-  --ink: #101d35;
-  --strong: #08162e;
-  --deep: #071a35;
-  --deep-2: #102d57;
-  --ink-surface: #0b2345;
+  color: #0b1f3d;
+  background: #f8f9fc;
+  --ink: #0b1f3d;
+  --strong: #0b1f3d;
+  --deep: #0b234a;
+  --deep-2: #16396d;
+  --ink-surface: #0b234a;
   --gold: #7398c8;
   --gold-bright: #d7e7fb;
   --gold-deep: #315f9b;
-  --ivory: #f7f5ef;
+  --ivory: #f8f9fc;
   --white: #ffffff;
-  --positive: #2468b1;
+  --positive: #2e8b57;
   --pending: #b87823;
   --error: #ba3f4b;
-  --muted: #69758a;
-  --line: #dde3eb;
+  --muted: #68758d;
+  --line: #e5eaf2;
   --surface: #ffffff;
-  --surface-soft: #edf2f8;
+  --surface-soft: #e8f1ff;
   --warn-soft: #fff6e5;
   --shadow: 0 10px 30px rgb(8 29 58 / 8%);
-  --chart-income: #2468b1;
+  --chart-income: #1e5fb8;
   --chart-expense: #b87823;
   --chart-balance: #4b8de0;
 }
@@ -120,9 +120,9 @@ body { color: var(--ink); }
 .home-shortcut--primary,
 .dashboard-action--primary {
   color: #ffffff;
-  border-color: #2468b1;
-  background: #2468b1;
-  box-shadow: 0 10px 24px rgb(36 104 177 / 22%);
+  border-color: #1e5fb8;
+  background: #1e5fb8;
+  box-shadow: 0 10px 24px rgb(30 95 184 / 22%);
 }
 
 .button--primary:hover,
@@ -243,7 +243,7 @@ textarea:focus,
 .success-note,
 .status--paid,
 .status--positive,
-.text-positive { color: #2468b1; }
+.text-positive { color: var(--positive); }
 
 .login-page--product {
   color: #101d35;

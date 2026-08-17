@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  ChevronRight,
   Ellipsis,
   FileText,
   MessageCircle,
@@ -262,6 +263,7 @@ export function SalesPage() {
                 </span>
               </span>
               <strong className="entity-card__amount">{formatMoney(item.total)}</strong>
+              <ChevronRight className="entity-card__chevron" aria-hidden="true" />
             </Link>
           );
 

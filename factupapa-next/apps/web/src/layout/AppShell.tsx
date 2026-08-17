@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
 import { Outlet, useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
 
@@ -24,6 +25,15 @@ export function AppShell() {
       <a href="#main-content" className="skip-link">
         Saltar al contenido
       </a>
+      <header className="app-brand-bar">
+        <span className="app-brand-bar__identity">
+          <img src="/icon.svg" alt="" width="34" height="34" />
+          <strong>FactuPapa</strong>
+        </span>
+        <span className="app-brand-bar__notifications" aria-label="Notificaciones">
+          <Bell aria-hidden="true" />
+        </span>
+      </header>
       <BottomNav />
       {!online ? (
         <div className="offline-banner" role="status" aria-live="polite">

@@ -20,6 +20,7 @@ import "./expenses-page-refinement.css";
 import "./mobile-login-fix.css";
 // Authoritative palette and interaction layer; keep this import last.
 import "./financial-blue.css";
+import "./reference-redesign.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -89,7 +89,7 @@ export function MorePage() {
             </span>
             <div className="info-card__body">
               <h2>Clientes y proveedores</h2>
-              <p>Contactos, condiciones comerciales, precios particulares y deuda.</p>
+              <p>Contactos, condiciones y deuda.</p>
             </div>
             <ChevronRight className="info-card__chevron" aria-hidden="true" />
           </Link>
@@ -100,7 +100,7 @@ export function MorePage() {
             </span>
             <div className="info-card__body">
               <h2>Importaciones</h2>
-              <p>Importa Excel, CSV o JSON con revisión y control de duplicados.</p>
+              <p>Excel, CSV o JSON con revisión previa.</p>
             </div>
             <ChevronRight className="info-card__chevron" aria-hidden="true" />
           </Link>
@@ -111,7 +111,7 @@ export function MorePage() {
             </span>
             <div className="info-card__body">
               <h2>Facturación</h2>
-              <p>Configura serie, numeración, IVA y preferencias comerciales.</p>
+              <p>Serie, numeración, IVA y plantilla.</p>
             </div>
             <ChevronRight className="info-card__chevron" aria-hidden="true" />
           </Link>
@@ -122,19 +122,42 @@ export function MorePage() {
             </span>
             <div className="info-card__body">
               <h2>Stock y producción</h2>
-              <p>Existencias, movimientos, merma, costes y venta potencial.</p>
+              <p>Existencias, movimientos y costes.</p>
             </div>
             <ChevronRight className="info-card__chevron" aria-hidden="true" />
           </Link>
         </div>
       </section>
 
-      <section className="more-section" aria-labelledby="more-tools-title">
-        <h2 className="more-section__title" id="more-tools-title">
+      <section className="more-section" aria-labelledby="more-shortcuts-title">
+        <h2 className="more-section__title" id="more-shortcuts-title">
           Herramientas
         </h2>
+        <div className="more-quick-grid">
+          <Link to="/ajustes/seguridad">
+            <ShieldCheck aria-hidden="true" />
+            <strong>Seguridad</strong>
+            <small>Acceso y sesiones</small>
+          </Link>
+          <Link to="/exportar">
+            <FileDown aria-hidden="true" />
+            <strong>Exportación</strong>
+            <small>Datos en CSV</small>
+          </Link>
+          <a href="#integraciones">
+            <Mail aria-hidden="true" />
+            <strong>Integraciones</strong>
+            <small>Gmail y servicios</small>
+          </a>
+        </div>
+      </section>
+
+      <section className="more-section" aria-labelledby="more-tools-title">
+        <h2 className="more-section__title" id="more-tools-title">
+          Integraciones
+        </h2>
         <div className="more-card-grid">
-          <section className="info-card integration-card" aria-label="Estado de Gmail">
+          <section id="integraciones" className="info-card integration-card" aria-label="Estado de Gmail">
             <span className="info-card__icon info-card__icon--mail">
               <Mail />
             </span>
@@ -196,16 +219,6 @@ export function MorePage() {
             </div>
           </section>
 
-          <Link className="info-card info-card--action" to="/exportar">
-            <span className="info-card__icon info-card__icon--export">
-              <FileDown />
-            </span>
-            <div className="info-card__body">
-              <h2>Exportar</h2>
-              <p>CSV de facturas y compras por mes, trimestre o año.</p>
-            </div>
-            <ChevronRight className="info-card__chevron" aria-hidden="true" />
-          </Link>
         </div>
       </section>
 
@@ -214,17 +227,6 @@ export function MorePage() {
           Cuenta y aplicación
         </h2>
         <div className="more-card-grid">
-          <Link className="info-card info-card--action" to="/ajustes/seguridad">
-            <span className="info-card__icon info-card__icon--security">
-              <ShieldCheck />
-            </span>
-            <div className="info-card__body">
-              <h2>Seguridad</h2>
-              <p>Cambia tu contraseña y revisa las sesiones abiertas.</p>
-            </div>
-            <ChevronRight className="info-card__chevron" aria-hidden="true" />
-          </Link>
-
           <section className="info-card">
             <span className="info-card__icon info-card__icon--protected">
               <ShieldCheck />

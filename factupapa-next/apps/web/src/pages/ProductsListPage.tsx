@@ -2,10 +2,10 @@ import { ChevronRight, Package, Plus, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { productsApi } from "../api/services";
+import { financeApi, productsApi } from "../api/services";
 import { EmptyState } from "../ui/EmptyState";
 import { Button } from "../ui/Button";
-import { formatMoney, unitLabel } from "../utils/format";
+import { formatMoney, formatQuantity, unitLabel } from "../utils/format";
 
 export function ProductsListPage() {
   const [search, setSearch] = useState("");
@@ -21,6 +21,13 @@ export function ProductsListPage() {
         pageSize: 20,
       }),
   });
+  const stock = useQuery({
+    queryKey: ["stock"],
+    queryFn: financeApi.stock,
+  });
+  const stockByProduct = new Map(
+    stock.data?.map((item) => [item.productId, item.quantity]) ?? [],
+  );
   return (
     <section className="catalog-section" aria-labelledby="products-title">
       <div className="section-heading">
@@ -113,6 +120,11 @@ export function ProductsListPage() {
                 {formatMoney(product.salePrice)}{" "}
                 <small>/ {unitLabel(product.unit)}</small>
               </span>
+              {stockByProduct.has(product.id) ? (
+                <span className="product-stock-badge">
+                  Stock: {formatQuantity(stockByProduct.get(product.id) ?? "0")} {unitLabel(product.unit)}
+                </span>
+              ) : null}
             </span>
             <ChevronRight />
           </Link>

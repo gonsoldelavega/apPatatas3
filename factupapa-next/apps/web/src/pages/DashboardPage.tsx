@@ -2,14 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
+  CalendarClock,
   Camera,
   CircleAlert,
   FileText,
   Package,
+  PackageSearch,
   Plus,
   ReceiptText,
-  ShoppingBag,
   TrendingUp,
+  WalletCards,
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -286,14 +288,33 @@ export function DashboardPage() {
           </Link>
           <Link className="dashboard-action dashboard-action--capture" to="/gastos/nuevo?captura=1">
             <Camera aria-hidden="true" />
-            <span><strong>Fotografiar compra</strong></span>
+            <span><strong>Registrar compra</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
         </div>
-        <div className="dashboard-actions__secondary">
-          <Link to="/gastos/nuevo"><ShoppingBag aria-hidden="true" /><span>Compra manual</span></Link>
-          <Link to="/ventas"><ReceiptText aria-hidden="true" /><span>Cobros</span></Link>
-        </div>
+      </section>
+
+      <section className="dashboard-snapshot-grid" aria-label="Estado del negocio">
+        <Link to="/ventas">
+          <span><ReceiptText aria-hidden="true" /></span>
+          <small>Facturas pendientes</small>
+          <strong>{data ? formatMoney(data.finance.receivables) : "—"}</strong>
+        </Link>
+        <Link to="/ventas">
+          <span><WalletCards aria-hidden="true" /></span>
+          <small>Cobros vencidos</small>
+          <strong>{data ? formatMoney(data.finance.overdueReceivables) : "—"}</strong>
+        </Link>
+        <Link to="/stock">
+          <span><PackageSearch aria-hidden="true" /></span>
+          <small>Stock disponible</small>
+          <strong>{data?.finance.stockKg ?? "—"} kg</strong>
+        </Link>
+        <Link to="/gastos#gastos-fijos">
+          <span><CalendarClock aria-hidden="true" /></span>
+          <small>Gastos fijos</small>
+          <strong>{data ? formatMoney(data.finance.recurring) : "—"}</strong>
+        </Link>
       </section>
 
       <section className="dashboard-section attention-premium">
@@ -332,7 +353,7 @@ export function DashboardPage() {
 
       <section className="dashboard-section recent-premium">
         <div className="dashboard-section__heading">
-          <h2>Facturas del mes</h2>
+          <h2>Actividad reciente</h2>
           <Link to="/ventas">Ver todas</Link>
         </div>
         <div className="premium-document-list">
