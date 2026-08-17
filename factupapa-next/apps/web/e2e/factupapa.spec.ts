@@ -380,9 +380,13 @@ test("factura quincenal sin condiciones por defecto y precio editable", async ({
   await expect(
     page.getByRole("button", { name: "Factura quincenal" }),
   ).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByLabel("Fecha límite de pago")).not.toHaveValue("");
+  const invoiceTerms = page.getByRole("switch", {
+    name: "Incluir condiciones de pago",
+  });
+  await expect(invoiceTerms).not.toBeChecked();
+  await expect(page.getByLabel("Fecha límite de pago")).toHaveCount(0);
   await expect(
-    page.getByLabel("Condiciones y consecuencias del impago"),
+    page.getByRole("textbox", { name: "Condiciones de pago", exact: true }),
   ).toHaveCount(0);
   await page.getByLabel("Producto 1").selectOption({ index: 1 });
   await expect(
@@ -392,9 +396,19 @@ test("factura quincenal sin condiciones por defecto y precio editable", async ({
   const price = page.getByLabel(/Precio sin IVA/);
   await expect(price).not.toHaveValue("");
   await price.fill("1,75");
+  const invoiceRequest = page.waitForRequest((request) =>
+    request.method() === "POST" && /\/(?:api\/)?invoices$/.test(request.url()),
+  );
   await page.getByRole("button", { name: "Revisar factura" }).click();
+  const invoicePayload = (await invoiceRequest).postDataJSON() as {
+    dueDate: string | null;
+    paymentTerms: string | null;
+  };
+  expect(invoicePayload.dueDate).toBeNull();
+  expect(invoicePayload.paymentTerms).toBeNull();
   await expect(page).toHaveURL(/\/ventas\/facturas\/[0-9a-f-]+$/);
   await expect(page.getByText(/1 kg × 1,75/)).toBeVisible();
+  await expect(page.getByText(/Vencimiento:/)).toHaveCount(0);
   await expect(page.getByText(/Condiciones:/)).toHaveCount(0);
 });
 

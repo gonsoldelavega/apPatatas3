@@ -178,6 +178,7 @@ test("las condiciones guardadas solo se aplican cuando el cliente las activa", a
     contactId: customerId, series: "TERMS_OFF_2026", issueDate: "2026-07-15",
   });
   assert.equal(withoutTerms?.paymentTerms, null);
+  assert.equal(withoutTerms?.dueDate, null);
 
   await withTenantTransaction(api.pool, identity, async (client) => {
     await client.query(`update contacts set apply_invoice_defaults=true where id=$1`, [customerId]);
@@ -186,12 +187,14 @@ test("las condiciones guardadas solo se aplican cuando el cliente las activa", a
     contactId: customerId, series: "TERMS_ON_2026", issueDate: "2026-07-15",
   });
   assert.equal(withTerms?.paymentTerms, "Condición conservada de prueba");
+  assert.equal(withTerms?.dueDate, "2026-07-18");
 
   const explicitlyWithoutTerms = await invoices.create(identity, {
     contactId: customerId, series: "TERMS_OVERRIDE_2026", issueDate: "2026-07-15",
     applyContactDefaults: false,
   });
   assert.equal(explicitlyWithoutTerms?.paymentTerms, null);
+  assert.equal(explicitlyWithoutTerms?.dueDate, null);
 });
 
 test("albarán aplica precio específico, snapshot, numeración, bloqueo y aislamiento", async () => {

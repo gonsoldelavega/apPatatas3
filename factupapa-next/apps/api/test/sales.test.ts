@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { PDFParse } from "pdf-parse";
 import { lineAmounts, sumAmounts } from "../src/sales/money.js";
 import { createInvoicePdf } from "../src/invoices/pdf.js";
 import { assertPdfSize } from "../src/invoices/routes.js";
@@ -83,6 +84,75 @@ test("el PDF emitido es A4, acotado y reproducible desde el snapshot", async () 
   assert.equal(first.subarray(0, 4).toString(), "%PDF");
   assert.ok(first.length > 1_000 && first.length < 5_000_000);
   assert.deepEqual(first, second);
+});
+
+test("el PDF sin condiciones no muestra vencimiento ni condiciones de pago", async () => {
+  const invoice = {
+    id: "00000000-0000-4000-8000-000000000011",
+    contactId: "00000000-0000-4000-8000-000000000012",
+    number: 2,
+    series: "TEST",
+    issueDate: "2026-08-17",
+    dueDate: null,
+    operationStartDate: null,
+    operationEndDate: null,
+    deliveryDates: [],
+    paymentTerms: null,
+    generalInformation: null,
+    status: "issued" as const,
+    notes: null,
+    subtotal: "10.0000",
+    taxTotal: "0.4000",
+    total: "10.4000",
+    paidTotal: "0.0000",
+    balanceDue: "10.4000",
+    paymentStatus: "unpaid" as const,
+    sourceType: "manual" as const,
+    contactLegalName: "Cliente sin condiciones",
+    contactTaxId: "TEST-C-002",
+    contactAddress: { city: "Ciudad Ficticia", country: "ES" },
+    issuerLegalName: "Empresa Ficticia",
+    issuerTaxId: "TEST-E-001",
+    issuerAddress: { city: "Ciudad Ficticia", country: "ES" },
+    issuedAt: new Date("2026-08-17T00:00:00Z"),
+    cancelledAt: null,
+    createdAt: new Date("2026-08-17T00:00:00Z"),
+    updatedAt: new Date("2026-08-17T00:00:00Z"),
+    deliveryNoteIds: [],
+    lines: [
+      {
+        id: "00000000-0000-4000-8000-000000000013",
+        productId: null,
+        description: "Producto ficticio sin condiciones",
+        quantity: "1.0000",
+        unit: "kg" as const,
+        unitPrice: "10.0000",
+        taxRate: "4.000",
+        lineSubtotal: "10.0000",
+        lineTax: "0.4000",
+        lineTotal: "10.4000",
+        packageKind: null,
+        packageLabel: null,
+        packageQuantity: null,
+        unitsPerPackage: null,
+        deliveryDate: null,
+        position: 1,
+      },
+    ],
+  };
+  const pdf = await createInvoicePdf(invoice, {
+    name: "Empresa Ficticia",
+    taxId: "TEST-E-001",
+    address: {},
+  });
+  const parser = new PDFParse({ data: new Uint8Array(pdf) });
+  try {
+    const { text } = await parser.getText();
+    assert.doesNotMatch(text, /Vencimiento:/i);
+    assert.doesNotMatch(text, /CONDICIONES DE PAGO/i);
+  } finally {
+    await parser.destroy();
+  }
 });
 
 test("rechaza un PDF que excede el límite operacional", () => {
