@@ -1,28 +1,28 @@
 /* FactuPapa Financial Blue — authoritative palette and interaction layer. */
 
 :root {
-  color: #0b1f3d;
-  background: #f8f9fc;
-  --ink: #0b1f3d;
-  --strong: #0b1f3d;
-  --deep: #0b234a;
-  --deep-2: #16396d;
-  --ink-surface: #0b234a;
-  --gold: #7398c8;
-  --gold-bright: #d7e7fb;
-  --gold-deep: #315f9b;
-  --ivory: #f8f9fc;
+  color: #10264f;
+  background: #f6f8fc;
+  --ink: #10264f;
+  --strong: #10264f;
+  --deep: #102b5b;
+  --deep-2: #1a447e;
+  --ink-surface: #102b5b;
+  --gold: #ffd978;
+  --gold-bright: #ffe9ad;
+  --gold-deep: #dcae3d;
+  --ivory: #f6f8fc;
   --white: #ffffff;
   --positive: #2e8b57;
   --pending: #b87823;
   --error: #ba3f4b;
-  --muted: #68758d;
-  --line: #e5eaf2;
+  --muted: #71809a;
+  --line: #dfe7f3;
   --surface: #ffffff;
-  --surface-soft: #e8f1ff;
+  --surface-soft: #e4effd;
   --warn-soft: #fff6e5;
   --shadow: 0 10px 30px rgb(8 29 58 / 8%);
-  --chart-income: #1e5fb8;
+  --chart-income: #2767c7;
   --chart-expense: #b87823;
   --chart-balance: #4b8de0;
 }
@@ -120,9 +120,9 @@ body { color: var(--ink); }
 .home-shortcut--primary,
 .dashboard-action--primary {
   color: #ffffff;
-  border-color: #1e5fb8;
-  background: #1e5fb8;
-  box-shadow: 0 10px 24px rgb(30 95 184 / 22%);
+  border-color: #2767c7;
+  background: #2767c7;
+  box-shadow: 0 10px 24px rgb(39 103 199 / 22%);
 }
 
 .button--primary:hover,
@@ -204,10 +204,10 @@ textarea:focus,
   box-shadow: 0 -10px 28px rgb(8 29 58 / 8%);
 }
 
-.bottom-nav__indicator { background: #e4edf8; }
-.bottom-nav .nav-item { color: #607087; }
-.bottom-nav .nav-item--active { color: #0b315f; }
-.nav-item--active::before { background: #2f78c8; }
+.bottom-nav__indicator { background: #e4effd; }
+.bottom-nav .nav-item { color: #71809a; }
+.bottom-nav .nav-item--active { color: #102b5b; }
+.nav-item--active::before { background: #2767c7; }
 :root[data-theme="dark"] .bottom-nav__indicator { background: #142c4c; }
 :root[data-theme="dark"] .bottom-nav .nav-item--active { color: #b7d4f7; }
 

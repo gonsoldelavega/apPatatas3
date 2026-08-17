@@ -42,6 +42,17 @@ const monthLabel = (month: string) =>
     new Date(`${month}-01T12:00:00`),
   );
 
+const monthPickerLabel = (month: string) => {
+  const parts = new Intl.DateTimeFormat("es-ES", {
+    month: "long",
+    year: "numeric",
+  }).formatToParts(new Date(`${month}-01T12:00:00`));
+  const label = `${parts.find((part) => part.type === "month")?.value ?? ""} ${
+    parts.find((part) => part.type === "year")?.value ?? ""
+  }`.trim();
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
 const compactEuros = (value: number) =>
   `${new Intl.NumberFormat("es-ES", {
     notation: "compact",
@@ -241,6 +252,8 @@ export function DashboardPage() {
         </div>
         <label className="dashboard-month-picker">
           <span className="sr-only">Mes del resumen</span>
+          <span aria-hidden="true">{monthPickerLabel(selectedMonth)}</span>
+          <CalendarClock aria-hidden="true" />
           <input
             type="month"
             value={selectedMonth}
