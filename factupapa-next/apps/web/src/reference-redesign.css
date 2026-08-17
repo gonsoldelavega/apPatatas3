@@ -619,6 +619,7 @@
   transform: scale(.98);
 }
 .result-card {
+  position: relative;
   min-height: 240px;
   overflow: hidden;
 }
