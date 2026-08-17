@@ -167,6 +167,20 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
   page,
 }) => {
   await login(page);
+  const viewTransitionSupported = await page.evaluate(() => {
+    const target = window as typeof window & { __viewTransitionCount?: number };
+    const original = document.startViewTransition?.bind(document);
+    target.__viewTransitionCount = 0;
+    if (!original) return false;
+    document.startViewTransition = (update) => {
+      target.__viewTransitionCount = (target.__viewTransitionCount ?? 0) + 1;
+      return original(update);
+    };
+    return true;
+  });
+  const reducedMotion = await page.evaluate(() =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const navigation = page.getByRole("navigation", {
     name: "Navegación principal",
   });
@@ -184,11 +198,19 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
     "page",
   );
   await expect(navigation).toHaveCSS("--active-nav-index", "1");
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __viewTransitionCount?: number })
+      .__viewTransitionCount ?? 0,
+  )).toBe(viewTransitionSupported && !reducedMotion ? 1 : 0);
 
   await page.getByRole("link", { name: "Gastos" }).click();
   await expect(page).toHaveURL(/\/gastos$/);
   await expect(page.getByRole("heading", { name: "Gastos", exact: true })).toBeVisible();
   await expect(navigation).toHaveCSS("--active-nav-index", "2");
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __viewTransitionCount?: number })
+      .__viewTransitionCount ?? 0,
+  )).toBe(viewTransitionSupported && !reducedMotion ? 2 : 0);
   await assertNoHorizontalOverflow(page);
 });
 

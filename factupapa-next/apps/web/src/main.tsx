@@ -10,14 +10,16 @@ import "./styles.css";
 import "./navigation.css";
 import "./integrations.css";
 import "./factupapa-premium.css";
-// The product theme is the final token/visual layer. Keep it after the
-// generic premium foundation so its Verde Tinta palette wins the cascade.
+// Legacy structural refinements kept while the stylesheets are consolidated.
+// The current product palette is applied by financial-blue.css below.
 import "./verde-tinta.css";
 import "./premium-dashboard.css";
 import "./purchase-capture-access.css";
 import "./more-page-refinement.css";
 import "./expenses-page-refinement.css";
 import "./mobile-login-fix.css";
+// Authoritative palette and interaction layer; keep this import last.
+import "./financial-blue.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

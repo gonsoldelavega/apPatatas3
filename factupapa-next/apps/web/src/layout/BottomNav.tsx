@@ -5,8 +5,8 @@ import {
   ReceiptText,
   ShoppingBag,
 } from "lucide-react";
-import type { CSSProperties } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import type { CSSProperties, MouseEvent } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home, end: true },
@@ -34,7 +34,31 @@ function activeNavIndex(pathname: string) {
 
 export function BottomNav() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const activeIndex = activeNavIndex(pathname);
+
+  const transitionTo = (to: string, event: MouseEvent<HTMLAnchorElement>) => {
+    const viewTransitionDocument = document as Document & {
+      startViewTransition?: (update: () => void) => unknown;
+    };
+    const reduceMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches ?? false;
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      pathname === to ||
+      reduceMotion ||
+      !viewTransitionDocument.startViewTransition
+    ) return;
+
+    event.preventDefault();
+    viewTransitionDocument.startViewTransition(() => navigate(to));
+  };
 
   return (
     <nav
@@ -48,6 +72,7 @@ export function BottomNav() {
           key={to}
           to={to}
           end={end}
+          onClick={(event) => transitionTo(to, event)}
           className={({ isActive }) =>
             isActive ? "nav-item nav-item--active" : "nav-item"
           }

@@ -74,7 +74,10 @@ interface DashboardSummary {
 }
 
 const isPreview =
-  typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
+  import.meta.env.VITE_DEMO === "1" ||
+  (typeof window !== "undefined" &&
+    (window.location.search.includes("demo=1") ||
+      window.location.hostname.endsWith(".vercel.app")));
 
 const previewSummary: DashboardSummary = {
   customers: 18,
