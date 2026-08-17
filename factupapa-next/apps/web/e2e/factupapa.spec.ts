@@ -138,7 +138,14 @@ test("el callback Google restaura la sesión y entra en la aplicación", async (
 
   await page.goto(callbackUrl);
   await expect(page).toHaveURL(`${webOrigin}/`);
-  await expect(page.getByText(/^Resultado de /)).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: /^(Buenos días|Buenas tardes|Buenas noches)/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Navegación principal" }),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Hola de nuevo" })).toHaveCount(
     0,
   );
@@ -153,6 +160,35 @@ test("facturas mobile-first sin overflow", async ({ page }, testInfo) => {
     path: `test-artifacts/${testInfo.project.name}-facturas.png`,
     fullPage: true,
   });
+  await assertNoHorizontalOverflow(page);
+});
+
+test("la navegación inferior conserva foco, estado y transición de sección", async ({
+  page,
+}) => {
+  await login(page);
+  const navigation = page.getByRole("navigation", {
+    name: "Navegación principal",
+  });
+  await expect(page.getByRole("link", { name: "Inicio" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(navigation).toHaveCSS("--active-nav-index", "0");
+
+  await page.getByRole("link", { name: "Facturas" }).click();
+  await expect(page).toHaveURL(/\/ventas$/);
+  await expect(page.getByRole("heading", { name: "Facturas" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Facturas" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(navigation).toHaveCSS("--active-nav-index", "1");
+
+  await page.getByRole("link", { name: "Gastos" }).click();
+  await expect(page).toHaveURL(/\/gastos$/);
+  await expect(page.getByRole("heading", { name: "Gastos", exact: true })).toBeVisible();
+  await expect(navigation).toHaveCSS("--active-nav-index", "2");
   await assertNoHorizontalOverflow(page);
 });
 

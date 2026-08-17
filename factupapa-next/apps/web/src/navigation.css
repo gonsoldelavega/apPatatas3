@@ -3,6 +3,8 @@
  */
 
 .bottom-nav {
+  --active-nav-index: 0;
+  isolation: isolate;
   height: calc(76px + env(safe-area-inset-bottom));
   padding: 7px 8px env(safe-area-inset-bottom);
   border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
@@ -10,6 +12,24 @@
   box-shadow: 0 -12px 34px rgb(8 15 33 / 10%);
   -webkit-backdrop-filter: blur(22px) saturate(145%);
   backdrop-filter: blur(22px) saturate(145%);
+}
+
+.bottom-nav__indicator {
+  position: absolute;
+  z-index: 0;
+  top: 7px;
+  left: 8px;
+  width: calc((100% - 16px) / 5);
+  height: 54px;
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--gold) 13%, transparent);
+  transform: translate3d(calc(var(--active-nav-index) * 100%), 0, 0);
+  transition: transform 210ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.bottom-nav .nav-item {
+  z-index: 1;
 }
 
 .nav-item {
@@ -47,9 +67,9 @@
   transition: transform 150ms ease;
 }
 
-.nav-item--active {
+.bottom-nav .nav-item--active {
   color: var(--strong);
-  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  background: transparent;
 }
 
 .nav-item--active::before {
@@ -216,7 +236,7 @@
 }
 
 :root[data-theme="dark"] .nav-item--active {
-  background: rgb(232 200 121 / 10%);
+  background: transparent;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -227,7 +247,7 @@
   }
 
   :root:not([data-theme="light"]) .nav-item--active {
-    background: rgb(232 200 121 / 10%);
+    background: transparent;
   }
 }
 
@@ -277,6 +297,14 @@
     padding: 10px 6px;
   }
 
+  .bottom-nav__indicator {
+    top: 50%;
+    left: 14px;
+    width: 76px;
+    height: 72px;
+    transform: translate3d(0, calc((var(--active-nav-index) - 2) * 80px), 0);
+  }
+
   .nav-item::before {
     top: auto;
     left: -7px;
@@ -292,6 +320,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .nav-item,
+  .bottom-nav__indicator,
   .nav-item::before,
   .nav-item svg,
   .draft-restore-banner__actions button {

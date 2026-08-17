@@ -5,7 +5,8 @@ import {
   ReceiptText,
   ShoppingBag,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import type { CSSProperties } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home, end: true },
@@ -20,9 +21,28 @@ const items = [
   { to: "/mas", label: "Otros", icon: MoreHorizontal, end: false },
 ] as const;
 
+function activeNavIndex(pathname: string) {
+  if (pathname === "/") return 0;
+  if (pathname.startsWith("/ventas")) return 1;
+  if (pathname.startsWith("/gastos")) return 2;
+  if (
+    pathname.startsWith("/catalogo/productos") ||
+    pathname.startsWith("/productos")
+  ) return 3;
+  return 4;
+}
+
 export function BottomNav() {
+  const { pathname } = useLocation();
+  const activeIndex = activeNavIndex(pathname);
+
   return (
-    <nav className="bottom-nav" aria-label="Navegación principal">
+    <nav
+      className="bottom-nav"
+      aria-label="Navegación principal"
+      style={{ "--active-nav-index": activeIndex } as CSSProperties}
+    >
+      <span className="bottom-nav__indicator" aria-hidden="true" />
       {items.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}

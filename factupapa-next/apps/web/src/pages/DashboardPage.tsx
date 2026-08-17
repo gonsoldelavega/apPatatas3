@@ -31,6 +31,7 @@ import {
   invoicesApi,
 } from "../api/services";
 import type { FinanceSummary, Invoice, MonthlyFinanceSummary } from "../api/types";
+import { useAuth } from "../auth/AuthProvider";
 import { formatDate, formatMoney } from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
 
@@ -44,6 +45,23 @@ const compactEuros = (value: number) =>
     notation: "compact",
     maximumFractionDigits: 0,
   }).format(value)} €`;
+
+const greeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 13) return "Buenos días";
+  if (hour < 20) return "Buenas tardes";
+  return "Buenas noches";
+};
+
+function DashboardSkeleton({ rows = 1 }: { rows?: number }) {
+  return (
+    <div className="dashboard-skeleton" aria-hidden="true">
+      {Array.from({ length: rows }, (_, index) => (
+        <span key={index} />
+      ))}
+    </div>
+  );
+}
 
 interface DashboardSummary {
   customers: number;
@@ -162,6 +180,7 @@ const previewSummary: DashboardSummary = {
 };
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState(
     () => currentPeriod("month").month,
   );
@@ -205,27 +224,32 @@ export function DashboardPage() {
 
   const data = isPreview ? previewSummary : summary.data;
   const result = Number(data?.finance.balance ?? 0);
+  const firstName = user?.displayName.trim().split(/\s+/)[0] || "";
 
   return (
     <div className="page dashboard-page dashboard-premium">
       <header className="dashboard-topbar">
-        <div className="dashboard-brand">
-          <strong>FactuPapa</strong>
-          <label className="dashboard-month-picker">
-            <span className="sr-only">Mes del resumen</span>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => {
-                if (event.target.value) setSelectedMonth(event.target.value);
-              }}
-              aria-label="Mes del resumen"
-            />
-          </label>
+        <div className="dashboard-welcome">
+          <span className="dashboard-kicker">FactuPapa · tu resumen</span>
+          <h1>{greeting()}{firstName ? `, ${firstName}` : ""}</h1>
+          <p>Lo importante de tu negocio, de un vistazo.</p>
         </div>
+        <label className="dashboard-month-picker">
+          <span className="sr-only">Mes del resumen</span>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(event) => {
+              if (event.target.value) setSelectedMonth(event.target.value);
+            }}
+            aria-label="Mes del resumen"
+          />
+        </label>
       </header>
 
-      {summary.isError && !isPreview ? (
+      {summary.isLoading && !isPreview ? (
+        <DashboardSkeleton />
+      ) : summary.isError && !isPreview ? (
         <div className="inline-error" role="alert">
           Error al cargar el resumen.
           <button type="button" onClick={() => void summary.refetch()}>
@@ -274,7 +298,9 @@ export function DashboardPage() {
           <h2>Pendientes</h2>
         </div>
         <div className="attention-list">
-          {Number(data?.finance.overdueReceivables ?? 0) > 0 && (
+          {summary.isLoading && !isPreview ? (
+            <DashboardSkeleton rows={2} />
+          ) : Number(data?.finance.overdueReceivables ?? 0) > 0 && (
             <Link to="/ventas" className="attention-row attention-row--danger">
               <CircleAlert aria-hidden="true" />
               <span><strong>{formatMoney(data?.finance.overdueReceivables ?? "0")} vencidos</strong></span>
@@ -295,7 +321,7 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {!Number(data?.finance.overdueReceivables ?? 0) && !data?.pendingNotes && !data?.pendingImports && (
+          {!summary.isLoading && !Number(data?.finance.overdueReceivables ?? 0) && !data?.pendingNotes && !data?.pendingImports && (
             <p className="dashboard-all-clear">Sin pendientes</p>
           )}
         </div>
@@ -307,7 +333,11 @@ export function DashboardPage() {
           <Link to="/ventas">Ver todas</Link>
         </div>
         <div className="premium-document-list">
-          {!data?.recentInvoices.length && <p className="empty-copy">Sin facturas</p>}
+          {summary.isLoading && !isPreview ? (
+            <DashboardSkeleton rows={3} />
+          ) : !data?.recentInvoices.length ? (
+            <p className="empty-copy">Sin facturas</p>
+          ) : null}
           {data?.recentInvoices.map((item) => (
             <Link key={item.id} to={`/ventas/facturas/${item.id}`}>
               <span className="document-symbol"><FileText aria-hidden="true" /></span>

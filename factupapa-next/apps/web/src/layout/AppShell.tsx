@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
 
 export function AppShell() {
   const [online, setOnline] = useState(() => navigator.onLine);
+  const location = useLocation();
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -30,7 +31,9 @@ export function AppShell() {
         </div>
       ) : null}
       <main id="main-content" className="app-main" tabIndex={-1}>
-        <Outlet />
+        <div className="route-transition" key={location.pathname}>
+          <Outlet />
+        </div>
       </main>
     </div>
   );

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../src/auth/AuthProvider";
 import { ProtectedRoute } from "../src/auth/ProtectedRoute";
 import { ImportReview } from "../src/imports/ImportReview";
+import { AppShell } from "../src/layout/AppShell";
 import { LoginPage } from "../src/pages/LoginPage";
 import { EmptyState } from "../src/ui/EmptyState";
 
@@ -58,5 +59,36 @@ describe("interfaz web", () => {
     render(<ImportReview preview={{ id: "batch", entityType: "products", sourceFormat: "json", status: "validated", totalRows: 1, validRows: 1, invalidRows: 0, duplicateRows: 0, validationSummary: {}, createdAt: "2026-07-15", validatedAt: "2026-07-15", completedAt: null, failedAt: null, rows: [], reused: false }} strategy="skip_existing" setStrategy={vi.fn()} confirm={vi.fn()} cancel={vi.fn()} busy={true} error={false} />);
     expect(screen.getByRole("button", { name: "Confirmar importación" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancelar lote" })).toBeDisabled();
+  });
+
+  it("mantiene navegación accesible y actualiza el indicador entre secciones", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<h1>Resumen</h1>} />
+            <Route path="ventas" element={<h1>Listado de facturas</h1>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    const navigation = screen.getByRole("navigation", {
+      name: "Navegación principal",
+    });
+    expect(navigation).toHaveStyle({ "--active-nav-index": "0" });
+    expect(screen.getByRole("link", { name: "Inicio" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    await user.click(screen.getByRole("link", { name: "Facturas" }));
+
+    expect(await screen.findByRole("heading", { name: "Listado de facturas" })).toBeInTheDocument();
+    expect(navigation).toHaveStyle({ "--active-nav-index": "1" });
+    expect(screen.getByRole("link", { name: "Facturas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });
