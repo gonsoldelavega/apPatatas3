@@ -65,6 +65,7 @@ export function SalesFormPage() {
     [due, setDue] = useState(() =>
       addCalendarDays(todayLocal(), STANDARD_PAYMENT_DAYS),
     ),
+    [includePaymentTerms, setIncludePaymentTerms] = useState(false),
     [terms, setTerms] = useState(""),
     [info, setInfo] = useState("");
   const prefs = useQuery({
@@ -99,6 +100,7 @@ export function SalesFormPage() {
         start: string;
         end: string;
         due: string;
+        includePaymentTerms: boolean;
         terms: string;
         info: string;
         invoiceMode: InvoiceMode;
@@ -114,6 +116,8 @@ export function SalesFormPage() {
       if (d.issueDate) setIssueDate(d.issueDate);
       if (d.start) setStart(d.start);
       if (d.end) setEnd(d.end);
+      if (typeof d.includePaymentTerms === "boolean")
+        setIncludePaymentTerms(d.includePaymentTerms);
       if (d.due) setDue(d.due);
       if (d.terms) setTerms(d.terms);
       if (d.info) setInfo(d.info);
@@ -134,6 +138,7 @@ export function SalesFormPage() {
             start,
             end,
             due,
+            includePaymentTerms,
             terms,
             info,
             invoiceMode,
@@ -149,6 +154,7 @@ export function SalesFormPage() {
     start,
     end,
     due,
+    includePaymentTerms,
     terms,
     info,
     invoiceMode,
@@ -157,11 +163,8 @@ export function SalesFormPage() {
   const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
   useEffect(() => {
     if (!invoice) return;
-    setTerms(
-      selectedContact?.applyInvoiceDefaults
-        ? selectedContact.paymentTermsText ?? ""
-        : "",
-    );
+    setIncludePaymentTerms(false);
+    setTerms(selectedContact?.paymentTermsText ?? "");
     setInfo(
       selectedContact?.applyInvoiceDefaults
         ? selectedContact.defaultInvoiceInformation ?? ""
@@ -215,11 +218,11 @@ export function SalesFormPage() {
             contactId,
             series: annualInvoiceSeries(prefix, issueDate),
             issueDate,
-            dueDate: due || null,
+            dueDate: includePaymentTerms ? due || null : null,
             operationStartDate: start || null,
             operationEndDate: end || null,
             deliveryDates: [...new Set(lineDeliveryDates)].sort(),
-            paymentTerms: terms || null,
+            paymentTerms: includePaymentTerms ? terms || null : null,
             generalInformation: info || null,
             applyContactDefaults: false,
           })
@@ -354,29 +357,38 @@ export function SalesFormPage() {
                 </small>
               </div>
             )}
-            <div className="conditional-fields">
-              <Field
-                label="Fecha límite de pago"
-                type="date"
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
-                required
+            <label className="invoice-option-toggle">
+              <span>
+                <strong>Incluir condiciones de pago</strong>
+                <small>Actívalo solo para clientes que las necesiten.</small>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={includePaymentTerms}
+                onChange={(e) => setIncludePaymentTerms(e.target.checked)}
               />
-              {selectedContact?.applyInvoiceDefaults && (
+            </label>
+            {includePaymentTerms && (
+              <div className="conditional-fields invoice-payment-fields">
+                <Field
+                  label="Fecha límite de pago"
+                  type="date"
+                  value={due}
+                  onChange={(e) => setDue(e.target.value)}
+                  required
+                />
                 <label className="field">
-                  <span>Condiciones y consecuencias del impago</span>
+                  <span>Condiciones de pago</span>
                   <textarea
-                    rows={6}
+                    rows={4}
+                    placeholder="Ej.: pago por transferencia en un plazo de 3 días."
                     value={terms}
                     onChange={(e) => setTerms(e.target.value)}
                   />
                 </label>
-              )}
-            </div>
-            <p className="field-help">
-              El vencimiento se calcula a tres días naturales de la emisión.
-              Las condiciones solo se añaden si están activadas en el cliente.
-            </p>
+              </div>
+            )}
             <details className="form-options">
               <summary>Más opciones de la factura</summary>
               <label className="field">
