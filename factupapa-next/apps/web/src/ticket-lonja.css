@@ -404,4 +404,159 @@
   .bottom-nav .nav-item--active { color: var(--lonja-ink); }
   .bottom-nav__indicator,
   .nav-item--active::before { background: var(--lonja-gold); }
+
+  /* One visual language across every primary iPhone tab. */
+  .page-heading .eyebrow,
+  .section-heading .eyebrow,
+  .more-section__title {
+    color: var(--lonja-gold-deep) !important;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .page-heading h1,
+  .section-heading h2,
+  .more-page .page-heading h1 {
+    color: var(--lonja-ink) !important;
+    font-family: Georgia, "Times New Roman", serif;
+    letter-spacing: -.035em;
+  }
+  .page-heading > p:last-child,
+  .section-heading p,
+  .more-page .page-heading > p:last-child {
+    color: var(--lonja-muted);
+  }
+  .compact-action,
+  .button--primary {
+    border-color: var(--lonja-gold) !important;
+    color: var(--lonja-ink) !important;
+    background: var(--lonja-gold) !important;
+    box-shadow: none !important;
+  }
+  .search-box,
+  .filter-card,
+  .info-card,
+  .more-quick-grid > a,
+  .catalog-section .entity-card,
+  .expenses-page .entity-card {
+    border-color: var(--lonja-line) !important;
+    background: var(--lonja-card) !important;
+    box-shadow: none !important;
+  }
+  .search-box input {
+    color: var(--lonja-ink);
+    background: transparent;
+  }
+  .search-box svg,
+  .info-card__chevron,
+  .catalog-section .entity-card > svg {
+    color: var(--lonja-muted) !important;
+  }
+  .filter-row button,
+  .business-tabs a {
+    color: var(--lonja-muted);
+    background: var(--lonja-card);
+  }
+  .filter-row button.active,
+  .business-tabs a.active {
+    color: var(--lonja-paper) !important;
+    background: var(--lonja-ink) !important;
+  }
+  .product-price {
+    color: var(--lonja-gold-deep) !important;
+  }
+  .product-stock-badge,
+  .entity-card__icon,
+  .info-card__icon {
+    color: var(--lonja-ink) !important;
+    background: #f1e8d6 !important;
+  }
+  .profile-card,
+  .expense-overview {
+    color: var(--lonja-paper) !important;
+    background: var(--lonja-ink) !important;
+    box-shadow: 0 12px 28px rgb(16 27 52 / 14%);
+  }
+  .profile-card h2,
+  .expense-overview strong,
+  .expense-overview dd {
+    color: var(--lonja-paper) !important;
+  }
+  .profile-card p,
+  .profile-card span,
+  .expense-overview span,
+  .expense-overview dt {
+    color: #c9bfa0 !important;
+  }
+  .profile-avatar {
+    color: var(--lonja-ink) !important;
+    background: var(--lonja-gold) !important;
+  }
+
+  /* Invoice totals are content, never an overlay casualty. */
+  .sales-list .invoice-list-card {
+    display: block !important;
+    overflow: hidden;
+  }
+  .sales-list .invoice-list-card > .entity-card {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto 12px !important;
+    gap: 8px;
+  }
+  .sales-list .entity-card__body {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .sales-list .entity-card__body > strong,
+  .sales-list .entity-card__body > small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sales-list .entity-card__amount {
+    min-width: 76px;
+    max-width: 104px;
+    display: block !important;
+    align-self: center;
+    color: var(--lonja-ink) !important;
+    font-size: clamp(.76rem, 3.6vw, .92rem) !important;
+    font-weight: 800;
+    line-height: 1;
+    text-align: right;
+    white-space: nowrap;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  .sales-list .invoice-card-actions {
+    position: static !important;
+    inset: auto !important;
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 4px 10px 7px;
+    border-top: 1px dashed var(--lonja-line);
+    background: var(--lonja-card);
+    transform: none !important;
+  }
+  .sales-list .invoice-card-actions button,
+  .sales-list .invoice-card-actions a {
+    width: 32px;
+    min-width: 32px;
+    height: 30px;
+    min-height: 30px;
+    border: 1px solid var(--lonja-line);
+    border-radius: 9px;
+    color: var(--lonja-ink);
+    background: #f1e8d6;
+  }
+  .sales-list .invoice-card-actions svg {
+    width: 16px;
+    height: 16px;
+  }
+
 }
