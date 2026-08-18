@@ -770,3 +770,160 @@
   .dashboard-page .dashboard-actions { margin-top: 12px; }
   .sales-summary-card--compact { padding: 17px 18px; }
 }
+
+
+/* iPhone density layer: override legacy 430px rules intentionally. */
+@media (max-width: 430px) {
+  .app-brand-bar {
+    height: 50px;
+    padding-inline: 16px;
+    padding-bottom: 4px;
+  }
+  .app-brand-bar__identity img {
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+  }
+  .app-brand-bar__identity strong { font-size: .92rem; }
+  .app-brand-bar__notifications {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+  .page,
+  .catalog-section {
+    padding: 2px 16px calc(92px + env(safe-area-inset-bottom));
+  }
+  .dashboard-premium { padding-top: 0; }
+  .dashboard-topbar--minimal {
+    min-height: 42px;
+    margin: 2px 0 10px;
+    padding: 0;
+  }
+  .dashboard-topbar--minimal h1 {
+    font-size: 1.42rem;
+    letter-spacing: -.04em;
+  }
+  .dashboard-topbar--minimal .dashboard-month-picker {
+    min-width: 132px;
+    min-height: 38px;
+    padding-inline: 11px;
+    font-size: .68rem;
+  }
+  .dashboard-topbar--minimal .dashboard-month-picker input { min-height: 38px; }
+
+  .dashboard-page .result-card {
+    height: 218px;
+    min-height: 218px !important;
+    max-height: 218px;
+    justify-content: flex-start;
+    gap: 17px;
+    padding: 18px 16px 14px;
+    border-radius: 21px;
+  }
+  .dashboard-page .result-card__heading {
+    min-height: 91px;
+  }
+  .dashboard-page .result-card__heading span {
+    margin-bottom: 5px;
+    font-size: .56rem;
+  }
+  .dashboard-page .result-card__heading strong {
+    margin-top: 3px;
+    font-size: clamp(2.6rem, 13.6vw, 3.2rem);
+  }
+  .dashboard-page .result-card__metrics {
+    height: 77px;
+    min-height: 77px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 0;
+    padding: 0;
+    border-radius: 12px;
+  }
+  .dashboard-page .result-card__metrics > div {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px 7px;
+    border-top: 0 !important;
+  }
+  .dashboard-page .result-card__metrics > div + div {
+    border-left: 1px solid rgb(255 255 255 / 12%);
+  }
+  .dashboard-page .result-card__metrics span {
+    min-height: 2.2em;
+    margin: 0;
+    font-size: .52rem;
+  }
+  .dashboard-page .result-card__metrics b {
+    margin-top: 4px;
+    font-size: clamp(.66rem, 3.15vw, .78rem);
+  }
+
+  .dashboard-actions {
+    margin: 10px 0 10px !important;
+  }
+  .dashboard-action {
+    min-height: 62px;
+    grid-template-columns: 34px minmax(0, 1fr) 14px;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 16px;
+  }
+  .dashboard-action > svg:first-child {
+    width: 34px;
+    height: 34px;
+    padding: 8px;
+    border-radius: 11px;
+  }
+  .dashboard-action > svg:last-child { width: 14px; }
+  .dashboard-action strong {
+    font-size: .74rem;
+    line-height: 1.15;
+  }
+
+  .dashboard-snapshot-grid {
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+  .dashboard-snapshot-grid a {
+    min-height: 68px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 2px 8px;
+    padding: 9px 10px;
+    border-radius: 15px;
+  }
+  .dashboard-snapshot-grid a > span {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+  }
+  .dashboard-snapshot-grid svg { width: 15px; height: 15px; }
+  .dashboard-snapshot-grid small {
+    font-size: .56rem;
+    line-height: 1.1;
+  }
+  .dashboard-snapshot-grid strong {
+    font-size: .74rem;
+    line-height: 1.05;
+  }
+
+  .dashboard-section { margin-top: 15px; }
+  .dashboard-section__heading { margin-bottom: 7px; }
+  .dashboard-section__heading h2 { font-size: .92rem; }
+}
+
+/* Safari/iOS standalone polish and safe tap behavior. */
+@supports (-webkit-touch-callout: none) {
+  .dashboard-page,
+  .sales-page {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .dashboard-month-picker,
+  .dashboard-action,
+  .dashboard-snapshot-grid a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+}
