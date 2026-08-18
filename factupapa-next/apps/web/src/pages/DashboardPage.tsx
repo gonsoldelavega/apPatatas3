@@ -235,19 +235,6 @@ export function DashboardPage() {
     <div className="page dashboard-page dashboard-premium">
       <header className="dashboard-topbar dashboard-topbar--minimal">
         <h1>Resumen</h1>
-        <label className="dashboard-month-picker">
-          <span className="sr-only">Mes del resumen</span>
-          <span aria-hidden="true">{monthPickerLabel(selectedMonth)}</span>
-          <CalendarClock aria-hidden="true" />
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(event) => {
-              if (event.target.value) setSelectedMonth(event.target.value);
-            }}
-            aria-label="Mes del resumen"
-          />
-        </label>
       </header>
 
       {summary.isLoading && !isPreview ? (
@@ -268,6 +255,18 @@ export function DashboardPage() {
                 {data ? formatMoney(data.finance.balance) : "—"}
               </strong>
             </div>
+            <label className="dashboard-month-picker dashboard-month-picker--ticket">
+              <span className="sr-only">Mes del resumen</span>
+              <span aria-hidden="true">{monthPickerLabel(selectedMonth)}</span>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(event) => {
+                  if (event.target.value) setSelectedMonth(event.target.value);
+                }}
+                aria-label="Mes del resumen"
+              />
+            </label>
           </div>
           <div className="result-card__metrics">
             <div><span>Facturado</span><b>{data ? formatMoney(data.finance.sales) : "—"}</b></div>
