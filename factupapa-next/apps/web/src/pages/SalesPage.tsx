@@ -156,14 +156,14 @@ export function SalesPage() {
         </button>
       </div>
 
-      <section className="sales-summary-card" aria-label="Resumen visible">
-        <div>
+      <section className="sales-summary-card sales-summary-card--compact" aria-label="Resumen visible">
+        <div className="sales-summary-card__amount">
           <span>{tab === "invoice" ? "Importe visible" : "Total pendiente"}</span>
           <strong>{formatMoney(String(visibleTotal))}</strong>
         </div>
-        <div>
-          <span>Documentos</span>
+        <div className="sales-summary-card__documents">
           <strong>{items?.length ?? 0}</strong>
+          <span>documentos</span>
         </div>
       </section>
 
