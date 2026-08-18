@@ -33,7 +33,6 @@ import {
   invoicesApi,
 } from "../api/services";
 import type { FinanceSummary, Invoice, MonthlyFinanceSummary } from "../api/types";
-import { useAuth } from "../auth/AuthProvider";
 import { formatDate, formatMoney } from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
 
@@ -58,13 +57,6 @@ const compactEuros = (value: number) =>
     notation: "compact",
     maximumFractionDigits: 0,
   }).format(value)} €`;
-
-const greeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 13) return "Buenos días";
-  if (hour < 20) return "Buenas tardes";
-  return "Buenas noches";
-};
 
 function DashboardSkeleton({ rows = 1 }: { rows?: number }) {
   return (
@@ -196,7 +188,6 @@ const previewSummary: DashboardSummary = {
 };
 
 export function DashboardPage() {
-  const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState(
     () => currentPeriod("month").month,
   );
@@ -240,16 +231,10 @@ export function DashboardPage() {
 
   const data = isPreview ? previewSummary : summary.data;
   const result = Number(data?.finance.balance ?? 0);
-  const firstName = user?.displayName.trim().split(/\s+/)[0] || "";
-
   return (
     <div className="page dashboard-page dashboard-premium">
-      <header className="dashboard-topbar">
-        <div className="dashboard-welcome">
-          <span className="dashboard-kicker">FactuPapa · tu resumen</span>
-          <h1>{greeting()}{firstName ? `, ${firstName}` : ""}</h1>
-          <p>Lo importante de tu negocio, de un vistazo.</p>
-        </div>
+      <header className="dashboard-topbar dashboard-topbar--minimal">
+        <h1>Resumen</h1>
         <label className="dashboard-month-picker">
           <span className="sr-only">Mes del resumen</span>
           <span aria-hidden="true">{monthPickerLabel(selectedMonth)}</span>
