@@ -167,6 +167,27 @@ export function SalesPage() {
         </div>
       </section>
 
+      {tab === "invoice" && (
+        <div className="sales-quick-filters" aria-label="Filtros rápidos de cobro">
+          {[
+            ["", "Todo"],
+            ["unpaid", "Pendientes"],
+            ["paid", "Pagadas"],
+            ["partial", "Parciales"],
+          ].map(([value, label]) => (
+            <button
+              type="button"
+              key={value || "all"}
+              className={paymentStatus === value ? "active" : ""}
+              aria-pressed={paymentStatus === value}
+              onClick={() => setPaymentStatus(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <section className="filter-card" aria-label="Filtros de facturas">
         <Field
           label="Buscar"
