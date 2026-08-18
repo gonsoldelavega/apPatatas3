@@ -1,0 +1,381 @@
+/* FactuPapa "Ticket de Lonja" — final mobile product layer.
+   Imported last on purpose to keep one deterministic iPhone composition. */
+
+:root {
+  --lonja-ink: #101b34;
+  --lonja-ink-soft: #2c3a5c;
+  --lonja-paper: #f6f1e7;
+  --lonja-card: #fffefb;
+  --lonja-gold: #e0a233;
+  --lonja-gold-deep: #b87f1f;
+  --lonja-clay: #b84b26;
+  --lonja-moss: #48664b;
+  --lonja-line: #ddd3be;
+  --lonja-muted: #7a7566;
+}
+
+@media (max-width: 759px) {
+  html, body, #root, .app-main, .page, main {
+    background: var(--lonja-paper);
+  }
+  body {
+    color: var(--lonja-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app-brand-bar {
+    height: 48px;
+    padding: max(7px, env(safe-area-inset-top)) 16px 3px;
+    background: var(--lonja-paper);
+  }
+  .app-brand-bar__identity { gap: 8px; color: var(--lonja-ink); }
+  .app-brand-bar__identity img {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+  .app-brand-bar__identity strong {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .app-brand-bar__notifications {
+    width: 32px;
+    height: 32px;
+    border-color: var(--lonja-line);
+    border-radius: 50%;
+    color: var(--lonja-ink);
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+  .page, .catalog-section {
+    padding: 2px 16px calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .dashboard-topbar--minimal {
+    min-height: 28px;
+    margin: 4px 0 7px;
+    padding: 0;
+  }
+  .dashboard-topbar--minimal h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.12rem;
+    font-weight: 600;
+    letter-spacing: -.025em;
+  }
+
+  .dashboard-page .result-card {
+    height: auto;
+    min-height: 0 !important;
+    max-height: none;
+    display: block;
+    padding: 16px 16px 0;
+    border: 0;
+    border-radius: 18px;
+    color: var(--lonja-paper);
+    background: var(--lonja-ink);
+    box-shadow: 0 12px 28px rgb(16 27 52 / 16%);
+  }
+  .dashboard-page .result-card::after {
+    display: none;
+  }
+  .dashboard-page .result-card__heading {
+    min-height: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .dashboard-page .result-card__heading > div > span {
+    margin: 0;
+    color: #c9bfa0;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .56rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+  }
+  .dashboard-page .result-card__heading strong {
+    margin: 6px 0 10px;
+    color: var(--lonja-gold) !important;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(2.65rem, 13vw, 3.25rem);
+    line-height: .92;
+    letter-spacing: -.055em;
+  }
+  .dashboard-month-picker--ticket {
+    min-width: 0;
+    min-height: 28px;
+    width: auto;
+    flex: 0 0 auto;
+    padding: 0 9px;
+    border-color: rgb(255 255 255 / 14%);
+    color: var(--lonja-paper);
+    background: rgb(255 255 255 / 9%);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .56rem;
+    font-weight: 700;
+  }
+  .dashboard-month-picker--ticket input { min-height: 28px; }
+
+  .dashboard-page .result-card__metrics {
+    position: relative;
+    height: auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 0 -16px;
+    padding: 17px 16px 15px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .dashboard-page .result-card__metrics::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 16px;
+    border-top: 1px dashed rgb(255 255 255 / 28%);
+  }
+  .dashboard-page .result-card__metrics::after {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--lonja-paper);
+    box-shadow: calc(100vw - 20px) 0 0 var(--lonja-paper);
+  }
+  .dashboard-page .result-card__metrics > div {
+    min-height: 0;
+    display: block;
+    padding: 0 9px;
+    border: 0 !important;
+  }
+  .dashboard-page .result-card__metrics > div:first-child { padding-left: 0; }
+  .dashboard-page .result-card__metrics > div + div {
+    border-left: 1px solid rgb(255 255 255 / 14%) !important;
+  }
+  .dashboard-page .result-card__metrics span {
+    min-height: 2.2em;
+    margin: 0 0 3px;
+    color: #c9bfa0;
+    font-size: .52rem;
+    line-height: 1.08;
+  }
+  .dashboard-page .result-card__metrics b {
+    margin: 0;
+    color: var(--lonja-paper);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: clamp(.63rem, 3vw, .75rem);
+    line-height: 1;
+  }
+
+  .dashboard-actions { margin: 10px 0; }
+  .dashboard-actions__featured { gap: 8px; }
+  .dashboard-action {
+    min-height: 58px;
+    grid-template-columns: minmax(0, 1fr) 14px;
+    gap: 6px;
+    padding: 11px 12px;
+    border-color: var(--lonja-line);
+    border-radius: 14px;
+    color: var(--lonja-ink);
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+  .dashboard-action > svg:first-child { display: none; }
+  .dashboard-action > svg:last-child {
+    width: 14px;
+    color: var(--lonja-muted);
+  }
+  .dashboard-action strong { font-size: .76rem; }
+  .dashboard-action--primary {
+    border-color: var(--lonja-gold);
+    color: var(--lonja-ink);
+    background: var(--lonja-gold);
+  }
+  .dashboard-action--primary > svg:last-child { color: var(--lonja-ink-soft); }
+
+  .dashboard-snapshot-grid {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .dashboard-snapshot-grid a {
+    min-height: 58px;
+    display: block;
+    padding: 10px 11px;
+    border-color: var(--lonja-line);
+    border-radius: 13px;
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+  .dashboard-snapshot-grid a > span { display: none; }
+  .dashboard-snapshot-grid small {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--lonja-muted);
+    font-size: .55rem;
+    line-height: 1.1;
+  }
+  .dashboard-snapshot-grid strong {
+    display: block;
+    color: var(--lonja-ink);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .72rem;
+  }
+
+  .dashboard-section { margin-top: 14px; }
+  .dashboard-section__heading h2 {
+    color: var(--lonja-ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: .95rem;
+  }
+  .attention-list, .premium-document-list,
+  .dashboard-insights, .dashboard-tools a {
+    border-color: var(--lonja-line);
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+
+  /* Sales list uses the same receipt language. */
+  .sales-page .page-heading {
+    margin-bottom: 10px;
+  }
+  .sales-page .page-heading .eyebrow {
+    color: var(--lonja-clay);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .56rem;
+  }
+  .sales-page .page-heading h1 {
+    color: var(--lonja-ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.55rem;
+  }
+  .sales-page .page-heading > div > p:last-child { display: none; }
+  .sales-page .page-heading .compact-action {
+    min-height: 38px;
+    padding-inline: 11px;
+    border-radius: 11px;
+    background: var(--lonja-gold);
+    color: var(--lonja-ink);
+    box-shadow: none;
+  }
+  .sales-page > .segmented {
+    min-height: 40px;
+    margin-bottom: 9px;
+    border-color: var(--lonja-line);
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+  .sales-page > .segmented button { min-height: 32px; }
+  .sales-page > .segmented button.active {
+    color: var(--lonja-paper);
+    background: var(--lonja-ink);
+  }
+  .sales-summary-card--compact {
+    min-height: 72px;
+    align-items: center;
+    margin-bottom: 9px;
+    padding: 13px 15px;
+    border-radius: 15px;
+    background: var(--lonja-ink);
+    box-shadow: none;
+  }
+  .sales-summary-card--compact .sales-summary-card__amount { gap: 3px; }
+  .sales-summary-card--compact .sales-summary-card__amount > span {
+    color: #c9bfa0;
+    font-size: .53rem;
+  }
+  .sales-summary-card--compact .sales-summary-card__amount > strong {
+    color: var(--lonja-gold);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: clamp(1.35rem, 6.6vw, 1.7rem);
+    line-height: 1;
+  }
+  .sales-summary-card__documents {
+    min-width: 62px;
+    padding: 7px 9px;
+    border-radius: 10px;
+  }
+  .sales-summary-card__documents strong {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .88rem;
+  }
+  .sales-summary-card__documents span { font-size: .46rem; }
+
+  .sales-page .filter-card {
+    gap: 7px;
+    margin-bottom: 10px;
+    padding: 9px;
+    border-color: var(--lonja-line);
+    border-radius: 14px;
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+  .sales-page .filter-card input,
+  .sales-page .filter-card select {
+    min-height: 38px;
+    border-color: var(--lonja-line);
+    border-radius: 10px;
+    background: #fff;
+    font-size: .72rem;
+  }
+  .sales-list { gap: 7px; }
+  .sales-list .invoice-list-card {
+    border-color: var(--lonja-line);
+    border-radius: 13px;
+    background: var(--lonja-card);
+    box-shadow: none;
+  }
+  .sales-list .entity-card {
+    min-height: 70px;
+    grid-template-columns: minmax(0, 1fr) auto 12px;
+    padding: 11px 12px;
+  }
+  .sales-list .entity-card__icon { display: none; }
+  .sales-list .entity-card__body strong,
+  .sales-list .entity-card__amount {
+    color: var(--lonja-ink);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  .sales-list .entity-card__body strong { font-size: .72rem; }
+  .sales-list .entity-card__body small {
+    color: var(--lonja-muted);
+    font-size: .6rem;
+  }
+  .sales-list .status {
+    width: fit-content;
+    margin-top: 4px;
+    padding: 2px 6px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    background: transparent;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .48rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    transform: rotate(-1deg);
+  }
+  .sales-list .status--paid { color: var(--lonja-moss); }
+  .sales-list .status--draft,
+  .sales-list .status--issued { color: var(--lonja-gold-deep); }
+  .sales-list .status--cancelled { color: var(--lonja-clay); }
+  .invoice-card-actions { min-height: 34px; padding-block: 3px; background: #fcfaf5; }
+
+  .bottom-nav {
+    padding-top: 6px;
+    background: color-mix(in srgb, var(--lonja-card) 94%, transparent);
+    border-top-color: var(--lonja-line);
+    box-shadow: none;
+  }
+  .bottom-nav .nav-item { color: var(--lonja-muted); }
+  .bottom-nav .nav-item--active { color: var(--lonja-ink); }
+  .bottom-nav__indicator,
+  .nav-item--active::before { background: var(--lonja-gold); }
+}
