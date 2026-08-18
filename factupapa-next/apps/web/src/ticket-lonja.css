@@ -149,7 +149,7 @@
     height: 12px;
     border-radius: 50%;
     background: var(--lonja-paper);
-    box-shadow: calc(100vw - 20px) 0 0 var(--lonja-paper);
+    box-shadow: calc(100vw - 44px) 0 0 var(--lonja-paper);
   }
   .dashboard-page .result-card__metrics > div {
     min-height: 0;
@@ -308,6 +308,32 @@
     font-size: .88rem;
   }
   .sales-summary-card__documents span { font-size: .46rem; }
+
+  .sales-quick-filters {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 9px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sales-quick-filters::-webkit-scrollbar { display: none; }
+  .sales-quick-filters button {
+    min-height: 30px;
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    border: 1px solid var(--lonja-line);
+    border-radius: 999px;
+    color: var(--lonja-ink-soft);
+    background: var(--lonja-card);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: .55rem;
+    font-weight: 700;
+  }
+  .sales-quick-filters button.active {
+    border-color: var(--lonja-ink);
+    color: var(--lonja-paper);
+    background: var(--lonja-ink);
+  }
 
   .sales-page .filter-card {
     gap: 7px;
