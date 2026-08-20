@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, FilePlus2, MailCheck, Receipt, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarClock, FilePlus2, MailCheck, Receipt, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { contactsApi, financeApi, gmailApi } from "../api/services";
@@ -83,6 +83,10 @@ export function ExpensesPage() {
     inbox = useQuery({
       queryKey: ["pending-purchase-documents"],
       queryFn: financeApi.pendingPurchaseDocuments,
+    }),
+    rejectedDocuments = useQuery({
+      queryKey: ["rejected-purchase-documents"],
+      queryFn: financeApi.rejectedPurchaseDocuments,
     });
   const [open, setOpen] = useState(false),
     [name, setName] = useState(""),
@@ -138,6 +142,15 @@ export function ExpensesPage() {
         await Promise.all([
           qc.invalidateQueries({ queryKey: ["pending-purchase-documents"] }),
           qc.invalidateQueries({ queryKey: ["gmail-connection"] }),
+        ]);
+      },
+    }),
+    restoreDocument = useMutation({
+      mutationFn: financeApi.restoreRejectedPurchaseDocument,
+      onSuccess: async () => {
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["pending-purchase-documents"] }),
+          qc.invalidateQueries({ queryKey: ["rejected-purchase-documents"] }),
         ]);
       },
     });
@@ -275,6 +288,37 @@ export function ExpensesPage() {
             </p>
           )}
         </section>
+      )}
+      {Boolean(rejectedDocuments.data?.length) && (
+        <details className="purchase-document-trash">
+          <summary>
+            <span><Trash2 aria-hidden="true" /> Descartadas</span>
+            <strong>{rejectedDocuments.data?.length}</strong>
+          </summary>
+          <div className="purchase-document-trash__list">
+            {rejectedDocuments.data?.map((document) => {
+              const extracted = document.extractedData as { supplierName?: string };
+              return (
+                <article key={document.id}>
+                  <span>
+                    <strong>{extracted.supplierName || document.subject || document.filename}</strong>
+                    <small>{document.filename}</small>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={restoreDocument.isPending}
+                    onClick={() => restoreDocument.mutate(document.id)}
+                  >
+                    <RotateCcw aria-hidden="true" /> Restaurar
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+          {restoreDocument.isError && (
+            <p className="field-error" role="alert">No se pudo restaurar el documento.</p>
+          )}
+        </details>
       )}
       <section className="filter-card purchase-filters">
         <SelectField

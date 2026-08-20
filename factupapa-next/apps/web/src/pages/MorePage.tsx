@@ -41,6 +41,14 @@ function applyTheme(theme: ThemeChoice) {
   }
 }
 
+const gmailSyncLabel = (value: string | null) => {
+  if (!value) return "Todavía no se ha revisado la bandeja.";
+  return `Última revisión: ${new Intl.DateTimeFormat("es-ES", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value))}`;
+};
+
 export function MorePage() {
   const auth = useAuth();
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
@@ -183,6 +191,19 @@ export function MorePage() {
                     ? "La conexión de Gmail no está configurada en este entorno."
                     : "Tu inicio de sesión identifica la cuenta, pero Gmail necesita un permiso separado de solo envío."}
               </p>
+              {gmail.data?.connected && gmail.data.canRead && (
+                <p className={`gmail-sync-state gmail-sync-state--${gmail.data.lastInboxSyncStatus ?? "idle"}`}>
+                  <strong>
+                    {gmail.data.lastInboxSyncStatus === "failed"
+                      ? "La última revisión falló"
+                      : gmail.data.lastInboxSyncStatus === "running"
+                        ? "Revisando Gmail"
+                        : "Sincronización automática activa"}
+                  </strong>
+                  <span>{gmailSyncLabel(gmail.data.lastInboxSyncAt)}</span>
+                  <small>Se revisa automáticamente cada 6 horas.</small>
+                </p>
+              )}
               {gmailResult === "success" && (
                 <p className="integration-feedback integration-feedback--success">Gmail se ha conectado correctamente.</p>
               )}

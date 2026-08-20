@@ -393,6 +393,25 @@ export class FinanceService {
     );
   }
 
+  async listRejectedDocuments(i: SessionIdentity) {
+    return withTenantTransaction(this.pool, i, async (client) =>
+      (
+        await client.query(
+          `select d.id,d.original_filename filename,d.mime_type "mimeType",
+             d.byte_size::text "byteSize",d.status,d.extracted_data "extractedData",
+             d.created_at::text "createdAt",d.updated_at::text "updatedAt",
+             g.sender_email "senderEmail",g.subject,g.received_at::text "receivedAt"
+           from documents d
+           left join gmail_purchase_imports g on g.document_id=d.id
+           where d.kind='purchase_invoice' and d.status='rejected'
+             and not exists(select 1 from purchase_invoices p where p.document_id=d.id)
+           order by d.updated_at desc
+           limit 50`,
+        )
+      ).rows,
+    );
+  }
+
   async getPendingDocument(i: SessionIdentity, id: string) {
     return withTenantTransaction(this.pool, i, async (client) => {
       const row = (
@@ -410,6 +429,54 @@ export class FinanceService {
       ).rows[0];
       if (!row) throw new HttpError("not_found", 404);
       return row;
+    });
+  }
+  async rejectPendingDocument(i: SessionIdentity, id: string) {
+    return withTenantTransaction(this.pool, i, async (client) => {
+      const row = (
+        await client.query<{ id: string; filename: string }>(
+          `update documents d
+           set status='rejected',updated_at=now()
+           where d.id=$1 and d.kind='purchase_invoice' and d.status='needs_review'
+             and not exists(select 1 from purchase_invoices p where p.document_id=d.id)
+           returning d.id,d.original_filename filename`,
+          [id],
+        )
+      ).rows[0];
+      if (!row) throw new HttpError("not_found", 404);
+      await recordAudit(client, {
+        companyId: i.companyId,
+        actorUserId: i.userId,
+        entityType: "document",
+        entityId: id,
+        action: "document.rejected",
+        before: { status: "needs_review" },
+        after: { status: "rejected", filename: row.filename },
+      });
+    });
+  }
+  async restoreRejectedDocument(i: SessionIdentity, id: string) {
+    return withTenantTransaction(this.pool, i, async (client) => {
+      const row = (
+        await client.query<{ id: string; filename: string }>(
+          `update documents d
+           set status='needs_review',updated_at=now()
+           where d.id=$1 and d.kind='purchase_invoice' and d.status='rejected'
+             and not exists(select 1 from purchase_invoices p where p.document_id=d.id)
+           returning d.id,d.original_filename filename`,
+          [id],
+        )
+      ).rows[0];
+      if (!row) throw new HttpError("not_found", 404);
+      await recordAudit(client, {
+        companyId: i.companyId,
+        actorUserId: i.userId,
+        entityType: "document",
+        entityId: id,
+        action: "document.restored",
+        before: { status: "rejected" },
+        after: { status: "needs_review", filename: row.filename },
+      });
     });
   }
   async archiveDocument(

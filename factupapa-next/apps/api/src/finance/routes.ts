@@ -21,6 +21,11 @@ export function createFinanceRoutes(
       json(response, 200, await finance.listPendingDocuments(id));
       return true;
     }
+    if (url.pathname === "/purchase-documents/rejected" && request.method === "GET") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.listRejectedDocuments(id));
+      return true;
+    }
     if (url.pathname === "/purchase-documents" && request.method === "POST") {
       const id = await auth.authenticate(bearerToken(request)),
         body = await readJson(request, 14_000_000);
@@ -42,7 +47,20 @@ export function createFinanceRoutes(
       json(response, 200, await finance.getPendingDocument(id, requireUuid(metadata[1])));
       return true;
     }
+    const restore = url.pathname.match(/^\/purchase-documents\/([^/]+)\/restore$/);
+    if (restore && request.method === "POST") {
+      const id = await auth.authenticate(bearerToken(request));
+      await finance.restoreRejectedDocument(id, requireUuid(restore[1]));
+      noContent(response);
+      return true;
+    }
     const doc = url.pathname.match(/^\/purchase-documents\/([^/]+)$/);
+    if (doc && request.method === "DELETE") {
+      const id = await auth.authenticate(bearerToken(request));
+      await finance.rejectPendingDocument(id, requireUuid(doc[1]));
+      noContent(response);
+      return true;
+    }
     if (doc && request.method === "GET") {
       const id = await auth.authenticate(bearerToken(request)),
         file = await finance.downloadDocument(id, requireUuid(doc[1]));

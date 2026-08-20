@@ -394,6 +394,20 @@ export const financeApi = {
       subject: string | null;
       receivedAt: string | null;
     }>>("/purchase-documents"),
+  rejectedPurchaseDocuments: () =>
+    apiClient.request<Array<{
+      id: string;
+      filename: string;
+      mimeType: string;
+      byteSize: string;
+      status: string;
+      extractedData: Record<string, unknown>;
+      createdAt: string;
+      updatedAt: string;
+      senderEmail: string | null;
+      subject: string | null;
+      receivedAt: string | null;
+    }>>("/purchase-documents/rejected"),
   pendingPurchaseDocument: (id: string) =>
     apiClient.request<{
       id: string;
@@ -407,6 +421,13 @@ export const financeApi = {
       subject: string | null;
       receivedAt: string | null;
     }>(`/purchase-documents/${id}/metadata`),
+  rejectPendingPurchaseDocument: (id: string) =>
+    apiClient.request<void>(`/purchase-documents/${id}`, { method: "DELETE" }),
+  restoreRejectedPurchaseDocument: (id: string) =>
+    apiClient.request<void>(`/purchase-documents/${id}/restore`, {
+      method: "POST",
+      body: "{}",
+    }),
   archivePurchaseDocument: (input: {
     filename: string;
     mimeType: string;

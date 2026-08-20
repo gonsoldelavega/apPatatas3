@@ -279,6 +279,13 @@ export function PurchaseFormPage() {
       }),
     onSuccess: (purchase) => navigate(`/gastos/${purchase.id}`),
   });
+  const rejectImportedDocument = useMutation({
+    mutationFn: () => financeApi.rejectPendingPurchaseDocument(importedDocumentId!),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["pending-purchase-documents"] });
+      navigate("/gastos#recibidas-gmail", { replace: true });
+    },
+  });
 
   useEffect(() => {
     if (!documentFile) {
@@ -425,6 +432,22 @@ export function PurchaseFormPage() {
               <RefreshCw /> Reintentar lectura
             </Button>
           </div>
+        )}
+        {importedDocumentId && (
+          <button
+            type="button"
+            className="purchase-document-reject"
+            disabled={rejectImportedDocument.isPending || save.isPending}
+            onClick={() => rejectImportedDocument.mutate()}
+          >
+            <Trash2 aria-hidden="true" />
+            {rejectImportedDocument.isPending ? "Descartando…" : "No es una factura · descartar"}
+          </button>
+        )}
+        {rejectImportedDocument.isError && (
+          <p className="field-error" role="alert">
+            No se pudo descartar. El documento sigue intacto y pendiente de revisión.
+          </p>
         )}
         {ocr && (
           <div className="ocr-review" aria-label="Resultado de la lectura automática">
