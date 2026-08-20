@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
 import { apiClient } from "../api/client";
@@ -91,6 +91,8 @@ const encoded = (file: File) =>
 
 export function PurchaseFormPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const importedDocumentId = searchParams.get("document");
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
   const [showSupplierCreate, setShowSupplierCreate] = useState(false);
@@ -108,6 +110,7 @@ export function PurchaseFormPage() {
   const [ocr, setOcr] = useState<ExtractedPurchase | null>(null);
   const [lines, setLines] = useState<DraftPurchaseLine[]>([emptyLine()]);
   const selectedDocument = useRef<File | null>(null);
+  const appliedImportedDocument = useRef<string | null>(null);
 
   const suppliers = useQuery({
     queryKey: ["purchase-suppliers"],
@@ -116,6 +119,11 @@ export function PurchaseFormPage() {
   const products = useQuery({
     queryKey: ["purchase-products"],
     queryFn: () => productsApi.list({ isActive: true, pageSize: 100 }),
+  });
+  const importedDocument = useQuery({
+    queryKey: ["pending-purchase-document", importedDocumentId],
+    queryFn: () => financeApi.pendingPurchaseDocument(importedDocumentId!),
+    enabled: Boolean(importedDocumentId),
   });
 
   const patchLine = (index: number, value: Partial<PurchaseLineInput>) =>
@@ -138,6 +146,57 @@ export function PurchaseFormPage() {
     return sameUnit.length === 1 && unit === "kg" ? sameUnit[0].id : null;
   };
 
+  const applyExtractedData = (id: string, extractedData: ExtractedPurchase) => {
+    setDocumentId(id);
+    setOcr(extractedData);
+    if (extractedData.supplierId) setSupplierId(extractedData.supplierId);
+    setNewSupplierName(extractedData.supplierName ?? "");
+    setNewSupplierTaxId(extractedData.supplierTaxId ?? "");
+    if (extractedData.supplierInvoiceNumber)
+      setSupplierInvoiceNumber(extractedData.supplierInvoiceNumber);
+    if (extractedData.issueDate) setIssueDate(extractedData.issueDate);
+    if (extractedData.dueDate) setDueDate(extractedData.dueDate);
+    if (extractedData.lines?.length) {
+      setLines(
+        extractedData.lines.map(({ discount, lineTotal, ...line }) => ({
+          clientId: crypto.randomUUID(),
+          productId: suggestProductId(line.description, line.unit),
+          ...line,
+          unitCost:
+            lineTotal && Number(line.quantity) > 0 && Number(discount ?? 0) !== 0
+              ? String(Math.round((Number(lineTotal) / Number(line.quantity)) * 10_000) / 10_000)
+              : line.unitCost,
+        })),
+      );
+    } else if (
+      extractedData.concept ||
+      extractedData.subtotal ||
+      extractedData.purchasedQuantityKg
+    ) {
+      const quantity = extractedData.purchasedQuantityKg ?? "1";
+      const subtotal = extractedData.subtotal ?? "";
+      const taxRate =
+        subtotal && extractedData.taxTotal
+          ? String(Math.round((Number(extractedData.taxTotal) / Number(subtotal)) * 10_000) / 100)
+          : "4";
+      setLines([{
+        clientId: crypto.randomUUID(),
+        productId: suggestProductId(
+          extractedData.concept ?? extractedData.supplierName ?? "",
+          extractedData.purchasedQuantityKg ? "kg" : "unit",
+        ),
+        description: extractedData.concept ?? extractedData.supplierName ?? "Compra según factura",
+        quantity,
+        unit: extractedData.purchasedQuantityKg ? "kg" : "unit",
+        unitCost:
+          subtotal && Number(quantity) > 0
+            ? String(Math.round((Number(subtotal) / Number(quantity)) * 10_000) / 10_000)
+            : "",
+        taxRate,
+      }]);
+    }
+  };
+
   const upload = useMutation({
     mutationFn: async (file: File) =>
       apiClient.request<PurchaseDocumentResponse>("/purchase-documents", {
@@ -151,59 +210,19 @@ export function PurchaseFormPage() {
       }),
     onSuccess: ({ id, extractedData }, file) => {
       if (selectedDocument.current !== file) return;
-      setDocumentId(id);
-      setOcr(extractedData);
-      if (extractedData.supplierId) setSupplierId(extractedData.supplierId);
-      setNewSupplierName(extractedData.supplierName ?? "");
-      setNewSupplierTaxId(extractedData.supplierTaxId ?? "");
-      if (extractedData.supplierInvoiceNumber)
-        setSupplierInvoiceNumber(extractedData.supplierInvoiceNumber);
-      if (extractedData.issueDate) setIssueDate(extractedData.issueDate);
-      if (extractedData.dueDate) setDueDate(extractedData.dueDate);
-      if (extractedData.lines?.length) {
-        setLines(
-          extractedData.lines.map(({ discount, lineTotal, ...line }) => ({
-            clientId: crypto.randomUUID(),
-            productId: suggestProductId(line.description, line.unit),
-            ...line,
-            unitCost:
-              lineTotal && Number(line.quantity) > 0 && Number(discount ?? 0) !== 0
-                ? String(Math.round((Number(lineTotal) / Number(line.quantity)) * 10_000) / 10_000)
-                : line.unitCost,
-          })),
-        );
-      } else if (
-        extractedData.concept ||
-        extractedData.subtotal ||
-        extractedData.purchasedQuantityKg
-      ) {
-        const quantity = extractedData.purchasedQuantityKg ?? "1";
-        const subtotal = extractedData.subtotal ?? "";
-        const taxRate =
-          subtotal && extractedData.taxTotal
-            ? String(Math.round((Number(extractedData.taxTotal) / Number(subtotal)) * 10_000) / 100)
-            : "4";
-        setLines([
-          {
-            clientId: crypto.randomUUID(),
-            productId: suggestProductId(
-              extractedData.concept ?? extractedData.supplierName ?? "",
-              extractedData.purchasedQuantityKg ? "kg" : "unit",
-            ),
-            description:
-              extractedData.concept ?? extractedData.supplierName ?? "Compra según factura",
-            quantity,
-            unit: extractedData.purchasedQuantityKg ? "kg" : "unit",
-            unitCost:
-              subtotal && Number(quantity) > 0
-                ? String(Math.round((Number(subtotal) / Number(quantity)) * 10_000) / 10_000)
-                : "",
-            taxRate,
-          },
-        ]);
-      }
+      applyExtractedData(id, extractedData);
     },
   });
+
+  useEffect(() => {
+    const document = importedDocument.data;
+    if (!document || appliedImportedDocument.current === document.id || !products.data) return;
+    appliedImportedDocument.current = document.id;
+    applyExtractedData(document.id, document.extractedData as ExtractedPurchase);
+    void financeApi.downloadPurchaseDocument(document.id).then((blob) => {
+      setDocumentFile(new File([blob], document.filename, { type: document.mimeType }));
+    }).catch(() => setDocumentError("No se pudo abrir el adjunto original."));
+  }, [importedDocument.data, products.data]);
 
   const createSupplier = useMutation({
     mutationFn: () =>

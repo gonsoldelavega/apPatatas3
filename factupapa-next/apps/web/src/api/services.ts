@@ -67,6 +67,9 @@ export interface GmailConnection {
   connected: boolean;
   email: string | null;
   connectedAt: string | null;
+  canRead: boolean;
+  lastInboxSyncAt: string | null;
+  lastInboxSyncStatus: string | null;
 }
 
 export const gmailApi = {
@@ -78,6 +81,11 @@ export const gmailApi = {
     }),
   disconnect: () =>
     apiClient.request<void>("/integrations/gmail", { method: "DELETE" }),
+  sync: () =>
+    apiClient.request<{ messages: number; imported: number; duplicates: number; failed: number }>(
+      "/integrations/gmail/sync",
+      { method: "POST", body: "{}", timeoutMs: 180_000 },
+    ),
   sendInvoice: (invoiceId: string) =>
     apiClient.request<{ sent: true; email: string; messageId: string }>(
       `/invoices/${invoiceId}/send-gmail`,
@@ -373,6 +381,32 @@ export const financeApi = {
     ),
   purchase: (id: string) =>
     apiClient.request<PurchaseInvoice>(`/purchases/${id}`),
+  pendingPurchaseDocuments: () =>
+    apiClient.request<Array<{
+      id: string;
+      filename: string;
+      mimeType: string;
+      byteSize: string;
+      status: string;
+      extractedData: Record<string, unknown>;
+      createdAt: string;
+      senderEmail: string | null;
+      subject: string | null;
+      receivedAt: string | null;
+    }>>("/purchase-documents"),
+  pendingPurchaseDocument: (id: string) =>
+    apiClient.request<{
+      id: string;
+      filename: string;
+      mimeType: string;
+      byteSize: string;
+      status: string;
+      extractedData: Record<string, unknown>;
+      createdAt: string;
+      senderEmail: string | null;
+      subject: string | null;
+      receivedAt: string | null;
+    }>(`/purchase-documents/${id}/metadata`),
   archivePurchaseDocument: (input: {
     filename: string;
     mimeType: string;

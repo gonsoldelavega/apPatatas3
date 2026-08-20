@@ -168,7 +168,7 @@ export function MorePage() {
                   {gmail.isLoading
                     ? "Comprobando"
                     : gmail.data?.connected
-                      ? "Conectado"
+                      ? gmail.data.canRead ? "Conectado" : "Falta autorizar lectura"
                       : gmail.data?.available === false
                         ? "No disponible"
                         : "No conectado"}
@@ -176,7 +176,9 @@ export function MorePage() {
               </div>
               <p>
                 {gmail.data?.connected
-                  ? `Cuenta autorizada: ${gmail.data.email}. FactuPapa solo ha solicitado permiso para enviar.`
+                  ? gmail.data.canRead
+                    ? `Cuenta autorizada: ${gmail.data.email}. FactuPapa puede enviar facturas y leer únicamente los mensajes necesarios para importar adjuntos de compra.`
+                    : `La cuenta ${gmail.data.email} conserva el permiso de envío, pero necesita autorizar una vez la lectura para importar facturas recibidas.`
                   : gmail.data?.available === false
                     ? "La conexión de Gmail no está configurada en este entorno."
                     : "Tu inicio de sesión identifica la cuenta, pero Gmail necesita un permiso separado de solo envío."}
@@ -188,7 +190,7 @@ export function MorePage() {
                 <p className="integration-feedback integration-feedback--error">No se pudo conectar Gmail. Inténtalo de nuevo.</p>
               )}
               <div className="integration-card__actions">
-                {gmail.data?.connected ? (
+                {gmail.data?.connected && gmail.data.canRead ? (
                   <Button
                     variant="secondary"
                     busy={disconnectGmail.isPending}
@@ -212,7 +214,7 @@ export function MorePage() {
                       connectGmail.mutate();
                     }}
                   >
-                    Conectar Gmail
+                    {gmail.data?.connected ? "Autorizar lectura de Gmail" : "Conectar Gmail"}
                   </Button>
                 )}
               </div>

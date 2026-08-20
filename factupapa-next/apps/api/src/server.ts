@@ -131,7 +131,7 @@ const server = createApp({
       : {}),
   },
   routes: [
-    createGmailRoutes(auth, gmail, config.authCookieSecure),
+    createGmailRoutes(auth, gmail, finance, config.authCookieSecure),
     createAccountsRoutes(auth, accounts),
     createFinanceRoutes(auth, finance),
     createSalesPreferencesRoutes(auth, salesPreferences),
@@ -154,7 +154,14 @@ server.listen(config.port, config.host, () => {
   });
 });
 
+const gmailInboxTimer = gmail
+  ? setInterval(() => void gmail.syncDueInboxes(finance), 15 * 60_000)
+  : undefined;
+gmailInboxTimer?.unref();
+if (gmail) setTimeout(() => void gmail.syncDueInboxes(finance), 30_000).unref();
+
 async function shutdown(signal: string) {
+  if (gmailInboxTimer) clearInterval(gmailInboxTimer);
   log("info", {
     event: "service.stopping",
     signal,

@@ -16,6 +16,11 @@ export function createFinanceRoutes(
   finance: FinanceService,
 ): RouteHandler {
   return async ({ request, response, url }) => {
+    if (url.pathname === "/purchase-documents" && request.method === "GET") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.listPendingDocuments(id));
+      return true;
+    }
     if (url.pathname === "/purchase-documents" && request.method === "POST") {
       const id = await auth.authenticate(bearerToken(request)),
         body = await readJson(request, 14_000_000);
@@ -29,6 +34,12 @@ export function createFinanceRoutes(
           documentId: body.documentId,
         }),
       );
+      return true;
+    }
+    const metadata = url.pathname.match(/^\/purchase-documents\/([^/]+)\/metadata$/);
+    if (metadata && request.method === "GET") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.getPendingDocument(id, requireUuid(metadata[1])));
       return true;
     }
     const doc = url.pathname.match(/^\/purchase-documents\/([^/]+)$/);

@@ -4,6 +4,7 @@ import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
 import { HttpError } from "../http/errors.js";
 import { GmailIntegrationService } from "./gmail.js";
+import type { FinanceService } from "../finance/service.js";
 
 function cookieValue(header: string | undefined, name: string): string | undefined {
   const encoded = header?.split(";").map((part) => part.trim())
@@ -36,6 +37,7 @@ function callbackPaths(path: string): Set<string> {
 export function createGmailRoutes(
   auth: AuthApplication,
   service: GmailIntegrationService | undefined,
+  finance: FinanceService,
   secureCookies: boolean,
 ): RouteHandler {
   return async ({ request, response, url }) => {
@@ -43,7 +45,21 @@ export function createGmailRoutes(
       const identity = await auth.authenticate(bearerToken(request));
       json(response, 200, service
         ? await service.status(identity)
-        : { available: false, connected: false, email: null, connectedAt: null });
+        : {
+            available: false,
+            connected: false,
+            email: null,
+            connectedAt: null,
+            canRead: false,
+            lastInboxSyncAt: null,
+            lastInboxSyncStatus: null,
+          });
+      return true;
+    }
+    if (request.method === "POST" && url.pathname === "/integrations/gmail/sync") {
+      if (!service) throw new HttpError("not_found", 404);
+      const identity = await auth.authenticate(bearerToken(request));
+      json(response, 200, await service.syncInbox(identity, finance));
       return true;
     }
     if (request.method === "POST" && url.pathname === "/integrations/gmail/connect") {

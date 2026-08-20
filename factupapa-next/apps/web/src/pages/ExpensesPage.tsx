@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, FilePlus2, Receipt, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarClock, FilePlus2, MailCheck, Receipt, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { contactsApi, financeApi } from "../api/services";
+import { contactsApi, financeApi, gmailApi } from "../api/services";
 import { ApiError } from "../api/client";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
@@ -75,6 +75,14 @@ export function ExpensesPage() {
     registryStatus = useQuery({
       queryKey: ["purchase-registry-status"],
       queryFn: financeApi.purchaseRegistryStatus,
+    }),
+    gmail = useQuery({
+      queryKey: ["gmail-connection"],
+      queryFn: gmailApi.status,
+    }),
+    inbox = useQuery({
+      queryKey: ["pending-purchase-documents"],
+      queryFn: financeApi.pendingPurchaseDocuments,
     });
   const [open, setOpen] = useState(false),
     [name, setName] = useState(""),
@@ -121,6 +129,15 @@ export function ExpensesPage() {
           qc.invalidateQueries({ queryKey: ["purchases"] }),
           qc.invalidateQueries({ queryKey: ["suppliers"] }),
           qc.invalidateQueries({ queryKey: ["finance-summary"] }),
+        ]);
+      },
+    }),
+    gmailSync = useMutation({
+      mutationFn: gmailApi.sync,
+      onSuccess: async () => {
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["pending-purchase-documents"] }),
+          qc.invalidateQueries({ queryKey: ["gmail-connection"] }),
         ]);
       },
     });
@@ -197,6 +214,68 @@ export function ExpensesPage() {
           </div>
         </dl>
       </section>
+      {(gmail.data?.connected || Boolean(inbox.data?.length)) && (
+        <section className="gmail-purchase-inbox" aria-labelledby="gmail-purchase-title">
+          <div className="section-heading">
+            <span>
+              <h2 id="gmail-purchase-title">Recibidas por Gmail</h2>
+              <p>
+                {inbox.data?.length ?? 0} factura{inbox.data?.length === 1 ? "" : "s"} pendiente{inbox.data?.length === 1 ? "" : "s"} de revisar
+              </p>
+            </span>
+            {gmail.data?.canRead ? (
+              <button
+                type="button"
+                className="gmail-sync-button"
+                disabled={gmailSync.isPending}
+                onClick={() => gmailSync.mutate()}
+              >
+                <RefreshCw className={gmailSync.isPending ? "spin" : ""} />
+                {gmailSync.isPending ? "Buscando…" : "Revisar ahora"}
+              </button>
+            ) : (
+              <Link className="gmail-sync-button" to="/mas#integraciones">
+                Autorizar Gmail
+              </Link>
+            )}
+          </div>
+          <div className="gmail-inbox-list">
+            {inbox.data?.slice(0, 6).map((document) => {
+              const extracted = document.extractedData as {
+                supplierName?: string;
+                supplierInvoiceNumber?: string;
+                total?: string;
+              };
+              return (
+                <Link
+                  className="gmail-inbox-card"
+                  to={`/gastos/nuevo?document=${document.id}`}
+                  key={document.id}
+                >
+                  <MailCheck aria-hidden="true" />
+                  <span>
+                    <strong>{extracted.supplierName || document.subject || document.filename}</strong>
+                    <small>
+                      {extracted.supplierInvoiceNumber || document.senderEmail || "Adjunto recibido"}
+                    </small>
+                  </span>
+                  <strong>{extracted.total ? formatMoney(extracted.total) : "Revisar"}</strong>
+                </Link>
+              );
+            })}
+          </div>
+          {gmailSync.data && (
+            <p className="action-feedback" role="status">
+              Gmail revisado: {gmailSync.data.imported} nueva{gmailSync.data.imported === 1 ? "" : "s"}, {gmailSync.data.duplicates} repetida{gmailSync.data.duplicates === 1 ? "" : "s"}.
+            </p>
+          )}
+          {gmailSync.isError && (
+            <p className="field-error" role="alert">
+              No se pudo revisar Gmail. Vuelve a autorizar la cuenta desde Otros si el permiso ha caducado.
+            </p>
+          )}
+        </section>
+      )}
       <section className="filter-card purchase-filters">
         <SelectField
           label="Categoría de compras"

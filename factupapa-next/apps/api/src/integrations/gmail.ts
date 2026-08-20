@@ -13,6 +13,7 @@ import { withTenantTransaction, type TenantContext } from "../database/client.js
 import { HttpError } from "../http/errors.js";
 import { InvoiceRepository } from "../invoices/repository.js";
 import { createInvoicePdf } from "../invoices/pdf.js";
+import type { FinanceService } from "../finance/service.js";
 
 interface GmailOAuthState {
   nonce: string;
@@ -27,6 +28,29 @@ export interface GmailConnection {
   connected: boolean;
   email: string | null;
   connectedAt: string | null;
+  canRead: boolean;
+  lastInboxSyncAt: string | null;
+  lastInboxSyncStatus: string | null;
+}
+
+interface GmailPart {
+  filename?: string;
+  mimeType?: string;
+  body?: { attachmentId?: string; data?: string };
+  parts?: GmailPart[];
+}
+
+interface GmailMessage {
+  id: string;
+  internalDate?: string;
+  payload?: GmailPart & { headers?: Array<{ name?: string; value?: string }> };
+}
+
+export interface GmailInboxSyncResult {
+  messages: number;
+  imported: number;
+  duplicates: number;
+  failed: number;
 }
 
 interface GmailConfig {
@@ -58,6 +82,36 @@ function base64Lines(value: Buffer): string {
 
 function safeFilename(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "factura.pdf";
+}
+
+const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const SUPPORTED_ATTACHMENTS = new Map([
+  ["application/pdf", "application/pdf"],
+  ["image/jpeg", "image/jpeg"],
+  ["image/jpg", "image/jpeg"],
+  ["image/png", "image/png"],
+]);
+
+export function collectGmailPurchaseAttachments(
+  part: GmailPart | undefined,
+  output: GmailPart[] = [],
+): GmailPart[] {
+  if (!part) return output;
+  if (part.filename?.trim() && SUPPORTED_ATTACHMENTS.has(part.mimeType?.toLowerCase() ?? ""))
+    output.push(part);
+  for (const child of part.parts ?? []) collectGmailPurchaseAttachments(child, output);
+  return output;
+}
+
+function header(message: GmailMessage, name: string): string | null {
+  return message.payload?.headers?.find((item) => item.name?.toLowerCase() === name)?.value ?? null;
+}
+
+function senderEmail(value: string | null): string | null {
+  if (!value) return null;
+  const bracketed = value.match(/<([^>]+)>/);
+  const email = (bracketed?.[1] ?? value).trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
 
 export function createGmailRawMessage(input: GmailMessageInput): string {
@@ -133,7 +187,7 @@ export class GmailIntegrationService {
     url.searchParams.set("response_type", "code");
     url.searchParams.set(
       "scope",
-      "openid email https://www.googleapis.com/auth/gmail.send",
+      `openid email https://www.googleapis.com/auth/gmail.send ${GMAIL_READ_SCOPE}`,
     );
     url.searchParams.set("state", state.nonce);
     url.searchParams.set("code_challenge", challenge);
@@ -321,16 +375,193 @@ export class GmailIntegrationService {
 
   async status(identity: SessionIdentity): Promise<GmailConnection> {
     return withTenantTransaction(this.pool, identity, async (client) => {
-      const result = await client.query<{ googleEmail: string; connectedAt: string }>(
-        `select google_email "googleEmail",connected_at::text "connectedAt"
+      const result = await client.query<{
+        googleEmail: string;
+        connectedAt: string;
+        scopes: string[];
+        lastInboxSyncAt: string | null;
+        lastInboxSyncStatus: string | null;
+      }>(
+        `select google_email "googleEmail",connected_at::text "connectedAt",scopes,
+           last_inbox_sync_at::text "lastInboxSyncAt",
+           last_inbox_sync_status "lastInboxSyncStatus"
          from gmail_integrations where company_id=$1`,
         [identity.companyId],
       );
       const row = result.rows[0];
       return row
-        ? { available: true, connected: true, email: row.googleEmail, connectedAt: row.connectedAt }
-        : { available: true, connected: false, email: null, connectedAt: null };
+        ? {
+            available: true,
+            connected: true,
+            email: row.googleEmail,
+            connectedAt: row.connectedAt,
+            canRead: row.scopes.includes(GMAIL_READ_SCOPE),
+            lastInboxSyncAt: row.lastInboxSyncAt,
+            lastInboxSyncStatus: row.lastInboxSyncStatus,
+          }
+        : {
+            available: true,
+            connected: false,
+            email: null,
+            connectedAt: null,
+            canRead: false,
+            lastInboxSyncAt: null,
+            lastInboxSyncStatus: null,
+          };
     });
+  }
+
+  private async gmailJson<T>(token: string, path: string): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me${path}`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch {
+      throw new HttpError("gmail_send_failed", 502);
+    }
+    if (response.status === 401 || response.status === 403)
+      throw new HttpError("gmail_reauthorization_required", 409);
+    if (!response.ok) throw new HttpError("gmail_send_failed", 502);
+    return (await response.json()) as T;
+  }
+
+  async syncInbox(identity: SessionIdentity, finance: FinanceService): Promise<GmailInboxSyncResult> {
+    const connection = await withTenantTransaction(this.pool, identity, async (client) =>
+      (
+        await client.query<{ encryptedRefreshToken: string; scopes: string[] }>(
+          `select encrypted_refresh_token "encryptedRefreshToken",scopes
+           from gmail_integrations where company_id=$1`,
+          [identity.companyId],
+        )
+      ).rows[0],
+    );
+    if (!connection) throw new HttpError("gmail_not_connected", 409);
+    if (!connection.scopes.includes(GMAIL_READ_SCOPE))
+      throw new HttpError("gmail_reauthorization_required", 409);
+    const token = await this.accessToken(this.decrypt(connection.encryptedRefreshToken));
+    const query = encodeURIComponent(
+      "newer_than:30d has:attachment (filename:pdf OR filename:jpg OR filename:jpeg OR filename:png)",
+    );
+    const listed = await this.gmailJson<{ messages?: Array<{ id?: string }> }>(
+      token,
+      `/messages?q=${query}&maxResults=50`,
+    );
+    const ids = (listed.messages ?? []).flatMap((item) => item.id ? [item.id] : []);
+    const result: GmailInboxSyncResult = { messages: ids.length, imported: 0, duplicates: 0, failed: 0 };
+    let processed = 0;
+    for (const messageId of ids) {
+      if (processed >= 20) break;
+      const message = await this.gmailJson<GmailMessage>(token, `/messages/${messageId}?format=full`);
+      const parts = collectGmailPurchaseAttachments(message.payload);
+      let partIndex = 0;
+      for (const part of parts) {
+        if (processed >= 20) break;
+        partIndex += 1;
+        const filename = part.filename!.trim();
+        const mimeType = SUPPORTED_ATTACHMENTS.get(part.mimeType!.toLowerCase())!;
+        const attachmentKey = part.body?.attachmentId ?? `inline-${partIndex}-${filename}`;
+        const claimed = await withTenantTransaction(this.pool, identity, async (client) =>
+          (
+            await client.query<{ id: string }>(
+              `insert into gmail_purchase_imports(
+                 company_id,gmail_message_id,gmail_attachment_id,sender_email,subject,
+                 received_at,original_filename,status)
+               values($1,$2,$3,$4,$5,to_timestamp($6::double precision / 1000),$7,'processing')
+               on conflict(company_id,gmail_message_id,gmail_attachment_id) do update
+                 set status='processing',error_code=null,updated_at=now()
+                 where gmail_purchase_imports.status='failed'
+                    or gmail_purchase_imports.updated_at < now() - interval '2 hours'
+               returning id`,
+              [
+                identity.companyId,
+                messageId,
+                attachmentKey,
+                senderEmail(header(message, "from")),
+                header(message, "subject"),
+                Number(message.internalDate ?? Date.now()),
+                filename,
+              ],
+            )
+          ).rows[0],
+        );
+        if (!claimed) continue;
+        processed += 1;
+        try {
+          const encodedBody = part.body?.attachmentId
+            ? (
+                await this.gmailJson<{ data?: string }>(
+                  token,
+                  `/messages/${messageId}/attachments/${part.body.attachmentId}`,
+                )
+              ).data
+            : part.body?.data;
+          if (!encodedBody) throw new Error("gmail_attachment_empty");
+          const body = Buffer.from(encodedBody, "base64url");
+          const sha = createHash("sha256").update(body).digest("hex");
+          const existing = await finance.findPurchaseDocumentBySha(identity, sha);
+          const document = existing ?? await finance.uploadDocument(identity, {
+            filename,
+            mimeType,
+            contentBase64: body.toString("base64"),
+          });
+          await withTenantTransaction(this.pool, identity, async (client) => {
+            await client.query(
+              `update gmail_purchase_imports set document_id=$2,status=$3,updated_at=now()
+               where id=$1`,
+              [claimed.id, document.id, existing ? "duplicate" : "needs_review"],
+            );
+          });
+          if (existing) result.duplicates += 1;
+          else result.imported += 1;
+        } catch (error) {
+          result.failed += 1;
+          await withTenantTransaction(this.pool, identity, async (client) => {
+            await client.query(
+              `update gmail_purchase_imports set status='failed',error_code=$2,updated_at=now()
+               where id=$1`,
+              [claimed.id, error instanceof HttpError ? error.code : "gmail_import_failed"],
+            );
+          });
+        }
+      }
+    }
+    await withTenantTransaction(this.pool, identity, async (client) => {
+      await client.query(
+        `update gmail_integrations set last_inbox_sync_at=now(),last_inbox_sync_status=$2,
+           last_inbox_sync_error=null,updated_at=now() where company_id=$1`,
+        [identity.companyId, result.failed ? "completed_with_errors" : "completed"],
+      );
+    });
+    return result;
+  }
+
+  async syncDueInboxes(finance: FinanceService): Promise<void> {
+    const due = await this.pool.query<{ companyId: string; userId: string }>(
+      `select company_id "companyId",user_id "userId"
+       from claim_due_gmail_inbox_syncs(20)`,
+    );
+    for (const row of due.rows) {
+      const identity: SessionIdentity = {
+        companyId: row.companyId,
+        userId: row.userId,
+        email: "gmail-scheduler@factupapa.local",
+        displayName: "Sincronización Gmail",
+        companyName: "FactuPapa",
+        role: "system",
+        familyId: "gmail-scheduler",
+      };
+      await this.syncInbox(identity, finance).catch(async (error) => {
+        await withTenantTransaction(this.pool, identity, async (client) => {
+          await client.query(
+            `update gmail_integrations set last_inbox_sync_status='failed',
+               last_inbox_sync_error=$2,updated_at=now() where company_id=$1`,
+            [identity.companyId, error instanceof HttpError ? error.code : "gmail_sync_failed"],
+          );
+        });
+      });
+    }
   }
 
   async disconnect(identity: SessionIdentity): Promise<void> {
