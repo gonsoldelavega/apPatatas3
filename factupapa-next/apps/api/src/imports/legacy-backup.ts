@@ -43,10 +43,15 @@ interface ImportStats {
   purchaseInvoicesReused: number;
   purchaseInvoicesSkipped: number;
   purchaseDraftsCreated: number;
+  purchaseDraftsPromoted: number;
+  purchaseSyntheticNumbers: number;
   purchaseNumbersAdjusted: number;
   purchasePaymentsCreated: number;
   recurringExpensesCreated: number;
   recurringExpensesReused: number;
+  manualExpensesCreated: number;
+  manualExpensesReused: number;
+  manualExpensesSkipped: number;
 }
 
 const text = (value: unknown) => String(value ?? "").trim();
@@ -109,6 +114,64 @@ function stableUuid(namespace: string, legacyId: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+export function legacyPurchaseNumber(legacyId: string, value: unknown): {
+  number: string;
+  synthetic: boolean;
+} {
+  const original = nullableText(value);
+  if (original) return { number: original, synthetic: false };
+  return {
+    number: `SIN-NUM-${createHash("sha256")
+      .update(legacyId)
+      .digest("hex")
+      .slice(0, 12)
+      .toUpperCase()}`,
+    synthetic: true,
+  };
+}
+
+export interface LegacyPurchaseLineAmounts {
+  quantity: number;
+  unitCost: number;
+  taxRate: number;
+  subtotal: number;
+  tax: number;
+  total: number;
+}
+
+export function legacyPurchaseLineAmounts(
+  line: UnknownRecord,
+  fallback: UnknownRecord = {},
+): LegacyPurchaseLineAmounts | null {
+  const quantity = amount(line.quantity ?? fallback.quantity);
+  const rawUnitCost = amount(line.unitCost ?? line.price ?? fallback.unitCost);
+  const taxRate = money(amount(line.ivaPct ?? line.iva ?? fallback.ivaPct ?? fallback.iva, 4));
+  if (!(quantity > 0) || rawUnitCost < 0 || taxRate < 0 || taxRate > 100) return null;
+
+  const calculatedSubtotal = money(quantity * rawUnitCost);
+  const explicitBase = Number(line.base ?? line.baseAmount ?? fallback.base ?? fallback.baseAmount);
+  const explicitTotal = Number(line.total ?? line.totalAmount ?? fallback.total ?? fallback.totalAmount);
+  const baseIsUsable =
+    Number.isFinite(explicitBase) &&
+    explicitBase >= 0 &&
+    (!Number.isFinite(explicitTotal) ||
+      Math.abs(money(explicitBase * (1 + taxRate / 100)) - explicitTotal) <= 0.02);
+  const subtotal = baseIsUsable
+    ? money(explicitBase)
+    : Number.isFinite(explicitTotal) && explicitTotal >= 0
+      ? money(explicitTotal / (1 + taxRate / 100))
+      : calculatedSubtotal;
+  const tax = money(subtotal * taxRate / 100);
+  return {
+    quantity,
+    unitCost: money(subtotal / quantity),
+    taxRate,
+    subtotal,
+    tax,
+    total: money(subtotal + tax),
+  };
+}
+
 function parseInvoiceNumber(value: unknown): { series: string; number: number } | null {
   const raw = text(value).toUpperCase();
   const match = raw.match(/^([A-Z0-9_-]+?)[-\s]?(\d+)(?:\/\d{4})?$/);
@@ -164,6 +227,49 @@ function recurringCategory(value: unknown): RecurringCategory {
   if (category.includes("alquiler")) return "alquiler";
   if (category.includes("impuest")) return "impuestos";
   return "otros";
+}
+
+export interface LegacyManualExpense {
+  legacyId: string;
+  issueDate: string;
+  supplierLegacyId: string | null;
+  concept: string;
+  category: RecurringCategory;
+  subtotal: number;
+  taxRate: number;
+  taxTotal: number;
+  total: number;
+  notes: string | null;
+}
+
+export function normalizeLegacyManualExpense(record: UnknownRecord): LegacyManualExpense | null {
+  if (isLegacyRecurringExpense(record)) return null;
+  const legacyId = text(record.id);
+  const issueDate = isoDate(record.date ?? record.issueDate);
+  const concept = text(record.concept ?? record.name ?? record.description);
+  const subtotal = money(amount(record.base ?? record.baseAmount));
+  const taxRate = money(amount(record.ivaPct ?? record.iva));
+  if (
+    !legacyId ||
+    !issueDate ||
+    concept.length < 2 ||
+    subtotal < 0 ||
+    taxRate < 0 ||
+    taxRate > 100
+  ) return null;
+  const taxTotal = money(subtotal * taxRate / 100);
+  return {
+    legacyId,
+    issueDate,
+    supplierLegacyId: nullableText(record.supplierId),
+    concept,
+    category: recurringCategory(record.category),
+    subtotal,
+    taxRate,
+    taxTotal,
+    total: money(subtotal + taxTotal),
+    notes: nullableText(record.notes),
+  };
 }
 
 export function legacyRecurringDefinitions(value: unknown): LegacyRecurringDefinition[] {
@@ -293,10 +399,15 @@ async function importBackup(
     purchaseInvoicesReused: 0,
     purchaseInvoicesSkipped: 0,
     purchaseDraftsCreated: 0,
+    purchaseDraftsPromoted: 0,
+    purchaseSyntheticNumbers: 0,
     purchaseNumbersAdjusted: 0,
     purchasePaymentsCreated: 0,
     recurringExpensesCreated: 0,
     recurringExpensesReused: 0,
+    manualExpensesCreated: 0,
+    manualExpensesReused: 0,
+    manualExpensesSkipped: 0,
   };
   const settings = backup.settings ?? {};
   const companyName = nullableText(settings.companyName) ?? "Gonsol de la Vega";
@@ -396,6 +507,22 @@ async function importBackup(
       await client.query("update contacts set kind='both',updated_at=now() where id=$1", [contactId]);
   }
 
+  const genericExpenseSupplierId = stableUuid(
+    "legacy-contact",
+    "supplier:gastos-sin-proveedor",
+  );
+  const manualExpenses = legacyExpenses.filter((record) => !isLegacyRecurringExpense(record));
+  if (manualExpenses.some((record) => !contactByLegacyId.has(text(record.supplierId)))) {
+    await client.query(
+      `insert into contacts(id,company_id,kind,legal_name,notes,payment_terms_days,
+         apply_invoice_defaults,invoice_period_mode)
+       values($1,$2,'supplier','Gastos sin proveedor',
+         'Contacto técnico creado durante la importación histórica.',0,false,'manual')
+       on conflict(id) do nothing`,
+      [genericExpenseSupplierId, owner.company_id],
+    );
+  }
+
   for (const definition of recurringDefinitions) {
     const recurringId = stableUuid("legacy-recurring-expense", definition.key);
     const existing = await client.query<{ id: string }>(
@@ -431,6 +558,92 @@ async function importBackup(
       ],
     );
     stats.recurringExpensesCreated += 1;
+  }
+
+  for (const record of manualExpenses.sort((a, b) =>
+    text(a.date ?? a.issueDate).localeCompare(text(b.date ?? b.issueDate)),
+  )) {
+    const expense = normalizeLegacyManualExpense(record);
+    if (!expense) {
+      stats.manualExpensesSkipped += 1;
+      continue;
+    }
+    const purchaseId = stableUuid("legacy-manual-expense", expense.legacyId);
+    const exists = await client.query("select 1 from purchase_invoices where id=$1", [purchaseId]);
+    if (exists.rowCount) {
+      stats.manualExpensesReused += 1;
+      continue;
+    }
+    const supplierId = expense.supplierLegacyId
+      ? (contactByLegacyId.get(expense.supplierLegacyId) ?? genericExpenseSupplierId)
+      : genericExpenseSupplierId;
+    const supplier = (
+      await client.query<{ legal_name: string; tax_id: string | null; address: unknown }>(
+        "select legal_name,tax_id,address from contacts where id=$1 and company_id=$2",
+        [supplierId, owner.company_id],
+      )
+    ).rows[0];
+    if (!supplier) {
+      stats.manualExpensesSkipped += 1;
+      continue;
+    }
+    const reference = `GASTO-${createHash("sha256")
+      .update(expense.legacyId)
+      .digest("hex")
+      .slice(0, 12)
+      .toUpperCase()}`;
+    const importNote = [
+      expense.notes,
+      `Gasto histórico importado. Identificador original: ${expense.legacyId}`,
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 4000);
+    await client.query(
+      `insert into purchase_invoices(
+         id,company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_address,
+         supplier_invoice_number,issue_date,status,category,notes,subtotal,tax_total,total,
+         created_by_user_id,source_registry_key)
+       values($1,$2,$3,$4,$5,$6::jsonb,$7,$8,'draft',$9,$10,$11,$12,$13,$14,$15)`,
+      [
+        purchaseId,
+        owner.company_id,
+        supplierId,
+        supplier.legal_name,
+        supplier.tax_id,
+        JSON.stringify(supplier.address ?? {}),
+        reference,
+        expense.issueDate,
+        expense.category,
+        importNote,
+        expense.subtotal,
+        expense.taxTotal,
+        expense.total,
+        owner.user_id,
+        `legacy-expense:${expense.legacyId}`.slice(0, 200),
+      ],
+    );
+    await client.query(
+      `insert into purchase_invoice_lines(
+         id,company_id,purchase_invoice_id,product_id,description,quantity,unit,unit_cost,
+         tax_rate,line_subtotal,line_tax,line_total,position)
+       values($1,$2,$3,null,$4,1,'unit',$5,$6,$5,$7,$8,1)`,
+      [
+        stableUuid("legacy-manual-expense-line", expense.legacyId),
+        owner.company_id,
+        purchaseId,
+        expense.concept,
+        expense.subtotal,
+        expense.taxRate,
+        expense.taxTotal,
+        expense.total,
+      ],
+    );
+    await client.query(
+      "update purchase_invoices set status='confirmed',confirmed_at=$2::date + time '12:00' where id=$1",
+      [purchaseId, expense.issueDate],
+    );
+    stats.manualExpensesCreated += 1;
   }
 
   const productByLegacyId = new Map<string, string>();
@@ -659,8 +872,25 @@ async function importBackup(
       continue;
     }
     const purchaseId = stableUuid("legacy-purchase", legacyId);
-    const exists = await client.query("select 1 from purchase_invoices where id=$1", [purchaseId]);
-    if (exists.rowCount) {
+    const existingPurchase = await client.query<{
+      status: "draft" | "confirmed" | "cancelled";
+      supplier_invoice_number: string | null;
+    }>("select status,supplier_invoice_number from purchase_invoices where id=$1", [purchaseId]);
+    if (existingPurchase.rows[0]) {
+      const existing = existingPurchase.rows[0];
+      if (existing.status === "draft" && !existing.supplier_invoice_number) {
+        const syntheticNumber = legacyPurchaseNumber(legacyId, null).number;
+        await client.query(
+          "update purchase_invoices set supplier_invoice_number=$2 where id=$1 and status='draft'",
+          [purchaseId, syntheticNumber],
+        );
+        await client.query(
+          "update purchase_invoices set status='confirmed',confirmed_at=$2::date + time '12:00' where id=$1 and status='draft'",
+          [purchaseId, issueDate],
+        );
+        stats.purchaseDraftsPromoted += 1;
+        stats.purchaseSyntheticNumbers += 1;
+      }
       stats.purchaseInvoicesReused += 1;
       continue;
     }
@@ -672,27 +902,23 @@ async function importBackup(
         : [record];
     const normalizedLines = candidateLines
       .map((line, index) => {
-        const quantity = amount(line.quantity ?? record.quantity);
-        const unitCost = amount(line.unitCost ?? line.price ?? record.unitCost);
-        const taxRate = amount(line.ivaPct ?? line.iva ?? record.ivaPct ?? record.iva, 4);
-        if (!(quantity > 0) || unitCost < 0 || taxRate < 0 || taxRate > 100) return null;
-        const subtotal = money(quantity * unitCost);
-        const tax = money(subtotal * taxRate / 100);
+        const amounts = legacyPurchaseLineAmounts(line, record);
+        if (!amounts) return null;
         return {
           id: stableUuid("legacy-purchase-line", `${legacyId}:${index}`),
           productId: productByLegacyId.get(text(line.productId ?? record.productId)) ?? null,
           description: text(line.description ?? record.description ?? record.concept) || "Compra",
-          quantity,
+          quantity: amounts.quantity,
           unit: mapUnit(
             line.unit ??
               record.unit ??
               productUnitByLegacyId.get(text(line.productId ?? record.productId)),
           ),
-          unitCost,
-          taxRate,
-          subtotal,
-          tax,
-          total: money(subtotal + tax),
+          unitCost: amounts.unitCost,
+          taxRate: amounts.taxRate,
+          subtotal: amounts.subtotal,
+          tax: amounts.tax,
+          total: amounts.total,
           position: index + 1,
         };
       })
@@ -717,8 +943,10 @@ async function importBackup(
     const taxTotal = money(normalizedLines.reduce((sum, line) => sum + line.tax, 0));
     const total = money(subtotal + taxTotal);
     const originalNumber = nullableText(record.invoiceNumber ?? record.number);
-    let supplierInvoiceNumber = originalNumber;
+    const importedNumber = legacyPurchaseNumber(legacyId, originalNumber);
+    let supplierInvoiceNumber = importedNumber.number;
     let numberAdjusted = false;
+    if (importedNumber.synthetic) stats.purchaseSyntheticNumbers += 1;
     if (supplierInvoiceNumber) {
       const duplicate = await client.query(
         `select 1 from purchase_invoices
@@ -733,10 +961,11 @@ async function importBackup(
         stats.purchaseNumbersAdjusted += 1;
       }
     }
-    const confirmed = Boolean(supplierInvoiceNumber);
+    const confirmed = true;
     const notes = [
       nullableText(record.internalNote ?? record.notes),
       numberAdjusted && originalNumber ? `Número original del backup: ${originalNumber}` : null,
+      !originalNumber ? "Compra histórica sin número de factura en el sistema anterior." : null,
     ]
       .filter(Boolean)
       .join("\n")
