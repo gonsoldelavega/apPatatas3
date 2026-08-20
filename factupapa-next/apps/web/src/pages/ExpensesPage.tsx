@@ -215,7 +215,7 @@ export function ExpensesPage() {
         </dl>
       </section>
       {(gmail.data?.connected || Boolean(inbox.data?.length)) && (
-        <section className="gmail-purchase-inbox" aria-labelledby="gmail-purchase-title">
+        <section id="recibidas-gmail" className="gmail-purchase-inbox" aria-labelledby="gmail-purchase-title">
           <div className="section-heading">
             <span>
               <h2 id="gmail-purchase-title">Recibidas por Gmail</h2>

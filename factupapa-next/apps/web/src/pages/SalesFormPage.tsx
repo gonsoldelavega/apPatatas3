@@ -16,6 +16,7 @@ import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import {
   annualInvoiceSeries,
+  formatMoney,
   formatQuantity,
   todayLocal,
 } from "../utils/format";
@@ -228,11 +229,19 @@ export function SalesFormPage() {
           })
         : await deliveryNotesApi.create({ contactId, series, issueDate });
       let result = d;
-      for (const line of lines)
+      for (const line of lines) {
+        const product = products.data?.items.find((item) => item.id === line.productId);
+        const quantity =
+          line.entryMode === "packages" && product?.unitsPerPackage
+            ? String(
+                Number(line.packageQuantity.replace(",", ".")) *
+                  Number(product.unitsPerPackage),
+              )
+            : line.quantity.replace(",", ".");
         result = invoice
           ? await invoicesApi.addLine(d.id, {
               productId: line.productId,
-              quantity: line.quantity.replace(",", "."),
+              quantity,
               unitPrice: line.unitPrice.replace(",", "."),
               ...(line.entryMode === "packages"
                 ? { packageQuantity: line.packageQuantity.replace(",", ".") }
@@ -241,8 +250,9 @@ export function SalesFormPage() {
             })
           : await deliveryNotesApi.addLine(d.id, {
               productId: line.productId,
-              quantity: line.quantity.replace(",", "."),
+              quantity,
             });
+      }
       return result;
     },
     onSuccess: (d) => {
@@ -267,6 +277,17 @@ export function SalesFormPage() {
         (!line.deliveryDate || line.deliveryDate < start || line.deliveryDate > end))
     );
   });
+  const estimatedTotal = lines.reduce((sum, line) => {
+    const product = products.data?.items.find((item) => item.id === line.productId);
+    const quantity =
+      line.entryMode === "packages" && product?.unitsPerPackage
+        ? Number(line.packageQuantity.replace(",", ".")) * Number(product.unitsPerPackage)
+        : Number(line.quantity.replace(",", "."));
+    const price = Number(line.unitPrice.replace(",", "."));
+    const taxRate = Number(product?.taxRate ?? prefs.data?.defaultTaxRate ?? "0");
+    if (!Number.isFinite(quantity) || !Number.isFinite(price) || !Number.isFinite(taxRate)) return sum;
+    return sum + quantity * price * (1 + taxRate / 100);
+  }, 0);
   return (
     <div className="page form-page sales-form-page">
       <header className="form-page__header">
@@ -324,39 +345,8 @@ export function SalesFormPage() {
           />
         </section>
         {invoice && (
-          <section className="form-card">
-            <h2>Periodo y pago</h2>
-            <div
-              className="segmented"
-              role="group"
-              aria-label="Tipo de factura"
-            >
-              <button
-                type="button"
-                className={invoiceMode === "single" ? "active" : ""}
-                aria-pressed={invoiceMode === "single"}
-                onClick={() => setInvoiceMode("single")}
-              >
-                Factura puntual
-              </button>
-              <button
-                type="button"
-                className={invoiceMode === "fortnightly" ? "active" : ""}
-                aria-pressed={invoiceMode === "fortnightly"}
-                onClick={() => setInvoiceMode("fortnightly")}
-              >
-                Factura quincenal
-              </button>
-            </div>
-            {invoiceMode === "fortnightly" && (
-              <div className="invoice-period-summary">
-                <span>Periodo quincenal</span>
-                <strong>{start} — {end}</strong>
-                <small>
-                  La fecha de entrega será obligatoria en cada producto.
-                </small>
-              </div>
-            )}
+          <section className="form-card invoice-essentials-card">
+            <h2>Pago</h2>
             <label className="invoice-option-toggle">
               <span>
                 <strong>Incluir condiciones de pago</strong>
@@ -390,7 +380,36 @@ export function SalesFormPage() {
               </div>
             )}
             <details className="form-options">
-              <summary>Más opciones de la factura</summary>
+              <summary>Opciones avanzadas · {invoiceMode === "fortnightly" ? "quincenal" : "puntual"}</summary>
+              <div
+                className="segmented"
+                role="group"
+                aria-label="Tipo de factura"
+              >
+                <button
+                  type="button"
+                  className={invoiceMode === "single" ? "active" : ""}
+                  aria-pressed={invoiceMode === "single"}
+                  onClick={() => setInvoiceMode("single")}
+                >
+                  Puntual
+                </button>
+                <button
+                  type="button"
+                  className={invoiceMode === "fortnightly" ? "active" : ""}
+                  aria-pressed={invoiceMode === "fortnightly"}
+                  onClick={() => setInvoiceMode("fortnightly")}
+                >
+                  Quincenal
+                </button>
+              </div>
+              {invoiceMode === "fortnightly" && (
+                <div className="invoice-period-summary">
+                  <span>Periodo quincenal</span>
+                  <strong>{start} — {end}</strong>
+                  <small>La fecha de entrega será obligatoria en cada producto.</small>
+                </div>
+              )}
               <label className="field">
                 <span>Información adicional (opcional)</span>
                 <textarea
@@ -536,14 +555,22 @@ export function SalesFormPage() {
             No se pudo guardar el borrador. Revisa cliente, cantidades y precios e inténtalo de nuevo.
           </div>
         )}
-        <Button
-          type="submit"
-          icon={<Save />}
-          busy={save.isPending}
-          disabled={!contactId || !issueDate || invalidLine}
-        >
-          {invoice ? "Revisar factura" : "Crear albarán"}
-        </Button>
+        <div className="sticky-submit invoice-sticky-submit">
+          {invoice && (
+            <span className="invoice-sticky-total">
+              <small>Total estimado</small>
+              <strong>{formatMoney(String(estimatedTotal))}</strong>
+            </span>
+          )}
+          <Button
+            type="submit"
+            icon={<Save />}
+            busy={save.isPending}
+            disabled={!contactId || !issueDate || invalidLine}
+          >
+            {invoice ? "Revisar factura" : "Crear albarán"}
+          </Button>
+        </div>
       </form>
     </div>
   );

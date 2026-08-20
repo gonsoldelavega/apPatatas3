@@ -2,12 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
-  CalendarClock,
   Camera,
   CircleAlert,
   FileText,
   Package,
-  PackageSearch,
   Plus,
   ReceiptText,
   TrendingUp,
@@ -72,6 +70,7 @@ interface DashboardSummary {
   customers: number;
   pendingImports: number;
   pendingNotes: number;
+  pendingPurchaseDocuments: number;
   issuedInvoices: number;
   finance: FinanceSummary;
   monthly: MonthlyFinanceSummary[];
@@ -88,6 +87,7 @@ const previewSummary: DashboardSummary = {
   customers: 18,
   pendingImports: 1,
   pendingNotes: 3,
+  pendingPurchaseDocuments: 2,
   issuedInvoices: 14,
   finance: {
     sales: "3420.00",
@@ -199,11 +199,12 @@ export function DashboardPage() {
     queryKey: ["dashboard-summary", selectedMonth],
     enabled: !isPreview,
     queryFn: async (): Promise<DashboardSummary> => {
-      const [customers, imports, notes, invoices, finance, monthly] =
+      const [customers, imports, notes, purchaseDocuments, invoices, finance, monthly] =
         await Promise.all([
           contactsApi.list({ isActive: true, pageSize: 1 }),
           importsApi.list(1, 100),
           deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
+          financeApi.pendingPurchaseDocuments(),
           invoicesApi.list({
             pageSize: 100,
             from: selectedRange.from,
@@ -219,6 +220,7 @@ export function DashboardPage() {
           ["pending", "validated", "importing"].includes(item.status),
         ).length,
         pendingNotes: notes.total,
+        pendingPurchaseDocuments: purchaseDocuments.length,
         issuedInvoices: invoices.items.filter((invoice) => invoice.status === "issued").length,
         finance,
         monthly,
@@ -302,16 +304,6 @@ export function DashboardPage() {
           <small>Cobros vencidos</small>
           <strong>{data ? formatMoney(data.finance.overdueReceivables) : "—"}</strong>
         </Link>
-        <Link to="/stock">
-          <span><PackageSearch aria-hidden="true" /></span>
-          <small>Stock disponible</small>
-          <strong>{data?.finance.stockKg ?? "—"} kg</strong>
-        </Link>
-        <Link to="/gastos#gastos-fijos">
-          <span><CalendarClock aria-hidden="true" /></span>
-          <small>Gastos fijos</small>
-          <strong>{data ? formatMoney(data.finance.recurring) : "—"}</strong>
-        </Link>
       </section>
 
       <section className="dashboard-section attention-premium">
@@ -342,7 +334,18 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {!summary.isLoading && !Number(data?.finance.overdueReceivables ?? 0) && !data?.pendingNotes && !data?.pendingImports && (
+          {Boolean(data?.pendingPurchaseDocuments) && (
+            <Link to="/gastos#recibidas-gmail" className="attention-row attention-row--gmail">
+              <ReceiptText aria-hidden="true" />
+              <span>
+                <strong>
+                  {data?.pendingPurchaseDocuments} factura{data?.pendingPurchaseDocuments === 1 ? "" : "s"} de Gmail por revisar
+                </strong>
+              </span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
+          {!summary.isLoading && !Number(data?.finance.overdueReceivables ?? 0) && !data?.pendingNotes && !data?.pendingImports && !data?.pendingPurchaseDocuments && (
             <p className="dashboard-all-clear">Sin pendientes</p>
           )}
         </div>

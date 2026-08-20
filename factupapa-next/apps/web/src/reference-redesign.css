@@ -604,6 +604,73 @@
   color: #2767c7;
   font-weight: 780;
 }
+.invoice-essentials-card > h2 { margin-bottom: 8px; }
+.invoice-essentials-card .form-options[open] > summary { margin-bottom: 14px; }
+.invoice-sticky-submit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 1.15fr);
+  align-items: center;
+  gap: 12px;
+}
+.invoice-sticky-total {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.invoice-sticky-total small {
+  color: var(--muted);
+  font-size: .64rem;
+  font-weight: 700;
+}
+.invoice-sticky-total strong {
+  overflow: hidden;
+  color: var(--deep);
+  font-size: clamp(1rem, 5vw, 1.3rem);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.invoice-sticky-submit .button { width: 100%; min-height: 48px; }
+.purchase-form-page .confidence-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 9px;
+  margin-top: 5px;
+}
+.purchase-form-page .confidence-legend .confidence-dot { margin: 0 2px 0 0; }
+.purchase-form-page .document-preview[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+.sales-filter-shell {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 6px 22px rgb(11 35 74 / 4%);
+}
+.sales-filter-shell > .field { margin: 0; }
+.sales-advanced-filters { margin: 0; }
+.sales-advanced-filters > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  color: #2767c7;
+  font-size: .75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.sales-advanced-filters .filter-card {
+  margin: 6px 0 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+}
 .sales-line-editor {
   border-color: var(--line);
   border-radius: 18px;
@@ -723,8 +790,7 @@
 .sales-summary-card--compact {
   min-height: 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: stretch;
   gap: 16px;
   padding: 18px 20px;
   border-radius: 20px;
@@ -739,9 +805,15 @@
   letter-spacing: .02em;
 }
 .sales-summary-card--compact .sales-summary-card__amount > strong {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   font-size: clamp(2rem, 10vw, 2.75rem);
   line-height: .95;
+  white-space: nowrap;
+}
+.sales-summary-card--compact .sales-summary-card__amount > small {
+  color: rgb(255 255 255 / 58%);
+  font-size: .6rem;
+  font-weight: 700;
 }
 .sales-summary-card__documents {
   min-width: 72px;
@@ -883,11 +955,12 @@
   }
 
   .dashboard-snapshot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
     margin-bottom: 14px;
   }
   .dashboard-snapshot-grid a {
-    min-height: 68px;
+    min-height: 76px;
     grid-template-columns: 28px minmax(0, 1fr);
     gap: 2px 8px;
     padding: 9px 10px;
@@ -911,6 +984,53 @@
   .dashboard-section { margin-top: 15px; }
   .dashboard-section__heading { margin-bottom: 7px; }
   .dashboard-section__heading h2 { font-size: .92rem; }
+}
+
+.attention-row--gmail svg:first-child { color: #2767c7; }
+
+.dashboard-page .dashboard-snapshot-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Invoice cards: the amount and the two frequent actions never collapse on iPhone. */
+.sales-list .invoice-list-card > .entity-card {
+  grid-template-columns: 42px minmax(0, 1fr) minmax(max-content, auto) 14px;
+  column-gap: 10px;
+}
+.sales-list .entity-card__body { min-width: 0; }
+.sales-list .entity-card__body > strong,
+.sales-list .entity-card__body > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sales-list .entity-card__amount {
+  min-width: max-content;
+  font-size: clamp(.88rem, 4vw, 1.05rem);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.sales-list .invoice-card-actions {
+  min-height: 52px;
+  padding: 4px 10px 8px;
+}
+.sales-list .invoice-card-actions button,
+.sales-list .invoice-card-actions a {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  touch-action: manipulation;
+}
+
+@media (max-width: 360px) {
+  .sales-summary-card--compact .sales-summary-card__amount > strong {
+    font-size: clamp(1.75rem, 9.5vw, 2.25rem);
+  }
+  .sales-list .invoice-list-card > .entity-card {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(max-content, auto);
+  }
+  .sales-list .entity-card__icon { width: 36px; height: 36px; padding: 8px; }
+  .sales-list .entity-card__chevron { display: none; }
 }
 
 /* Safari/iOS standalone polish and safe tap behavior. */

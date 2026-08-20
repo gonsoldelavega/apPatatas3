@@ -160,10 +160,9 @@ export function SalesPage() {
         <div className="sales-summary-card__amount">
           <span>{tab === "invoice" ? "Importe visible" : "Total pendiente"}</span>
           <strong>{formatMoney(String(visibleTotal))}</strong>
-        </div>
-        <div className="sales-summary-card__documents">
-          <strong>{items?.length ?? 0}</strong>
-          <span>documentos</span>
+          <small>
+            {items?.length ?? 0} {tab === "invoice" ? "facturas" : "albaranes"} visibles
+          </small>
         </div>
       </section>
 
@@ -188,51 +187,56 @@ export function SalesPage() {
         </div>
       )}
 
-      <section className="filter-card" aria-label="Filtros de facturas">
+      <section className="sales-filter-shell" aria-label="Filtros de facturas">
         <Field
           label="Buscar"
           value={search}
           placeholder="Número, cliente o concepto"
           onChange={(event) => setSearch(event.target.value)}
         />
-        <PeriodPicker value={period} onChange={setPeriod} allowAll />
-        <SelectField
-          label="Estado"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-        >
-          <option value="">Todos</option>
-          <option value="draft">Borrador</option>
-          <option value="issued">Emitido</option>
-          <option value="cancelled">Cancelado</option>
-        </SelectField>
-        {tab === "invoice" && (
-          <SelectField
-            label="Cobro"
-            value={paymentStatus}
-            onChange={(event) => setPaymentStatus(event.target.value)}
-          >
-            <option value="">Todos</option>
-            <option value="unpaid">Pendientes</option>
-            <option value="partial">Cobro parcial</option>
-            <option value="overdue">Vencidas</option>
-            <option value="paid">Pagadas</option>
-          </SelectField>
-        )}
-        <SelectField
-          label="Cliente"
-          value={contactId}
-          onChange={(event) => setContactId(event.target.value)}
-        >
-          <option value="">Todos</option>
-          {contacts.data?.items
-            .filter((contact) => contact.type !== "supplier")
-            .map((contact) => (
-              <option value={contact.id} key={contact.id}>
-                {contact.tradeName || contact.legalName}
-              </option>
-            ))}
-        </SelectField>
+        <details className="form-options sales-advanced-filters">
+          <summary>Más filtros</summary>
+          <div className="filter-card">
+            <PeriodPicker value={period} onChange={setPeriod} allowAll />
+            <SelectField
+              label="Estado"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="draft">Borrador</option>
+              <option value="issued">Emitido</option>
+              <option value="cancelled">Cancelado</option>
+            </SelectField>
+            {tab === "invoice" && (
+              <SelectField
+                label="Cobro"
+                value={paymentStatus}
+                onChange={(event) => setPaymentStatus(event.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="unpaid">Pendientes</option>
+                <option value="partial">Cobro parcial</option>
+                <option value="overdue">Vencidas</option>
+                <option value="paid">Pagadas</option>
+              </SelectField>
+            )}
+            <SelectField
+              label="Cliente"
+              value={contactId}
+              onChange={(event) => setContactId(event.target.value)}
+            >
+              <option value="">Todos</option>
+              {contacts.data?.items
+                .filter((contact) => contact.type !== "supplier")
+                .map((contact) => (
+                  <option value={contact.id} key={contact.id}>
+                    {contact.tradeName || contact.legalName}
+                  </option>
+                ))}
+            </SelectField>
+          </div>
+        </details>
       </section>
 
       {activeQuery.isLoading && (

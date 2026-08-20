@@ -106,6 +106,7 @@ export function PurchaseFormPage() {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [documentPreviewOpen, setDocumentPreviewOpen] = useState(Boolean(importedDocumentId));
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [ocr, setOcr] = useState<ExtractedPurchase | null>(null);
   const [lines, setLines] = useState<DraftPurchaseLine[]>([emptyLine()]);
@@ -326,6 +327,19 @@ export function PurchaseFormPage() {
       ocr_failed: "La imagen no pudo leerse.",
       low_confidence: "Lectura poco nítida: revisa todos los campos.",
     })[warning] ?? "Campo pendiente de revisión.";
+  const confidenceFor = (field: string) => ocr?.fieldConfidence?.[field];
+  const confidenceClass = (field: string) => {
+    const confidence = confidenceFor(field);
+    return confidence ? `field--confidence-${confidence}` : "";
+  };
+  const confidenceHint = (field: string) => {
+    const confidence = confidenceFor(field);
+    return confidence === "low"
+      ? "Dato dudoso: compruébalo en la factura original."
+      : confidence === "medium"
+        ? "Conviene comprobar este dato."
+        : undefined;
+  };
 
   return (
     <div className="page form-page purchase-form-page">
@@ -419,12 +433,21 @@ export function PurchaseFormPage() {
             {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
             {ocr.total && <span>Total detectado: {ocr.total} €</span>}
             {ocr.lines?.length ? <span>{ocr.lines.length} conceptos detectados para revisar.</span> : null}
+            <span className="confidence-legend">
+              <i className="confidence-dot confidence-dot--high" />Seguro
+              <i className="confidence-dot confidence-dot--medium" />Revisar
+              <i className="confidence-dot confidence-dot--low" />Dudoso
+            </span>
             {ocr.warnings?.map((warning) => <span className="field-error" key={warning}>{warningLabel(warning)}</span>)}
           </div>
         )}
         {documentPreview && (
-          <details className="document-preview">
-            <summary>Ver factura original</summary>
+          <details
+            className="document-preview"
+            open={documentPreviewOpen}
+            onToggle={(event) => setDocumentPreviewOpen(event.currentTarget.open)}
+          >
+            <summary>Factura original</summary>
             {documentFile?.type === "application/pdf" ? (
               <iframe src={documentPreview} title="Factura de compra" />
             ) : (
@@ -455,8 +478,8 @@ export function PurchaseFormPage() {
         {showSupplierCreate && (
           <div className="inline-create-card">
             <strong>Revisar proveedor nuevo</strong>
-            <Field label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
-            <Field label="NIF" value={newSupplierTaxId} onChange={(event) => setNewSupplierTaxId(event.target.value.toUpperCase())} />
+            <Field className={confidenceClass("supplierName")} hint={confidenceHint("supplierName")} label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
+            <Field className={confidenceClass("supplierTaxId")} hint={confidenceHint("supplierTaxId")} label="NIF" value={newSupplierTaxId} onChange={(event) => setNewSupplierTaxId(event.target.value.toUpperCase())} />
             {createSupplier.isError && <p className="field-error" role="alert">No se pudo crear. Comprueba si ya existe.</p>}
             <div className="inline-create-card__actions">
               <button type="button" onClick={() => setShowSupplierCreate(false)}>Cancelar</button>
@@ -466,10 +489,10 @@ export function PurchaseFormPage() {
             </div>
           </div>
         )}
-        <Field label="Número de factura del proveedor" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
+        <Field className={confidenceClass("supplierInvoiceNumber")} hint={confidenceHint("supplierInvoiceNumber")} label="Número de factura del proveedor" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
         <div className="form-grid">
-          <Field label="Fecha de emisión" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
-          <Field label="Fecha de vencimiento" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          <Field className={confidenceClass("issueDate")} hint={confidenceHint("issueDate")} label="Fecha de emisión" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
+          <Field className={confidenceClass("dueDate")} hint={confidenceHint("dueDate")} label="Fecha de vencimiento" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         </div>
         <SelectField label="Categoría" value={category} onChange={(event) => setCategory(event.target.value)}>
           <option value="mercancia">Mercancía</option><option value="gestoria">Gestoría</option>
