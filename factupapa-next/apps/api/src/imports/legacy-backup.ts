@@ -47,6 +47,8 @@ interface ImportStats {
   purchaseSyntheticNumbers: number;
   purchaseNumbersAdjusted: number;
   purchasePaymentsCreated: number;
+  purchaseAdjustmentsCreated: number;
+  purchaseAdjustmentsReused: number;
   recurringExpensesCreated: number;
   recurringExpensesReused: number;
   manualExpensesCreated: number;
@@ -403,6 +405,8 @@ async function importBackup(
     purchaseSyntheticNumbers: 0,
     purchaseNumbersAdjusted: 0,
     purchasePaymentsCreated: 0,
+    purchaseAdjustmentsCreated: 0,
+    purchaseAdjustmentsReused: 0,
     recurringExpensesCreated: 0,
     recurringExpensesReused: 0,
     manualExpensesCreated: 0,
@@ -858,6 +862,56 @@ async function importBackup(
     }
   }
 
+  // Earlier importer versions reused an existing invoice before reconciling its payment.
+  // Reconcile the source paid amount independently so reruns repair that historical gap.
+  for (const record of invoices) {
+    const legacyId = text(record.id);
+    if (!legacyId) continue;
+    const invoiceId = stableUuid("legacy-invoice", legacyId);
+    const importedInvoice = (
+      await client.query<{ id: string; contact_id: string; total: string; issue_date: string }>(
+        "select id,contact_id,total::text,issue_date::text from invoices where id=$1 and status='issued'",
+        [invoiceId],
+      )
+    ).rows[0];
+    if (!importedInvoice) continue;
+    const expectedPaid = money(
+      Math.min(Math.max(amount(record.amountPaid), 0), amount(importedInvoice.total)),
+    );
+    const currentPaid = amount(
+      (
+        await client.query<{ paid: string }>(
+          "select coalesce(sum(amount),0)::text paid from payments where invoice_id=$1",
+          [invoiceId],
+        )
+      ).rows[0]?.paid,
+    );
+    const missingPaid = money(expectedPaid - currentPaid);
+    if (missingPaid <= 0) continue;
+    const paymentInserted = await client.query(
+      `insert into payments(
+         id,company_id,invoice_id,contact_id,direction,amount,paid_at,method,reference,
+         notes,created_by_user_id)
+       values($1,$2,$3,$4,'incoming',$5,$6::date + time '12:00',$7,$8,$9,$10)
+       on conflict(id) do nothing`,
+      [
+        stableUuid("legacy-invoice-payment-reconciliation", legacyId),
+        owner.company_id,
+        invoiceId,
+        importedInvoice.contact_id,
+        missingPaid,
+        isoDate(record.paidDate ?? record.paymentDate) ??
+          isoDate(record.issueDate ?? record.date) ??
+          importedInvoice.issue_date,
+        nullableText(record.paymentMethod),
+        "Conciliación de cobro histórico",
+        "Cobro omitido por una versión anterior del importador idempotente.",
+        owner.user_id,
+      ],
+    );
+    if (paymentInserted.rowCount) stats.paymentsCreated += 1;
+  }
+
   for (const record of asRecords(backup.purchases).sort((a, b) =>
     text(a.issueDate ?? a.date).localeCompare(text(b.issueDate ?? b.date)),
   )) {
@@ -1050,6 +1104,149 @@ async function importBackup(
       );
       stats.purchasePaymentsCreated += 1;
     }
+  }
+
+  // Confirmed purchases are immutable. If an older importer confirmed a malformed legacy
+  // line with a lower total, preserve it and add a stable, auditable adjustment document.
+  for (const record of asRecords(backup.purchases)) {
+    const legacyId = text(record.id);
+    if (!legacyId) continue;
+    const purchaseId = stableUuid("legacy-purchase", legacyId);
+    const imported = (
+      await client.query<{
+        id: string;
+        supplier_id: string;
+        supplier_legal_name: string | null;
+        supplier_tax_id: string | null;
+        supplier_address: unknown;
+        issue_date: string;
+        category: RecurringCategory | "mercancia";
+        subtotal: string;
+        tax_total: string;
+        total: string;
+      }>(
+        `select id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_address,
+           issue_date::text,category,subtotal::text,tax_total::text,total::text
+         from purchase_invoices where id=$1 and status='confirmed'`,
+        [purchaseId],
+      )
+    ).rows[0];
+    if (!imported?.supplier_id) continue;
+    const sourceLines = asRecords(record.lines).length
+      ? asRecords(record.lines)
+      : asRecords(record.items).length
+        ? asRecords(record.items)
+        : [record];
+    const amounts = sourceLines
+      .map((line) => legacyPurchaseLineAmounts(line, record))
+      .filter((line): line is LegacyPurchaseLineAmounts => Boolean(line));
+    if (!amounts.length) continue;
+    const expectedSubtotal = money(amounts.reduce((sum, line) => sum + line.subtotal, 0));
+    const expectedTax = money(amounts.reduce((sum, line) => sum + line.tax, 0));
+    const expectedTotal = money(expectedSubtotal + expectedTax);
+    const subtotalDifference = money(expectedSubtotal - amount(imported.subtotal));
+    const taxDifference = money(expectedTax - amount(imported.tax_total));
+    const totalDifference = money(expectedTotal - amount(imported.total));
+    if (totalDifference < -0.005 || subtotalDifference < -0.005 || taxDifference < -0.005)
+      throw new Error(`La compra histórica ${legacyId} excede el total de origen`);
+
+    let adjustmentId: string | null = null;
+    if (totalDifference > 0.005) {
+      adjustmentId = stableUuid("legacy-purchase-adjustment", legacyId);
+      const adjustmentExists = await client.query(
+        "select 1 from purchase_invoices where id=$1",
+        [adjustmentId],
+      );
+      if (adjustmentExists.rowCount) stats.purchaseAdjustmentsReused += 1;
+      else {
+        const adjustmentNumber = `AJUSTE-${createHash("sha256")
+          .update(legacyId)
+          .digest("hex")
+          .slice(0, 12)
+          .toUpperCase()}`;
+        await client.query(
+          `insert into purchase_invoices(
+             id,company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_address,
+             supplier_invoice_number,issue_date,status,category,notes,subtotal,tax_total,total,
+             created_by_user_id,source_registry_key)
+           values($1,$2,$3,$4,$5,$6::jsonb,$7,$8,'draft',$9,$10,$11,$12,$13,$14,$15)`,
+          [
+            adjustmentId,
+            owner.company_id,
+            imported.supplier_id,
+            imported.supplier_legal_name,
+            imported.supplier_tax_id,
+            JSON.stringify(imported.supplier_address ?? {}),
+            adjustmentNumber,
+            imported.issue_date,
+            imported.category,
+            `Ajuste técnico trazable de la compra histórica ${legacyId}; corrige una línea inconsistente del sistema anterior.`,
+            subtotalDifference,
+            taxDifference,
+            totalDifference,
+            owner.user_id,
+            `legacy-purchase-adjustment:${legacyId}`.slice(0, 200),
+          ],
+        );
+        await client.query(
+          `insert into purchase_invoice_lines(
+             id,company_id,purchase_invoice_id,product_id,description,quantity,unit,unit_cost,
+             tax_rate,line_subtotal,line_tax,line_total,position)
+           values($1,$2,$3,null,$4,1,'unit',$5,$6,$5,$7,$8,1)`,
+          [
+            stableUuid("legacy-purchase-adjustment-line", legacyId),
+            owner.company_id,
+            adjustmentId,
+            `Ajuste histórico: ${text(record.description ?? record.concept) || "Compra"}`,
+            subtotalDifference,
+            subtotalDifference > 0 ? money((taxDifference / subtotalDifference) * 100) : 0,
+            taxDifference,
+            totalDifference,
+          ],
+        );
+        await client.query(
+          "update purchase_invoices set status='confirmed',confirmed_at=$2::date + time '12:00' where id=$1",
+          [adjustmentId, imported.issue_date],
+        );
+        stats.purchaseAdjustmentsCreated += 1;
+      }
+    }
+
+    const paymentTargetId = adjustmentId ?? purchaseId;
+    const currentPaid = amount(
+      (
+        await client.query<{ paid: string }>(
+          `select coalesce(sum(amount),0)::text paid from payments
+           where purchase_invoice_id=any($1::uuid[])`,
+          [[purchaseId, ...(adjustmentId ? [adjustmentId] : [])]],
+        )
+      ).rows[0]?.paid,
+    );
+    const expectedPaid = money(
+      Math.min(Math.max(amount(record.amountPaid), 0), expectedTotal),
+    );
+    const missingPaid = money(expectedPaid - currentPaid);
+    if (missingPaid <= 0) continue;
+    const paymentInserted = await client.query(
+      `insert into payments(
+         id,company_id,purchase_invoice_id,contact_id,direction,amount,paid_at,method,
+         reference,notes,created_by_user_id)
+       values($1,$2,$3,$4,'outgoing',$5,$6::date + time '12:00',$7,$8,$9,$10)
+       on conflict(id) do nothing`,
+      [
+        stableUuid("legacy-purchase-payment-reconciliation", legacyId),
+        owner.company_id,
+        paymentTargetId,
+        imported.supplier_id,
+        missingPaid,
+        isoDate(record.paidDate ?? record.paymentDate) ?? imported.issue_date,
+        nullableText(record.paymentMethod),
+        "Conciliación de pago histórico",
+        "Pago omitido o limitado por una versión anterior del importador.",
+        owner.user_id,
+      ],
+    );
+    if (paymentInserted.rowCount) stats.purchasePaymentsCreated += 1;
   }
   return stats;
 }
