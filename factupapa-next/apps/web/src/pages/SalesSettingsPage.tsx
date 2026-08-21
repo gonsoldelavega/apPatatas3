@@ -27,7 +27,7 @@ export function SalesSettingsPage() {
     queryFn: salesPreferencesApi.get,
   });
   const [form, setForm] = useState<SalesPreferences>(defaults);
-  const [last, setLast] = useState("");
+  const [nextNumber, setNextNumber] = useState("");
   const [confirmation, setConfirmation] = useState("");
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function SalesSettingsPage() {
     mutationFn: () =>
       salesPreferencesApi.activateNumbering({
         prefix: form.invoicePrefix,
-        nextNumber: Number(last) + 1,
+        nextNumber: Number(nextNumber),
         year: new Date().getFullYear(),
         confirmation,
       }),
@@ -150,18 +150,24 @@ export function SalesSettingsPage() {
             <p>Numeración real activa.</p>
           ) : (
             <>
-              <p>
-                Si la última factura actual es la 128, escribe 128 y la primera
-                aquí será la 129.
-              </p>
+              <p>Elige directamente el número de la primera factura definitiva.</p>
               <Field
-                label="Último número emitido"
+                label="Siguiente número real"
                 type="number"
-                min="0"
+                min="1"
                 step="1"
-                value={last}
-                onChange={(event) => setLast(event.target.value)}
+                value={nextNumber}
+                onChange={(event) => setNextNumber(event.target.value)}
               />
+              {Number(nextNumber) > 0 && (
+                <div className="automatic-number" aria-live="polite">
+                  <span>La primera factura será</span>
+                  <strong>
+                    {form.invoicePrefix}-{Number(nextNumber)}/{new Date().getFullYear()}
+                  </strong>
+                  <small>Después de activarlo no podrá cambiarse ni reutilizarse.</small>
+                </div>
+              )}
               <Field
                 label='Escribe "ACTIVAR NUMERACION REAL"'
                 value={confirmation}
@@ -170,7 +176,11 @@ export function SalesSettingsPage() {
               <Button
                 type="button"
                 variant="danger"
-                disabled={!last || confirmation !== "ACTIVAR NUMERACION REAL"}
+                disabled={
+                  !Number.isInteger(Number(nextNumber)) ||
+                  Number(nextNumber) < 1 ||
+                  confirmation !== "ACTIVAR NUMERACION REAL"
+                }
                 busy={activate.isPending}
                 onClick={() => activate.mutate()}
               >
