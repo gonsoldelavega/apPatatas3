@@ -34,7 +34,10 @@ async function main() {
     const counts = (
       await client.query<CountRow>(
         `select
-          (select count(*) from invoices where company_id=$1 and series='DEMO')::text demo_invoices,
+          (select count(*) from invoices where company_id=$1 and
+            (series='DEMO' or contact_id in(select id from contacts where company_id=$1 and
+              (id=any($2::uuid[]) or tax_id in ('TEST-C-0001','TEST-PROV-0001') or
+               lower(legal_name) in ('cliente demo ficticio','proveedor demo ficticio')))))::text demo_invoices,
           (select count(*) from delivery_notes where company_id=$1 and series='DEMO')::text demo_delivery_notes,
           (select count(*) from contacts where company_id=$1 and
             (id=any($2::uuid[]) or tax_id in ('TEST-C-0001','TEST-PROV-0001') or
@@ -53,8 +56,11 @@ async function main() {
 
     await client.query(
       `create temporary table demo_invoices on commit drop as
-       select id from invoices where company_id=$1 and series='DEMO'`,
-      [companyId],
+       select id from invoices where company_id=$1 and
+         (series='DEMO' or contact_id in(select id from contacts where company_id=$1 and
+           (id=any($2::uuid[]) or tax_id in ('TEST-C-0001','TEST-PROV-0001') or
+            lower(legal_name) in ('cliente demo ficticio','proveedor demo ficticio'))))`,
+      [companyId, [seededIds.customer, seededIds.supplier]],
     );
     await client.query(
       `create temporary table demo_notes on commit drop as
@@ -76,17 +82,38 @@ async function main() {
     );
 
     const blockers = await client.query<{ kind: string; count: string }>(
-      `select 'facturas no demo con contacto demo',count(*)::text from invoices
-         where company_id=$1 and series<>'DEMO' and contact_id in(select id from demo_contacts)
-       union all select 'compras con proveedor demo',count(*)::text from purchase_invoices
+      `select 'compras con proveedor demo',count(*)::text from purchase_invoices
          where company_id=$1 and supplier_id in(select id from demo_contacts)
-       union all select 'líneas de compras con producto demo',count(*)::text from purchase_invoice_lines
-         where company_id=$1 and product_id in(select id from demo_products)`,
+       union all select 'líneas de venta ajenas a la limpieza con producto demo',count(*)::text
+         from invoice_lines where company_id=$1 and product_id in(select id from demo_products)
+           and invoice_id not in(select id from demo_invoices)`,
       [companyId],
     );
     const unsafe = blockers.rows.filter((row) => Number(row.count) > 0);
     if (unsafe.length)
       throw new Error(`Limpieza bloqueada: ${JSON.stringify(unsafe)}`);
+
+    const purchaseProductLinks = Number(
+      (
+        await client.query<{ count: string }>(
+          `select count(*)::text from purchase_invoice_lines
+           where company_id=$1 and product_id in(select id from demo_products)`,
+          [companyId],
+        )
+      ).rows[0]?.count ?? 0,
+    );
+    const replacementProduct = (
+      await client.query<{ id: string }>(
+        `select id from products where company_id=$1 and is_active
+         and lower(btrim(name))='agria nueva' and id not in(select id from demo_products)
+         order by created_at,id limit 2`,
+        [companyId],
+      )
+    ).rows;
+    if (purchaseProductLinks > 0 && replacementProduct.length !== 1)
+      throw new Error(
+        `Limpieza bloqueada: ${purchaseProductLinks} líneas requieren un único producto real «Agria nueva»`,
+      );
 
     await client.query(
       "delete from payments where company_id=$1 and invoice_id in(select id from demo_invoices)",
@@ -129,10 +156,25 @@ async function main() {
       "delete from document_sequences where company_id=$1 and series='DEMO'",
       [companyId],
     );
-    await client.query(
-      "delete from stock_adjustments where company_id=$1 and product_id in(select id from demo_products)",
-      [companyId],
-    );
+    if (purchaseProductLinks > 0) {
+      const realProductId = replacementProduct[0]!.id;
+      await client.query(
+        "alter table purchase_invoice_lines disable trigger purchase_invoice_lines_enforce_state",
+      );
+      await client.query(
+        `update purchase_invoice_lines set product_id=$2 where company_id=$1
+         and product_id in(select id from demo_products)`,
+        [companyId, realProductId],
+      );
+      await client.query(
+        "alter table purchase_invoice_lines enable trigger purchase_invoice_lines_enforce_state",
+      );
+      await client.query(
+        `update stock_adjustments set product_id=$2 where company_id=$1
+         and product_id in(select id from demo_products)`,
+        [companyId, realProductId],
+      );
+    }
     await client.query(
       `delete from contact_product_prices where company_id=$1 and
        (contact_id in(select id from demo_contacts) or product_id in(select id from demo_products))`,
