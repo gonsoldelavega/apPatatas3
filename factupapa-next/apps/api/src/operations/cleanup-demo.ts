@@ -53,17 +53,26 @@ async function main() {
 
     await client.query(
       `create temporary table demo_invoices on commit drop as
-       select id from invoices where company_id=$1 and series='DEMO';
-       create temporary table demo_notes on commit drop as
-       select id from delivery_notes where company_id=$1 and series='DEMO';
-       create temporary table demo_contacts on commit drop as
+       select id from invoices where company_id=$1 and series='DEMO'`,
+      [companyId],
+    );
+    await client.query(
+      `create temporary table demo_notes on commit drop as
+       select id from delivery_notes where company_id=$1 and series='DEMO'`,
+      [companyId],
+    );
+    await client.query(
+      `create temporary table demo_contacts on commit drop as
        select id from contacts where company_id=$1 and
          (id=any($2::uuid[]) or tax_id in ('TEST-C-0001','TEST-PROV-0001') or
-          lower(legal_name) in ('cliente demo ficticio','proveedor demo ficticio'));
-       create temporary table demo_products on commit drop as
+          lower(legal_name) in ('cliente demo ficticio','proveedor demo ficticio'))`,
+      [companyId, [seededIds.customer, seededIds.supplier]],
+    );
+    await client.query(
+      `create temporary table demo_products on commit drop as
        select id from products where company_id=$1 and
-         (id=$3 or sku='TEST-SKU-0001' or lower(name)='producto demo ficticio')`,
-      [companyId, [seededIds.customer, seededIds.supplier], seededIds.product],
+         (id=$2 or sku='TEST-SKU-0001' or lower(name)='producto demo ficticio')`,
+      [companyId, seededIds.product],
     );
 
     const blockers = await client.query<{ kind: string; count: string }>(
@@ -80,29 +89,65 @@ async function main() {
       throw new Error(`Limpieza bloqueada: ${JSON.stringify(unsafe)}`);
 
     await client.query(
-      `delete from payments where company_id=$1 and invoice_id in(select id from demo_invoices);
-       update documents set invoice_id=null where company_id=$1 and invoice_id in(select id from demo_invoices);
-       delete from invoice_delivery_notes where company_id=$1 and
-         (invoice_id in(select id from demo_invoices) or delivery_note_id in(select id from demo_notes));
-       alter table invoice_lines disable trigger invoice_lines_enforce_immutability;
-       alter table invoices disable trigger invoices_enforce_immutability;
-       alter table delivery_note_lines disable trigger delivery_note_lines_enforce_immutability;
-       alter table delivery_notes disable trigger delivery_notes_enforce_immutability;
-       delete from invoice_lines where company_id=$1 and invoice_id in(select id from demo_invoices);
-       delete from invoices where company_id=$1 and id in(select id from demo_invoices);
-       delete from delivery_note_lines where company_id=$1 and delivery_note_id in(select id from demo_notes);
-       delete from delivery_notes where company_id=$1 and id in(select id from demo_notes);
-       alter table invoice_lines enable trigger invoice_lines_enforce_immutability;
-       alter table invoices enable trigger invoices_enforce_immutability;
-       alter table delivery_note_lines enable trigger delivery_note_lines_enforce_immutability;
-       alter table delivery_notes enable trigger delivery_notes_enforce_immutability;
-       delete from document_sequences where company_id=$1 and series='DEMO';
-       delete from stock_adjustments where company_id=$1 and product_id in(select id from demo_products);
-       delete from contact_product_prices where company_id=$1 and
-         (contact_id in(select id from demo_contacts) or product_id in(select id from demo_products));
-       update payments set contact_id=null where company_id=$1 and contact_id in(select id from demo_contacts);
-       delete from products where company_id=$1 and id in(select id from demo_products);
-       delete from contacts where company_id=$1 and id in(select id from demo_contacts)`,
+      "delete from payments where company_id=$1 and invoice_id in(select id from demo_invoices)",
+      [companyId],
+    );
+    await client.query(
+      "update documents set invoice_id=null where company_id=$1 and invoice_id in(select id from demo_invoices)",
+      [companyId],
+    );
+    await client.query(
+      `delete from invoice_delivery_notes where company_id=$1 and
+       (invoice_id in(select id from demo_invoices) or delivery_note_id in(select id from demo_notes))`,
+      [companyId],
+    );
+    await client.query("alter table invoice_lines disable trigger invoice_lines_enforce_immutability");
+    await client.query("alter table invoices disable trigger invoices_enforce_immutability");
+    await client.query("alter table delivery_note_lines disable trigger delivery_note_lines_enforce_immutability");
+    await client.query("alter table delivery_notes disable trigger delivery_notes_enforce_immutability");
+    await client.query(
+      "delete from invoice_lines where company_id=$1 and invoice_id in(select id from demo_invoices)",
+      [companyId],
+    );
+    await client.query(
+      "delete from invoices where company_id=$1 and id in(select id from demo_invoices)",
+      [companyId],
+    );
+    await client.query(
+      "delete from delivery_note_lines where company_id=$1 and delivery_note_id in(select id from demo_notes)",
+      [companyId],
+    );
+    await client.query(
+      "delete from delivery_notes where company_id=$1 and id in(select id from demo_notes)",
+      [companyId],
+    );
+    await client.query("alter table invoice_lines enable trigger invoice_lines_enforce_immutability");
+    await client.query("alter table invoices enable trigger invoices_enforce_immutability");
+    await client.query("alter table delivery_note_lines enable trigger delivery_note_lines_enforce_immutability");
+    await client.query("alter table delivery_notes enable trigger delivery_notes_enforce_immutability");
+    await client.query(
+      "delete from document_sequences where company_id=$1 and series='DEMO'",
+      [companyId],
+    );
+    await client.query(
+      "delete from stock_adjustments where company_id=$1 and product_id in(select id from demo_products)",
+      [companyId],
+    );
+    await client.query(
+      `delete from contact_product_prices where company_id=$1 and
+       (contact_id in(select id from demo_contacts) or product_id in(select id from demo_products))`,
+      [companyId],
+    );
+    await client.query(
+      "update payments set contact_id=null where company_id=$1 and contact_id in(select id from demo_contacts)",
+      [companyId],
+    );
+    await client.query(
+      "delete from products where company_id=$1 and id in(select id from demo_products)",
+      [companyId],
+    );
+    await client.query(
+      "delete from contacts where company_id=$1 and id in(select id from demo_contacts)",
       [companyId],
     );
     await client.query("commit");
