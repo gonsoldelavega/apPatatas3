@@ -1,11 +1,9 @@
 {
-  "runId": "b68f11a4-e53f-4488-bdcd-161e8d726ea7",
+  "runId": "a5d0d4ed-a783-4ffc-ab48-1546681bd616",
   "taskId": "reconcile-fac142-and-activate-fac143",
-  "startedAt": "2026-08-22T19:28:11.592Z",
-  "finishedAt": "2026-08-22T19:32:48.710Z",
-  "status": "completed",
-  "exitCode": 0,
-  "timedOut": false,
-  "message": "Operación detenida sin aplicar cambios.\n\n- Backup PostgreSQL verificado: `/home/factupapa/staging/backups/factupapa-20260822T192908Z-staging-0021_gmail_purchase_inbox-247ac6e8.dump`\n- SHA-256: `9597f77bab692aa76ea6e2fc83a9d5d5e76a79df20d652e6dcb883bf2e55ad3e`\n- Simulación transaccional: `ROLLBACK`\n- Discrepancia: FAC-129 totaliza `1.305,0960 EUR`; el cobro autorizado es `1.305,09 EUR`, quedando `0,0060 EUR` pendiente. La aplicación no la considera completamente pagada.\n- Las compras sí quedaron demostradas: `10-07-26 = 48,40 EUR`; `26002395 = 51,48 EUR`.\n- FAC-142 ya existe: `be307e25-c343-43db-9c70-22d6e968a7b4`\n- Cobro existente: `0c2fa1a7-4840-4048-a4af-214e9e803502`\n- La secuencia preexistente `FAC_2026` ya figura en `143` y la numeración ya estaba activa antes de esta operación; no se modificó.\n- No se ejecutaron segunda simulación, activación ni verificaciones finales de servicios/SHA desplegado debido al criterio obligatorio de parada.\n- La base temporal de verificación fue eliminada.",
-  "taskHash": "5d501282506f5e57af1fcccca5ccbc26a620cbb4a0cdd38422819721a8b730af"
+  "startedAt": "2026-08-22T19:35:11.408Z",
+  "finishedAt": "2026-08-22T19:35:11.418Z",
+  "status": "idle",
+  "reason": "task_disabled",
+  "taskHash": "967d23bcf4d8ca4023596440c0f273a07dd5178d30cdc5adbd40120c2cfe1f50"
 }
