@@ -4,7 +4,7 @@
   "environment": "staging",
   "operation": "apply",
   "authorization": "user-confirmed",
-  "enabled": false,
-  "requested_at": "2026-08-22T15:00:00Z",
-  "instructions": "Tarea pausada brevemente para corregir su formato; trabaja solo en staging y no accedas a producción, main, n8n ni FactuPapa antigua."
+  "enabled": true,
+  "requested_at": "2026-08-22T19:27:18.048Z",
+  "instructions": "Trabaja exclusivamente en staging; no accedas a producción, main, n8n ni FactuPapa antigua. Crea primero un backup PostgreSQL verificable y ejecuta una simulación transaccional sin persistir. Reconcilia únicamente con evidencia histórica verificable las diferencias ya identificadas: cobro omitido de FAC-129/2026 por 1.305,09 EUR y totales de las compras 10-07-26 y 26002395; no inventes datos ni modifiques otras discrepancias financieras. Solo si la conciliación queda demostrada, incorpora idempotentemente FAC-142/2026 si no existe: cliente INVERSIONES ROYAL FOOD S.L.U., NIF B10815447, emisión y entrega 2026-08-21; línea Agria nueva 119,5 kg x 1,45 EUR IVA 4%; línea Ajo pelado 1kg, cantidad 1 x 6,00 EUR IVA 4%; base 179,28 EUR, IVA 7,17 EUR, total 186,45 EUR; cobro completo pagado por transferencia bancaria el 2026-08-21. Reutiliza el contacto y productos reales existentes por NIF y denominación normalizada, sin duplicados. Ejecuta una segunda simulación y confirma idempotencia, ausencia de duplicados y conciliación de facturación, cobros y pendiente. Solo si todo pasa, configura la serie FAC de 2026 con siguiente número 143 y activa la numeración real. Verifica API, web, PostgreSQL, Redis, MinIO y Caddy y devuelve backup, SHA desplegado, ID de factura, ID del cobro y valor final de document_sequences. Ante cualquier diferencia no demostrable, detente sin activar la serie ni realizar más cambios."
 }
