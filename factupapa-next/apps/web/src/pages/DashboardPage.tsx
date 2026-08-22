@@ -27,6 +27,7 @@ import {
   contactsApi,
   deliveryNotesApi,
   financeApi,
+  gmailApi,
   importsApi,
   invoicesApi,
 } from "../api/services";
@@ -69,8 +70,10 @@ function DashboardSkeleton({ rows = 1 }: { rows?: number }) {
 interface DashboardSummary {
   customers: number;
   pendingImports: number;
+  failedImports: number;
   pendingNotes: number;
   pendingPurchaseDocuments: number;
+  gmailSyncFailed: boolean;
   issuedInvoices: number;
   finance: FinanceSummary;
   monthly: MonthlyFinanceSummary[];
@@ -86,8 +89,10 @@ const isPreview =
 const previewSummary: DashboardSummary = {
   customers: 18,
   pendingImports: 1,
+  failedImports: 0,
   pendingNotes: 3,
   pendingPurchaseDocuments: 2,
+  gmailSyncFailed: false,
   issuedInvoices: 14,
   finance: {
     sales: "3420.00",
@@ -96,6 +101,7 @@ const previewSummary: DashboardSummary = {
     balance: "1569.70",
     stockKg: "1260",
     potentialRevenue: "2016.00",
+    criticalStockProducts: 2,
     receivables: "545.00",
     overdueReceivables: "320.00",
     payables: "425.00",
@@ -199,12 +205,13 @@ export function DashboardPage() {
     queryKey: ["dashboard-summary", selectedMonth],
     enabled: !isPreview,
     queryFn: async (): Promise<DashboardSummary> => {
-      const [customers, imports, notes, purchaseDocuments, invoices, finance, monthly] =
+      const [customers, imports, notes, purchaseDocuments, gmail, invoices, finance, monthly] =
         await Promise.all([
           contactsApi.list({ isActive: true, pageSize: 1 }),
           importsApi.list(1, 100),
           deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
           financeApi.pendingPurchaseDocuments(),
+          gmailApi.status(),
           invoicesApi.list({
             pageSize: 100,
             from: selectedRange.from,
@@ -219,8 +226,10 @@ export function DashboardPage() {
         pendingImports: imports.items.filter((item) =>
           ["pending", "validated", "importing"].includes(item.status),
         ).length,
+        failedImports: imports.items.filter((item) => item.status === "failed").length,
         pendingNotes: notes.total,
         pendingPurchaseDocuments: purchaseDocuments.length,
+        gmailSyncFailed: gmail.connected && gmail.lastInboxSyncStatus === "failed",
         issuedInvoices: invoices.items.filter((invoice) => invoice.status === "issued").length,
         finance,
         monthly,
@@ -345,7 +354,35 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {!summary.isLoading && !Number(data?.finance.overdueReceivables ?? 0) && !data?.pendingNotes && !data?.pendingImports && !data?.pendingPurchaseDocuments && (
+          {Number(data?.finance.receivables ?? 0) > Number(data?.finance.overdueReceivables ?? 0) && (
+            <Link to="/ventas" className="attention-row">
+              <WalletCards aria-hidden="true" />
+              <span><strong>{formatMoney(String(Number(data?.finance.receivables ?? 0) - Number(data?.finance.overdueReceivables ?? 0)))} pendiente de cobro</strong></span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
+          {Boolean(data?.finance.criticalStockProducts) && (
+            <Link to="/productos" className="attention-row attention-row--danger">
+              <Package aria-hidden="true" />
+              <span><strong>{data?.finance.criticalStockProducts} producto{data?.finance.criticalStockProducts === 1 ? "" : "s"} sin stock</strong></span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
+          {Boolean(data?.failedImports) && (
+            <Link to="/importar" className="attention-row attention-row--danger">
+              <CircleAlert aria-hidden="true" />
+              <span><strong>{data?.failedImports} importación{data?.failedImports === 1 ? "" : "es"} con error</strong></span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
+          {data?.gmailSyncFailed && (
+            <Link to="/mas#integraciones" className="attention-row attention-row--danger">
+              <CircleAlert aria-hidden="true" />
+              <span><strong>Error al revisar Gmail</strong></span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
+          {!summary.isLoading && !Number(data?.finance.receivables ?? 0) && !data?.finance.criticalStockProducts && !data?.pendingNotes && !data?.pendingImports && !data?.failedImports && !data?.pendingPurchaseDocuments && !data?.gmailSyncFailed && (
             <p className="dashboard-all-clear">Sin pendientes</p>
           )}
         </div>
