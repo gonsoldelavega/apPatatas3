@@ -107,6 +107,7 @@ jobs:
             factupapa-next/apps/web/package-lock.json
 
       - name: Run complete rootless audit
+        id: complete_audit
         shell: bash
         run: |
           set -euo pipefail
@@ -114,7 +115,16 @@ jobs:
           test -x factupapa-next/scripts/audit.sh
           # Both audit workflows share fixed localhost ports on the rootless host.
           # A host lock serializes them without GitHub cancelling the other workflow.
-          flock -w 3300 /tmp/factupapa-next-rootless-host.lock factupapa-next/scripts/audit.sh
+          audit_log="${RUNNER_TEMP}/factupapa-audit-console.log"
+          set +e
+          flock -w 3300 /tmp/factupapa-next-rootless-host.lock factupapa-next/scripts/audit.sh 2>&1 | tee "${audit_log}"
+          audit_status="${PIPESTATUS[0]}"
+          set -e
+          if [ "${audit_status}" -ne 0 ]; then
+            failure_phase="$(sed -n 's/.*phase=\([^ ]*\).*/\1/p' "${audit_log}" | tail -n 1)"
+            printf 'failure_phase=%s\n' "${failure_phase:-desconocida}" >> "${GITHUB_OUTPUT}"
+            exit "${audit_status}"
+          fi
 
       - name: Upload sanitized fictitious evidence
         if: always()
@@ -161,14 +171,16 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          FAILURE_PHASE: ${{ steps.complete_audit.outputs.failure_phase }}
         run: |
+          failure_context="FactuPapa staging · ${FAILURE_PHASE:-preflight}"
           curl --fail --silent --show-error \
             --request POST \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header 'Accept: application/vnd.github+json' \
             --header 'X-GitHub-Api-Version: 2022-11-28' \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data '{"state":"failure","context":"FactuPapa staging","description":"La auditoría o el despliegue de staging ha fallado"}' >/dev/null
+            --data "$(printf '{\"state\":\"failure\",\"context\":\"%s\",\"description\":\"La auditoría o el despliegue de staging ha fallado\"}' "${failure_context}")" >/dev/null
 
       - name: Deploy exact audited SHA to private staging
         if: >-
