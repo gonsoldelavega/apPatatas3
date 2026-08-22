@@ -124,7 +124,8 @@ async function main() {
     rawTask.lastResult = result.status;
     await writeFile(taskPath, `${JSON.stringify(rawTask, null, 2)}\n`, { mode: 0o600 });
   }
-  if (result.status === "failed" || result.status === "rejected") process.exitCode = 1;
+  // Persist every terminal result through the git wrapper. A failed task is
+  // reported in its result JSON instead of aborting before that result is pushed.
 }
 
 await main();
