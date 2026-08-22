@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "id": "verify-cent-tolerance-release-a0adab1",
+  "id": "final-staging-validation-5d40344",
   "environment": "staging",
   "operation": "inspect",
   "authorization": "user-confirmed",
   "enabled": true,
-  "requested_at": "2026-08-22T20:10:00.000Z",
-  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Espera hasta 55 minutos a que /api/health de staging muestre el commit a0adab1e6cace9a78ad38cd90b7996bf203efe56; consulta cada 60 segundos sin desplegar manualmente. Después verifica: API y web por HTTPS; PostgreSQL, Redis, MinIO y Caddy saludables; FAC-142/2026 pagada por 186,45 EUR; document_sequences FAC_2026 en live con next_number 143; FAC-129/2026 se proyecta como pagada y balanceDue 0 tanto en detalle como listado, cuenta de cliente y resumen financiero, aceptando sin modificar el residuo histórico de 0,006 EUR; las 56 facturas históricas permanecen; no hay datos demo. Ejecuta pruebas de humo móviles centradas en Dashboard, Facturas, condiciones de pago opcionales, WhatsApp e imprimir. No cambies datos ni código. Devuelve evidencia concisa y detente ante cualquier otro descuadre."
+  "requested_at": "2026-08-22T20:22:00.000Z",
+  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Espera hasta 55 minutos a que /api/health muestre 5d403445c3003205795c2405641144b646757d4f. Verifica API y web HTTPS; PostgreSQL, Redis, MinIO y Caddy; FAC-142/2026 pagada 186,45 EUR; FAC_2026 live next_number 143; 56 facturas históricas y cero datos demo. Considera documentadas y no modifiques estas tres excepciones históricas: residuo de cobro FAC-129/2026 de 0,006 EUR, compra 10-07-26 y compra 26002395. Confirma que FAC-129 se muestra pagada con balanceDue 0 en detalle, listado, cuenta y resumen. Verifica Gmail automático cada 6 horas con deduplicación, alertas de vencidos/cobros/stock/importaciones/Gmail, WhatsApp, impresión, condiciones de pago opcionales, estilo móvil uniforme y transiciones. Ejecuta humo Playwright móvil, prueba PDF y segunda comprobación idempotente sin cambios. No cambies datos ni código. Devuelve evidencia concisa."
 }
