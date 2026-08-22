@@ -4,7 +4,9 @@
   "environment": "staging",
   "operation": "inspect",
   "authorization": "user-confirmed",
-  "enabled": true,
+  "enabled": false,
   "requested_at": "2026-08-22T19:49:45.243Z",
-  "instructions": "Trabaja exclusivamente en staging y no accedas a producción, main, n8n ni FactuPapa antigua. El usuario acepta expresamente como diferencia inmaterial de redondeo los 0,006 EUR entre el total calculado de FAC-129/2026 y su cobro de 1.305,09 EUR. No modifiques la factura ni el cobro histórico por esa diferencia. Cierra la conciliación considerando aceptada únicamente esa diferencia y confirma que FAC-142/2026 sigue pagada, que la serie FAC_2026 sigue activa en modo live con siguiente número 143 y que los servicios de staging están saludables. No modifiques datos ni código y devuelve evidencia concisa."
+  "instructions": "Trabaja exclusivamente en staging y no accedas a producción, main, n8n ni FactuPapa antigua. El usuario acepta expresamente como diferencia inmaterial de redondeo los 0,006 EUR entre el total calculado de FAC-129/2026 y su cobro de 1.305,09 EUR. No modifiques la factura ni el cobro histórico por esa diferencia. Cierra la conciliación considerando aceptada únicamente esa diferencia y confirma que FAC-142/2026 sigue pagada, que la serie FAC_2026 sigue activa en modo live con siguiente número 143 y que los servicios de staging están saludables. No modifiques datos ni código y devuelve evidencia concisa.",
+  "lastRunId": "f796fd97-5279-4c47-b4ed-c2e4ee6a18a0",
+  "lastResult": "completed"
 }

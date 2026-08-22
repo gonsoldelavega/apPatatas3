@@ -1,0 +1,11 @@
+{
+  "runId": "f796fd97-5279-4c47-b4ed-c2e4ee6a18a0",
+  "taskId": "accept-fac129-rounding-and-close-reconciliation",
+  "startedAt": "2026-08-22T19:52:11.610Z",
+  "finishedAt": "2026-08-22T19:53:39.898Z",
+  "status": "completed",
+  "exitCode": 0,
+  "timedOut": false,
+  "message": "Inspección cerrada exclusivamente en staging, sin cambios en datos ni código.\n\n- FAC-129/2026: total calculado `1.305,0960 EUR`; cobro histórico `1.305,09 EUR`; única diferencia `0,0060 EUR`, aceptada como inmaterial. No se modificó.\n- FAC-142/2026: pagada; total y cobro coinciden en `186,45 EUR`.\n- Serie `FAC_2026`: modo `live`, activa, siguiente número `143`.\n- Servicios staging: PostgreSQL, Redis, MinIO, API, web y Caddy saludables.\n- Probes: API `/health` 200, `/ready` 200 (`ready`), web `/healthz` 200.",
+  "taskHash": "0ade92828dfc5c332efe08d2ce52ffb9d6e103c95e69854c988093334e75b050"
+}
