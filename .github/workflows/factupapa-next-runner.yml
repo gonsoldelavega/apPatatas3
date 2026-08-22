@@ -123,8 +123,10 @@ jobs:
           if [ "${audit_status}" -ne 0 ]; then
             failure_phase="$(sed -n 's/.*phase=\([^ ]*\).*/\1/p' "${audit_log}" | tail -n 1)"
             failure_reason="$(grep -E 'Error:|HTTP [0-9]{3}' "${audit_log}" | tail -n 1 | sed 's/[^[:alnum:] _.,:+-]/ /g' | tr -s ' ' | cut -c1-70)"
+            failure_location="$(grep -Eo 'factupapa.spec.ts:[0-9]+:[0-9]+' "${audit_log}" | tail -n 1)"
             printf 'failure_phase=%s\n' "${failure_phase:-desconocida}" >> "${GITHUB_OUTPUT}"
             printf 'failure_reason=%s\n' "${failure_reason:-sin detalle}" >> "${GITHUB_OUTPUT}"
+            printf 'failure_location=%s\n' "${failure_location:-sin ubicación}" >> "${GITHUB_OUTPUT}"
             exit "${audit_status}"
           fi
 
@@ -175,8 +177,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FAILURE_PHASE: ${{ steps.complete_audit.outputs.failure_phase }}
           FAILURE_REASON: ${{ steps.complete_audit.outputs.failure_reason }}
+          FAILURE_LOCATION: ${{ steps.complete_audit.outputs.failure_location }}
         run: |
-          failure_context="FactuPapa staging · ${FAILURE_PHASE:-preflight} · ${FAILURE_REASON:-sin detalle}"
+          failure_context="FactuPapa staging · ${FAILURE_PHASE:-preflight} · ${FAILURE_LOCATION:-sin ubicación} · ${FAILURE_REASON:-sin detalle}"
           curl --fail --silent --show-error \
             --request POST \
             --header "Authorization: Bearer ${GH_TOKEN}" \
