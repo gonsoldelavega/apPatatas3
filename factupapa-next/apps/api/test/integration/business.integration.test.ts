@@ -638,6 +638,39 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
       assert.equal((await request("POST",`/invoices/${invoice.id}/payments`,{
         amount:"999",paidAt:"2026-07-21T12:00:00Z"
       },tokenA)).status,409);
+
+      const roundedCreated = await request("POST","/invoices",{
+        contactId:contactA.id,series:"ROUND_2026",issueDate:"2026-07-22",
+        dueDate:"2026-07-22",applyContactDefaults:false
+      },tokenA);
+      assert.equal(roundedCreated.status,201);
+      let roundedInvoice=(await roundedCreated.json()) as Entity;
+      const roundedLine=await request("POST",`/invoices/${roundedInvoice.id}/lines`,{
+        productId:productA.id,quantity:"1254.9",unitPrice:"1"
+      },tokenA);
+      assert.equal(roundedLine.status,201);
+      roundedInvoice=(await roundedLine.json()) as Entity;
+      assert.equal(roundedInvoice.total,"1305.0960");
+      assert.equal((await request("POST",`/invoices/${roundedInvoice.id}/issue`,{},tokenA)).status,200);
+      assert.equal((await request("POST",`/invoices/${roundedInvoice.id}/payments`,{
+        amount:"1305.09",paidAt:"2026-07-22T12:00:00Z",method:"transfer"
+      },tokenA)).status,201);
+      const roundedDetail=await request("GET",`/invoices/${roundedInvoice.id}`,undefined,tokenA);
+      const roundedPaid=(await roundedDetail.json()) as Entity;
+      assert.equal(roundedPaid.paymentStatus,"paid");
+      assert.equal(roundedPaid.balanceDue,"0");
+      const roundedPaidList=await request("GET","/invoices?series=ROUND_2026&paymentStatus=paid",undefined,tokenA);
+      assert.equal(roundedPaidList.status,200);
+      const roundedPaidItems=((await roundedPaidList.json()) as {items:Entity[]}).items;
+      assert.equal(roundedPaidItems.length,1);
+      assert.equal(roundedPaidItems[0]?.id,roundedInvoice.id);
+      assert.equal(roundedPaidItems[0]?.balanceDue,"0");
+      const roundedAccount=await request("GET",`/contacts/${contactA.id}/account`,undefined,tokenA);
+      assert.equal(roundedAccount.status,200);
+      const roundedAccountInvoices=((await roundedAccount.json()) as Entity).invoices as Entity[];
+      const roundedAccountInvoice=roundedAccountInvoices.find((candidate)=>candidate.id===roundedInvoice.id);
+      assert.equal(roundedAccountInvoice?.paymentStatus,"paid");
+      assert.equal(roundedAccountInvoice?.balanceDue,"0");
     },
   );
 
