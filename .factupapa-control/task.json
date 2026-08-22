@@ -1,12 +1,10 @@
 {
   "version": 1,
-  "id": "accept-fac129-rounding-and-close-reconciliation",
+  "id": "verify-cent-tolerance-release-a0adab1",
   "environment": "staging",
   "operation": "inspect",
   "authorization": "user-confirmed",
-  "enabled": false,
-  "requested_at": "2026-08-22T19:49:45.243Z",
-  "instructions": "Trabaja exclusivamente en staging y no accedas a producción, main, n8n ni FactuPapa antigua. El usuario acepta expresamente como diferencia inmaterial de redondeo los 0,006 EUR entre el total calculado de FAC-129/2026 y su cobro de 1.305,09 EUR. No modifiques la factura ni el cobro histórico por esa diferencia. Cierra la conciliación considerando aceptada únicamente esa diferencia y confirma que FAC-142/2026 sigue pagada, que la serie FAC_2026 sigue activa en modo live con siguiente número 143 y que los servicios de staging están saludables. No modifiques datos ni código y devuelve evidencia concisa.",
-  "lastRunId": "f796fd97-5279-4c47-b4ed-c2e4ee6a18a0",
-  "lastResult": "completed"
+  "enabled": true,
+  "requested_at": "2026-08-22T20:10:00.000Z",
+  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Espera hasta 55 minutos a que /api/health de staging muestre el commit a0adab1e6cace9a78ad38cd90b7996bf203efe56; consulta cada 60 segundos sin desplegar manualmente. Después verifica: API y web por HTTPS; PostgreSQL, Redis, MinIO y Caddy saludables; FAC-142/2026 pagada por 186,45 EUR; document_sequences FAC_2026 en live con next_number 143; FAC-129/2026 se proyecta como pagada y balanceDue 0 tanto en detalle como listado, cuenta de cliente y resumen financiero, aceptando sin modificar el residuo histórico de 0,006 EUR; las 56 facturas históricas permanecen; no hay datos demo. Ejecuta pruebas de humo móviles centradas en Dashboard, Facturas, condiciones de pago opcionales, WhatsApp e imprimir. No cambies datos ni código. Devuelve evidencia concisa y detente ante cualquier otro descuadre."
 }
