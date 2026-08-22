@@ -122,7 +122,7 @@ jobs:
           set -e
           if [ "${audit_status}" -ne 0 ]; then
             failure_phase="$(sed -n 's/.*phase=\([^ ]*\).*/\1/p' "${audit_log}" | tail -n 1)"
-            failure_reason="$(grep -E 'Error:|HTTP [0-9]{3}|::error' "${audit_log}" | tail -n 1 | sed 's/[^[:alnum:] _.,:+-]/ /g' | tr -s ' ' | cut -c1-70)"
+            failure_reason="$(grep -E 'Error:|HTTP [0-9]{3}' "${audit_log}" | tail -n 1 | sed 's/[^[:alnum:] _.,:+-]/ /g' | tr -s ' ' | cut -c1-70)"
             printf 'failure_phase=%s\n' "${failure_phase:-desconocida}" >> "${GITHUB_OUTPUT}"
             printf 'failure_reason=%s\n' "${failure_reason:-sin detalle}" >> "${GITHUB_OUTPUT}"
             exit "${audit_status}"
