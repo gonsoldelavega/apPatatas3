@@ -374,9 +374,12 @@ test("factura quincenal sin condiciones por defecto y precio editable", async ({
   await page
     .getByRole("combobox", { name: "Cliente", exact: true })
     .selectOption({ label: customer });
+  const advancedOptions = page.getByText("Opciones avanzadas · quincenal");
+  await expect(advancedOptions).toBeVisible();
+  await advancedOptions.click();
   await expect(page.getByText("Periodo quincenal")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Factura quincenal" }),
+    page.getByRole("button", { name: "Quincenal", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   const invoiceTerms = page.getByRole("switch", {
     name: "Incluir condiciones de pago",
