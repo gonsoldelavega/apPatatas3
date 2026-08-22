@@ -60,8 +60,9 @@ async function bestOcr(input: Buffer, filename: string) {
 }
 const select = `select p.id,p.supplier_id "supplierId",p.document_id "documentId",coalesce(p.supplier_legal_name,c.legal_name) "supplierName",p.supplier_tax_id "supplierTaxId",p.supplier_invoice_number "supplierInvoiceNumber",p.issue_date::text "issueDate",p.due_date::text "dueDate",p.status,p.category,p.subtotal::text,p.tax_total::text "taxTotal",p.total::text,p.notes,p.source_registry_url "sourceRegistryUrl",p.source_registry_filename "sourceRegistryFilename",
   coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)::text "paidTotal",
-  greatest(p.total-coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0),0)::text "balanceDue",
-  case when coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)>=p.total and p.total>0 then 'paid'
+  case when abs(p.total-coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0))<=0.01
+    then 0 else greatest(p.total-coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0),0) end::text "balanceDue",
+  case when coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)+0.01>=p.total and p.total>0 then 'paid'
     when coalesce((select sum(amount) from payments pay where pay.purchase_invoice_id=p.id),0)>0 then 'partial'
     when p.status='confirmed' and p.due_date<current_date then 'overdue' else 'unpaid' end "paymentStatus"
   from purchase_invoices p left join contacts c on c.id=p.supplier_id`;
@@ -1274,10 +1275,10 @@ export class FinanceService {
              period_purchases as(select coalesce(sum(total),0)total from purchase_invoices where status='confirmed' and issue_date between $1 and $2),
              months as(select generate_series(date_trunc('month',$1::date::timestamp),date_trunc('month',$2::date::timestamp),interval'1 month')::date as month_start),
              period_recurring as(select coalesce(sum(r.amount),0)total from recurring_expenses r join months m on r.starts_on<=m.month_start+interval'1 month - 1 day' and(r.ends_on is null or r.ends_on>=m.month_start)),
-             receivables as(select coalesce(sum(greatest(i.total-coalesce(p.paid,0),0)),0) total,
-               coalesce(sum(greatest(i.total-coalesce(p.paid,0),0)) filter(where i.due_date<current_date),0) overdue
+             receivables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total,
+               coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end) filter(where i.due_date<current_date),0) overdue
                from invoices i left join(select invoice_id,sum(amount)paid from payments where invoice_id is not null group by invoice_id)p on p.invoice_id=i.id where i.status='issued'),
-             payables as(select coalesce(sum(greatest(i.total-coalesce(p.paid,0),0)),0) total
+             payables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total
                from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed'),
              ${stockCtes},
              stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential from stock_rows)
