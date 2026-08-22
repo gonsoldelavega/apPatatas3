@@ -139,9 +139,7 @@ test("el callback Google restaura la sesión y entra en la aplicación", async (
   await page.goto(callbackUrl);
   await expect(page).toHaveURL(`${webOrigin}/`);
   await expect(
-    page.getByRole("heading", {
-      name: /^(Buenos días|Buenas tardes|Buenas noches)/,
-    }),
+    page.getByRole("heading", { name: "Resumen", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Navegación principal" }),
