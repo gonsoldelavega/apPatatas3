@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "id": "staging-task-template",
+  "environment": "staging",
+  "operation": "inspect",
+  "authorization": "not-required",
+  "enabled": false,
+  "instructions": "Plantilla desactivada. Una tarea real se crea desde el canal de control privado."
+}
