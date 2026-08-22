@@ -93,9 +93,9 @@ export class AccountsService {
       const totals = (await c.query(
         `select coalesce(sum(i.total) filter(where i.status='issued'),0)::text "invoicedTotal",
            coalesce(sum(coalesce(pay.paid,0)) filter(where i.status='issued'),0)::text "paidTotal",
-           coalesce(sum(greatest(i.total-coalesce(pay.paid,0),0))
+           coalesce(sum(case when abs(i.total-coalesce(pay.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(pay.paid,0),0) end)
              filter(where i.status='issued'),0)::text "outstandingTotal",
-           coalesce(sum(greatest(i.total-coalesce(pay.paid,0),0))
+           coalesce(sum(case when abs(i.total-coalesce(pay.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(pay.paid,0),0) end)
              filter(where i.status='issued' and i.due_date<current_date),0)::text "overdueTotal",
            count(*) filter(where status='issued')::int "invoiceCount",max(issue_date)::text "lastInvoiceDate"
          from invoices i left join (
@@ -104,8 +104,9 @@ export class AccountsService {
       const invoices = (await c.query(
         `select id,number,series,issue_date::text "issueDate",due_date::text "dueDate",status,total::text,
            coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0)::text "paidTotal",
-           greatest(total-coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0),0)::text "balanceDue",
-           case when coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0)>=total then 'paid'
+           case when abs(total-coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0))<=0.01
+             then 0 else greatest(total-coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0),0) end::text "balanceDue",
+           case when coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0)+0.01>=total then 'paid'
              when coalesce((select sum(amount) from payments p where p.invoice_id=i.id),0)>0 then 'partial'
              when status='issued' and due_date<current_date then 'overdue' else 'unpaid' end "paymentStatus"
          from invoices i where contact_id=$1 order by issue_date desc,id desc limit 100`,[contactId])).rows;
