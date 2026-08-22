@@ -1,11 +1,9 @@
 {
-  "runId": "94cf8ed9-baee-4893-9d4d-65940c1940c9",
+  "runId": "ac243d29-7aba-4bdf-9d4e-8603b0d66ef2",
   "taskId": "verify-fac142-staging-state",
-  "startedAt": "2026-08-22T19:38:11.605Z",
-  "finishedAt": "2026-08-22T19:40:14.444Z",
-  "status": "completed",
-  "exitCode": 0,
-  "timedOut": false,
-  "message": "Inspección de solo lectura completada exclusivamente en staging. No se modificaron datos ni código y no se accedió a credenciales.\n\n- Factura `FAC-142/2026`, ID `be307e25-c343-43db-9c70-22d6e968a7b4`: correcta.\n- Cliente NIF: `B10815447`.\n- Emisión y entrega: `2026-08-21`.\n- Agria nueva: `119,5 kg × 1,45 EUR`, IVA 4%; base `173,28`, IVA `6,93`.\n- Ajo pelado 1kg: cantidad `1 × 6,00 EUR`, IVA 4%; base `6,00`, IVA `0,24`.\n- Totales: base `179,28 EUR`, IVA `7,17 EUR`, total `186,45 EUR`.\n- Cobro `0c2fa1a7-4840-4048-a4af-214e9e803502`: `186,45 EUR`, transferencia bancaria, `2026-08-21`.\n- Proyección API: `paymentStatus=paid`, cobrado `186,45 EUR`. En PostgreSQL el estado documental permanece `issued`, correctamente separado del estado de cobro.\n- Secuencia `FAC_2026`: siguiente número `143`, tipo `invoice`, modo `live` y activación registrada.\n\nInfraestructura:\n\n- API: `ready`; PostgreSQL, Redis y MinIO declarados `ok`.\n- Web: HTTP 200, aplicación FactuPapa Next servida correctamente.\n- PostgreSQL: transacción `READ ONLY` finalizada con `ROLLBACK`.\n- Redis: contenedor saludable y healthchecks con `PONG`.\n- MinIO: live y ready HTTP 200.\n- Caddy: configuración válida, HTTP redirige a HTTPS y HTTPS responde 200 con certificado válido.\n- El endpoint de factura sin autenticación devuelve 401, como corresponde.\n\nNo se encontraron diferencias dentro del alcance solicitado.",
-  "taskHash": "8d4b4474afd57e7233c0bcc6d37d6266e9557bc9e83826cb4e8435773ceb640c"
+  "startedAt": "2026-08-22T19:43:11.409Z",
+  "finishedAt": "2026-08-22T19:43:11.414Z",
+  "status": "idle",
+  "reason": "task_disabled",
+  "taskHash": "b83157eaf3350bdfd79800c60b1f96a99800f38e2f8136cc0553ee7b9372c06a"
 }
