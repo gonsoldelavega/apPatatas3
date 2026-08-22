@@ -1,0 +1,11 @@
+{
+  "runId": "2ab8af6a-04ab-4a79-8011-7c5e250320c5",
+  "taskId": "remove-final-demo-data-and-verify",
+  "startedAt": "2026-08-22T22:30:11.632Z",
+  "finishedAt": "2026-08-22T22:36:47.721Z",
+  "status": "completed",
+  "exitCode": 0,
+  "timedOut": false,
+  "message": "Operación completada exclusivamente en staging, sin cambios de código.\n\n- SHA servido: `efcbfac28ebc9b5a2c7bf14c789ecb9a107d410e`\n- Backup verificado: `/home/factupapa/staging/backups/factupapa-staging-20260822T223400Z-demo-cleanup.dump`\n- SHA-256 backup: `97048a6e008f48606f81040de031380e42cff405a62d85dd794fd381a4387c80`\n- Tamaño: 330.360 bytes; catálogo válido: 361 entradas.\n\nLimpieza:\n\n- Antes: 4 facturas TEST, 9 líneas, 1 cobro, 1 secuencia.\n- Eliminados: exactamente esos registros.\n- Albaranes/contactos/productos demo eliminados: 0.\n- Después: 0 elementos demo/TEST.\n- Segunda simulación con rollback: 0 objetivos y 0 operaciones pendientes; idempotencia confirmada.\n\nVerificación:\n\n- FAC históricas: 56.\n- FAC-142/2026 única:\n  - Factura: `be307e25-c343-43db-9c70-22d6e968a7b4`\n  - Cobro: `0c2fa1a7-4840-4048-a4af-214e9e803502`\n  - 186,45 EUR, transferencia bancaria, 2 líneas.\n  - PDF generado válido: `%PDF-1.3`, 2.984 bytes.\n- `FAC_2026.next_number`: 143.\n- FAC-129: presentada/issued, pago 1.305,09 EUR; residuo conservado `0,0060`; balance presentado `0` por tolerancia de 0,01 EUR.\n- `FV006-00001608` y «Agria nueva» intactos y vinculados.\n- `10-07-26` y `26002395`: huellas sin cambios.\n- API, web, PostgreSQL, Redis, MinIO y Caddy: saludables.\n- HTTPS: HTTP 200 y certificado validado (`ssl_verify=0`).",
+  "taskHash": "3c72b942ec2a1efdfe61347d7e803e699318004f540ade5449151e857e6c9146"
+}
