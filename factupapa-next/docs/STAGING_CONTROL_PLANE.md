@@ -1,6 +1,10 @@
 # Control privado de staging
 
-Este mecanismo evita copiar instrucciones al VPS. Una tarea se escribe en la rama privada `automation/factupapa-staging-tasks` dentro de `.factupapa-control/task.json`. El runner rootless existente ejecuta una sola tarea, devuelve un resultado saneado a la misma rama y desactiva la tarea antes de hacer commit.
+Este mecanismo evita copiar instrucciones al VPS. Una tarea se escribe en la rama privada `automation/factupapa-staging-tasks` dentro de `.factupapa-control/task.json`. Un temporizador de usuario del VPS consulta la rama cada dos minutos, ejecuta una sola tarea, devuelve un resultado saneado a la misma rama y desactiva la tarea antes de hacer commit.
+
+## Activación inicial
+
+Desde GitHub Actions, ejecute una sola vez el workflow `FactuPapa staging control plane`, seleccionando la rama `automation/factupapa-staging-tasks` y marcando `bootstrap_worker`. La instalación no toca producción y el worker se actualiza desde la misma rama privada.
 
 ## Límites permanentes
 
