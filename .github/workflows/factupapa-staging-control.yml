@@ -2,8 +2,13 @@ name: FactuPapa staging control plane
 
 on:
   push:
-    branches: [automation/factupapa-staging-tasks]
-    paths: ['.factupapa-control/task.json']
+    branches:
+      - automation/factupapa-vps-bridge
+      - automation/factupapa-staging-tasks
+    paths:
+      - '.github/workflows/factupapa-staging-control.yml'
+      - 'factupapa-next/scripts/install-staging-control-worker.sh'
+      - '.factupapa-control/task.json'
   workflow_dispatch:
     inputs:
       bootstrap_worker:
@@ -21,17 +26,18 @@ concurrency:
 
 jobs:
   run-approved-staging-task:
-    # Result commits are written to the same private branch and must never
-    # schedule a second execution of the already completed task.
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/automation/factupapa-vps-bridge' ||
       !contains(github.event.head_commit.message, '[control-result]')
     runs-on: [self-hosted, linux, x64, factupapa-next]
     timeout-minutes: 50
     env:
       DOCKER_HOST: unix:///run/user/1001/docker.sock
+      XDG_RUNTIME_DIR: /run/user/1001
+      PATH: /home/factupapa/.local/bin:/usr/local/bin:/usr/bin:/bin
     steps:
-      - name: Checkout the exact task revision
+      - name: Checkout the triggering revision
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.sha }}
@@ -46,21 +52,28 @@ jobs:
           test -S "${DOCKER_HOST#unix://}"
           docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
           command -v codex >/dev/null
-
-      - name: Execute one approved staging task
-        if: ${{ !inputs.bootstrap_worker }}
-        shell: bash
-        run: node factupapa-next/scripts/staging-control-runner.mjs
+          systemctl --user show-environment >/dev/null
 
       - name: Install or update the persistent VPS worker
-        if: ${{ inputs.bootstrap_worker }}
+        if: >-
+          github.ref == 'refs/heads/automation/factupapa-vps-bridge' ||
+          inputs.bootstrap_worker
         shell: bash
         run: bash factupapa-next/scripts/install-staging-control-worker.sh
 
-      - name: Return a sanitized result to the private task branch
-        if: always()
+      - name: Execute one approved staging task
+        if: >-
+          github.ref == 'refs/heads/automation/factupapa-staging-tasks' &&
+          !inputs.bootstrap_worker
         shell: bash
-        if: ${{ !inputs.bootstrap_worker }}
+        run: node factupapa-next/scripts/staging-control-runner.mjs
+
+      - name: Return a sanitized result to the private task branch
+        if: >-
+          always() &&
+          github.ref == 'refs/heads/automation/factupapa-staging-tasks' &&
+          !inputs.bootstrap_worker
+        shell: bash
         run: |
           set -Eeuo pipefail
           git config user.name 'FactuPapa staging control'
