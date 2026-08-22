@@ -77,6 +77,7 @@ upsert_private_environment_value "CORS_ALLOWED_ORIGINS" "${public_origin}"
 upsert_private_environment_value "AUTH_COOKIE_SECURE" "true"
 upsert_private_environment_value "AUTH_COOKIE_PATH" "/api/auth"
 upsert_private_environment_value "WEB_API_BASE_URL" "/api"
+upsert_private_environment_value "APP_VERSION" "${expected_sha}"
 upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
 unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET
 
@@ -93,6 +94,7 @@ test "${CORS_ALLOWED_ORIGINS}" = "${public_origin}"
 test "${AUTH_COOKIE_SECURE}" = "true"
 test "${AUTH_COOKIE_PATH}" = "/api/auth"
 test "${WEB_API_BASE_URL}" = "/api"
+test "${APP_VERSION}" = "${expected_sha}"
 
 echo "Creando copia verificada previa al despliegue"
 (
@@ -136,6 +138,14 @@ for service in postgres redis minio api web caddy; do
 done
 
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/health)" = "200"
+test "$(curl --silent --show-error http://127.0.0.1:14100/health | node -e '
+  let input = "";
+  process.stdin.on("data", (chunk) => { input += chunk; });
+  process.stdin.on("end", () => {
+    const body = JSON.parse(input);
+    if (body.version !== process.env.GITHUB_SHA) process.exit(1);
+  });
+')" = ""
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/ready)" = "200"
 test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14173/healthz)" = "200"
 
