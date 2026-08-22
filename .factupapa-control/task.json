@@ -1,12 +1,10 @@
 {
   "version": 1,
-  "id": "final-staging-validation-0247e018",
+  "id": "remove-final-demo-data-and-verify",
   "environment": "staging",
-  "operation": "inspect",
+  "operation": "apply",
   "authorization": "user-confirmed",
-  "enabled": false,
-  "requested_at": "2026-08-22T22:11:36.692Z",
-  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Verifica que /api/health muestra 0247e0189e6df8a0888030718a84190d0687f7db. Comprueba HTTPS web y API; PostgreSQL, Redis, MinIO y Caddy saludables; backup verificable reciente; FAC-142/2026 emitida y pagada por transferencia el 21/08/2026 por 186,45 EUR, con cliente NIF B10815447 y dos líneas (Agria nueva 119,5 kg a 1,45 con IVA 4%; Ajo pelado 1kg, cantidad 1 a 6,00 con IVA 4%), sin duplicados; PDF válido; FAC_2026 live next_number 143; 56 facturas históricas y cero datos demo. Segunda lectura debe ser idempotente y no cambiar contadores. Documenta sin modificar las tres excepciones aceptadas: residuo FAC-129/2026 de 0,006 EUR, compra 10-07-26 y compra 26002395. Confirma que FAC-129 se presenta pagada y balanceDue 0 por tolerancia contable. Verifica Gmail cada 6 horas con deduplicación, alertas, WhatsApp, impresión, condiciones opcionales, interfaz móvil uniforme y transiciones. No cambies datos ni código. Devuelve evidencia concisa y sin secretos.",
-  "lastRunId": "089678fb-17b5-407d-bdf8-65fc68f5d5c5",
-  "lastResult": "completed"
+  "enabled": true,
+  "requested_at": "2026-08-22T22:30:02.728Z",
+  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Antes de cambiar datos, confirma que /api/health sirve el SHA efcbfac28ebc9b5a2c7bf14c789ecb9a107d410e, crea y verifica un backup PostgreSQL de staging y ejecuta una simulación transaccional con rollback. Elimina únicamente las facturas y albaranes pertenecientes a series demo/TEST, junto con sus dependencias, y los contactos y productos marcados inequívocamente como demo. No elimines ni modifiques documentos, contactos o productos reales. Comprueba antes que las cuatro facturas TEST_2026 restantes son demo y que su borrado no afecta relaciones reales; detente si no puede demostrarse. Conserva intacta la compra FV006-00001608 y su producto real Agria nueva. Aplica la limpieza solo si la simulación es segura. Ejecuta una segunda simulación y exige cero elementos demo y cero operaciones pendientes. Verifica después: FAC-142/2026 única, pagada por transferencia 186,45 EUR con dos líneas y PDF válido; 56 facturas históricas FAC; FAC_2026 live next_number 143; FAC-129 presentada pagada con balanceDue 0 por tolerancia de 0,01 EUR sin cambiar su residuo de 0,006; excepciones 10-07-26 y 26002395 sin cambios; API, web, PostgreSQL, Redis, MinIO y Caddy saludables; HTTPS correcto. Devuelve evidencia concisa: backup y SHA-256, conteos antes/después, idempotencia, IDs FAC-142/cobro, secuencia y SHA servido. No cambies código."
 }
