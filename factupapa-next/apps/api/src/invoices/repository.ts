@@ -11,9 +11,10 @@ const projection = `id, contact_id "contactId", number, series, issue_date::text
   issuer_address "issuerAddress", issued_at "issuedAt", cancelled_at "cancelledAt",
   created_at "createdAt", updated_at "updatedAt",
   coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0)::text "paidTotal",
-  greatest(total-coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0),0)::text "balanceDue",
+  case when abs(total-coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0))<=0.01
+    then 0 else greatest(total-coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0),0) end::text "balanceDue",
   case
-    when coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0)>=total and total>0 then 'paid'
+    when coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0)+0.01>=total and total>0 then 'paid'
     when coalesce((select sum(pay.amount) from payments pay where pay.invoice_id=invoices.id),0)>0 then 'partial'
     when status='issued' and due_date<current_date then 'overdue'
     else 'unpaid'
@@ -155,13 +156,13 @@ export class InvoiceRepository {
     }
     const paymentStatus = url.searchParams.get("paymentStatus");
     if (paymentStatus === "paid")
-      conditions.push(`status='issued' and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)>=total`);
+      conditions.push(`status='issued' and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)+0.01>=total`);
     else if (paymentStatus === "partial")
-      conditions.push(`status='issued' and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)>0 and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)<total`);
+      conditions.push(`status='issued' and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)>0 and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)+0.01<total`);
     else if (paymentStatus === "unpaid")
       conditions.push(`status='issued' and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)=0`);
     else if (paymentStatus === "overdue")
-      conditions.push(`status='issued' and due_date<current_date and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)<total`);
+      conditions.push(`status='issued' and due_date<current_date and coalesce((select sum(amount) from payments p where p.invoice_id=invoices.id),0)+0.01<total`);
     const requestedPageSize = Number(url.searchParams.get("pageSize") ?? 25);
     const requestedPage = Number(url.searchParams.get("page") ?? 1);
     const pageSize = Number.isFinite(requestedPageSize)
