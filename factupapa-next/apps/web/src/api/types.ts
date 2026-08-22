@@ -243,6 +243,7 @@ export interface FinanceSummary {
   balance: string;
   stockKg: string;
   potentialRevenue: string;
+  criticalStockProducts: number;
   receivables: string;
   overdueReceivables: string;
   payables: string;
