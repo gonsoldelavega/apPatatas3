@@ -1,11 +1,9 @@
 {
-  "runId": "089678fb-17b5-407d-bdf8-65fc68f5d5c5",
+  "runId": "a143d48f-bbae-425a-a930-d71354dde842",
   "taskId": "final-staging-validation-0247e018",
-  "startedAt": "2026-08-22T22:12:11.608Z",
-  "finishedAt": "2026-08-22T22:16:27.442Z",
-  "status": "completed",
-  "exitCode": 0,
-  "timedOut": false,
-  "message": "Inspección de solo lectura completada en staging. Resultado global: **no conforme** por dos discrepancias.\n\n- `/api/health`: HTTPS 200 y TLS válido, pero versión `aec4b8bf…`; se esperaba `0247e018…`.\n- Datos demo: existen 4 facturas en la serie `TEST_2026`; no puede certificarse “cero datos demo”.\n\nEvidencia conforme:\n\n- Web HTTPS 200; API HTTPS 200.\n- PostgreSQL, Redis, MinIO, Caddy, API y web: `healthy`; `/ready` declara dependencias `ok`.\n- Backup staging de 22/08/2026 22:09 UTC: SHA-256 correcto, manifiesto `verified`, estructura legible por `pg_restore`.\n- FAC-142/2026: emitida 21/08/2026, NIF `B10815447`, total 186,45 EUR, cobrada por transferencia ese día.\n- Líneas exactas:\n  - Agria nueva: 119,5 kg × 1,45, IVA 4%.\n  - Ajo pelado 1kg: 1 × 6,00, IVA 4%.\n- Una única FAC-142; 2 líneas y 1 pago.\n- PDF generado con el renderer desplegado desde lectura DB: cabecera `%PDF-`, EOF válido, 2.984 bytes.\n- Secuencia live `FAC_2026.next_number = 143`.\n- Serie histórica `FAC`: 56 facturas.\n- Segunda lectura idéntica: hash `ce588cb39e9d40ac`; contadores `61,56,143,132,84,160`, sin cambios.\n- Gmail: programación cada 6 horas, sondeo cada 15 minutos, restricción única de deduplicación; 160 registros únicos, 140 duplicados detectados y 20 pendientes de revisión. Última sincronización completada.\n- Despliegue contiene alertas, WhatsApp, impresión, campos/condiciones opcionales, navegación móvil inferior, transiciones y respeto a movimiento reducido.\n\nExcepciones aceptadas, documentadas sin cambios:\n\n- FAC-129/2026: residuo exacto 0,006 EUR; se presenta `paid` y `balanceDue = 0` por tolerancia de 0,01 EUR.\n- Compra `10-07-26`: confirmada, 10/07/2026, 48,40 EUR.\n- Compra `26002395`: confirmada, 24/04/2026, 51,48 EUR.\n\nNo se modificaron datos ni código. El archivo no versionado preexistente `run-control-worker.sh` permanece intacto.",
-  "taskHash": "dfbe55ebd9dce082da68d34bfa1b84ed32692b79df4e0a7be653f9b1154d1ac9"
+  "startedAt": "2026-08-22T22:18:34.408Z",
+  "finishedAt": "2026-08-22T22:18:34.417Z",
+  "status": "idle",
+  "reason": "task_disabled",
+  "taskHash": "ac31ded6912db526e39ff687a878a6f2eac61366743d204522939b8b0011e8b9"
 }
