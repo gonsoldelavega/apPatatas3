@@ -1,0 +1,60 @@
+name: FactuPapa staging control plane
+
+on:
+  push:
+    branches: [automation/factupapa-staging-tasks]
+    paths: ['.factupapa-control/task.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: factupapa-staging-control-plane
+  cancel-in-progress: false
+
+jobs:
+  run-approved-staging-task:
+    # Result commits are written to the same private branch and must never
+    # schedule a second execution of the already completed task.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[control-result]')
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 50
+    env:
+      DOCKER_HOST: unix:///run/user/1001/docker.sock
+    steps:
+      - name: Checkout the exact task revision
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Verify isolated rootless staging runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(id -u)" = "1001"
+          test "${DOCKER_HOST}" = "unix:///run/user/1001/docker.sock"
+          test -S "${DOCKER_HOST#unix://}"
+          docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
+          command -v codex >/dev/null
+
+      - name: Execute one approved staging task
+        shell: bash
+        run: node factupapa-next/scripts/staging-control-runner.mjs
+
+      - name: Return a sanitized result to the private task branch
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'FactuPapa staging control'
+          git config user.email 'factupapa-control@users.noreply.github.com'
+          git add .factupapa-control/task.json .factupapa-control/results
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m '[control-result] staging task result'
+          git push origin HEAD:automation/factupapa-staging-tasks
