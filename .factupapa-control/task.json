@@ -4,7 +4,9 @@
   "environment": "staging",
   "operation": "inspect",
   "authorization": "user-confirmed",
-  "enabled": true,
+  "enabled": false,
   "requested_at": "2026-08-22T20:30:00.000Z",
-  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Espera hasta 55 minutos a que /api/health muestre cb08f63b720ec4ee0e7af250beda719b28ec4fdf. Verifica API y web HTTPS; PostgreSQL, Redis, MinIO y Caddy; FAC-142/2026 pagada 186,45 EUR; FAC_2026 live next_number 143; 56 facturas históricas y cero datos demo. Documenta sin modificar estas excepciones históricas: residuo de cobro FAC-129/2026 de 0,006 EUR, compra 10-07-26 y compra 26002395. Confirma que FAC-129 se muestra pagada con balanceDue 0 en detalle, listado, cuenta y resumen. Verifica Gmail automático cada 6 horas con deduplicación, alertas de vencidos/cobros/stock/importaciones/Gmail, WhatsApp, impresión, condiciones opcionales, interfaz móvil uniforme y transiciones. Ejecuta humo Playwright móvil, prueba PDF y segunda comprobación idempotente sin cambios. No cambies datos ni código. Devuelve evidencia concisa."
+  "instructions": "Trabaja exclusivamente en staging. No accedas ni modifiques producción, main, n8n o FactuPapa antigua. Espera hasta 55 minutos a que /api/health muestre cb08f63b720ec4ee0e7af250beda719b28ec4fdf. Verifica API y web HTTPS; PostgreSQL, Redis, MinIO y Caddy; FAC-142/2026 pagada 186,45 EUR; FAC_2026 live next_number 143; 56 facturas históricas y cero datos demo. Documenta sin modificar estas excepciones históricas: residuo de cobro FAC-129/2026 de 0,006 EUR, compra 10-07-26 y compra 26002395. Confirma que FAC-129 se muestra pagada con balanceDue 0 en detalle, listado, cuenta y resumen. Verifica Gmail automático cada 6 horas con deduplicación, alertas de vencidos/cobros/stock/importaciones/Gmail, WhatsApp, impresión, condiciones opcionales, interfaz móvil uniforme y transiciones. Ejecuta humo Playwright móvil, prueba PDF y segunda comprobación idempotente sin cambios. No cambies datos ni código. Devuelve evidencia concisa.",
+  "lastRunId": "9ad79aa2-abbf-4b55-bb70-ed0a55b3fc22",
+  "lastResult": "failed"
 }
