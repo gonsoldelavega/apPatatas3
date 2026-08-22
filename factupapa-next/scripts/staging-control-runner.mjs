@@ -118,7 +118,7 @@ async function main() {
   const taskId = task?.id ?? (safeString(rawTask?.id) || `invalid-${runId}`);
   await mkdir(resultDirectory, { recursive: true });
   await writeFile(resolve(resultDirectory, `${taskId}.json`), `${JSON.stringify({ runId, taskId, startedAt, finishedAt: new Date().toISOString(), ...result }, null, 2)}\n`, { mode: 0o600 });
-  if (rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
+  if (result.status !== "idle" && rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
     rawTask.enabled = false;
     rawTask.lastRunId = runId;
     rawTask.lastResult = result.status;
