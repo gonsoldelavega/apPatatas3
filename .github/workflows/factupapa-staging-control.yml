@@ -5,6 +5,12 @@ on:
     branches: [automation/factupapa-staging-tasks]
     paths: ['.factupapa-control/task.json']
   workflow_dispatch:
+    inputs:
+      bootstrap_worker:
+        description: 'Instala o actualiza el worker persistente del VPS'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -42,12 +48,19 @@ jobs:
           command -v codex >/dev/null
 
       - name: Execute one approved staging task
+        if: ${{ !inputs.bootstrap_worker }}
         shell: bash
         run: node factupapa-next/scripts/staging-control-runner.mjs
+
+      - name: Install or update the persistent VPS worker
+        if: ${{ inputs.bootstrap_worker }}
+        shell: bash
+        run: bash factupapa-next/scripts/install-staging-control-worker.sh
 
       - name: Return a sanitized result to the private task branch
         if: always()
         shell: bash
+        if: ${{ !inputs.bootstrap_worker }}
         run: |
           set -Eeuo pipefail
           git config user.name 'FactuPapa staging control'
