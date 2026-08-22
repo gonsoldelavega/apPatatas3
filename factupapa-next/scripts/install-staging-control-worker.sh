@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# One-time bootstrap executed by the already trusted rootless staging runner.
-# The timer it creates only reads the isolated task branch, never main.
+# One-time bootstrap executed by the trusted rootless staging account.
+# The timer only reads the isolated task branch, never main.
 control_root="${HOME}/staging/factupapa-control"
 unit_directory="${HOME}/.config/systemd/user"
 repository_url="https://github.com/gonsoldelavega/apPatatas3.git"
 task_branch="automation/factupapa-staging-tasks"
 
-for command in git node codex systemctl gh; do
+for command in git node codex systemctl; do
   command -v "${command}" >/dev/null || { echo "Falta ${command}" >&2; exit 1; }
 done
 test "$(id -u)" = "1001" || { echo "El worker debe instalarse con el usuario rootless de staging" >&2; exit 1; }
@@ -17,9 +17,8 @@ systemctl --user show-environment >/dev/null
 
 mkdir -p "${control_root}" "${unit_directory}"
 if [ ! -d "${control_root}/.git" ]; then
-  git -c credential.helper='!gh auth git-credential' clone --branch "${task_branch}" --single-branch "${repository_url}" "${control_root}"
+  git clone --branch "${task_branch}" --single-branch "${repository_url}" "${control_root}"
 fi
-git -C "${control_root}" config credential.helper '!gh auth git-credential'
 
 cat >"${control_root}/run-control-worker.sh" <<'SCRIPT'
 #!/usr/bin/env bash
