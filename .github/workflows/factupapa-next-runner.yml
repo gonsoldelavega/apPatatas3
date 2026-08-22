@@ -122,7 +122,9 @@ jobs:
           set -e
           if [ "${audit_status}" -ne 0 ]; then
             failure_phase="$(sed -n 's/.*phase=\([^ ]*\).*/\1/p' "${audit_log}" | tail -n 1)"
+            failure_reason="$(grep -E 'Error:|HTTP [0-9]{3}|::error' "${audit_log}" | tail -n 1 | sed 's/[^[:alnum:] _.,:+-]/ /g' | tr -s ' ' | cut -c1-70)"
             printf 'failure_phase=%s\n' "${failure_phase:-desconocida}" >> "${GITHUB_OUTPUT}"
+            printf 'failure_reason=%s\n' "${failure_reason:-sin detalle}" >> "${GITHUB_OUTPUT}"
             exit "${audit_status}"
           fi
 
@@ -172,8 +174,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FAILURE_PHASE: ${{ steps.complete_audit.outputs.failure_phase }}
+          FAILURE_REASON: ${{ steps.complete_audit.outputs.failure_reason }}
         run: |
-          failure_context="FactuPapa staging · ${FAILURE_PHASE:-preflight}"
+          failure_context="FactuPapa staging · ${FAILURE_PHASE:-preflight} · ${FAILURE_REASON:-sin detalle}"
           curl --fail --silent --show-error \
             --request POST \
             --header "Authorization: Bearer ${GH_TOKEN}" \
