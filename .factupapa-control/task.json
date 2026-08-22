@@ -4,7 +4,9 @@
   "environment": "staging",
   "operation": "inspect",
   "authorization": "user-confirmed",
-  "enabled": true,
+  "enabled": false,
   "requested_at": "2026-08-22T19:35:36.809Z",
-  "instructions": "Trabaja exclusivamente en staging y no accedas a producción, main, n8n ni FactuPapa antigua. No modifiques datos ni código. Verifica que FAC-142/2026 con ID be307e25-c343-43db-9c70-22d6e968a7b4 tiene cliente NIF B10815447, emisión y entrega 2026-08-21, líneas Agria nueva 119,5 kg x 1,45 EUR IVA 4% y Ajo pelado 1kg cantidad 1 x 6,00 EUR IVA 4%, base 179,28 EUR, IVA 7,17 EUR y total 186,45 EUR. Verifica que el cobro 0c2fa1a7-4840-4048-a4af-214e9e803502 es de 186,45 EUR por transferencia el 2026-08-21 y que la factura aparece pagada. Verifica document_sequences FAC_2026 en siguiente número 143 y numeración real activa. Comprueba en modo solo lectura API, web, PostgreSQL, Redis, MinIO y Caddy. Informa de cualquier diferencia sin corregirla."
+  "instructions": "Trabaja exclusivamente en staging y no accedas a producción, main, n8n ni FactuPapa antigua. No modifiques datos ni código. Verifica que FAC-142/2026 con ID be307e25-c343-43db-9c70-22d6e968a7b4 tiene cliente NIF B10815447, emisión y entrega 2026-08-21, líneas Agria nueva 119,5 kg x 1,45 EUR IVA 4% y Ajo pelado 1kg cantidad 1 x 6,00 EUR IVA 4%, base 179,28 EUR, IVA 7,17 EUR y total 186,45 EUR. Verifica que el cobro 0c2fa1a7-4840-4048-a4af-214e9e803502 es de 186,45 EUR por transferencia el 2026-08-21 y que la factura aparece pagada. Verifica document_sequences FAC_2026 en siguiente número 143 y numeración real activa. Comprueba en modo solo lectura API, web, PostgreSQL, Redis, MinIO y Caddy. Informa de cualquier diferencia sin corregirla.",
+  "lastRunId": "94cf8ed9-baee-4893-9d4d-65940c1940c9",
+  "lastResult": "completed"
 }
