@@ -1281,10 +1281,13 @@ export class FinanceService {
              payables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total
                from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed'),
              ${stockCtes},
-             stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential from stock_rows)
+             stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,
+               coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential,
+               count(*) filter(where current_quantity<=0)::int critical from stock_rows)
              select period_sales.total::text sales,period_purchases.total::text purchases,period_recurring.total::text recurring,
                (period_sales.total-period_purchases.total-period_recurring.total)::text balance,
                stock_totals.kg::text "stockKg",stock_totals.potential::text "potentialRevenue",
+               stock_totals.critical "criticalStockProducts",
                receivables.total::text receivables,receivables.overdue::text "overdueReceivables",payables.total::text payables
              from period_sales,period_purchases,period_recurring,stock_totals,receivables,payables`,
             [r.from, r.to],
