@@ -1,0 +1,11 @@
+{
+  "runId": "978bf40a-7c34-483e-967b-3d00ca4a31ad",
+  "taskId": "validate-document-classification-guard",
+  "startedAt": "2026-08-24T21:55:07.653Z",
+  "finishedAt": "2026-08-24T21:55:48.734Z",
+  "status": "completed",
+  "exitCode": 0,
+  "timedOut": false,
+  "message": "Operación detenida por divergencia de rama, según lo solicitado.\n\n- Rama verificada: `codex/factupapa-claude-fixes`\n- SHA local: `f8b8ded3f9e7fb079f51450e7259771e9237f910`\n- SHA remoto: `eb86ff44e6509a8b489a2b7b2ad31e9662e4ea05`\n- Base común: `466a34d6929c9910327fcfaea1d3b26456bf1896`\n- Divergencia: local tiene 1 commit exclusivo; remoto tiene 28.\n- El local no es ancestro del remoto, por lo que no admite fast-forward.\n\nEjecutado:\n\n```text\ngit fetch origin refs/heads/codex/factupapa-claude-fixes:refs/remotes/origin/codex/factupapa-claude-fixes\ngit merge-base --is-ancestor HEAD origin/codex/factupapa-claude-fixes\n# resultado: exit 1\ngit rev-list --left-right --count HEAD...origin/codex/factupapa-claude-fixes\n# resultado: 1  28\n```\n\nNo se hizo merge, rebase, reset, instalación, pruebas, migraciones, modificación de datos ni despliegue. Por ello no puedo confirmar todavía mediante pruebas los bloqueos de ventas propias, transferencias, ingresos, extractos, abonos y `unknown`. Tampoco existe un SHA probado en esta ejecución.",
+  "taskHash": "837d35c2db1748b6d9635381a0e26c8c565f2bfa8aa94269b87324dcd3d724b6"
+}
