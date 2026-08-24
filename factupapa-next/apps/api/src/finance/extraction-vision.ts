@@ -6,6 +6,39 @@ import type {
 } from "./extraction.js";
 
 export type FieldConfidence = "high" | "medium" | "low";
+export type DocumentType =
+  | "supplier_invoice"
+  | "issued_sales_invoice"
+  | "supplier_credit_note"
+  | "bank_transfer_receipt"
+  | "bank_deposit_receipt"
+  | "payment_confirmation"
+  | "delivery_note"
+  | "account_statement"
+  | "non_fiscal_document"
+  | "unknown";
+
+export interface DocumentClassificationEvidence {
+  page?: number;
+  field?: string;
+  quote: string;
+}
+
+declare module "./extraction.js" {
+  interface ExtractedPurchaseFields {
+    documentType?: DocumentType;
+    classificationConfidence?: number;
+    classificationEvidence?: DocumentClassificationEvidence[];
+    classificationReasons?: string[];
+    purchaseEligible?: boolean;
+    blockingReasons?: string[];
+    issuerName?: string;
+    issuerTaxId?: string;
+    recipientName?: string;
+    recipientTaxId?: string;
+    currency?: string;
+  }
+}
 
 export type VisionDocument =
   | { kind: "text"; text: string }
@@ -45,6 +78,19 @@ export interface VisionOptions {
 
 export const DEFAULT_VISION_MODEL = "claude-haiku-4-5";
 
+const DOCUMENT_TYPES = new Set<DocumentType>([
+  "supplier_invoice",
+  "issued_sales_invoice",
+  "supplier_credit_note",
+  "bank_transfer_receipt",
+  "bank_deposit_receipt",
+  "payment_confirmation",
+  "delivery_note",
+  "account_statement",
+  "non_fiscal_document",
+  "unknown",
+]);
+
 const normalizeTaxId = (value: string) =>
   value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
@@ -79,28 +125,47 @@ export function isValidSpanishTaxId(raw: string): boolean {
   return false;
 }
 
+const ownTaxIdSet = (ownTaxIds: string[]) =>
+  new Set(ownTaxIds.map(normalizeTaxId).filter(Boolean));
+
+const isOwnTaxId = (value: string | undefined, ownTaxIds: string[]) =>
+  Boolean(value && ownTaxIdSet(ownTaxIds).has(normalizeTaxId(value)));
+
 export function stripOwnTaxId(
   fields: ExtractedPurchaseFields,
   ownTaxIds: string[],
 ): ExtractedPurchaseFields {
-  if (
-    !fields.supplierTaxId ||
-    !ownTaxIds.some(
-      (own) => normalizeTaxId(own) === normalizeTaxId(fields.supplierTaxId!),
-    )
-  )
+  if (!fields.supplierTaxId || !isOwnTaxId(fields.supplierTaxId, ownTaxIds))
     return fields;
+  const ownIssuerTaxId = normalizeTaxId(fields.supplierTaxId);
   const { supplierTaxId: _dropped, ...rest } = fields;
   const fieldConfidence = { ...rest.fieldConfidence };
   delete fieldConfidence.supplierTaxId;
   return {
     ...rest,
+    issuerTaxId: rest.issuerTaxId ?? ownIssuerTaxId,
+    documentType: "issued_sales_invoice",
+    classificationConfidence: Math.max(rest.classificationConfidence ?? 0, 0.99),
+    purchaseEligible: false,
+    classificationReasons: [
+      ...new Set([
+        ...(rest.classificationReasons ?? []),
+        "own_tax_id_is_document_issuer",
+      ]),
+    ],
+    blockingReasons: [
+      ...new Set([
+        ...(rest.blockingReasons ?? []),
+        "own_company_is_issuer",
+      ]),
+    ],
     ...(rest.fieldConfidence ? { fieldConfidence } : {}),
     warnings: [
       ...new Set([
         ...(rest.warnings ?? []),
         "supplier_tax_id_own",
         "supplier_tax_id_missing",
+        "document_not_purchase_eligible",
       ]),
     ],
   };
@@ -136,11 +201,53 @@ const cleanText = (value: unknown, maximum: number): string | undefined =>
     ? value.replace(/\s+/g, " ").trim().slice(0, maximum)
     : undefined;
 
+const cleanTaxId = (value: unknown): string | undefined => {
+  const text = cleanText(value, 24);
+  return text ? normalizeTaxId(text) : undefined;
+};
+
+const cleanConfidence = (value: unknown): number | undefined => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  return Math.max(0, Math.min(1, Math.round(numeric * 1000) / 1000));
+};
+
 const normalizeInvoiceNumber = (value: string) =>
   value
     .toUpperCase()
     .replace(/Ø/g, "0")
     .replace(/(?<=\d)O|O(?=\d)/g, "0");
+
+function normalizedDocumentType(value: unknown): DocumentType {
+  return typeof value === "string" && DOCUMENT_TYPES.has(value as DocumentType)
+    ? (value as DocumentType)
+    : "unknown";
+}
+
+function classificationEvidence(value: unknown): DocumentClassificationEvidence[] {
+  if (!Array.isArray(value)) return [];
+  const result: DocumentClassificationEvidence[] = [];
+  for (const item of value.slice(0, 30)) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const quote = cleanText(row.quote, 500);
+    if (!quote) continue;
+    const pageValue = Number(row.page),
+      page = Number.isInteger(pageValue) && pageValue > 0 && pageValue <= 200
+        ? pageValue
+        : undefined;
+    const field = cleanText(row.field, 80);
+    result.push({ ...(page ? { page } : {}), ...(field ? { field } : {}), quote });
+  }
+  return result;
+}
+
+function cleanReasons(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .flatMap((item) => typeof item === "string" && item.trim() ? [item.replace(/\s+/g, " ").trim().slice(0, 240)] : [])
+    .slice(0, 30);
+}
 
 export function normalizeVisionFields(
   raw: unknown,
@@ -156,6 +263,18 @@ export function normalizeVisionFields(
         confidence[key] = value;
   const out: ExtractedPurchaseFields = {};
   const warnings = new Set<string>();
+
+  out.documentType = normalizedDocumentType(data.documentType);
+  out.classificationConfidence = cleanConfidence(data.classificationConfidence) ?? 0;
+  out.classificationEvidence = classificationEvidence(data.evidence ?? data.classificationEvidence);
+  out.classificationReasons = cleanReasons(data.reasons ?? data.classificationReasons);
+  out.issuerName = cleanText(data.issuerName, 200);
+  out.issuerTaxId = cleanTaxId(data.issuerTaxId);
+  out.recipientName = cleanText(data.recipientName, 200);
+  out.recipientTaxId = cleanTaxId(data.recipientTaxId);
+  const currency = cleanText(data.currency, 3)?.toUpperCase();
+  if (currency && /^[A-Z]{3}$/.test(currency)) out.currency = currency;
+
   const invoiceNumber = cleanText(data.supplierInvoiceNumber, 50);
   if (invoiceNumber && /\d/.test(invoiceNumber))
     out.supplierInvoiceNumber = normalizeInvoiceNumber(invoiceNumber);
@@ -169,16 +288,17 @@ export function normalizeVisionFields(
   if (taxTotal !== undefined) out.taxTotal = taxTotal;
   const total = decimal(data.total);
   if (total) out.total = total;
-  const supplierTaxId = cleanText(data.supplierTaxId, 20);
+  const supplierTaxId = cleanTaxId(data.supplierTaxId) ?? out.issuerTaxId;
   if (supplierTaxId) {
-    out.supplierTaxId = normalizeTaxId(supplierTaxId);
+    out.supplierTaxId = supplierTaxId;
     if (!isValidSpanishTaxId(out.supplierTaxId))
       confidence.supplierTaxId = "low";
   }
-  const supplierName = cleanText(data.supplierName, 200);
+  const supplierName = cleanText(data.supplierName, 200) ?? out.issuerName;
   if (supplierName) out.supplierName = supplierName;
   const concept = cleanText(data.concept, 500);
   if (concept) out.concept = concept;
+
   const inferredTaxRate =
     out.subtotal && out.taxTotal && Number(out.subtotal) > 0
       ? String(
@@ -208,8 +328,7 @@ export function normalizeVisionFields(
         lineTotal = decimal(line.lineTotal),
         taxRate = decimal(line.taxRate) ?? inferredTaxRate;
       if (lineTotal !== undefined) {
-        const expected =
-          Number(quantity) * Number(unitCost) - Number(discount ?? 0);
+        const expected = Number(quantity) * Number(unitCost) - Number(discount ?? 0);
         if (
           Math.abs(expected - Number(lineTotal)) >
           Math.max(0.03, Number(lineTotal) * 0.015)
@@ -239,16 +358,43 @@ export function normalizeVisionFields(
       }
     }
   }
-  if (
+
+  const totalsCoherent = !(
     out.subtotal &&
     out.taxTotal &&
     out.total &&
-    Math.abs(Number(out.subtotal) + Number(out.taxTotal) - Number(out.total)) >
-      0.02
-  )
-    warnings.add("totals_mismatch");
+    Math.abs(Number(out.subtotal) + Number(out.taxTotal) - Number(out.total)) > 0.02
+  );
+  if (!totalsCoherent) warnings.add("totals_mismatch");
   if (!out.total) warnings.add("total_missing");
   if (!out.issueDate) warnings.add("issue_date_missing");
+
+  const ownIssuer = isOwnTaxId(out.issuerTaxId ?? out.supplierTaxId, ownTaxIds);
+  const ownRecipient = isOwnTaxId(out.recipientTaxId, ownTaxIds);
+  const issuerExternal = Boolean((out.issuerTaxId ?? out.supplierTaxId) && !ownIssuer);
+
+  if (ownIssuer) {
+    out.documentType = "issued_sales_invoice";
+    out.classificationConfidence = Math.max(out.classificationConfidence ?? 0, 0.99);
+    out.classificationReasons = [
+      ...new Set([...(out.classificationReasons ?? []), "own_tax_id_is_document_issuer"]),
+    ];
+  }
+
+  const blockingReasons: string[] = [];
+  if (out.documentType !== "supplier_invoice") blockingReasons.push("document_type_not_supplier_invoice");
+  if (!issuerExternal) blockingReasons.push("external_issuer_not_proven");
+  if (!ownRecipient) blockingReasons.push("own_company_recipient_not_proven");
+  if (!out.supplierInvoiceNumber) blockingReasons.push("invoice_number_missing");
+  if (!out.issueDate) blockingReasons.push("issue_date_missing");
+  if (!out.total) blockingReasons.push("total_missing");
+  if (!totalsCoherent) blockingReasons.push("totals_mismatch");
+  if ((out.classificationConfidence ?? 0) < 0.8) blockingReasons.push("classification_confidence_low");
+
+  out.purchaseEligible = blockingReasons.length === 0;
+  out.blockingReasons = [...new Set(blockingReasons)];
+  if (!out.purchaseEligible) warnings.add("document_not_purchase_eligible");
+
   const confidenceScore = { high: 95, medium: 70, low: 40 } as const;
   const scores = Object.values(confidence).map((value) => confidenceScore[value]);
   if (scores.length)
@@ -257,6 +403,7 @@ export function normalizeVisionFields(
     );
   out.fieldConfidence = confidence;
   out.warnings = [...warnings];
+
   const filtered = stripOwnTaxId(out, ownTaxIds);
   if (!filtered.supplierTaxId)
     filtered.warnings = [
@@ -266,9 +413,40 @@ export function normalizeVisionFields(
 }
 
 const systemPrompt = (ownTaxIds: string[]) =>
-  `Eres un extractor de datos de facturas de proveedores españoles para un negocio de patatas y hortalizas.
-Responde EXCLUSIVAMENTE con un objeto JSON válido, sin markdown ni texto adicional, con esta forma exacta (usa null cuando el dato no aparezca; nunca lo inventes):
+  `Eres un clasificador y extractor documental contable estricto. NO asumas que el documento es una factura de proveedor.
+Los NIF/CIF propios del negocio son: ${ownTaxIds.join(", ") || "desconocidos"}.
+
+Clasifica primero el documento en EXACTAMENTE uno de estos tipos:
+- supplier_invoice: factura emitida por un proveedor externo y cuyo receptor/comprador es nuestro negocio.
+- issued_sales_invoice: factura emitida por nuestro negocio a un cliente.
+- supplier_credit_note: factura rectificativa/abono emitido por proveedor.
+- bank_transfer_receipt: justificante de transferencia bancaria.
+- bank_deposit_receipt: justificante de ingreso/abono bancario.
+- payment_confirmation: confirmación o recibo de pago, no factura fiscal.
+- delivery_note: albarán.
+- account_statement: extracto/listado de movimientos bancarios.
+- non_fiscal_document: documento sin naturaleza fiscal de compra.
+- unknown: no hay evidencia suficiente o hay contradicciones.
+
+Reglas de seguridad:
+- Si uno de los NIF propios figura como EMISOR, documentType DEBE ser issued_sales_invoice y nunca supplier_invoice.
+- Un banco, transferencia, ingreso, abono, comprobante de pago o extracto NUNCA es supplier_invoice aunque contenga importes, IVA o la palabra factura en referencias.
+- supplier_invoice solo es válido si puedes identificar con evidencia al EMISOR externo y al RECEPTOR propio. Si no puedes distinguir ambos, usa unknown.
+- supplier_credit_note nunca debe tratarse como factura de compra normal.
+- No inventes NIF, número, fecha, total ni partes. Usa null si no aparece.
+- La mera presencia de un importe, IVA, empresa o la palabra factura no demuestra supplier_invoice.
+
+Responde EXCLUSIVAMENTE con JSON válido, sin markdown, con esta forma:
 {
+  "documentType": "supplier_invoice"|"issued_sales_invoice"|"supplier_credit_note"|"bank_transfer_receipt"|"bank_deposit_receipt"|"payment_confirmation"|"delivery_note"|"account_statement"|"non_fiscal_document"|"unknown",
+  "classificationConfidence": number,
+  "reasons": [string],
+  "evidence": [{"page": number|null, "field": string|null, "quote": string}],
+  "issuerName": string|null,
+  "issuerTaxId": string|null,
+  "recipientName": string|null,
+  "recipientTaxId": string|null,
+  "currency": string|null,
   "supplierInvoiceNumber": string|null,
   "issueDate": "YYYY-MM-DD"|null,
   "dueDate": "YYYY-MM-DD"|null,
@@ -281,14 +459,16 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido, sin markdown ni texto adicio
   "lines": [{"description": string, "quantity": string, "unit": "kg"|"g"|"unit", "unitCost": string, "discount": string|null, "lineTotal": string|null, "taxRate": string|null}],
   "fieldConfidence": {"<campo>": "high"|"medium"|"low"}
 }
-Reglas:
-- "subtotal" es la base imponible, "taxTotal" la cuota de IVA y "total" el total de la factura.
-- El NIF del COMPRADOR (cliente) es: ${ownTaxIds.join(", ") || "desconocido"}. NUNCA lo devuelvas como "supplierTaxId"; el "supplierTaxId" es siempre el NIF/CIF del EMISOR de la factura.
-- Normaliza los números al formato con punto decimal y sin separador de miles ("1.234,56" -> "1234.56").
-- Fechas siempre en ISO YYYY-MM-DD.
-- En los códigos de factura corrige confusiones del escaneo: letra O por cero cuando esté entre dígitos (p. ej. "FVO06" -> "FV006").
-- Si la tabla de líneas tiene columna de descuento, devuélvelo en "discount" (importe) y en "lineTotal" el importe final de la línea.
-- "fieldConfidence" debe tener una entrada por cada campo devuelto: "high" si es seguro, "medium" si conviene revisarlo, "low" si es dudoso.`;
+
+Detalles:
+- classificationConfidence va de 0 a 1 y mide la certeza del TIPO documental, no la calidad OCR.
+- evidence debe citar fragmentos breves visibles que justifiquen emisor, receptor y tipo documental; incluye página si se conoce.
+- supplierTaxId/supplierName solo representan al emisor proveedor y deben coincidir con issuerTaxId/issuerName cuando documentType=supplier_invoice.
+- subtotal es base imponible, taxTotal cuota de IVA y total total del documento.
+- Normaliza números con punto decimal y sin separador de miles.
+- Fechas siempre ISO YYYY-MM-DD.
+- En códigos de factura corrige O por 0 solo cuando sea una confusión inequívoca entre dígitos.
+- fieldConfidence debe reflejar la confianza por campo extraído.`;
 
 function parseJsonResponse(text: string): unknown {
   const start = text.indexOf("{"),
@@ -347,7 +527,7 @@ export async function extractPurchaseFieldsWithVision(
       ? [
           {
             type: "text",
-            text: `Extrae los datos de esta factura:\n\n${document.text.slice(0, 50_000)}`,
+            text: `Clasifica y extrae este documento sin asumir que sea una factura de proveedor:\n\n${document.text.slice(0, 50_000)}`,
           },
         ]
       : [
@@ -359,7 +539,7 @@ export async function extractPurchaseFieldsWithVision(
               data: image.toString("base64"),
             },
           })),
-          { type: "text", text: "Extrae los datos de la factura de las imágenes." },
+          { type: "text", text: "Clasifica y extrae el documento de las imágenes sin asumir que sea una factura de proveedor." },
         ];
   let lastError: unknown = new Error("vision_unavailable");
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -367,7 +547,7 @@ export async function extractPurchaseFieldsWithVision(
     try {
       const response = await client.messages.create({
         model,
-        max_tokens: 2048,
+        max_tokens: 2600,
         system: systemPrompt(options.ownTaxIds),
         messages: [{ role: "user", content }],
       });
