@@ -268,10 +268,14 @@ export function normalizeVisionFields(
   out.classificationConfidence = cleanConfidence(data.classificationConfidence) ?? 0;
   out.classificationEvidence = classificationEvidence(data.evidence ?? data.classificationEvidence);
   out.classificationReasons = cleanReasons(data.reasons ?? data.classificationReasons);
-  out.issuerName = cleanText(data.issuerName, 200);
-  out.issuerTaxId = cleanTaxId(data.issuerTaxId);
-  out.recipientName = cleanText(data.recipientName, 200);
-  out.recipientTaxId = cleanTaxId(data.recipientTaxId);
+  const issuerName = cleanText(data.issuerName, 200);
+  if (issuerName) out.issuerName = issuerName;
+  const issuerTaxId = cleanTaxId(data.issuerTaxId);
+  if (issuerTaxId) out.issuerTaxId = issuerTaxId;
+  const recipientName = cleanText(data.recipientName, 200);
+  if (recipientName) out.recipientName = recipientName;
+  const recipientTaxId = cleanTaxId(data.recipientTaxId);
+  if (recipientTaxId) out.recipientTaxId = recipientTaxId;
   const currency = cleanText(data.currency, 3)?.toUpperCase();
   if (currency && /^[A-Z]{3}$/.test(currency)) out.currency = currency;
 
