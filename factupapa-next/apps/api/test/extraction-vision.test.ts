@@ -43,6 +43,22 @@ const gaycaResponse = {
   },
 };
 
+const eligibleSupplierInvoice = {
+  ...gaycaResponse,
+  documentType: "supplier_invoice",
+  classificationConfidence: 0.97,
+  reasons: ["emisor externo y receptor propio identificados"],
+  evidence: [
+    { page: 1, field: "issuer", quote: "FRUTAS Y PATATAS GAYCA, S.A. CIF A04037677" },
+    { page: 1, field: "recipient", quote: "Cliente NIF 00000000T" },
+  ],
+  issuerName: "FRUTAS Y PATATAS GAYCA, S.A.",
+  issuerTaxId: "A04037677",
+  recipientName: "GONSOL DE LA VEGA",
+  recipientTaxId: "00000000T",
+  currency: "EUR",
+};
+
 function fakeClient(payload: unknown, failures = 0): VisionClient & { calls: number } {
   const state = {
     calls: 0,
@@ -194,6 +210,9 @@ test("nunca acepta el NIF del propio cliente como proveedor", () => {
     OWN_TAX_IDS,
   );
   assert.equal(result.supplierTaxId, undefined);
+  assert.equal(result.documentType, "issued_sales_invoice");
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.blockingReasons?.includes("own_company_is_issuer"));
   assert.ok(result.warnings?.includes("supplier_tax_id_own"));
   assert.ok(result.warnings?.includes("supplier_tax_id_missing"));
 });
@@ -256,4 +275,96 @@ test("valida NIF, NIE y CIF españoles con letra de control", () => {
 test("stripOwnTaxId respeta los NIF de proveedores legítimos", () => {
   const fields = { supplierTaxId: "A04037677", warnings: [] };
   assert.deepEqual(stripOwnTaxId(fields, OWN_TAX_IDS), fields);
+});
+
+test("solo una factura de proveedor inequívoca y dirigida al negocio es elegible", () => {
+  const result = normalizeVisionFields(eligibleSupplierInvoice, OWN_TAX_IDS);
+  assert.equal(result.documentType, "supplier_invoice");
+  assert.equal(result.classificationConfidence, 0.97);
+  assert.equal(result.issuerTaxId, "A04037677");
+  assert.equal(result.recipientTaxId, "00000000T");
+  assert.equal(result.purchaseEligible, true);
+  assert.deepEqual(result.blockingReasons, []);
+  assert.equal(result.classificationEvidence?.length, 2);
+});
+
+test("una factura emitida por la empresa nunca puede ser compra", () => {
+  const result = normalizeVisionFields(
+    {
+      ...eligibleSupplierInvoice,
+      documentType: "supplier_invoice",
+      issuerName: "GONSOL DE LA VEGA",
+      issuerTaxId: "00000000T",
+      supplierTaxId: "00000000T",
+      recipientName: "CLIENTE EXTERNO",
+      recipientTaxId: "B04854154",
+    },
+    OWN_TAX_IDS,
+  );
+  assert.equal(result.documentType, "issued_sales_invoice");
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.classificationReasons?.includes("own_tax_id_is_document_issuer"));
+  assert.ok(result.blockingReasons?.includes("own_company_is_issuer"));
+});
+
+test("documentos bancarios y confirmaciones de pago nunca son elegibles como compra", () => {
+  for (const documentType of [
+    "bank_transfer_receipt",
+    "bank_deposit_receipt",
+    "payment_confirmation",
+    "account_statement",
+  ] as const) {
+    const result = normalizeVisionFields(
+      { ...eligibleSupplierInvoice, documentType, classificationConfidence: 0.99 },
+      OWN_TAX_IDS,
+    );
+    assert.equal(result.documentType, documentType);
+    assert.equal(result.purchaseEligible, false, documentType);
+    assert.ok(result.blockingReasons?.includes("document_type_not_supplier_invoice"), documentType);
+  }
+});
+
+test("una nota de abono de proveedor no se convierte en compra normal", () => {
+  const result = normalizeVisionFields(
+    { ...eligibleSupplierInvoice, documentType: "supplier_credit_note" },
+    OWN_TAX_IDS,
+  );
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.blockingReasons?.includes("document_type_not_supplier_invoice"));
+});
+
+test("una factura sin receptor propio demostrado queda bloqueada", () => {
+  const result = normalizeVisionFields(
+    { ...eligibleSupplierInvoice, recipientTaxId: null },
+    OWN_TAX_IDS,
+  );
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.blockingReasons?.includes("own_company_recipient_not_proven"));
+});
+
+test("una factura con totales incoherentes queda bloqueada aunque el tipo sea correcto", () => {
+  const result = normalizeVisionFields(
+    { ...eligibleSupplierInvoice, total: "999,99" },
+    OWN_TAX_IDS,
+  );
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.blockingReasons?.includes("totals_mismatch"));
+});
+
+test("una clasificación de baja confianza nunca habilita compra", () => {
+  const result = normalizeVisionFields(
+    { ...eligibleSupplierInvoice, classificationConfidence: 0.79 },
+    OWN_TAX_IDS,
+  );
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.blockingReasons?.includes("classification_confidence_low"));
+});
+
+test("unknown permanece bloqueado aunque contenga importes y campos fiscales", () => {
+  const result = normalizeVisionFields(
+    { ...eligibleSupplierInvoice, documentType: "unknown", classificationConfidence: 0.4 },
+    OWN_TAX_IDS,
+  );
+  assert.equal(result.purchaseEligible, false);
+  assert.ok(result.blockingReasons?.includes("document_type_not_supplier_invoice"));
 });
