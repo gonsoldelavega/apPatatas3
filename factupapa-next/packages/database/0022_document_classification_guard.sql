@@ -28,16 +28,21 @@ begin
   end if;
 
   document_type := coalesce(document_row.extracted_data->>'documentType', 'unknown');
-  eligible := coalesce((document_row.extracted_data->>'purchaseEligible')::boolean, false);
+  eligible := case
+    when coalesce(document_row.extracted_data->>'purchaseEligible', '') in ('true','false')
+      then (document_row.extracted_data->>'purchaseEligible')::boolean
+    else false
+  end;
   classification_confidence := case
-    when coalesce(document_row.extracted_data->>'classificationConfidence', '') ~ '^([01](\.[0-9]+)?)$'
+    when coalesce(document_row.extracted_data->>'classificationConfidence', '') ~ '^(0(\.[0-9]+)?|1(\.0+)?)$'
       then (document_row.extracted_data->>'classificationConfidence')::numeric
     else 0
   end;
 
   if document_type <> 'supplier_invoice'
      or eligible is not true
-     or classification_confidence < 0.80 then
+     or classification_confidence < 0.80
+     or classification_confidence > 1 then
     raise exception 'Source document is not an eligible supplier invoice'
       using errcode = '23514',
             detail = format(
@@ -58,5 +63,5 @@ grant execute on function public.enforce_purchase_document_classification() to f
 
 drop trigger if exists purchase_invoices_document_classification_guard on public.purchase_invoices;
 create trigger purchase_invoices_document_classification_guard
-before insert or update of document_id on public.purchase_invoices
+before insert or update of document_id, status on public.purchase_invoices
 for each row execute function public.enforce_purchase_document_classification();
