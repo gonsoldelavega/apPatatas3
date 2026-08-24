@@ -31,6 +31,15 @@ export interface GmailConnection {
   canRead: boolean;
   lastInboxSyncAt: string | null;
   lastInboxSyncStatus: string | null;
+  nextInboxSyncAt?: string | null;
+  inboxCursorAt?: string | null;
+  lastInboxMetrics?: {
+    messages: number;
+    imported: number;
+    duplicates: number;
+    review: number;
+    errors: number;
+  } | null;
 }
 
 interface GmailPart {
@@ -50,7 +59,10 @@ export interface GmailInboxSyncResult {
   messages: number;
   imported: number;
   duplicates: number;
+  review: number;
   failed: number;
+  ignoredSelf: number;
+  truncated: boolean;
 }
 
 interface GmailConfig {
@@ -85,6 +97,10 @@ function safeFilename(value: string): string {
 }
 
 const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const GMAIL_OVERLAP_MS = 2 * 60 * 60 * 1000;
+const GMAIL_INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+const GMAIL_MAX_MESSAGES_PER_RUN = 500;
+const GMAIL_MAX_ATTACHMENTS_PER_RUN = 100;
 const SUPPORTED_ATTACHMENTS = new Map([
   ["application/pdf", "application/pdf"],
   ["image/jpeg", "image/jpeg"],
@@ -328,7 +344,7 @@ export class GmailIntegrationService {
   }
 
   async exchange(code: string, nonce: string, stateCookie: string): Promise<string> {
-    const state = this.verifyState(stateCookie, nonce);
+    const state = this.verifyState(cookieOrEmpty(stateCookie), nonce);
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -381,10 +397,22 @@ export class GmailIntegrationService {
         scopes: string[];
         lastInboxSyncAt: string | null;
         lastInboxSyncStatus: string | null;
+        inboxCursorAt: string | null;
+        lastInboxMessages: number;
+        lastInboxImported: number;
+        lastInboxDuplicates: number;
+        lastInboxReview: number;
+        lastInboxErrors: number;
       }>(
         `select google_email "googleEmail",connected_at::text "connectedAt",scopes,
            last_inbox_sync_at::text "lastInboxSyncAt",
-           last_inbox_sync_status "lastInboxSyncStatus"
+           last_inbox_sync_status "lastInboxSyncStatus",
+           inbox_cursor_at::text "inboxCursorAt",
+           last_inbox_messages "lastInboxMessages",
+           last_inbox_imported "lastInboxImported",
+           last_inbox_duplicates "lastInboxDuplicates",
+           last_inbox_review "lastInboxReview",
+           last_inbox_errors "lastInboxErrors"
          from gmail_integrations where company_id=$1`,
         [identity.companyId],
       );
@@ -398,6 +426,17 @@ export class GmailIntegrationService {
             canRead: row.scopes.includes(GMAIL_READ_SCOPE),
             lastInboxSyncAt: row.lastInboxSyncAt,
             lastInboxSyncStatus: row.lastInboxSyncStatus,
+            nextInboxSyncAt: row.lastInboxSyncAt
+              ? new Date(new Date(row.lastInboxSyncAt).getTime() + 6 * 60 * 60 * 1000).toISOString()
+              : null,
+            inboxCursorAt: row.inboxCursorAt,
+            lastInboxMetrics: {
+              messages: row.lastInboxMessages,
+              imported: row.lastInboxImported,
+              duplicates: row.lastInboxDuplicates,
+              review: row.lastInboxReview,
+              errors: row.lastInboxErrors,
+            },
           }
         : {
             available: true,
@@ -407,6 +446,9 @@ export class GmailIntegrationService {
             canRead: false,
             lastInboxSyncAt: null,
             lastInboxSyncStatus: null,
+            nextInboxSyncAt: null,
+            inboxCursorAt: null,
+            lastInboxMetrics: null,
           };
     });
   }
@@ -430,8 +472,14 @@ export class GmailIntegrationService {
   async syncInbox(identity: SessionIdentity, finance: FinanceService): Promise<GmailInboxSyncResult> {
     const connection = await withTenantTransaction(this.pool, identity, async (client) =>
       (
-        await client.query<{ encryptedRefreshToken: string; scopes: string[] }>(
-          `select encrypted_refresh_token "encryptedRefreshToken",scopes
+        await client.query<{
+          encryptedRefreshToken: string;
+          scopes: string[];
+          googleEmail: string;
+          inboxCursorAt: string | null;
+        }>(
+          `select encrypted_refresh_token "encryptedRefreshToken",scopes,
+             google_email "googleEmail",inbox_cursor_at::text "inboxCursorAt"
            from gmail_integrations where company_id=$1`,
           [identity.companyId],
         )
@@ -441,23 +489,68 @@ export class GmailIntegrationService {
     if (!connection.scopes.includes(GMAIL_READ_SCOPE))
       throw new HttpError("gmail_reauthorization_required", 409);
     const token = await this.accessToken(this.decrypt(connection.encryptedRefreshToken));
+    const nowMs = Date.now();
+    const cursorMs = connection.inboxCursorAt
+      ? Date.parse(connection.inboxCursorAt)
+      : nowMs - GMAIL_INITIAL_LOOKBACK_MS;
+    const safeCursorMs = Number.isFinite(cursorMs) ? cursorMs : nowMs - GMAIL_INITIAL_LOOKBACK_MS;
+    const windowStartMs = Math.max(
+      nowMs - 30 * 24 * 60 * 60 * 1000,
+      safeCursorMs - GMAIL_OVERLAP_MS,
+    );
+    const lookbackDays = Math.max(
+      1,
+      Math.min(30, Math.ceil((nowMs - windowStartMs) / (24 * 60 * 60 * 1000)) + 1),
+    );
     const query = encodeURIComponent(
-      "newer_than:30d has:attachment (filename:pdf OR filename:jpg OR filename:jpeg OR filename:png)",
+      `newer_than:${lookbackDays}d has:attachment -in:sent -in:drafts -in:trash -in:spam -from:${connection.googleEmail} (filename:pdf OR filename:jpg OR filename:jpeg OR filename:png)`,
     );
-    const listed = await this.gmailJson<{ messages?: Array<{ id?: string }> }>(
-      token,
-      `/messages?q=${query}&maxResults=50`,
-    );
-    const ids = (listed.messages ?? []).flatMap((item) => item.id ? [item.id] : []);
-    const result: GmailInboxSyncResult = { messages: ids.length, imported: 0, duplicates: 0, failed: 0 };
+    const ids: string[] = [];
+    let pageToken: string | undefined;
+    let mailboxTruncated = false;
+    do {
+      const listed = await this.gmailJson<{
+        messages?: Array<{ id?: string }>;
+        nextPageToken?: string;
+      }>(
+        token,
+        `/messages?q=${query}&maxResults=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`,
+      );
+      ids.push(...(listed.messages ?? []).flatMap((item) => item.id ? [item.id] : []));
+      pageToken = listed.nextPageToken;
+      if (ids.length >= GMAIL_MAX_MESSAGES_PER_RUN && pageToken) {
+        mailboxTruncated = true;
+        break;
+      }
+    } while (pageToken);
+
+    const result: GmailInboxSyncResult = {
+      messages: 0,
+      imported: 0,
+      duplicates: 0,
+      review: 0,
+      failed: 0,
+      ignoredSelf: 0,
+      truncated: mailboxTruncated,
+    };
     let processed = 0;
-    for (const messageId of ids) {
-      if (processed >= 20) break;
+    for (const messageId of ids.slice(0, GMAIL_MAX_MESSAGES_PER_RUN)) {
       const message = await this.gmailJson<GmailMessage>(token, `/messages/${messageId}?format=full`);
+      const receivedMs = Number(message.internalDate ?? 0);
+      if (!Number.isFinite(receivedMs) || receivedMs < windowStartMs || receivedMs > nowMs) continue;
+      result.messages += 1;
+      const from = senderEmail(header(message, "from"));
+      if (from && from === connection.googleEmail.trim().toLowerCase()) {
+        result.ignoredSelf += 1;
+        continue;
+      }
       const parts = collectGmailPurchaseAttachments(message.payload);
       let partIndex = 0;
       for (const part of parts) {
-        if (processed >= 20) break;
+        if (processed >= GMAIL_MAX_ATTACHMENTS_PER_RUN) {
+          result.truncated = true;
+          break;
+        }
         partIndex += 1;
         const filename = part.filename!.trim();
         const mimeType = SUPPORTED_ATTACHMENTS.get(part.mimeType!.toLowerCase())!;
@@ -478,9 +571,9 @@ export class GmailIntegrationService {
                 identity.companyId,
                 messageId,
                 attachmentKey,
-                senderEmail(header(message, "from")),
+                from,
                 header(message, "subject"),
-                Number(message.internalDate ?? Date.now()),
+                receivedMs,
                 filename,
               ],
             )
@@ -514,7 +607,10 @@ export class GmailIntegrationService {
             );
           });
           if (existing) result.duplicates += 1;
-          else result.imported += 1;
+          else {
+            result.imported += 1;
+            result.review += 1;
+          }
         } catch (error) {
           result.failed += 1;
           await withTenantTransaction(this.pool, identity, async (client) => {
@@ -526,12 +622,28 @@ export class GmailIntegrationService {
           });
         }
       }
+      if (result.truncated && processed >= GMAIL_MAX_ATTACHMENTS_PER_RUN) break;
     }
+    const advanceCursor = result.failed === 0 && !result.truncated;
     await withTenantTransaction(this.pool, identity, async (client) => {
       await client.query(
-        `update gmail_integrations set last_inbox_sync_at=now(),last_inbox_sync_status=$2,
-           last_inbox_sync_error=null,updated_at=now() where company_id=$1`,
-        [identity.companyId, result.failed ? "completed_with_errors" : "completed"],
+        `update gmail_integrations set
+           last_inbox_sync_at=now(),last_inbox_sync_status=$2,last_inbox_sync_error=null,
+           inbox_cursor_at=case when $3 then to_timestamp($4::double precision / 1000) else inbox_cursor_at end,
+           last_inbox_messages=$5,last_inbox_imported=$6,last_inbox_duplicates=$7,
+           last_inbox_review=$8,last_inbox_errors=$9,updated_at=now()
+         where company_id=$1`,
+        [
+          identity.companyId,
+          result.failed ? "completed_with_errors" : result.truncated ? "partial" : "completed",
+          advanceCursor,
+          nowMs,
+          result.messages,
+          result.imported,
+          result.duplicates,
+          result.review,
+          result.failed,
+        ],
       );
     });
     return result;
@@ -556,7 +668,8 @@ export class GmailIntegrationService {
         await withTenantTransaction(this.pool, identity, async (client) => {
           await client.query(
             `update gmail_integrations set last_inbox_sync_status='failed',
-               last_inbox_sync_error=$2,updated_at=now() where company_id=$1`,
+               last_inbox_sync_error=$2,last_inbox_errors=greatest(last_inbox_errors,1),
+               updated_at=now() where company_id=$1`,
             [identity.companyId, error instanceof HttpError ? error.code : "gmail_sync_failed"],
           );
         });
@@ -577,4 +690,8 @@ export class GmailIntegrationService {
   get frontendMoreUrl(): string {
     return new URL("/mas", this.config.frontendUrl).toString();
   }
+}
+
+function cookieOrEmpty(value: string): string {
+  return value;
 }
