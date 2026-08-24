@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   collectGmailPurchaseAttachments,
   createGmailRawMessage,
+  normalizedGmailAttachmentMime,
 } from "../src/integrations/gmail.js";
 
 test("creates a Gmail MIME message with the invoice PDF attached", () => {
@@ -24,7 +25,7 @@ test("creates a Gmail MIME message with the invoice PDF attached", () => {
   assert.equal(message.replaceAll("\r\n", "").includes("\n"), false);
 });
 
-test("solo selecciona adjuntos de factura compatibles dentro de MIME anidado", () => {
+test("solo selecciona adjuntos documentales compatibles dentro de MIME anidado", () => {
   const parts = collectGmailPurchaseAttachments({
     mimeType: "multipart/mixed",
     parts: [
@@ -40,4 +41,42 @@ test("solo selecciona adjuntos de factura compatibles dentro de MIME anidado", (
     ],
   });
   assert.deepEqual(parts.map((part) => part.filename), ["factura.pdf", "factura.png"]);
+});
+
+test("acepta PDF reales aunque Gmail los etiquete como base64 u octet-stream", () => {
+  assert.equal(
+    normalizedGmailAttachmentMime({ filename: "Facturas.pdf", mimeType: "application/base64" }),
+    "application/pdf",
+  );
+  assert.equal(
+    normalizedGmailAttachmentMime({ filename: "FacturaProveedor.PDF", mimeType: "application/octet-stream" }),
+    "application/pdf",
+  );
+});
+
+test("normaliza imágenes por extensión cuando Gmail usa un MIME genérico", () => {
+  assert.equal(
+    normalizedGmailAttachmentMime({ filename: "captura.JPEG", mimeType: "application/octet-stream" }),
+    "image/jpeg",
+  );
+  assert.equal(
+    normalizedGmailAttachmentMime({ filename: "factura.png", mimeType: "application/base64" }),
+    "image/png",
+  );
+});
+
+test("rechaza extensiones peligrosas aunque el MIME sea genérico", () => {
+  for (const filename of ["factura.exe", "factura.zip", "factura.eml", "factura.docx"])
+    assert.equal(
+      normalizedGmailAttachmentMime({ filename, mimeType: "application/octet-stream" }),
+      null,
+      filename,
+    );
+});
+
+test("rechaza contradicción explícita entre extensión y MIME documental", () => {
+  assert.equal(
+    normalizedGmailAttachmentMime({ filename: "factura.pdf", mimeType: "image/png" }),
+    null,
+  );
 });
