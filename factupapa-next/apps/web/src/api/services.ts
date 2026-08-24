@@ -465,6 +465,8 @@ export const financeApi = {
       method: "POST",
       body: "{}",
     }),
+  deletePurchase: (id: string) =>
+    apiClient.request<void>(`/purchases/${id}`, { method: "DELETE" }),
   recurring: () => apiClient.request<RecurringExpense[]>("/recurring-expenses"),
   createRecurring: (
     input: Omit<RecurringExpense, "id" | "isActive" | "supplierName">,

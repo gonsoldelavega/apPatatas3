@@ -6,10 +6,11 @@ import {
   ExternalLink,
   Eye,
   RotateCcw,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { accountsApi, financeApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { useToast } from "../ui/ToastProvider";
@@ -22,6 +23,7 @@ function normalizedAmount(value: string): number {
 export function PurchaseDetailPage() {
   const { id = "" } = useParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const toast = useToast();
   const [showPayment, setShowPayment] = useState(false);
   const [amount, setAmount] = useState("");
@@ -50,6 +52,21 @@ export function PurchaseDetailPage() {
           ? "Compra confirmada y stock actualizado"
           : "Compra cancelada",
       );
+    },
+  });
+
+  const removePurchase = useMutation({
+    mutationFn: () => financeApi.deletePurchase(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["finance-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+      ]);
+      toast.show("Compra eliminada");
+      navigate("/gastos", { replace: true });
     },
   });
 
@@ -300,6 +317,31 @@ export function PurchaseDetailPage() {
           </div>
         ))}
         <h2>Total: {formatMoney(item.total)}</h2>
+      </section>
+
+      <section className="detail-card danger-zone">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Eliminar compra</p>
+            <p>La compra dejará de afectar a totales, saldos y stock. El documento original se conservará como evidencia para evitar que Gmail lo importe otra vez.</p>
+          </div>
+          <Button
+            type="button"
+            variant="danger"
+            icon={<Trash2 />}
+            busy={removePurchase.isPending}
+            onClick={() => {
+              if (window.confirm("¿Eliminar esta compra? Desaparecerá de Compras y dejará de afectar al negocio.")) {
+                removePurchase.mutate();
+              }
+            }}
+          >
+            Eliminar compra
+          </Button>
+        </div>
+        {removePurchase.isError && (
+          <p className="field-error" role="alert">No se pudo eliminar la compra.</p>
+        )}
       </section>
 
       {item.status === "draft" && (

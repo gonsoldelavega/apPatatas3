@@ -141,3 +141,42 @@ test("una compra borrador anterior no puede confirmarse si su documento deja de 
     /not an eligible supplier invoice/i,
   );
 });
+
+
+test("una compra confirmada puede darse de baja sin destruir su documento", async () => {
+  const documentId = await createDocument({
+    documentType: "supplier_invoice",
+    classificationConfidence: 0.99,
+    purchaseEligible: true,
+  });
+  const purchaseId = (await insertPurchase(documentId)).rows[0]!.id as string;
+  await database.pool.query(
+    `insert into purchase_invoice_lines(
+       company_id,purchase_invoice_id,description,quantity,unit,unit_cost,tax_rate,
+       line_subtotal,line_tax,line_total,position
+     ) values($1,$2,'Compra integración',1,'unit',100,4,100,4,104,1)`,
+    [companyId, purchaseId],
+  );
+  await database.pool.query(
+    `update purchase_invoices set status='confirmed',confirmed_at=now() where id=$1`,
+    [purchaseId],
+  );
+  await database.pool.query(
+    `update purchase_invoices
+     set deleted_at=now(),deleted_by_user_id=$2,delete_reason='Prueba de baja lógica'
+     where id=$1`,
+    [purchaseId, userId],
+  );
+  const result = await database.pool.query(
+    `select deleted_at is not null deleted,
+            exists(select 1 from documents where id=$2) "documentExists"
+     from purchase_invoices where id=$1`,
+    [purchaseId, documentId],
+  );
+  assert.equal(result.rows[0]!.deleted, true);
+  assert.equal(result.rows[0]!.documentExists, true);
+  await assert.rejects(
+    database.pool.query(`update purchase_invoices set notes='no permitido' where id=$1`, [purchaseId]),
+    /Deleted purchases are immutable/i,
+  );
+});

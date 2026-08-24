@@ -143,7 +143,7 @@ const registryKey = (row: string[]) => {
 const stockCtes = `purchase_entries as(
   select l.product_id,l.line_subtotal,
     case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end qty
-  from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id
+  from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' and i.deleted_at is null join products p on p.id=l.product_id
 ),purchase_quantities as(
   select product_id,sum(qty)qty,sum(line_subtotal)/nullif(sum(qty),0) average_cost from purchase_entries where qty>0 group by product_id
 ),sold_entries as(
@@ -822,7 +822,7 @@ export class FinanceService {
               ? Boolean(
                   (
                     await c.query(
-                      `select 1 from purchase_invoices where supplier_id=$1 and lower(btrim(supplier_invoice_number))=lower(btrim($2)) and status<>'cancelled' limit 1`,
+                      `select 1 from purchase_invoices where supplier_id=$1 and lower(btrim(supplier_invoice_number))=lower(btrim($2)) and status<>'cancelled' and deleted_at is null limit 1`,
                       [supplier.id, extracted.supplierInvoiceNumber],
                     )
                   ).rowCount,
@@ -930,7 +930,7 @@ export class FinanceService {
       async (c) =>
         (
           await c.query(
-            `${select} where p.issue_date between $1 and $2 order by p.issue_date desc,p.id desc limit 500`,
+            `${select} where p.deleted_at is null and p.issue_date between $1 and $2 order by p.issue_date desc,p.id desc limit 500`,
             [r.from, r.to],
           )
         ).rows,
@@ -946,14 +946,14 @@ export class FinanceService {
       async (c) =>
         (
           await c.query(
-            `${select} where p.issue_date between $1 and $2 and p.status='confirmed' order by p.issue_date,p.id`,
+            `${select} where p.deleted_at is null and p.issue_date between $1 and $2 and p.status='confirmed' order by p.issue_date,p.id`,
             [r.from, r.to],
           )
         ).rows,
     );
   }
   private async getIn(c: PoolClient, id: string) {
-    const row = (await c.query(`${select} where p.id=$1`, [id])).rows[0];
+    const row = (await c.query(`${select} where p.id=$1 and p.deleted_at is null`, [id])).rows[0];
     if (!row) throw new HttpError("not_found", 404);
     return {
       ...row,
@@ -1074,6 +1074,33 @@ export class FinanceService {
       return this.getIn(c, id);
     });
   }
+  async deletePurchase(i: SessionIdentity, id: string) {
+    return withTenantTransaction(this.pool, i, async (c) => {
+      const before = (
+        await c.query(
+          `select id,status,document_id "documentId",supplier_invoice_number "supplierInvoiceNumber",total::text
+           from purchase_invoices where id=$1 and deleted_at is null for update`,
+          [id],
+        )
+      ).rows[0];
+      if (!before) throw new HttpError("not_found", 404);
+      await c.query(
+        `update purchase_invoices
+         set deleted_at=now(),deleted_by_user_id=$2,delete_reason='Eliminada desde la app'
+         where id=$1 and deleted_at is null`,
+        [id, i.userId],
+      );
+      await recordAudit(c, {
+        companyId: i.companyId,
+        actorUserId: i.userId,
+        entityType: "purchase_invoice",
+        entityId: id,
+        action: "purchase_invoice.deleted",
+        before,
+        after: { deleted: true, reason: "Eliminada desde la app" },
+      });
+    });
+  }
   async listRecurring(i: SessionIdentity) {
     return withTenantTransaction(
       this.pool,
@@ -1170,7 +1197,7 @@ export class FinanceService {
             select l.id,l.product_id,i.issue_date occurred_on,'purchase' kind,
               case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end quantity_delta,
               coalesce(i.supplier_invoice_number,'Compra confirmada') reference
-            from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' join products p on p.id=l.product_id
+            from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' and i.deleted_at is null join products p on p.id=l.product_id
             union all
             select l.id,l.product_id,i.issue_date,'sale',
               -(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end),
@@ -1272,14 +1299,14 @@ export class FinanceService {
         (
           await c.query(
             `with period_sales as(select coalesce(sum(total),0)total from invoices where status='issued' and issue_date between $1 and $2),
-             period_purchases as(select coalesce(sum(total),0)total from purchase_invoices where status='confirmed' and issue_date between $1 and $2),
+             period_purchases as(select coalesce(sum(total),0)total from purchase_invoices where status='confirmed' and deleted_at is null and issue_date between $1 and $2),
              months as(select generate_series(date_trunc('month',$1::date::timestamp),date_trunc('month',$2::date::timestamp),interval'1 month')::date as month_start),
              period_recurring as(select coalesce(sum(r.amount),0)total from recurring_expenses r join months m on r.starts_on<=m.month_start+interval'1 month - 1 day' and(r.ends_on is null or r.ends_on>=m.month_start)),
              receivables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total,
                coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end) filter(where i.due_date<current_date),0) overdue
                from invoices i left join(select invoice_id,sum(amount)paid from payments where invoice_id is not null group by invoice_id)p on p.invoice_id=i.id where i.status='issued'),
              payables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total
-               from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed'),
+               from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed' and i.deleted_at is null),
              ${stockCtes},
              stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,
                coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential,
@@ -1313,7 +1340,7 @@ export class FinanceService {
             (coalesce(s.total, 0) - coalesce(p.total, 0) - coalesce(r.total, 0))::text as balance
           from month_rows m
           left join lateral (select sum(total) as total from invoices where status = 'issued' and issue_date >= m.month_start and issue_date < m.month_start + interval '1 month') s on true
-          left join lateral (select sum(total) as total from purchase_invoices where status = 'confirmed' and issue_date >= m.month_start and issue_date < m.month_start + interval '1 month') p on true
+          left join lateral (select sum(total) as total from purchase_invoices where status = 'confirmed' and deleted_at is null and issue_date >= m.month_start and issue_date < m.month_start + interval '1 month') p on true
           left join lateral (select sum(amount) as total from recurring_expenses where is_active and starts_on < m.month_start + interval '1 month' and (ends_on is null or ends_on >= m.month_start)) r on true
           order by m.month_start`,
           [months],

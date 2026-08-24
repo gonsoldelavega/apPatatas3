@@ -161,6 +161,11 @@ export function createFinanceRoutes(
         json(response, 200, await finance.getPurchase(id, pid));
         return true;
       }
+      if (request.method === "DELETE" && !p[2]) {
+        await finance.deletePurchase(id, pid);
+        noContent(response);
+        return true;
+      }
       if (request.method === "POST" && p[2]) {
         json(
           response,
