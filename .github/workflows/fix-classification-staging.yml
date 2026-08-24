@@ -1,0 +1,44 @@
+name: One-shot classification compile fixer
+
+on:
+  push:
+    branches: [codex/factupapa-claude-fixes]
+    paths:
+      - '.github/workflows/fix-classification-staging.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: codex/factupapa-claude-fixes
+          fetch-depth: 0
+      - name: Fix exact optional assignments and enable integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('factupapa-next/apps/api/src/finance/extraction-vision.ts')
+          s = p.read_text()
+          old = '''  out.issuerName = cleanText(data.issuerName, 200);\n  out.issuerTaxId = cleanTaxId(data.issuerTaxId);\n  out.recipientName = cleanText(data.recipientName, 200);\n  out.recipientTaxId = cleanTaxId(data.recipientTaxId);'''
+          new = '''  const issuerName = cleanText(data.issuerName, 200);\n  if (issuerName) out.issuerName = issuerName;\n  const issuerTaxId = cleanTaxId(data.issuerTaxId);\n  if (issuerTaxId) out.issuerTaxId = issuerTaxId;\n  const recipientName = cleanText(data.recipientName, 200);\n  if (recipientName) out.recipientName = recipientName;\n  const recipientTaxId = cleanTaxId(data.recipientTaxId);\n  if (recipientTaxId) out.recipientTaxId = recipientTaxId;'''
+          if old not in s:
+              raise SystemExit('expected extraction block not found')
+          p.write_text(s.replace(old, new, 1))
+
+          w = Path('.github/workflows/factupapa-next-integration.yml')
+          ws = w.read_text()
+          ws = ws.replace('branches: [design/factupapa-full-prototype]', 'branches: [design/factupapa-full-prototype, codex/factupapa-claude-fixes]', 1)
+          w.write_text(ws)
+          PY
+          git diff --check
+          git config user.name 'FactuPapa automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add factupapa-next/apps/api/src/finance/extraction-vision.ts .github/workflows/factupapa-next-integration.yml
+          git commit -m '[deploy-staging] Fix classification typing and validate staging'
+          git push origin HEAD:codex/factupapa-claude-fixes
