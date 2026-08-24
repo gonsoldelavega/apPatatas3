@@ -23,7 +23,29 @@ import { todayLocal } from "../utils/format";
 
 type DraftPurchaseLine = PurchaseLineInput & { clientId: string };
 type Confidence = "high" | "medium" | "low";
+type DocumentType =
+  | "supplier_invoice"
+  | "issued_sales_invoice"
+  | "supplier_credit_note"
+  | "bank_transfer_receipt"
+  | "bank_deposit_receipt"
+  | "payment_confirmation"
+  | "delivery_note"
+  | "account_statement"
+  | "non_fiscal_document"
+  | "unknown";
 type ExtractedPurchase = {
+  documentType?: DocumentType;
+  classificationConfidence?: number;
+  classificationEvidence?: Array<{ page?: number; field?: string; quote: string }>;
+  classificationReasons?: string[];
+  purchaseEligible?: boolean;
+  blockingReasons?: string[];
+  issuerName?: string;
+  issuerTaxId?: string;
+  recipientName?: string;
+  recipientTaxId?: string;
+  currency?: string;
   supplierId?: string;
   supplierName?: string;
   supplierTaxId?: string;
@@ -89,6 +111,33 @@ const encoded = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+const documentTypeLabel = (type?: DocumentType) =>
+  ({
+    supplier_invoice: "Factura de proveedor",
+    issued_sales_invoice: "Factura de venta emitida por nosotros",
+    supplier_credit_note: "Factura rectificativa / abono de proveedor",
+    bank_transfer_receipt: "Justificante de transferencia bancaria",
+    bank_deposit_receipt: "Justificante de ingreso o abono bancario",
+    payment_confirmation: "Confirmación o recibo de pago",
+    delivery_note: "Albarán",
+    account_statement: "Extracto bancario",
+    non_fiscal_document: "Documento no fiscal",
+    unknown: "Documento sin clasificar",
+  } satisfies Record<DocumentType, string>)[type ?? "unknown"];
+
+const blockingReasonLabel = (reason: string) =>
+  ({
+    document_type_not_supplier_invoice: "No es una factura normal de proveedor.",
+    external_issuer_not_proven: "No se ha demostrado que el emisor sea un proveedor externo.",
+    own_company_recipient_not_proven: "No se ha demostrado que nuestra empresa sea el receptor de la factura.",
+    invoice_number_missing: "Falta el número de factura.",
+    issue_date_missing: "Falta la fecha de emisión.",
+    total_missing: "Falta el total.",
+    totals_mismatch: "Base, IVA y total no cuadran.",
+    classification_confidence_low: "La clasificación documental no tiene confianza suficiente.",
+    own_company_is_issuer: "Nuestra empresa figura como emisora: este documento nunca puede ser una compra.",
+  })[reason] ?? reason;
+
 export function PurchaseFormPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -150,6 +199,10 @@ export function PurchaseFormPage() {
   const applyExtractedData = (id: string, extractedData: ExtractedPurchase) => {
     setDocumentId(id);
     setOcr(extractedData);
+    const purchaseAllowed =
+      extractedData.documentType === "supplier_invoice" &&
+      extractedData.purchaseEligible === true;
+    if (!purchaseAllowed) return;
     if (extractedData.supplierId) setSupplierId(extractedData.supplierId);
     setNewSupplierName(extractedData.supplierName ?? "");
     setNewSupplierTaxId(extractedData.supplierTaxId ?? "");
@@ -265,6 +318,10 @@ export function PurchaseFormPage() {
       ),
     [validLines],
   );
+  const documentBlocksPurchase = Boolean(
+    documentId && ocr &&
+      (ocr.documentType !== "supplier_invoice" || ocr.purchaseEligible !== true),
+  );
   const save = useMutation({
     mutationFn: () =>
       financeApi.createPurchase({
@@ -324,10 +381,11 @@ export function PurchaseFormPage() {
     ({
       totals_mismatch: "Los importes no cuadran: revisa base, IVA y total.",
       supplier_tax_id_missing: "No se reconoció el NIF del proveedor.",
-      supplier_tax_id_own: "Se descartó tu propio NIF y se buscó el del proveedor.",
+      supplier_tax_id_own: "Se detectó el NIF propio como emisor; no se permite registrarlo como compra.",
+      document_not_purchase_eligible: "El documento está bloqueado para compras hasta que su clasificación sea inequívoca.",
       line_amount_mismatch: "Alguna línea no cuadra con cantidad, precio y descuento.",
-      vision_unavailable: "La visión no estaba disponible y se usó el OCR alternativo.",
-      vision_budget_exhausted: "Se alcanzó el límite de lectura inteligente y se usó el OCR alternativo.",
+      vision_unavailable: "La visión no estaba disponible y se usó el OCR alternativo; queda pendiente de clasificación segura.",
+      vision_budget_exhausted: "Se alcanzó el límite de lectura inteligente; el OCR alternativo no autoriza compras automáticamente.",
       total_missing: "No se reconoció el total.",
       issue_date_missing: "No se reconoció la fecha.",
       possible_duplicate: "Posible factura duplicada.",
@@ -362,10 +420,9 @@ export function PurchaseFormPage() {
 
       <section className="upload-card purchase-capture-card">
         <p className="eyebrow">Lectura automática</p>
-        <h2>Añade la factura</h2>
+        <h2>Añade el documento</h2>
         <p>
-          La IA extraerá proveedor, fechas, conceptos, cantidades, precios e IVA.
-          Nada se registra hasta que revises y guardes la compra.
+          Primero se identifica qué tipo de documento es. Solo una factura inequívoca de un proveedor externo dirigida a tu empresa puede convertirse en compra.
         </p>
         {!documentFile ? (
           <div className="purchase-capture-picker">
@@ -413,21 +470,21 @@ export function PurchaseFormPage() {
               <strong>{documentFile.name}</strong>
               <small>{(documentFile.size / 1024).toFixed(1)} KB</small>
             </span>
-            <button className="icon-button" type="button" aria-label="Quitar factura" onClick={removeDocument}>
+            <button className="icon-button" type="button" aria-label="Quitar documento" onClick={removeDocument}>
               <X />
             </button>
           </div>
         )}
         {upload.isPending && (
           <p className="ai-reading-status" role="status">
-            <Sparkles /> Mejorando imagen y leyendo la factura…
+            <Sparkles /> Leyendo y clasificando el documento…
           </p>
         )}
-        {documentId && <p className="success-note">Factura leída, protegida y vinculada.</p>}
+        {documentId && !documentBlocksPurchase && <p className="success-note">Factura de proveedor clasificada, protegida y vinculada.</p>}
         {documentError && <div className="form-alert" role="alert">{documentError}</div>}
         {upload.isError && (
           <div className="form-alert" role="alert">
-            No se pudo leer ni adjuntar la factura. Puedes reintentarlo o guardar la compra con los datos introducidos manualmente.
+            No se pudo leer ni adjuntar el documento. Puedes reintentarlo o quitarlo y registrar una compra manual sin adjunto.
             <Button type="button" variant="secondary" onClick={() => documentFile && upload.mutate(documentFile)}>
               <RefreshCw /> Reintentar lectura
             </Button>
@@ -441,21 +498,40 @@ export function PurchaseFormPage() {
             onClick={() => rejectImportedDocument.mutate()}
           >
             <Trash2 aria-hidden="true" />
-            {rejectImportedDocument.isPending ? "Descartando…" : "No es una factura · descartar"}
+            {rejectImportedDocument.isPending ? "Descartando…" : "No es una compra · conservar como revisado"}
           </button>
         )}
         {rejectImportedDocument.isError && (
           <p className="field-error" role="alert">
-            No se pudo descartar. El documento sigue intacto y pendiente de revisión.
+            No se pudo cerrar la revisión. El documento sigue intacto y pendiente.
           </p>
         )}
         {ocr && (
           <div className="ocr-review" aria-label="Resultado de la lectura automática">
-            <strong>Lectura automática: {ocr.ocrConfidence ?? 0}%</strong>
+            <strong>{documentTypeLabel(ocr.documentType)}</strong>
+            <span>
+              Clasificación: {Math.round((ocr.classificationConfidence ?? 0) * 100)}% · Lectura: {ocr.ocrConfidence ?? 0}%
+            </span>
             <span>{ocr.source === "vision" ? "Anthropic Vision" : ocr.source === "pdf_text" ? "Texto del PDF interpretado" : "OCR alternativo"}</span>
-            {ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
-            {ocr.total && <span>Total detectado: {ocr.total} €</span>}
-            {ocr.lines?.length ? <span>{ocr.lines.length} conceptos detectados para revisar.</span> : null}
+            {ocr.issuerName && <span>Emisor: {ocr.issuerName}{ocr.issuerTaxId ? ` · ${ocr.issuerTaxId}` : ""}</span>}
+            {ocr.recipientName && <span>Receptor: {ocr.recipientName}{ocr.recipientTaxId ? ` · ${ocr.recipientTaxId}` : ""}</span>}
+            {ocr.total && <span>Total detectado: {ocr.total} {ocr.currency ?? "EUR"}</span>}
+            {documentBlocksPurchase && (
+              <div className="form-alert" role="alert">
+                <strong>Bloqueado para compras.</strong>
+                {(ocr.blockingReasons?.length ? ocr.blockingReasons : ["document_type_not_supplier_invoice"]).map((reason) => (
+                  <span key={reason}>{blockingReasonLabel(reason)}</span>
+                ))}
+              </div>
+            )}
+            {ocr.classificationReasons?.map((reason) => <span key={reason}>{reason}</span>)}
+            {ocr.classificationEvidence?.slice(0, 4).map((evidence, index) => (
+              <span key={`${evidence.page ?? 0}-${index}`}>
+                {evidence.page ? `Pág. ${evidence.page}: ` : ""}{evidence.quote}
+              </span>
+            ))}
+            {!documentBlocksPurchase && ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
+            {!documentBlocksPurchase && ocr.lines?.length ? <span>{ocr.lines.length} conceptos detectados para revisar.</span> : null}
             <span className="confidence-legend">
               <i className="confidence-dot confidence-dot--high" />Seguro
               <i className="confidence-dot confidence-dot--medium" />Revisar
@@ -470,11 +546,11 @@ export function PurchaseFormPage() {
             open={documentPreviewOpen}
             onToggle={(event) => setDocumentPreviewOpen(event.currentTarget.open)}
           >
-            <summary>Factura original</summary>
+            <summary>Documento original</summary>
             {documentFile?.type === "application/pdf" ? (
-              <iframe src={documentPreview} title="Factura de compra" />
+              <iframe src={documentPreview} title="Documento original" />
             ) : (
-              <img src={documentPreview} alt="Factura de compra" />
+              <img src={documentPreview} alt="Documento original" />
             )}
           </details>
         )}
@@ -483,22 +559,25 @@ export function PurchaseFormPage() {
       <section className="form-card">
         <div className="section-heading">
           <div><p className="eyebrow">Proveedor</p><h2>Datos de la compra</h2></div>
-          <button className="compact-action" type="button" onClick={() => setShowSupplierCreate((current) => !current)}>
+          <button className="compact-action" type="button" disabled={documentBlocksPurchase} onClick={() => setShowSupplierCreate((current) => !current)}>
             <Building2 /> Nuevo proveedor
           </button>
         </div>
-        <SelectField label="Proveedor obligatorio" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+        {documentBlocksPurchase && (
+          <p className="field-help">Los campos de compra permanecen separados del documento bloqueado. Quita el documento si necesitas registrar una compra manual independiente.</p>
+        )}
+        <SelectField label="Proveedor obligatorio" value={supplierId} disabled={documentBlocksPurchase} onChange={(event) => setSupplierId(event.target.value)}>
           <option value="">Selecciona un proveedor</option>
           {suppliers.data?.items.map((supplier) => (
             <option key={supplier.id} value={supplier.id}>{supplier.tradeName || supplier.legalName}</option>
           ))}
         </SelectField>
-        {ocr?.supplierName && !ocr.supplierId && !showSupplierCreate && (
+        {ocr?.supplierName && !ocr.supplierId && !showSupplierCreate && !documentBlocksPurchase && (
           <button className="compact-action" type="button" onClick={() => setShowSupplierCreate(true)}>
             <Building2 /> Crear proveedor detectado
           </button>
         )}
-        {showSupplierCreate && (
+        {showSupplierCreate && !documentBlocksPurchase && (
           <div className="inline-create-card">
             <strong>Revisar proveedor nuevo</strong>
             <Field className={confidenceClass("supplierName")} hint={confidenceHint("supplierName")} label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
@@ -512,19 +591,19 @@ export function PurchaseFormPage() {
             </div>
           </div>
         )}
-        <Field className={confidenceClass("supplierInvoiceNumber")} hint={confidenceHint("supplierInvoiceNumber")} label="Número de factura del proveedor" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
+        <Field className={confidenceClass("supplierInvoiceNumber")} hint={confidenceHint("supplierInvoiceNumber")} label="Número de factura del proveedor" disabled={documentBlocksPurchase} value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
         <div className="form-grid">
-          <Field className={confidenceClass("issueDate")} hint={confidenceHint("issueDate")} label="Fecha de emisión" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
-          <Field className={confidenceClass("dueDate")} hint={confidenceHint("dueDate")} label="Fecha de vencimiento" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          <Field className={confidenceClass("issueDate")} hint={confidenceHint("issueDate")} label="Fecha de emisión" type="date" disabled={documentBlocksPurchase} value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
+          <Field className={confidenceClass("dueDate")} hint={confidenceHint("dueDate")} label="Fecha de vencimiento" type="date" disabled={documentBlocksPurchase} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         </div>
-        <SelectField label="Categoría" value={category} onChange={(event) => setCategory(event.target.value)}>
+        <SelectField label="Categoría" value={category} disabled={documentBlocksPurchase} onChange={(event) => setCategory(event.target.value)}>
           <option value="mercancia">Mercancía</option><option value="gestoria">Gestoría</option>
           <option value="transporte">Transporte</option><option value="suministros">Suministros</option>
           <option value="alquiler">Alquiler</option><option value="autonomo">Autónomo</option>
           <option value="impuestos">Impuestos</option><option value="otros">Otros</option>
         </SelectField>
         <label className="field"><span className="field__label">Notas</span>
-          <textarea rows={3} maxLength={4000} value={notes} onChange={(event) => setNotes(event.target.value)} />
+          <textarea rows={3} maxLength={4000} disabled={documentBlocksPurchase} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
       </section>
 
@@ -538,6 +617,7 @@ export function PurchaseFormPage() {
             <SelectField
               label="Producto de stock"
               value={line.productId ?? ""}
+              disabled={documentBlocksPurchase}
               onChange={(event) => {
                 const product = products.data?.items.find((item) => item.id === event.target.value);
                 patchLine(index, {
@@ -550,35 +630,37 @@ export function PurchaseFormPage() {
               <option value="">No afecta al stock</option>
               {products.data?.items.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
             </SelectField>
-            <Field label="Descripción" value={line.description} onChange={(event) => patchLine(index, { description: event.target.value })} />
-            <Field label="Cantidad" inputMode="decimal" value={line.quantity} onChange={(event) => patchLine(index, { quantity: event.target.value })} />
-            <SelectField label="Unidad" value={line.unit} onChange={(event) => patchLine(index, { unit: event.target.value as ProductUnit })}>
+            <Field label="Descripción" disabled={documentBlocksPurchase} value={line.description} onChange={(event) => patchLine(index, { description: event.target.value })} />
+            <Field label="Cantidad" inputMode="decimal" disabled={documentBlocksPurchase} value={line.quantity} onChange={(event) => patchLine(index, { quantity: event.target.value })} />
+            <SelectField label="Unidad" value={line.unit} disabled={documentBlocksPurchase} onChange={(event) => patchLine(index, { unit: event.target.value as ProductUnit })}>
               <option value="kg">kg</option><option value="g">g</option><option value="unit">unidad</option>
               <option value="box">caja</option><option value="custom">otra</option>
             </SelectField>
-            <Field label="Coste unidad sin IVA" inputMode="decimal" value={line.unitCost} onChange={(event) => patchLine(index, { unitCost: event.target.value })} />
-            <Field label="IVA %" inputMode="decimal" value={line.taxRate} onChange={(event) => patchLine(index, { taxRate: event.target.value })} />
-            {lines.length > 1 && (
+            <Field label="Coste unidad sin IVA" inputMode="decimal" disabled={documentBlocksPurchase} value={line.unitCost} onChange={(event) => patchLine(index, { unitCost: event.target.value })} />
+            <Field label="IVA %" inputMode="decimal" disabled={documentBlocksPurchase} value={line.taxRate} onChange={(event) => patchLine(index, { taxRate: event.target.value })} />
+            {lines.length > 1 && !documentBlocksPurchase && (
               <button className="icon-button" type="button" aria-label={`Eliminar concepto ${index + 1}`} onClick={() => setLines((current) => current.filter((_, position) => position !== index))}>
                 <Trash2 />
               </button>
             )}
           </div>
         ))}
-        {!allLinesValid && <p className="field-help" role="status">Completa descripción, cantidad, coste e IVA de todos los conceptos.</p>}
-        <button className="compact-action" type="button" onClick={() => setLines((current) => [...current, emptyLine()])}>
-          <Plus /> Añadir concepto
-        </button>
+        {!allLinesValid && !documentBlocksPurchase && <p className="field-help" role="status">Completa descripción, cantidad, coste e IVA de todos los conceptos.</p>}
+        {!documentBlocksPurchase && (
+          <button className="compact-action" type="button" onClick={() => setLines((current) => [...current, emptyLine()])}>
+            <Plus /> Añadir concepto
+          </button>
+        )}
       </section>
 
-      {save.isError && <div className="form-alert" role="alert">No se pudo guardar la compra. Revisa proveedor, fechas e importes.</div>}
+      {save.isError && <div className="form-alert" role="alert">No se pudo guardar la compra. Revisa proveedor, clasificación, fechas e importes.</div>}
       <div className="sticky-submit">
         <Button
-          disabled={!supplierId || !issueDate || !allLinesValid || upload.isPending}
+          disabled={documentBlocksPurchase || !supplierId || !issueDate || !allLinesValid || upload.isPending}
           busy={save.isPending}
           onClick={() => save.mutate()}
         >
-          Guardar para revisión
+          {documentBlocksPurchase ? "Documento bloqueado para compras" : "Guardar para revisión"}
         </Button>
       </div>
     </div>
