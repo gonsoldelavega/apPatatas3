@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 # Installs a user-level timer on the dedicated rootless staging account. The
 # worker only reads the private task branch and never checks out main.
+# Re-running this installer is intentionally idempotent and also starts one
+# immediate control-plane pass so an approved staging task is not left queued.
 control_root="${HOME}/staging/factupapa-control"
 unit_directory="${HOME}/.config/systemd/user"
 repository_url="https://github.com/gonsoldelavega/apPatatas3.git"
