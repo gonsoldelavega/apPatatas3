@@ -58,10 +58,10 @@ before(async () => {
   userId = identity.rows[0]!.userId;
   supplierId = (
     await database.pool.query<{ id: string }>(
-      `insert into contacts(company_id,type,legal_name,tax_id,address,created_by_user_id)
-       values($1,'supplier','Proveedor integración','B04854154','{}'::jsonb,$2)
+      `insert into contacts(company_id,type,legal_name,tax_id,address)
+       values($1,'supplier','Proveedor integración','B04854154','{}'::jsonb)
        returning id`,
-      [companyId, userId],
+      [companyId],
     )
   ).rows[0]!.id;
 });
