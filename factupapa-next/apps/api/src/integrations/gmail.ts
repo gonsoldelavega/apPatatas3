@@ -101,20 +101,39 @@ const GMAIL_OVERLAP_MS = 2 * 60 * 60 * 1000;
 const GMAIL_INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const GMAIL_MAX_MESSAGES_PER_RUN = 500;
 const GMAIL_MAX_ATTACHMENTS_PER_RUN = 100;
-const SUPPORTED_ATTACHMENTS = new Map([
+const MIME_TO_DOCUMENT_MIME = new Map<string, string>([
   ["application/pdf", "application/pdf"],
   ["image/jpeg", "image/jpeg"],
   ["image/jpg", "image/jpeg"],
   ["image/png", "image/png"],
 ]);
+const EXTENSION_TO_DOCUMENT_MIME = new Map<string, string>([
+  ["pdf", "application/pdf"],
+  ["jpg", "image/jpeg"],
+  ["jpeg", "image/jpeg"],
+  ["png", "image/png"],
+]);
+
+export function normalizedGmailAttachmentMime(part: GmailPart): string | null {
+  const filename = part.filename?.trim() ?? "";
+  if (!filename) return null;
+  const extension = filename.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
+  const byExtension = extension ? EXTENSION_TO_DOCUMENT_MIME.get(extension) : undefined;
+  const rawMime = part.mimeType?.trim().toLowerCase() ?? "";
+  const byMime = MIME_TO_DOCUMENT_MIME.get(rawMime);
+  if (byExtension) {
+    if (!byMime) return byExtension;
+    return byMime === byExtension ? byExtension : null;
+  }
+  return byMime ?? null;
+}
 
 export function collectGmailPurchaseAttachments(
   part: GmailPart | undefined,
   output: GmailPart[] = [],
 ): GmailPart[] {
   if (!part) return output;
-  if (part.filename?.trim() && SUPPORTED_ATTACHMENTS.has(part.mimeType?.toLowerCase() ?? ""))
-    output.push(part);
+  if (normalizedGmailAttachmentMime(part)) output.push(part);
   for (const child of part.parts ?? []) collectGmailPurchaseAttachments(child, output);
   return output;
 }
@@ -344,7 +363,7 @@ export class GmailIntegrationService {
   }
 
   async exchange(code: string, nonce: string, stateCookie: string): Promise<string> {
-    const state = this.verifyState(cookieOrEmpty(stateCookie), nonce);
+    const state = this.verifyState(stateCookie, nonce);
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -553,7 +572,8 @@ export class GmailIntegrationService {
         }
         partIndex += 1;
         const filename = part.filename!.trim();
-        const mimeType = SUPPORTED_ATTACHMENTS.get(part.mimeType!.toLowerCase())!;
+        const mimeType = normalizedGmailAttachmentMime(part);
+        if (!mimeType) continue;
         const attachmentKey = part.body?.attachmentId ?? `inline-${partIndex}-${filename}`;
         const claimed = await withTenantTransaction(this.pool, identity, async (client) =>
           (
@@ -690,8 +710,4 @@ export class GmailIntegrationService {
   get frontendMoreUrl(): string {
     return new URL("/mas", this.config.frontendUrl).toString();
   }
-}
-
-function cookieOrEmpty(value: string): string {
-  return value;
 }
