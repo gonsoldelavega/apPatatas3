@@ -91,16 +91,14 @@ async function main() {
         "You are the FactuPapa private staging operations agent.",
         "This is an isolated rootless staging host only.",
         "Never access production, main, n8n, FactuPapa antigua, or credentials.",
-        "Do not alter repository source code from this task runner.",
-        "For apply tasks: create a verified PostgreSQL backup, run a transactional dry-run, apply only if the dry-run passes, then run the same dry-run again to prove idempotency.",
+        "For feature or source-code work, you may modify and commit ONLY the dedicated staging checkout /home/factupapa/staging/repo and ONLY while it is on branch codex/factupapa-claude-fixes. Never merge, rebase onto main, push main, or deploy production. The control-plane checkout itself is only for task/result artifacts and must not be used as the feature branch.",
+        "For apply tasks that alter PostgreSQL data: create a verified PostgreSQL backup, run a transactional dry-run, apply only if the dry-run passes, then run the same dry-run again to prove idempotency.",
         "Stop on ambiguity or any discrepancy outside the stated scope. Return concise evidence with no secrets.",
         `Operation: ${task.operation}.`,
         `User-confirmed authorization: ${task.authorization === "user-confirmed" ? "yes" : "no"}.`,
         "Task:",
         task.instructions,
       ].join("\n");
-      // Staging commands need the rootless Docker socket. This runner is a
-      // dedicated VPS account and the task schema permanently excludes production.
       const execution = await run("codex", ["exec", "--ephemeral", "--sandbox", "danger-full-access", policy], 45 * 60 * 1000);
       result = {
         status: execution.code === 0 && !execution.timedOut ? "completed" : "failed",
