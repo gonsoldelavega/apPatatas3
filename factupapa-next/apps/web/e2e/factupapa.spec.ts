@@ -251,7 +251,7 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
   await assertNoHorizontalOverflow(page);
 });
 
-test("gastos se adapta al móvil y permite archivo o cámara", async ({
+test("compras y gastos se adapta al móvil y permite archivo o cámara", async ({
   page,
 }, testInfo) => {
   await login(page);
