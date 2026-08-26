@@ -212,7 +212,7 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
 
   await navigation.getByRole("link", { name: "Gastos" }).click();
   await expect(page).toHaveURL(/\/gastos$/);
-  await expect(page.getByRole("heading", { name: "Gastos", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Compras y gastos", exact: true })).toBeVisible();
   await expect(navigation).toHaveCSS("--active-nav-index", "2");
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __viewTransitionCount?: number })
@@ -257,7 +257,7 @@ test("gastos se adapta al móvil y permite archivo o cámara", async ({
   await login(page);
   await page.goto("/gastos");
   await expect(
-    page.getByRole("heading", { name: "Gastos", exact: true }),
+    page.getByRole("heading", { name: "Compras y gastos", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("Estado del documento")).toBeVisible();
   await expect(page.getByLabel("Estado del pago")).toBeVisible();
