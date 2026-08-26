@@ -4,9 +4,9 @@
   "environment": "staging",
   "operation": "inspect",
   "authorization": "user-confirmed",
-  "enabled": true,
+  "enabled": false,
   "requested_at": "2026-08-26T22:39:00Z",
   "instructions": "EXCLUSIVAMENTE staging real y SOLO LECTURA. No modificar base de datos, archivos, Drive, Gmail, repositorio, servicios ni contenedores. No tocar main, producción, n8n ni FactuPapa antigua. Audita la cola documental de compras/Gmail que el usuario ve contaminada (aprox. 100 pendientes). Identifica todos los documents con status needs_review/relevant review states y source Gmail, con su id, filename, subject, sender_email, extracted_data.documentType, issuer/recipient, invoice number, total, confidence y purchaseEligible cuando existan. Marca como evidencia inequívoca de NO-COMPRA únicamente: (a) facturas de venta propias FAC-xxx/2026 o archivos FACTURA_VENTA/issuer propio; (b) documentos bancarios/transferencias/ingresos/extractos/confirmaciones de pago; (c) Junta/AEAT/administrativos/non_fiscal_document si la evidencia documental/metadatos lo demuestra; (d) duplicados ya vinculados. No adivines casos ambiguos. Para cada documento comprueba si existe purchase_invoice enlazada, su status, total, pagos y si una compra confirmada contribuye a stock/saldos. Devuelve conteos por clase, lista exacta de IDs inequívocos candidatos a retirada de la cola y a baja lógica de compra, y lista separada de ambiguos que deben conservarse para revisión humana. Incluye una comprobación específica de FAC-125/2026, FAC-127/2026, FAC-128/2026 y FAC-129/2026 y documentos de Junta de Andalucía vistos en la cola. Sin secretos ni datos personales innecesarios. No hagas ningún cambio.",
-  "lastRunId": null,
-  "lastResult": null
+  "lastRunId": "047b9ee6-0472-4ab1-9717-95ca51d2f740",
+  "lastResult": "completed"
 }
