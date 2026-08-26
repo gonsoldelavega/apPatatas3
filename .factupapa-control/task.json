@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "id": "validate-document-classification-guard",
+  "id": "audit-contaminated-gmail-purchase-queue-20260827",
   "environment": "staging",
-  "operation": "apply",
+  "operation": "inspect",
   "authorization": "user-confirmed",
-  "enabled": false,
-  "requested_at": "2026-08-24T21:42:00Z",
-  "instructions": "Exclusivamente staging. En /home/factupapa/staging/repo verifica que la rama sea codex/factupapa-claude-fixes; si no lo es, detente. Fetch y fast-forward únicamente desde origin/codex/factupapa-claude-fixes, sin merge ni rebase y sin tocar main/producción/n8n/FactuPapa antigua. No modificar datos reales. Verifica los cambios actuales de clasificación documental y migration 0022. Ejecuta en factupapa-next/apps/api: npm ci si hace falta, npm run typecheck, npm test. Después levanta únicamente el entorno aislado de integración habitual y ejecuta la prueba PostgreSQL document-classification.integration.test.ts o la suite de integración si el harness exige suite completa. No despliegues todavía y no apliques migraciones sobre la base de staging real. Devuelve SHA probado, comandos/resultados, fallos exactos y confirma que ventas propias, transferencias, ingresos, extractos, abonos y unknown quedan bloqueados como compras. Sin secretos.",
-  "lastRunId": "978bf40a-7c34-483e-967b-3d00ca4a31ad",
-  "lastResult": "completed"
+  "enabled": true,
+  "requested_at": "2026-08-26T22:39:00Z",
+  "instructions": "EXCLUSIVAMENTE staging real y SOLO LECTURA. No modificar base de datos, archivos, Drive, Gmail, repositorio, servicios ni contenedores. No tocar main, producción, n8n ni FactuPapa antigua. Audita la cola documental de compras/Gmail que el usuario ve contaminada (aprox. 100 pendientes). Identifica todos los documents con status needs_review/relevant review states y source Gmail, con su id, filename, subject, sender_email, extracted_data.documentType, issuer/recipient, invoice number, total, confidence y purchaseEligible cuando existan. Marca como evidencia inequívoca de NO-COMPRA únicamente: (a) facturas de venta propias FAC-xxx/2026 o archivos FACTURA_VENTA/issuer propio; (b) documentos bancarios/transferencias/ingresos/extractos/confirmaciones de pago; (c) Junta/AEAT/administrativos/non_fiscal_document si la evidencia documental/metadatos lo demuestra; (d) duplicados ya vinculados. No adivines casos ambiguos. Para cada documento comprueba si existe purchase_invoice enlazada, su status, total, pagos y si una compra confirmada contribuye a stock/saldos. Devuelve conteos por clase, lista exacta de IDs inequívocos candidatos a retirada de la cola y a baja lógica de compra, y lista separada de ambiguos que deben conservarse para revisión humana. Incluye una comprobación específica de FAC-125/2026, FAC-127/2026, FAC-128/2026 y FAC-129/2026 y documentos de Junta de Andalucía vistos en la cola. Sin secretos ni datos personales innecesarios. No hagas ningún cambio.",
+  "lastRunId": null,
+  "lastResult": null
 }
