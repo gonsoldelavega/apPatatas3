@@ -1,8 +1,8 @@
 {
-  "runId": "18461537-865d-46e5-a773-fd9ea0d4e534",
+  "runId": "44765be2-70bd-4cb2-abda-576be87c4e45",
   "taskId": "validate-document-classification-guard",
-  "startedAt": "2026-08-26T12:15:11.412Z",
-  "finishedAt": "2026-08-26T12:15:11.421Z",
+  "startedAt": "2026-08-26T12:18:11.392Z",
+  "finishedAt": "2026-08-26T12:18:11.397Z",
   "status": "idle",
   "reason": "task_disabled",
   "taskHash": "4bbc92dce6b9cfc3186ed8a21711b54a23dd2244b4cfae26eef90f9b143ebfda"
