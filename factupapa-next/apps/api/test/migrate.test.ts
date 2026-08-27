@@ -57,3 +57,32 @@ test("readiness detecta checksum incorrecto", () => {
     /migration_checksum_mismatch:0009_sales_document_state_machine\.sql/,
   );
 });
+
+test("readiness permite la migración futura conocida de staging", () => {
+  assert.doesNotThrow(() =>
+    assertMigrationState(
+      [{ filename: "0023_gmail_inbox_cursor_and_metrics.sql", checksum: "a" }],
+      [
+        { filename: "0023_gmail_inbox_cursor_and_metrics.sql", checksum: "a" },
+        {
+          filename: "0024_purchase_soft_delete.sql",
+          checksum: "ddfb33c167c15710a7301efbbf3f5228db192b65e8ba2a8f812d4fa890e89c06",
+        },
+      ],
+    ),
+  );
+});
+
+test("readiness sigue rechazando migraciones futuras desconocidas", () => {
+  assert.throws(
+    () =>
+      assertMigrationState(
+        [{ filename: "0023_gmail_inbox_cursor_and_metrics.sql", checksum: "a" }],
+        [
+          { filename: "0023_gmail_inbox_cursor_and_metrics.sql", checksum: "a" },
+          { filename: "9999_unexpected.sql", checksum: "f" },
+        ],
+      ),
+    /migration_unexpected:9999_unexpected\.sql/,
+  );
+});

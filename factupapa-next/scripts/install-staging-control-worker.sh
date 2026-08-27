@@ -34,6 +34,19 @@ cd "\${control_root}"
 git fetch --quiet origin "\${task_branch}"
 git checkout --quiet "\${task_branch}"
 git reset --hard --quiet "origin/\${task_branch}"
+# The control task schema uses an instruction list for structured authoring,
+# while older runners accepted only a string. Normalize it before validation,
+# with the same bounded size check used by the runner.
+node - <<'NODE'
+const fs = require('node:fs');
+const path = '.factupapa-control/task.json';
+const task = JSON.parse(fs.readFileSync(path, 'utf8'));
+if (Array.isArray(task.instructions)) task.instructions = task.instructions.join('\\n');
+if (typeof task.instructions !== 'string' || task.instructions.trim().length === 0 || task.instructions.length > 12000) {
+  throw new Error('invalid_instruction_length');
+}
+fs.writeFileSync(path, JSON.stringify(task, null, 2) + '\\n', { mode: 0o600 });
+NODE
 node factupapa-next/scripts/staging-control-runner.mjs
 if git diff --quiet; then
   exit 0
