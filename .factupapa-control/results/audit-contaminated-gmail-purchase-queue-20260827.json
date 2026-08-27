@@ -1,8 +1,8 @@
 {
-  "runId": "db09b809-e9a6-47ca-a6ca-bc77b93a33e5",
+  "runId": "e10c20d5-b765-481c-979d-5d1e44d993be",
   "taskId": "audit-contaminated-gmail-purchase-queue-20260827",
-  "startedAt": "2026-08-27T03:55:11.431Z",
-  "finishedAt": "2026-08-27T03:55:11.444Z",
+  "startedAt": "2026-08-27T03:58:11.411Z",
+  "finishedAt": "2026-08-27T03:58:11.417Z",
   "status": "idle",
   "reason": "task_disabled",
   "taskHash": "add3779ad5abc5d25e9366eddf4a187b038d46f0af0c163dd61d8d11cfc33e4d"
