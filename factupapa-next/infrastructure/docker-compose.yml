@@ -175,7 +175,7 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_BASE_URL: ${WEB_API_BASE_URL:-http://127.0.0.1:4100}
+        VITE_API_BASE_URL: ${WEB_API_BASE_URL:-/api}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${WEB_PORT:-4173}:4173"

@@ -6,5 +6,9 @@
     -Server
   }
 
+  handle_path /api/* {
+    reverse_proxy api:4100
+  }
+
   reverse_proxy web:4173
 }
