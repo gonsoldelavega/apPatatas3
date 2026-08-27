@@ -17,5 +17,5 @@ test("lista facturas por año y número fiscal descendentes", async () => {
   assert.ok(listing);
   assert.match(listing, /extract\(year from issue_date\) desc/);
   assert.match(listing, /number desc nulls last/);
-  assert.match(listing, /issue_date desc, created_at desc, id desc/);
+  assert.match(listing, /issue_date desc,\s+created_at desc,\s+id desc/);
 });
