@@ -178,7 +178,13 @@ export class InvoiceRepository {
     );
     values.push(pageSize, (page - 1) * pageSize);
     const rows = await client.query<Invoice & QueryResultRow>(
-      `select ${projection} from invoices ${where} order by issue_date desc, id desc limit $${values.length - 1} offset $${values.length}`,
+      `select ${projection} from invoices ${where}
+       order by extract(year from issue_date) desc,
+                number desc nulls last,
+                issue_date desc,
+                created_at desc,
+                id desc
+       limit $${values.length - 1} offset $${values.length}`,
       values,
     );
     return {
