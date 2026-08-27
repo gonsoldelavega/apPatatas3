@@ -254,7 +254,7 @@ test("factura cancelada conserva el bloqueo de metadatos y líneas", async () =>
 test("las condiciones guardadas solo se aplican cuando el cliente las activa", async () => {
   await withTenantTransaction(api.pool, identity, async (client) => {
     await client.query(
-      `update contacts set payment_terms_text=$2, apply_invoice_defaults=false where id=$1`,
+      `update contacts set payment_terms_days=7, payment_terms_text=$2, apply_invoice_defaults=false where id=$1`,
       [customerId, "Condición conservada de prueba"],
     );
   });
@@ -271,7 +271,22 @@ test("las condiciones guardadas solo se aplican cuando el cliente las activa", a
     contactId: customerId, series: "TERMS_ON_2026", issueDate: "2026-07-15",
   });
   assert.equal(withTerms?.paymentTerms, "Condición conservada de prueba");
-  assert.equal(withTerms?.dueDate, "2026-07-18");
+  assert.equal(withTerms?.dueDate, "2026-07-22");
+
+  await withTenantTransaction(api.pool, identity, async (client) => {
+    await client.query(
+      `update contacts set payment_terms_days=1, payment_terms_text=$2 where id=$1`,
+      [customerId, "Pago al contado"],
+    );
+  });
+  const historical = await invoices.get(identity, withTerms!.id);
+  assert.equal(historical?.paymentTerms, "Condición conservada de prueba");
+  assert.equal(historical?.dueDate, "2026-07-22");
+  const next = await invoices.create(identity, {
+    contactId: customerId, series: "TERMS_NEXT_2026", issueDate: "2026-07-15",
+  });
+  assert.equal(next?.paymentTerms, "Pago al contado");
+  assert.equal(next?.dueDate, "2026-07-16");
 
   const explicitlyWithoutTerms = await invoices.create(identity, {
     contactId: customerId, series: "TERMS_OVERRIDE_2026", issueDate: "2026-07-15",

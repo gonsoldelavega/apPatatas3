@@ -164,8 +164,9 @@ export function SalesFormPage() {
   const selectedContact = contacts.data?.items.find((x) => x.id === contactId);
   useEffect(() => {
     if (!invoice) return;
-    setIncludePaymentTerms(false);
-    setTerms(selectedContact?.paymentTermsText ?? "");
+    const apply = Boolean(selectedContact?.applyInvoiceDefaults);
+    setIncludePaymentTerms(apply);
+    setTerms(apply ? selectedContact?.paymentTermsText ?? "" : "");
     setInfo(
       selectedContact?.applyInvoiceDefaults
         ? selectedContact.defaultInvoiceInformation ?? ""
@@ -174,8 +175,13 @@ export function SalesFormPage() {
   }, [contactId, invoice, selectedContact]);
   useEffect(() => {
     if (!invoice) return;
-    setDue(addCalendarDays(issueDate, STANDARD_PAYMENT_DAYS));
-  }, [invoice, issueDate]);
+    if (!includePaymentTerms) {
+      setDue("");
+      return;
+    }
+    const days = selectedContact?.paymentTermsDays || STANDARD_PAYMENT_DAYS;
+    setDue(addCalendarDays(issueDate, days));
+  }, [invoice, issueDate, includePaymentTerms, selectedContact?.paymentTermsDays]);
   useEffect(() => {
     if (!invoice) return;
     setInvoiceMode(

@@ -64,12 +64,13 @@ export class InvoiceRepository {
         legalName: string;
         taxId: string | null;
         address: Record<string, string>;
+        paymentTermsDays: number;
         paymentTermsText: string | null;
         defaultInvoiceInformation: string | null;
         applyInvoiceDefaults: boolean;
       } & QueryResultRow
     >(
-      `select legal_name "legalName",tax_id "taxId",address,payment_terms_text "paymentTermsText",default_invoice_information "defaultInvoiceInformation",apply_invoice_defaults "applyInvoiceDefaults" from contacts
+      `select legal_name "legalName",tax_id "taxId",address,payment_terms_days "paymentTermsDays",payment_terms_text "paymentTermsText",default_invoice_information "defaultInvoiceInformation",apply_invoice_defaults "applyInvoiceDefaults" from contacts
        where id = $1 and is_active and kind in ('customer', 'both')`,
       [input.contactId],
     );
@@ -115,7 +116,7 @@ export class InvoiceRepository {
         issuer.legalName,
         issuer.taxId,
         issuer.address,
-        STANDARD_PAYMENT_DAYS,
+        snapshot.paymentTermsDays || STANDARD_PAYMENT_DAYS,
         snapshot.paymentTermsText,
       ],
     );

@@ -154,6 +154,27 @@ export function ContactDetailPage() {
           </div>
         )}
       </section>
+      {item.type !== "supplier" && (
+        <section className="detail-card" aria-labelledby="payment-terms-title">
+          <h2 id="payment-terms-title">Condiciones de pago</h2>
+          <dl className="detail-list">
+            <div>
+              <dt>Aplicar en nuevas facturas</dt>
+              <dd>{item.applyInvoiceDefaults ? "Sí" : "No"}</dd>
+            </div>
+            <div>
+              <dt>Días hasta vencimiento</dt>
+              <dd>{item.applyInvoiceDefaults ? `${item.paymentTermsDays} días` : "—"}</dd>
+            </div>
+          </dl>
+          {item.applyInvoiceDefaults && item.paymentTermsText && (
+            <div className="notes">
+              <strong>Texto de condiciones</strong>
+              <p>{item.paymentTermsText}</p>
+            </div>
+          )}
+        </section>
+      )}
       <section aria-labelledby="prices-title">
         <div className="section-heading">
           <div>
