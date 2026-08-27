@@ -12,6 +12,7 @@ export interface MigrationManifestEntry {
 // staging database but not yet present in this branch; keep its checksum
 // pinned so arbitrary/untrusted migrations still fail closed.
 const forwardCompatibleMigrations = new Map([
+  ["0022_gmail_document_safety.sql", "2d6f02db41868361d447904d05d8a63945f04107f33ab956137e50f0bb14c7ee"],
   ["0024_purchase_soft_delete.sql", "ddfb33c167c15710a7301efbbf3f5228db192b65e8ba2a8f812d4fa890e89c06"],
 ]);
 

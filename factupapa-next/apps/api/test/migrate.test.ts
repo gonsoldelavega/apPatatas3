@@ -65,6 +65,10 @@ test("readiness permite la migración futura conocida de staging", () => {
       [
         { filename: "0023_gmail_inbox_cursor_and_metrics.sql", checksum: "a" },
         {
+          filename: "0022_gmail_document_safety.sql",
+          checksum: "2d6f02db41868361d447904d05d8a63945f04107f33ab956137e50f0bb14c7ee",
+        },
+        {
           filename: "0024_purchase_soft_delete.sql",
           checksum: "ddfb33c167c15710a7301efbbf3f5228db192b65e8ba2a8f812d4fa890e89c06",
         },
