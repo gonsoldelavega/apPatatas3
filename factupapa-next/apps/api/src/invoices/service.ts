@@ -6,6 +6,12 @@ import { HttpError } from "../http/errors.js";
 import { lineAmounts, sumAmounts } from "../sales/money.js";
 import { InvoiceRepository } from "./repository.js";
 import type { InvoiceCreate, InvoiceLineInput, InvoicePatch } from "./types.js";
+
+/** Facturas en borrador y emitidas siguen abiertas durante su ciclo operativo. */
+export function isInvoiceEditableStatus(status: string): boolean {
+  return status === "draft" || status === "issued";
+}
+
 export class InvoiceService {
   constructor(
     private pool: Pool,
@@ -23,6 +29,18 @@ export class InvoiceService {
       [id],
     );
     const t = sumAmounts(r.rows);
+    const payment = await client.query<
+      { status: string; paidTotal: string } & QueryResultRow
+    >(
+      `select status,coalesce((select sum(amount) from payments where invoice_id=invoices.id),0)::text "paidTotal"
+       from invoices where id=$1`,
+      [id],
+    );
+    if (
+      payment.rows[0]?.status === "issued" &&
+      Number(t.total) + 0.005 < Number(payment.rows[0].paidTotal)
+    )
+      throw new HttpError("invoice_total_below_paid", 409);
     await client.query(
       `update invoices set subtotal=$2,tax_total=$3,total=$4 where id=$1`,
       [id, t.subtotal, t.taxTotal, t.total],
@@ -64,7 +82,7 @@ export class InvoiceService {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const before = await this.repository.get(c, id, true);
       if (!before) throw new HttpError("not_found", 404);
-      if (before.status !== "draft") throw new HttpError("conflict", 409);
+      if (!isInvoiceEditableStatus(before.status)) throw new HttpError("conflict", 409);
       const map = {
         contactId: "contact_id",
         series: "series",
@@ -124,7 +142,7 @@ export class InvoiceService {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const inv = await this.repository.get(c, id, true);
       if (!inv) throw new HttpError("not_found", 404);
-      if (inv.status !== "draft") throw new HttpError("conflict", 409);
+      if (!isInvoiceEditableStatus(inv.status)) throw new HttpError("conflict", 409);
       let description = input.description,
         unit = input.unit,
         price = input.unitPrice,
@@ -166,6 +184,15 @@ export class InvoiceService {
         }
       }
       if (!description || !unit || price === undefined || rate === undefined)
+        throw new HttpError("invalid_request", 400);
+      if (
+        inv.status === "issued" &&
+        inv.operationStartDate &&
+        inv.operationEndDate &&
+        (!input.deliveryDate ||
+          input.deliveryDate < inv.operationStartDate ||
+          input.deliveryDate > inv.operationEndDate)
+      )
         throw new HttpError("invalid_request", 400);
       const quantity = input.packageQuantity && unitsPerPackage
           ? String(Number(input.packageQuantity) * Number(unitsPerPackage))
@@ -243,7 +270,7 @@ export class InvoiceService {
     await withTenantTransaction(this.pool, identity, async (c) => {
       const inv = await this.repository.get(c, id, true);
       if (!inv) throw new HttpError("not_found", 404);
-      if (inv.status !== "draft") throw new HttpError("conflict", 409);
+      if (!isInvoiceEditableStatus(inv.status)) throw new HttpError("conflict", 409);
       const r = await c.query(
         `delete from invoice_lines where id=$1 and invoice_id=$2`,
         [lineId, id],

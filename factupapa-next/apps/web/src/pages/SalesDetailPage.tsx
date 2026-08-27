@@ -67,6 +67,11 @@ export function SalesDetailPage() {
     [draftDeliveryInput, setDraftDeliveryInput] = useState(""),
     [draftPaymentTerms, setDraftPaymentTerms] = useState(""),
     [draftGeneralInfo, setDraftGeneralInfo] = useState(""),
+    [editingLineId, setEditingLineId] = useState<string | null>(null),
+    [editProductId, setEditProductId] = useState(""),
+    [editQuantity, setEditQuantity] = useState(""),
+    [editUnitPrice, setEditUnitPrice] = useState(""),
+    [editDeliveryDate, setEditDeliveryDate] = useState(""),
     [actionMessage, setActionMessage] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false),
     [paymentAmount, setPaymentAmount] = useState(""),
@@ -119,7 +124,7 @@ export function SalesDetailPage() {
     setDraftGeneralInfo(current.generalInformation ?? "");
   }, [documentQuery.data, invoice]);
   const editLine = useMutation({
-    mutationFn: async (input: { action: "add"; productId: string; quantity: string; deliveryDate?: string } | { action: "delete"; lineId: string }) => {
+    mutationFn: async (input: { action: "add"; productId: string; quantity: string; deliveryDate?: string } | { action: "delete"; lineId: string } | { action: "update"; line: NonNullable<Invoice["lines"]>[number]; quantity: string; unitPrice: string; deliveryDate: string }) => {
       if (input.action === "add" && invoice)
         await invoicesApi.addLine(id, {
           productId: input.productId,
@@ -128,12 +133,27 @@ export function SalesDetailPage() {
         });
       else if (input.action === "add")
         await deliveryNotesApi.addLine(id, { productId: input.productId, quantity: input.quantity });
-      else await api.deleteLine(id, input.lineId);
+      else if (input.action === "delete") await api.deleteLine(id, input.lineId);
+      else {
+        const selectedProduct = products.data?.items.find((product) => product.id === editProductId);
+        await invoicesApi.updateLine(id, input.line.id, {
+        productId: editProductId || input.line.productId,
+        description: selectedProduct?.name ?? input.line.description,
+        quantity: input.quantity.replace(",", "."),
+        unit: selectedProduct?.unit ?? input.line.unit,
+        unitPrice: input.unitPrice.replace(",", "."),
+        taxRate: selectedProduct?.taxRate ?? input.line.taxRate,
+        position: input.line.position,
+        deliveryDate: input.deliveryDate || null,
+      });
+      }
     },
     onSuccess: async () => {
       setNewProductId("");
       setNewQuantity("1");
       setNewDeliveryDate(todayLocal());
+      setEditingLineId(null);
+      setEditProductId("");
       await queryClient.invalidateQueries({ queryKey: [type, id] });
     },
   });
@@ -249,6 +269,7 @@ export function SalesDetailPage() {
     );
   const item = documentQuery.data;
   const invoiceItem = invoice ? (item as Invoice) : null;
+  const editable = item.status === "draft" || (invoice && item.status === "issued");
   return (
     <div className="page detail-page sales-detail">
       <header className="detail-header">
@@ -323,10 +344,36 @@ export function SalesDetailPage() {
               {line.deliveryDate && (
                 <small>Entrega: {line.deliveryDate.split("-").reverse().join("/")}</small>
               )}
+                {invoice && editingLineId === line.id && (
+                <div className="form-grid invoice-line-editor">
+                  <SelectField label="Producto" value={editProductId} onChange={(e) => {
+                    const product = products.data?.items.find((candidate) => candidate.id === e.target.value);
+                    if (product) {
+                      setEditUnitPrice(formatQuantity(product.salePrice));
+                    }
+                    setEditProductId(e.target.value);
+                  }}>
+                    <option value="">Selecciona</option>
+                    {products.data?.items.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
+                  </SelectField>
+                  <Field label="Cantidad" inputMode="decimal" value={editQuantity} onChange={(e) => setEditQuantity(e.target.value)} />
+                  <Field label="Precio unitario" inputMode="decimal" value={editUnitPrice} onChange={(e) => setEditUnitPrice(e.target.value)} />
+                  <Field label="Fecha de entrega" type="date" value={editDeliveryDate} onChange={(e) => setEditDeliveryDate(e.target.value)} />
+                  <Button variant="secondary" busy={editLine.isPending} disabled={Number(editQuantity.replace(",", ".")) <= 0 || Number(editUnitPrice.replace(",", ".")) < 0} onClick={() => editLine.mutate({ action: "update", line, quantity: editQuantity, unitPrice: editUnitPrice, deliveryDate: editDeliveryDate })}>Guardar línea</Button>
+                </div>
+              )}
             </span>
             <span className="sales-line__amount">
               <strong>{formatMoney(line.lineTotal)}</strong>
-              {item.status === "draft" && (
+              {editable && (
+                <>
+                {invoice && <button type="button" aria-label={`Editar ${line.description}`} onClick={() => {
+                  setEditingLineId(line.id);
+                  setEditProductId(line.productId ?? "");
+                  setEditQuantity(line.quantity);
+                  setEditUnitPrice(line.unitPrice);
+                  setEditDeliveryDate(line.deliveryDate ?? "");
+                }}><Pencil /></button>}
                 <button
                   type="button"
                   aria-label={`Eliminar ${line.description}`}
@@ -334,6 +381,7 @@ export function SalesDetailPage() {
                 >
                   <Trash2 />
                 </button>
+                </>
               )}
             </span>
           </div>
@@ -392,7 +440,7 @@ export function SalesDetailPage() {
           )}
         </section>
       )}
-      {item.status === "draft" && (
+      {editable && (
         <>
           {invoiceItem && (
             <section className="form-card" id="invoice-edit">
@@ -521,18 +569,27 @@ export function SalesDetailPage() {
             >
               Añadir línea
             </Button>
+            {editLine.isError && (
+              <p className="action-feedback action-feedback--error" role="alert">
+                {editLine.error instanceof ApiError && editLine.error.code === "invoice_total_below_paid"
+                  ? "El nuevo total no puede quedar por debajo del importe ya cobrado."
+                  : "No se pudo guardar la línea. Revisa cantidad, precio y fecha de entrega."}
+              </p>
+            )}
           </section>
-          <Button
+          {item.status === "draft" && <Button
             icon={<FileCheck2 />}
             busy={action.isPending}
             disabled={!item.lines?.length || editLine.isPending}
             onClick={() =>
-              window.confirm("Emitir bloquea el documento. ¿Continuar?") &&
+              window.confirm(invoice
+                ? "¿Emitir la factura? Podrás seguir añadiendo pedidos durante la quincena."
+                : "¿Emitir el albarán?") &&
               action.mutate("issue")
             }
           >
             Emitir {invoice ? "factura" : "albarán"}
-          </Button>
+          </Button>}
         </>
       )}
       {invoice && (
@@ -590,14 +647,14 @@ export function SalesDetailPage() {
               variant="secondary"
               icon={<Pencil />}
               onClick={() => {
-                if (item.status === "draft") {
+                if (editable) {
                   document.getElementById("invoice-edit")?.scrollIntoView({
                     behavior: "smooth",
                     block: "start",
                   });
                   return;
                 }
-                window.alert("Una factura emitida no se puede modificar. Para corregirla, cancélala y crea una nueva para conservar el historial contable.");
+                window.alert("Una factura cancelada no se puede modificar.");
               }}
             >
               Editar
