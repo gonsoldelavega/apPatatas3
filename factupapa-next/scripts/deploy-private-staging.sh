@@ -95,7 +95,8 @@ if (!values.has("DATABASE_ADMIN_URL")) {
 }
 const required = ["DATABASE_URL", "DATABASE_ADMIN_URL", "POSTGRES_DB", "POSTGRES_PASSWORD", "POSTGRES_USER", "JWT_SECRET", "REDIS_URL", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY"];
 for (const key of required) if (!values.get(key)) throw new Error(`staging_env_bootstrap_missing:${key}`);
-const output = [...values].filter(([key]) => /^[A-Z][A-Z0-9_]*$/.test(key)).map(([key, value]) => `${key}=${value}`).join("\n") + "\n";
+const shellQuote = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
+const output = [...values].filter(([key]) => /^[A-Z][A-Z0-9_]*$/.test(key)).map(([key, value]) => `${key}=${shellQuote(value)}`).join("\n") + "\n";
 writeFileSync(process.env.OUT, output, { mode: 0o600 });
 NODE
   mv "${temporary_file}" "${environment_file}"
