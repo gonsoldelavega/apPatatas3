@@ -163,9 +163,6 @@ test "${APP_VERSION}" = "${expected_sha}"
 
 echo "Creando copia verificada previa al despliegue"
 (
-  # restore:verify creates temporary Compose services; isolate its project so
-  # it can never recreate or network against the persistent staging stack.
-  export COMPOSE_PROJECT_NAME="factupapa_predeploy_verify_${GITHUB_SHA:0:12}"
   cd "${repository}/factupapa-next/apps/api"
   npm ci --include=dev --no-audit --no-fund >/dev/null
   backup_result="$(
