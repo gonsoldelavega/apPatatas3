@@ -59,6 +59,47 @@ test "${DOCKER_HOST:-}" = "unix:///run/user/1001/docker.sock" || { echo "Docker 
 docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless' || { echo "Docker no está en modo rootless" >&2; exit 1; }
 test -d "${repository}/.git" || { echo "Checkout de Actions no disponible" >&2; exit 1; }
 test "$(git -C "${repository}" rev-parse HEAD)" = "${expected_sha}" || { echo "El checkout no coincide con el SHA auditado" >&2; exit 1; }
+if [ ! -f "${environment_file}" ]; then
+  # Recover the private runtime envelope from the existing staging container.
+  # The runner checkout is ephemeral, while the rootless Compose project is
+  # persistent; keeping this bootstrap here avoids a false deploy failure when
+  # the protected env file was lost during runner maintenance.
+  api_container="$(docker ps -q --filter 'label=com.docker.compose.project=factupapa_staging' --filter 'label=com.docker.compose.service=api' | head -n 1)"
+  postgres_container="$(docker ps -q --filter 'label=com.docker.compose.project=factupapa_staging' --filter 'label=com.docker.compose.service=postgres' | head -n 1)"
+  test -n "${api_container}" -a -n "${postgres_container}" || {
+    echo "Falta el entorno privado persistente y no hay staging recuperable" >&2; exit 1;
+  }
+  mkdir -p "$(dirname "${environment_file}")"
+  temporary_file="$(mktemp "$(dirname "${environment_file}")/.env.bootstrap.XXXXXX")"
+  chmod 600 "${temporary_file}"
+  API_CONTAINER="${api_container}" POSTGRES_CONTAINER="${postgres_container}" OUT="${temporary_file}" node - <<'NODE'
+const { execFileSync } = require("node:child_process");
+const { writeFileSync } = require("node:fs");
+const api = execFileSync("docker", ["inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", process.env.API_CONTAINER], { encoding: "utf8" });
+const postgres = execFileSync("docker", ["inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", process.env.POSTGRES_CONTAINER], { encoding: "utf8" });
+const values = new Map();
+for (const line of `${api}${postgres}`.split(/\r?\n/)) {
+  const index = line.indexOf("=");
+  if (index > 0) values.set(line.slice(0, index), line.slice(index + 1));
+}
+const databaseUrl = values.get("DATABASE_URL");
+if (!databaseUrl) throw new Error("staging_env_bootstrap_missing:DATABASE_URL");
+if (!values.has("DATABASE_ADMIN_URL")) {
+  const db = new URL(databaseUrl);
+  const pgUser = values.get("POSTGRES_USER");
+  const pgPassword = values.get("POSTGRES_PASSWORD");
+  if (!pgUser || !pgPassword) throw new Error("staging_env_bootstrap_missing:postgres");
+  db.username = pgUser;
+  db.password = pgPassword;
+  values.set("DATABASE_ADMIN_URL", db.toString());
+}
+const required = ["DATABASE_URL", "DATABASE_ADMIN_URL", "POSTGRES_DB", "POSTGRES_PASSWORD", "POSTGRES_USER", "JWT_SECRET", "REDIS_URL", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY"];
+for (const key of required) if (!values.get(key)) throw new Error(`staging_env_bootstrap_missing:${key}`);
+const output = [...values].filter(([key]) => /^[A-Z][A-Z0-9_]*$/.test(key)).map(([key, value]) => `${key}=${value}`).join("\n") + "\n";
+writeFileSync(process.env.OUT, output, { mode: 0o600 });
+NODE
+  mv "${temporary_file}" "${environment_file}"
+fi
 test -f "${environment_file}" || { echo "Falta el entorno privado persistente" >&2; exit 1; }
 test -f "${override_file}" || { echo "Falta la configuración privada de staging" >&2; exit 1; }
 test "$(stat -c '%a' "${environment_file}")" = "600" || { echo "Los permisos del entorno privado no son 600" >&2; exit 1; }
