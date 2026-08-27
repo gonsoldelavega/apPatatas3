@@ -903,11 +903,17 @@ h2 {
 .sticky-submit {
   position: fixed;
   z-index: 20;
+  /* La barra fija no debe bloquear acciones del formulario que queden debajo. */
+  pointer-events: none;
   inset: auto 0 calc(70px + env(safe-area-inset-bottom));
   padding: 10px 18px;
   border-top: 1px solid var(--line);
   background: rgb(247 246 241 / 94%);
   backdrop-filter: blur(12px);
+}
+
+.sticky-submit > * {
+  pointer-events: auto;
 }
 .margin-note {
   display: flex;

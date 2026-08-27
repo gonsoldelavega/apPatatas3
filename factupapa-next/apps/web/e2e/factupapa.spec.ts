@@ -305,6 +305,30 @@ test("factura directa con IVA por defecto y decimales legibles", async ({ page }
   await expect(page.getByText("IVA", { exact: true })).toBeVisible();
 });
 
+test("una factura admite tres líneas y las envía juntas", async ({ page }) => {
+  await login(page);
+  await page.goto("/ventas/nuevo/factura");
+  await page.getByRole("combobox", { name: "Cliente", exact: true }).selectOption({ index: 1 });
+  for (let index = 1; index <= 3; index += 1) {
+    await page.getByLabel(`Producto ${index}`).selectOption({ index: 1 });
+    await page.getByLabel(index === 1 ? "Cantidad" : `Cantidad`).nth(index - 1).fill("1");
+    if (index < 3) {
+      await page.getByRole("button", { name: "Añadir producto" }).click();
+      await expect(page.getByLabel(`Producto ${index + 1}`)).toBeVisible();
+    }
+  }
+  const lineRequests: Promise<import("@playwright/test").Request>[] = [];
+  page.on("request", (candidate) => {
+    if (candidate.method() === "POST" && /\/(?:api\/)?invoices\/[^/]+\/lines$/.test(candidate.url())) {
+      lineRequests.push(Promise.resolve(candidate));
+    }
+  });
+  await page.getByRole("button", { name: "Revisar factura" }).click();
+  await expect.poll(() => lineRequests.length).toBe(3);
+  expect(lineRequests.map((request) => request.postDataJSON())).toHaveLength(3);
+  await expect(page).toHaveURL(/\/ventas\/facturas\//);
+});
+
 test("una compra válida se guarda, confirma y cancela", async ({ page }, testInfo) => {
   await login(page);
 
