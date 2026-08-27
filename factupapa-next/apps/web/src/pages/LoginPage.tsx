@@ -32,13 +32,6 @@ export function LoginPage() {
     const google = new URLSearchParams(location.search).get("google");
     if (google === "success") {
       setMessage("Restaurando tu sesión de Google…");
-      void auth.restore().then((restored) => {
-        if (!restored) {
-          setMessage(
-            "Google ha validado tu cuenta, pero la sesión no ha podido restaurarse. Inténtalo de nuevo.",
-          );
-        }
-      });
       return;
     }
     const googleMessages: Record<string, string> = {
@@ -56,7 +49,7 @@ export function LoginPage() {
     if (google && googleMessages[google]) {
       setMessage(googleMessages[google]);
     }
-  }, [auth.restore, location.search]);
+  }, [location.search]);
 
   if (auth.status === "authenticated") return <Navigate to="/" replace />;
   const from = (location.state as { from?: string } | null)?.from ?? "/";
