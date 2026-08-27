@@ -82,11 +82,14 @@ jobs:
             [ "${status}" = "200" ] && exit 0
             sleep 2
           done
-          echo "Existing staging did not recover on port 14173" >&2
+          # A stale private project must not prevent the audited checkout from
+          # rebuilding it. The deploy script performs the authoritative
+          # health-gated recreate after the audit; recovery here is best effort.
+          echo "Existing staging did not recover on port 14173; continuing to audited deploy" >&2
           docker ps -a \
             --filter 'label=com.docker.compose.project=factupapa_staging' \
             --format 'table {{.Names}}\t{{.Status}}'
-          exit 1
+          exit 0
 
       - name: Diagnose imported data visibility
         if: >-
