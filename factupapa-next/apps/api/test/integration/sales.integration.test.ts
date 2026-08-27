@@ -167,6 +167,90 @@ test("preferencias de venta son tenant-aware y arrancan la factura en FAC-100/a�
   );
 });
 
+test("factura quincenal emitida sigue editable, persiste líneas y protege cobros", async () => {
+  const draft = await invoices.create(identity, {
+    contactId: customerId,
+    series: "FORTNIGHT_2026",
+    issueDate: "2026-07-15",
+    operationStartDate: "2026-07-01",
+    operationEndDate: "2026-07-15",
+  });
+  await invoices.line(identity, draft!.id, undefined, {
+    productId,
+    quantity: "1",
+    deliveryDate: "2026-07-02",
+  });
+  await invoices.line(identity, draft!.id, undefined, {
+    productId,
+    quantity: "2",
+    deliveryDate: "2026-07-08",
+  });
+  const issued = await invoices.issue(identity, draft!.id);
+  assert.equal(issued?.status, "issued");
+
+  await invoices.line(identity, draft!.id, undefined, {
+    productId,
+    quantity: "3",
+    deliveryDate: "2026-07-14",
+  });
+  let reloaded = await invoices.get(identity, draft!.id);
+  assert.equal(reloaded.lines.length, 3);
+  assert.equal(reloaded.total, "61.6294");
+
+  const edited = reloaded.lines[0]!;
+  await invoices.line(identity, draft!.id, edited.id, {
+    productId: edited.productId,
+    description: edited.description,
+    quantity: "4",
+    unit: edited.unit,
+    unitPrice: edited.unitPrice,
+    taxRate: edited.taxRate,
+    position: edited.position,
+    deliveryDate: "2026-07-03",
+  });
+  reloaded = await invoices.get(identity, draft!.id);
+  assert.equal(reloaded.lines[0]?.quantity, "4.0000");
+  assert.equal(reloaded.lines[0]?.deliveryDate, "2026-07-03");
+  assert.equal(reloaded.total, "92.4440");
+
+  await withTenantTransaction(api.pool, identity, (client) =>
+    client.query(
+      `insert into payments(company_id,invoice_id,contact_id,direction,amount,paid_at,created_by_user_id)
+       values($1,$2,$3,'incoming',80,current_date,$4)`,
+      [identity.companyId, draft!.id, customerId, identity.userId],
+    ),
+  );
+  await assert.rejects(
+    invoices.deleteLine(identity, draft!.id, reloaded.lines[0]!.id),
+    (error: unknown) =>
+      error instanceof HttpError && error.message === "invoice_total_below_paid",
+  );
+  assert.equal((await invoices.get(identity, draft!.id)).lines.length, 3);
+});
+
+test("factura cancelada conserva el bloqueo de metadatos y líneas", async () => {
+  const draft = await invoices.create(identity, {
+    contactId: customerId,
+    series: "CANCEL_LOCK_2026",
+    issueDate: "2026-07-15",
+  });
+  await invoices.line(identity, draft!.id, undefined, { productId, quantity: "1" });
+  await invoices.issue(identity, draft!.id);
+  await invoices.cancel(identity, draft!.id);
+  await assert.rejects(
+    invoices.update(identity, draft!.id, { notes: "No permitido" }),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
+  await assert.rejects(
+    invoices.line(identity, draft!.id, undefined, { productId, quantity: "1" }),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
+  await assert.rejects(
+    invoices.deleteLine(identity, draft!.id, (await invoices.get(identity, draft!.id)).lines[0]!.id),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
+});
+
 test("las condiciones guardadas solo se aplican cuando el cliente las activa", async () => {
   await withTenantTransaction(api.pool, identity, async (client) => {
     await client.query(

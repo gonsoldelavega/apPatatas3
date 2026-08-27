@@ -7,6 +7,7 @@ export class HttpError extends Error {
       | "forbidden"
       | "not_found"
       | "conflict"
+      | "invoice_total_below_paid"
       | "payload_too_large"
       | "purchase_registry_not_configured"
       | "purchase_registry_unavailable"

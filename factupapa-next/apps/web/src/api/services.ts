@@ -17,6 +17,7 @@ import type {
   Page,
   Product,
   ProductInput,
+  ProductUnit,
   SalesPreferences,
   PurchaseInvoice,
   PurchaseRegistrySyncResult,
@@ -292,6 +293,15 @@ export const invoicesApi = {
   ) =>
     apiClient.request<Invoice>(`/invoices/${id}/lines`, {
       method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateLine: (
+    id: string,
+    lineId: string,
+    input: { productId?: string | null; description?: string; quantity: string; unit?: ProductUnit; unitPrice?: string; taxRate?: string; position?: number; deliveryDate?: string | null },
+  ) =>
+    apiClient.request<Invoice>(`/invoices/${id}/lines/${lineId}`, {
+      method: "PATCH",
       body: JSON.stringify(input),
     }),
   deleteLine: (id: string, lineId: string) =>

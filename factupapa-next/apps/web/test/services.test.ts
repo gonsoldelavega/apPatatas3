@@ -5,6 +5,7 @@ import {
   authApi,
   financeApi,
   importsApi,
+  invoicesApi,
   pricingApi,
   productsApi,
 } from "../src/api/services";
@@ -61,6 +62,25 @@ describe("contratos de importación", () => {
 });
 
 describe("contratos operativos", () => {
+  it("actualiza líneas de factura con PATCH y conserva los decimales", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
+    const input = {
+      productId: "product-id",
+      description: "Patata nueva",
+      quantity: "3.5000",
+      unit: "kg" as const,
+      unitPrice: "9.8765",
+      taxRate: "4.0000",
+      position: 2,
+      deliveryDate: "2026-07-14",
+    };
+    await invoicesApi.updateLine("invoice-id", "line-id", input);
+    expect(request).toHaveBeenCalledWith(
+      "/invoices/invoice-id/lines/line-id",
+      { method: "PATCH", body: JSON.stringify(input) },
+    );
+  });
+
   it("archiva justificantes sin activar ningún lector automático", async () => {
     const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
     await financeApi.archivePurchaseDocument({
