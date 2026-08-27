@@ -125,10 +125,13 @@ unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_C
 
 export COMPOSE_PROJECT_NAME=factupapa_staging
 export COMPOSE_FILE="${infrastructure}/docker-compose.yml:${override_file}"
+runtime_path="${PATH}"
 set -a
 # shellcheck disable=SC1090
 source "${environment_file}"
 set +a
+export PATH="${runtime_path}"
+unset runtime_path
 
 test "${PUBLIC_HOST}" = "${public_host}"
 test "${PUBLIC_BIND_ADDRESS}" = "0.0.0.0"
