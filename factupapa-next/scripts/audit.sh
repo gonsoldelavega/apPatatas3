@@ -119,6 +119,13 @@ umask 077
 mkdir -p "${artifacts}"
 chmod 700 "${artifacts}"
 cp "${infra}/.env.example" "${infra}/.env"
+# The private staging project may legitimately be running on the defaults.
+# Audits are serialized on this host, so reserve a separate localhost block
+# instead of competing with persistent services during `compose up`.
+audit_port_base="${FACTUPAPA_AUDIT_PORT_BASE:-24000}"
+case "${audit_port_base}" in ''|*[!0-9]*) echo "Puerto base de audit no válido" >&2; exit 1;; esac
+test "${audit_port_base}" -ge 1024
+test "${audit_port_base}" -le 64000
 postgres_password="$(openssl rand -hex 32)"
 api_database_password="$(openssl rand -hex 32)"
 redis_password="$(openssl rand -hex 32)"
@@ -138,6 +145,12 @@ sed -i \
   -e "s|^JWT_SECRET=.*|JWT_SECRET=${jwt_secret}|" \
   -e "s|^INTERNAL_METRICS_TOKEN=.*|INTERNAL_METRICS_TOKEN=${metrics_token}|" \
   -e "s|^INTERNAL_METRICS_ALLOW_REMOTE=.*|INTERNAL_METRICS_ALLOW_REMOTE=true|" \
+  -e "s|^POSTGRES_PORT=.*|POSTGRES_PORT=$((audit_port_base + 1))|" \
+  -e "s|^REDIS_PORT=.*|REDIS_PORT=$((audit_port_base + 2))|" \
+  -e "s|^MINIO_API_PORT=.*|MINIO_API_PORT=$((audit_port_base + 3))|" \
+  -e "s|^MINIO_CONSOLE_PORT=.*|MINIO_CONSOLE_PORT=$((audit_port_base + 4))|" \
+  -e "s|^APP_PORT=.*|APP_PORT=$((audit_port_base + 5))|" \
+  -e "s|^WEB_PORT=.*|WEB_PORT=$((audit_port_base + 6))|" \
   "${infra}/.env"
 unset postgres_password api_database_password redis_password minio_password jwt_secret metrics_token
 ! grep -q 'CAMBIAR_' "${infra}/.env"
@@ -161,10 +174,10 @@ phase "integración PostgreSQL"
 (cd "${api}" && DATABASE_ADMIN_URL="${host_database_admin_url}" DATABASE_URL="${host_database_url}" npm run test:integration)
 
 phase "health, readiness y métricas"
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/health)" = "200"
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready)" = "200"
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/internal/metrics)" = "404"
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -H "X-Operations-Token: ${INTERNAL_METRICS_TOKEN}" http://127.0.0.1:4100/internal/metrics)" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${APP_PORT}/health")" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${APP_PORT}/ready")" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${APP_PORT}/internal/metrics")" = "404"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -H "X-Operations-Token: ${INTERNAL_METRICS_TOKEN}" "http://127.0.0.1:${APP_PORT}/internal/metrics")" = "200"
 
 phase "seed ficticio para smoke"
 smoke_email="audit-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}@example.test"
@@ -174,12 +187,12 @@ APP_ENV=integration DEMO_USER_EMAIL="${smoke_email}" DEMO_USER_PASSWORD="${smoke
 phase "smoke web autenticado"
 (
   cd "${web}"
-  WEB_URL='http://127.0.0.1:4173' API_URL='http://127.0.0.1:4100' \
+  WEB_URL="http://127.0.0.1:${WEB_PORT}" API_URL="http://127.0.0.1:${APP_PORT}" \
     SMOKE_EMAIL="${smoke_email}" SMOKE_PASSWORD="${smoke_password}" \
     SMOKE_PDF_PATH="${web}/test-artifacts/factura-ficticia.pdf" npm run smoke
   phase "Playwright completo"
   DEMO_USER_EMAIL="${smoke_email}" DEMO_USER_PASSWORD="${smoke_password}" \
-    WEB_URL='http://127.0.0.1:4173' npx playwright test
+    WEB_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test
 )
 unset smoke_email smoke_password
 
@@ -219,10 +232,10 @@ phase "fallos controlados y recuperación de dependencias"
 for dependency in redis minio postgres; do
   compose stop "${dependency}"
   status=""
-  for _ in $(seq 1 15); do status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready || true)"; [ "${status}" = "503" ] && break; sleep 1; done
+  for _ in $(seq 1 15); do status="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${APP_PORT}/ready" || true)"; [ "${status}" = "503" ] && break; sleep 1; done
   test "${status}" = "503"
   compose start "${dependency}"
-  for _ in $(seq 1 30); do status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4100/ready || true)"; [ "${status}" = "200" ] && break; sleep 1; done
+  for _ in $(seq 1 30); do status="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${APP_PORT}/ready" || true)"; [ "${status}" = "200" ] && break; sleep 1; done
   test "${status}" = "200"
 done
 compose logs --no-color api > "${artifacts}/api.raw.log"
