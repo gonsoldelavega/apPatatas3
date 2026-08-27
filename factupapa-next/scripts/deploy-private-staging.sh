@@ -144,7 +144,7 @@ test "${APP_VERSION}" = "${expected_sha}"
 echo "Creando copia verificada previa al despliegue"
 (
   cd "${repository}/factupapa-next/apps/api"
-  npm ci --no-audit --no-fund >/dev/null
+  npm ci --include=dev --no-audit --no-fund >/dev/null
   backup_result="$(
     BACKUP_ENVIRONMENT=staging BACKUP_DIRECTORY="${backup_directory}" \
       BACKUP_MAX_COPIES=14 BACKUP_MAX_AGE_DAYS=30 npm run --silent backup:database
