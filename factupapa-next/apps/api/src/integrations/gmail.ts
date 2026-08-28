@@ -45,7 +45,8 @@ export interface GmailConnection {
 interface GmailPart {
   filename?: string;
   mimeType?: string;
-  body?: { attachmentId?: string; data?: string };
+  body?: { attachmentId?: string; data?: string; size?: number };
+  headers?: Array<{ name?: string; value?: string }>;
   parts?: GmailPart[];
 }
 
@@ -53,10 +54,16 @@ interface GmailMessage {
   id: string;
   internalDate?: string;
   payload?: GmailPart & { headers?: Array<{ name?: string; value?: string }> };
+  snippet?: string;
 }
 
 export interface GmailInboxSyncResult {
   messages: number;
+  messagesScanned: number;
+  attachmentsSeen: number;
+  ignored: number;
+  candidates: number;
+  autoImported: number;
   imported: number;
   duplicates: number;
   review: number;
@@ -64,6 +71,8 @@ export interface GmailInboxSyncResult {
   ignoredSelf: number;
   truncated: boolean;
 }
+
+export type GmailDocumentDecision = "auto_import" | "review" | "ignore";
 
 interface GmailConfig {
   clientId: string;
@@ -128,14 +137,52 @@ export function normalizedGmailAttachmentMime(part: GmailPart): string | null {
   return byMime ?? null;
 }
 
+function attachmentDisposition(part: GmailPart): string {
+  return part.headers?.find((h) => h.name?.toLowerCase() === "content-disposition")?.value?.toLowerCase() ?? "";
+}
+
+function decorativeFilename(filename: string): boolean {
+  return /(?:^|[-_. ])(?:logo|icon|icono|banner|signature|firma|avatar|tracking|pixel|qr)(?:[-_. ]|$)/i.test(filename);
+}
+
+export function isPlausibleGmailAttachment(part: GmailPart): boolean {
+  const filename = part.filename?.trim() ?? "";
+  const mime = normalizedGmailAttachmentMime(part);
+  if (!mime || decorativeFilename(filename)) return false;
+  const disposition = attachmentDisposition(part);
+  if (disposition.startsWith("inline") && mime !== "application/pdf" && !part.body?.attachmentId && !part.body?.data)
+    return false;
+  if (mime.startsWith("image/") && part.body?.size != null && part.body.size < 8_000 && disposition.startsWith("inline"))
+    return false;
+  return true;
+}
+
 export function collectGmailPurchaseAttachments(
   part: GmailPart | undefined,
   output: GmailPart[] = [],
 ): GmailPart[] {
   if (!part) return output;
-  if (normalizedGmailAttachmentMime(part)) output.push(part);
+  if (isPlausibleGmailAttachment(part)) output.push(part);
   for (const child of part.parts ?? []) collectGmailPurchaseAttachments(child, output);
   return output;
+}
+
+/** Maps the existing fiscal classifier output to the Gmail decision contract. */
+export function decideGmailDocument(extracted: Record<string, unknown>): GmailDocumentDecision {
+  if (extracted.documentType !== "supplier_invoice")
+    return extracted.documentType === "supplier_credit_note" ? "review" : "ignore";
+  const confidence = typeof extracted.classificationConfidence === "number" ? extracted.classificationConfidence : 0;
+  const eligible = extracted.purchaseEligible === true;
+  if (eligible && confidence >= 0.8 && extracted.supplierTaxId && extracted.issueDate && extracted.total && extracted.supplierInvoiceNumber)
+    return "auto_import";
+  const signals = [extracted.supplierTaxId, extracted.supplierName, extracted.supplierInvoiceNumber, extracted.issueDate, extracted.total].filter(Boolean).length;
+  return signals >= 2 ? "review" : "ignore";
+}
+
+export function shouldIgnoreGmailMessage(message: GmailMessage): boolean {
+  const text = `${senderEmail(header(message, "from")) ?? ""} ${header(message, "subject") ?? ""} ${message.snippet ?? ""}`.toLowerCase();
+  if (/factura|invoice|fiscal|iva|proveedor|supplier|albar[aá]n|receipt/.test(text)) return false;
+  return /github|gitlab|newsletter|unsubscribe|marketing|promo(?:tion|ci[oó]n)|social|security alert|alerta|notification|notificaci[oó]n|confirmaci[oó]n|no[- ]?reply/.test(text);
 }
 
 function header(message: GmailMessage, name: string): string | null {
@@ -545,6 +592,11 @@ export class GmailIntegrationService {
 
     const result: GmailInboxSyncResult = {
       messages: 0,
+      messagesScanned: 0,
+      attachmentsSeen: 0,
+      ignored: 0,
+      candidates: 0,
+      autoImported: 0,
       imported: 0,
       duplicates: 0,
       review: 0,
@@ -558,9 +610,14 @@ export class GmailIntegrationService {
       const receivedMs = Number(message.internalDate ?? 0);
       if (!Number.isFinite(receivedMs) || receivedMs < windowStartMs || receivedMs > nowMs) continue;
       result.messages += 1;
+      result.messagesScanned += 1;
       const from = senderEmail(header(message, "from"));
       if (from && from === connection.googleEmail.trim().toLowerCase()) {
         result.ignoredSelf += 1;
+        continue;
+      }
+      if (shouldIgnoreGmailMessage(message)) {
+        result.ignored += 1;
         continue;
       }
       const parts = collectGmailPurchaseAttachments(message.payload);
@@ -574,6 +631,7 @@ export class GmailIntegrationService {
         const filename = part.filename!.trim();
         const mimeType = normalizedGmailAttachmentMime(part);
         if (!mimeType) continue;
+        result.attachmentsSeen += 1;
         const attachmentKey = part.body?.attachmentId ?? `inline-${partIndex}-${filename}`;
         const claimed = await withTenantTransaction(this.pool, identity, async (client) =>
           (
@@ -619,17 +677,60 @@ export class GmailIntegrationService {
             mimeType,
             contentBase64: body.toString("base64"),
           });
+          const decision = existing ? "duplicate" : decideGmailDocument((document as { extractedData?: Record<string, unknown> }).extractedData ?? {});
+          if (!existing && decision === "ignore") {
+            await finance.rejectPendingDocument(identity, document.id);
+            await withTenantTransaction(this.pool, identity, async (client) => {
+              await client.query(`update gmail_purchase_imports set document_id=$2,status='ignored',updated_at=now() where id=$1`, [claimed.id, document.id]);
+            });
+            result.ignored += 1;
+            continue;
+          }
+          if (!existing) result.candidates += 1;
+          let status: "duplicate" | "needs_review" | "imported" = existing ? "duplicate" : "needs_review";
+          if (!existing && decision === "auto_import") {
+            const data = (document as { extractedData?: Record<string, unknown> }).extractedData ?? {};
+            const supplier = data.supplierTaxId
+              ? (await withTenantTransaction(this.pool, identity, async (client) => (await client.query<{ id: string }>(
+                  `select id from contacts where is_active and kind in ('supplier','both') and upper(regexp_replace(coalesce(tax_id,''),'[^A-Z0-9]','','g'))=upper(regexp_replace($1,'[^A-Z0-9]','','g')) limit 1`, [String(data.supplierTaxId)]
+                )).rows[0]))
+              : undefined;
+            const lines = Array.isArray(data.lines) ? data.lines.filter((line): line is Record<string, unknown> => Boolean(line && typeof line === "object")) : [];
+            if (supplier && lines.length && data.issueDate && data.total) {
+              await finance.createPurchase(identity, {
+                supplierId: supplier.id,
+                documentId: document.id,
+                supplierInvoiceNumber: data.supplierInvoiceNumber ? String(data.supplierInvoiceNumber) : null,
+                issueDate: String(data.issueDate),
+                dueDate: data.dueDate ? String(data.dueDate) : null,
+                category: "mercancia",
+                notes: "Importada automáticamente desde Gmail",
+                lines: lines.map((line) => ({
+                  productId: null,
+                  description: String(line.description ?? data.concept ?? "Compra"),
+                  quantity: String(line.quantity ?? "1"),
+                  unit: String(line.unit ?? "unit"),
+                  unitCost: String(line.unitCost ?? "0"),
+                  taxRate: String(line.taxRate ?? "0"),
+                })),
+              });
+              status = "imported";
+              result.autoImported += 1;
+            }
+          }
           await withTenantTransaction(this.pool, identity, async (client) => {
             await client.query(
               `update gmail_purchase_imports set document_id=$2,status=$3,updated_at=now()
                where id=$1`,
-              [claimed.id, document.id, existing ? "duplicate" : "needs_review"],
+              [claimed.id, document.id, status],
             );
           });
           if (existing) result.duplicates += 1;
-          else {
+          else if (status === "needs_review") {
             result.imported += 1;
             result.review += 1;
+          } else if (status === "imported") {
+            result.imported += 1;
           }
         } catch (error) {
           result.failed += 1;

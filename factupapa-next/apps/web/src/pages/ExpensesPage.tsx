@@ -279,7 +279,7 @@ export function ExpensesPage() {
           </div>
           {gmailSync.data && (
             <p className="action-feedback" role="status">
-              Gmail revisado: {gmailSync.data.imported} nueva{gmailSync.data.imported === 1 ? "" : "s"}, {gmailSync.data.duplicates} repetida{gmailSync.data.duplicates === 1 ? "" : "s"}.
+              Gmail revisado: {gmailSync.data.messagesScanned} correos, {gmailSync.data.ignored} ignorados, {gmailSync.data.autoImported} importados automáticamente, {gmailSync.data.review} para revisar y {gmailSync.data.duplicates} duplicados.
             </p>
           )}
           {gmailSync.isError && (

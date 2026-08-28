@@ -83,7 +83,7 @@ export const gmailApi = {
   disconnect: () =>
     apiClient.request<void>("/integrations/gmail", { method: "DELETE" }),
   sync: () =>
-    apiClient.request<{ messages: number; imported: number; duplicates: number; failed: number }>(
+    apiClient.request<{ messages: number; messagesScanned: number; attachmentsSeen: number; ignored: number; candidates: number; autoImported: number; imported: number; duplicates: number; review: number; failed: number }>(
       "/integrations/gmail/sync",
       { method: "POST", body: "{}", timeoutMs: 180_000 },
     ),

@@ -4,6 +4,9 @@ import {
   collectGmailPurchaseAttachments,
   createGmailRawMessage,
   normalizedGmailAttachmentMime,
+  isPlausibleGmailAttachment,
+  decideGmailDocument,
+  shouldIgnoreGmailMessage,
 } from "../src/integrations/gmail.js";
 
 test("creates a Gmail MIME message with the invoice PDF attached", () => {
@@ -79,4 +82,26 @@ test("rechaza contradicción explícita entre extensión y MIME documental", () 
     normalizedGmailAttachmentMime({ filename: "factura.pdf", mimeType: "image/png" }),
     null,
   );
+});
+
+test("clasifica el correo irrelevante antes de descargar adjuntos", () => {
+  assert.equal(shouldIgnoreGmailMessage({
+    id: "m1",
+    snippet: "Your GitHub notification",
+    payload: { headers: [{ name: "From", value: "notifications@github.com" }, { name: "Subject", value: "New activity" }] },
+  }), true);
+  assert.equal(shouldIgnoreGmailMessage({
+    id: "m2",
+    snippet: "Factura adjunta",
+    payload: { headers: [{ name: "From", value: "unknown@example.com" }, { name: "Subject", value: "Documento" }] },
+  }), false);
+});
+
+test("excluye imágenes decorativas y decide el pipeline fiscal", () => {
+  assert.equal(isPlausibleGmailAttachment({ filename: "logo.png", mimeType: "image/png", body: { size: 1000 }, headers: [{ name: "Content-Disposition", value: "inline" }] }), false);
+  assert.equal(decideGmailDocument({ documentType: "issued_sales_invoice" }), "ignore");
+  assert.equal(decideGmailDocument({ documentType: "bank_transfer_receipt" }), "ignore");
+  assert.equal(decideGmailDocument({ documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.95, supplierTaxId: "B123", issueDate: "2026-01-01", total: "10", supplierInvoiceNumber: "A-1" }), "auto_import");
+  assert.equal(decideGmailDocument({ documentType: "supplier_invoice", supplierName: "Proveedor", total: "10" }), "review");
+  assert.equal(decideGmailDocument({ documentType: "unknown" }), "ignore");
 });
