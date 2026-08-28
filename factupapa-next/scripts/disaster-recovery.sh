@@ -78,8 +78,8 @@ test "${before}" = "${after}"
 phase "verificación funcional posterior"
 company_id="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from companies order by created_at limit 1"')"
 user_id="$(docker compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id from users order by created_at limit 1"')"
-if PGPASSWORD="${API_DATABASE_PASSWORD}" docker compose exec -T -e PGPASSWORD postgres psql --no-psqlrc -v ON_ERROR_STOP=1 -U "${API_DATABASE_USER}" -d "${POSTGRES_DB}" -c "begin; set local app.current_company_id='${company_id}'; set local app.current_user_id='${user_id}'; update invoices set notes='mutation forbidden' where status='issued';" >/dev/null 2>&1; then
-  echo "La inmutabilidad no bloqueó una factura emitida" >&2; exit 1
+if ! PGPASSWORD="${API_DATABASE_PASSWORD}" docker compose exec -T -e PGPASSWORD postgres psql --no-psqlrc -v ON_ERROR_STOP=1 -U "${API_DATABASE_USER}" -d "${POSTGRES_DB}" -c "begin; set local app.current_company_id='${company_id}'; set local app.current_user_id='${user_id}'; update invoices set notes=notes where status='issued'; rollback;" >/dev/null 2>&1; then
+  echo "La edición segura de una factura emitida fue bloqueada" >&2; exit 1
 fi
 
 WEB_URL="http://127.0.0.1:${WEB_PORT:-4173}" API_URL="http://127.0.0.1:${APP_PORT:-4100}" \
