@@ -317,15 +317,17 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
       await expect(page.getByLabel(`Producto ${index + 1}`)).toBeVisible();
     }
   }
-  const lineRequests: Promise<import("@playwright/test").Request>[] = [];
+  const lineRequests: import("@playwright/test").Request[] = [];
   page.on("request", (candidate) => {
     if (candidate.method() === "POST" && /\/(?:api\/)?invoices\/[^/]+\/lines$/.test(candidate.url())) {
-      lineRequests.push(Promise.resolve(candidate));
+      lineRequests.push(candidate);
     }
   });
   await page.getByRole("button", { name: "Revisar factura" }).click();
   await expect.poll(() => lineRequests.length).toBe(3);
-  expect(lineRequests.map((request) => request.postDataJSON())).toHaveLength(3);
+  const payloads = lineRequests.map((request) => request.postDataJSON() as { description?: string; quantity?: string });
+  expect(payloads).toHaveLength(3);
+  expect(payloads.every((payload) => payload.description && payload.quantity)).toBe(true);
   await expect(page).toHaveURL(/\/ventas\/facturas\//);
 });
 

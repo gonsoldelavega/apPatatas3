@@ -195,7 +195,7 @@ phase "smoke web autenticado"
     SMOKE_PDF_PATH="${web}/test-artifacts/factura-ficticia.pdf" npm run smoke
   phase "Playwright completo"
   DEMO_USER_EMAIL="${smoke_email}" DEMO_USER_PASSWORD="${smoke_password}" \
-    WEB_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test
+    WEB_URL="http://127.0.0.1:${WEB_PORT}" API_URL="http://127.0.0.1:${APP_PORT}" npx playwright test
 )
 unset smoke_email smoke_password
 
