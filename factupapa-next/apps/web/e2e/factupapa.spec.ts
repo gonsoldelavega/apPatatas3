@@ -338,16 +338,36 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
     productId?: string;
     quantity?: string;
     unitPrice?: string;
-    taxRate?: string;
     deliveryDate?: string | null;
   });
   expect(payloads).toHaveLength(3);
   expect(payloads.map((payload) => payload.productId)).toEqual(productIds);
   expect(payloads.map((payload) => payload.quantity)).toEqual(expected.map((line) => line.quantity));
   expect(payloads.map((payload) => payload.unitPrice)).toEqual(expected.map((line) => line.unitPrice));
-  expect(payloads.every((payload) => payload.taxRate === "4")).toBe(true);
   expect(new Set(payloads.map((payload) => payload.productId)).size).toBe(3);
   await expect(page).toHaveURL(/\/ventas\/facturas\//);
+  const invoiceId = new URL(page.url()).pathname.split("/").pop();
+  const authorization = lineRequests[0]!.headers().authorization;
+  const persisted = await page.request.get(`${apiUrl}/invoices/${invoiceId}`, {
+    headers: { Origin: webOrigin, ...(authorization ? { Authorization: authorization } : {}) },
+  });
+  expect(persisted.status()).toBe(200);
+  const invoice = await persisted.json() as {
+    lines: Array<{ productId: string; quantity: string; unitPrice: string; taxRate?: string; lineSubtotal: string; lineTax: string; lineTotal: string }>;
+    subtotal: string;
+    taxTotal: string;
+    total: string;
+  };
+  expect(invoice.lines).toHaveLength(3);
+  expect(invoice.lines.map((line) => line.productId)).toEqual(productIds);
+  expect(invoice.lines.map((line) => Number(line.quantity))).toEqual(expected.map((line) => Number(line.quantity)));
+  expect(invoice.lines.map((line) => Number(line.unitPrice))).toEqual(expected.map((line) => Number(line.unitPrice)));
+  expect(invoice.lines.every((line) => line.taxRate === undefined || line.taxRate === "4.0000" || line.taxRate === "4")).toBe(true);
+  expect(invoice.lines.reduce((sum, line) => sum + Number(line.lineSubtotal), 0)).toBeCloseTo(49.25, 2);
+  expect(invoice.lines.reduce((sum, line) => sum + Number(line.lineTax), 0)).toBeCloseTo(1.97, 2);
+  expect(Number(invoice.subtotal)).toBeCloseTo(49.25, 2);
+  expect(Number(invoice.taxTotal)).toBeCloseTo(1.97, 2);
+  expect(Number(invoice.total)).toBeCloseTo(51.22, 2);
 });
 
 test("una compra válida se guarda, confirma y cancela", async ({ page }, testInfo) => {
