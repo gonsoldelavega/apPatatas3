@@ -8,6 +8,8 @@ const ids = {
   customer: "00000000-0000-4000-8000-000000000103",
   supplier: "00000000-0000-4000-8000-000000000104",
   product: "00000000-0000-4000-8000-000000000105",
+  product2: "00000000-0000-4000-8000-000000000110",
+  product3: "00000000-0000-4000-8000-000000000111",
   delivery: "00000000-0000-4000-8000-000000000106",
   deliveryLine: "00000000-0000-4000-8000-000000000107",
   invoice: "00000000-0000-4000-8000-000000000108",
@@ -53,8 +55,12 @@ async function main() {
       [ids.customer, ids.company, ids.supplier],
     );
     await client.query(
-      `insert into products(id,company_id,name,sku,unit,sale_price,estimated_cost,tax_rate,description) values($1,$2,'Producto Demo Ficticio','TEST-SKU-0001','kg',12.3456,8.1000,4,'Dato exclusivamente ficticio') on conflict(id) do nothing`,
-      [ids.product, ids.company],
+      `insert into products(id,company_id,name,sku,unit,sale_price,estimated_cost,tax_rate,description) values
+       ($1,$2,'Producto Demo Ficticio','TEST-SKU-0001','kg',12.3456,8.1000,4,'Dato exclusivamente ficticio'),
+       ($3,$2,'Producto Demo Ficticio 2','TEST-SKU-0002','kg',2.1000,1.3000,4,'Dato exclusivamente ficticio'),
+       ($4,$2,'Producto Demo Ficticio 3','TEST-SKU-0003','kg',3.2500,2.0000,4,'Dato exclusivamente ficticio')
+       on conflict(id) do update set name=excluded.name,sku=excluded.sku,unit=excluded.unit,sale_price=excluded.sale_price,estimated_cost=excluded.estimated_cost,tax_rate=excluded.tax_rate,description=excluded.description`,
+      [ids.product, ids.company, ids.product2, ids.product3],
     );
     await client.query(
       `insert into contact_product_prices(company_id,contact_id,product_id,price,valid_from) values($1,$2,$3,9.8765,current_date) on conflict(company_id,contact_id,product_id) do update set price=excluded.price,is_active=true`,
