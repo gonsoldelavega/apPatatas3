@@ -309,9 +309,18 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
   await login(page);
   await page.goto("/ventas/nuevo/factura");
   await page.getByRole("combobox", { name: "Cliente", exact: true }).selectOption({ index: 1 });
+  const expected = [
+    { quantity: "10", unitPrice: "1.60" },
+    { quantity: "5", unitPrice: "2.10" },
+    { quantity: "7", unitPrice: "3.25" },
+  ];
+  const productIds: string[] = [];
   for (let index = 1; index <= 3; index += 1) {
-    await page.getByLabel(`Producto ${index}`).selectOption({ index: 1 });
-    await page.getByLabel(index === 1 ? "Cantidad" : `Cantidad`).nth(index - 1).fill("1");
+    const product = page.getByLabel(`Producto ${index}`);
+    await product.selectOption({ index });
+    productIds.push(await product.inputValue());
+    await page.getByLabel(/Cantidad/).nth(index - 1).fill(expected[index - 1]!.quantity);
+    await page.getByLabel(/Precio sin IVA/).nth(index - 1).fill(expected[index - 1]!.unitPrice);
     if (index < 3) {
       await page.getByRole("button", { name: "Añadir producto" }).click();
       await expect(page.getByLabel(`Producto ${index + 1}`)).toBeVisible();
@@ -325,9 +334,19 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
   });
   await page.getByRole("button", { name: "Revisar factura" }).click();
   await expect.poll(() => lineRequests.length).toBe(3);
-  const payloads = lineRequests.map((request) => request.postDataJSON() as { description?: string; quantity?: string });
+  const payloads = lineRequests.map((request) => request.postDataJSON() as {
+    productId?: string;
+    quantity?: string;
+    unitPrice?: string;
+    taxRate?: string;
+    deliveryDate?: string | null;
+  });
   expect(payloads).toHaveLength(3);
-  expect(payloads.every((payload) => payload.description && payload.quantity)).toBe(true);
+  expect(payloads.map((payload) => payload.productId)).toEqual(productIds);
+  expect(payloads.map((payload) => payload.quantity)).toEqual(expected.map((line) => line.quantity));
+  expect(payloads.map((payload) => payload.unitPrice)).toEqual(expected.map((line) => line.unitPrice));
+  expect(payloads.every((payload) => payload.taxRate === "4")).toBe(true);
+  expect(new Set(payloads.map((payload) => payload.productId)).size).toBe(3);
   await expect(page).toHaveURL(/\/ventas\/facturas\//);
 });
 
