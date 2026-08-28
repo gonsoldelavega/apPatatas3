@@ -151,6 +151,7 @@ sed -i \
   -e "s|^MINIO_CONSOLE_PORT=.*|MINIO_CONSOLE_PORT=$((audit_port_base + 4))|" \
   -e "s|^APP_PORT=.*|APP_PORT=$((audit_port_base + 5))|" \
   -e "s|^WEB_PORT=.*|WEB_PORT=$((audit_port_base + 6))|" \
+  -e "s|^CORS_ALLOWED_ORIGINS=.*|CORS_ALLOWED_ORIGINS=http://127.0.0.1:$((audit_port_base + 6))|" \
   "${infra}/.env"
 unset postgres_password api_database_password redis_password minio_password jwt_secret metrics_token
 ! grep -q 'CAMBIAR_' "${infra}/.env"
