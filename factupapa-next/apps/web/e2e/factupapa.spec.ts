@@ -362,6 +362,7 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
   expect(invoice.lines.map((line) => line.productId)).toEqual(productIds);
   expect(invoice.lines.map((line) => Number(line.quantity))).toEqual(expected.map((line) => Number(line.quantity)));
   expect(invoice.lines.map((line) => Number(line.unitPrice))).toEqual(expected.map((line) => Number(line.unitPrice)));
+  // El IVA se verifica con los importes persistidos; taxRate es un snapshot decimal del backend.
   expect(invoice.lines.reduce((sum, line) => sum + Number(line.lineSubtotal), 0)).toBeCloseTo(49.25, 2);
   expect(invoice.lines.reduce((sum, line) => sum + Number(line.lineTax), 0)).toBeCloseTo(1.97, 2);
   expect(Number(invoice.subtotal)).toBeCloseTo(49.25, 2);
