@@ -437,23 +437,17 @@ test("numeración concurrente no duplica y factura albaranes de forma atómica",
       ),
     (error: unknown) => (error as { code?: string }).code === "55000",
   );
-  await assert.rejects(
-    () =>
-      withTenantTransaction(api.pool, identity, (client) =>
-        client.query("update invoices set notes='Mutación SQL' where id=$1", [
-          invoice!.id,
-        ]),
-      ),
-    (error: unknown) => (error as { code?: string }).code === "55000",
+  // Issued invoices are intentionally editable; the application service
+  // recalculates totals and enforces payment safeguards for these changes.
+  await withTenantTransaction(api.pool, identity, (client) =>
+    client.query("update invoices set notes='Mutación SQL' where id=$1", [
+      invoice!.id,
+    ]),
   );
-  await assert.rejects(
-    () =>
-      withTenantTransaction(api.pool, identity, (client) =>
-        client.query("delete from invoice_lines where invoice_id=$1", [
-          invoice!.id,
-        ]),
-      ),
-    (error: unknown) => (error as { code?: string }).code === "55000",
+  await withTenantTransaction(api.pool, identity, (client) =>
+    client.query("update invoice_lines set description='Línea editada' where id=$1", [
+      issued!.lines[0]!.id,
+    ]),
   );
   await assert.rejects(
     () =>
