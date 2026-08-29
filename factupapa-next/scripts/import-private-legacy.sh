@@ -10,6 +10,8 @@ apply_import="${LEGACY_IMPORT_APPLY:-0}"
 backup_payload="${LEGACY_BACKUP_GZIP_BASE64:-}"
 
 [ -n "${repository}" ] || { echo "Indica la ruta del repositorio desplegable" >&2; exit 1; }
+# shellcheck disable=SC1091
+source "${repository}/factupapa-next/scripts/deploy-runtime-ports.sh"
 [ -n "${owner_email}" ] || { echo "Define IMPORT_USER_EMAIL" >&2; exit 1; }
 case "${apply_import}" in
   0|1) ;;
@@ -40,6 +42,10 @@ set -a
 # shellcheck disable=SC1090
 source "${environment_file}"
 set +a
+APP_PORT="${APP_PORT:-4100}"
+WEB_PORT="${WEB_PORT:-4173}"
+export APP_PORT WEB_PORT
+validate_runtime_ports
 
 # Every apply is preceded by the same transactional dry-run used during review.
 run_import() {
@@ -68,6 +74,6 @@ fi
 echo "Aplicando copia histórica idempotente"
 run_import -e LEGACY_IMPORT_APPLY=1
 
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/ready)" = "200"
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14173/healthz)" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$(api_local_url ready)")" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$(web_local_url healthz)")" = "200"
 echo "Importación histórica terminada y staging sano"

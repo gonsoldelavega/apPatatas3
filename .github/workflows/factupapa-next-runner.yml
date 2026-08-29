@@ -74,18 +74,18 @@ jobs:
             exit 0
           fi
           docker start "${staging_containers[@]}" >/dev/null
+          web_container="$(docker ps -q --filter 'label=com.docker.compose.project=factupapa_staging' --filter 'label=com.docker.compose.service=web' | head -n 1)"
           for _ in $(seq 1 60); do
-            status="$(
-              curl --silent --output /dev/null --write-out '%{http_code}' \
-                http://127.0.0.1:14173/healthz || true
-            )"
-            [ "${status}" = "200" ] && exit 0
+            if [ -n "${web_container}" ]; then
+              status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${web_container}")"
+              [ "${status}" = "healthy" ] && exit 0
+            fi
             sleep 2
           done
           # A stale private project must not prevent the audited checkout from
           # rebuilding it. The deploy script performs the authoritative
           # health-gated recreate after the audit; recovery here is best effort.
-          echo "Existing staging did not recover on port 14173; continuing to audited deploy" >&2
+          echo "Existing staging did not recover its web healthcheck; continuing to audited deploy" >&2
           docker ps -a \
             --filter 'label=com.docker.compose.project=factupapa_staging' \
             --format 'table {{.Names}}\t{{.Status}}'

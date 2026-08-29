@@ -776,6 +776,9 @@ export class GmailIntegrationService {
               status = "imported";
               result.autoImported += 1;
               }
+              // Dry-run records the same final decision without counting it as
+              // a persisted import or placing it in the review queue.
+              status = "imported";
             }
           }
           if (!dryRun) await withTenantTransaction(this.pool, identity, async (client) => {
@@ -786,7 +789,7 @@ export class GmailIntegrationService {
             result.review += 1;
             incrementReason(result.reviewReasons, "probable_supplier_invoice_ambiguous");
             result.candidatesAudit?.push({ gmailMessageId: messageId, attachmentIndex: partIndex, filename, mimeType, sha256: sha, decision: "REVIEW", documentType: extractedData.documentType ?? "unknown", reasons: ["probable_supplier_invoice_ambiguous"] });
-          } else if (status === "imported") {
+          } else if (status === "imported" && !dryRun) {
             result.imported += 1;
           }
         } catch (error) {

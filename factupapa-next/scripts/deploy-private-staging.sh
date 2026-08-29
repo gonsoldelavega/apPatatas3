@@ -11,6 +11,8 @@ expected_sha="${GITHUB_SHA:?GITHUB_SHA is required}"
 branch="${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}"
 public_host="factupapa-next.46-62-226-95.sslip.io"
 public_origin="https://${public_host}"
+# shellcheck disable=SC1091
+source "${repository}/factupapa-next/scripts/deploy-runtime-ports.sh"
 
 case "${branch}" in
   design/factupapa-full-prototype|codex/factupapa-claude-fixes) ;;
@@ -44,6 +46,11 @@ upsert_private_environment_value() {
   ' "${environment_file}" >"${temporary_file}"
   mv "${temporary_file}" "${environment_file}"
   chmod 600 "${environment_file}"
+}
+
+ensure_private_environment_value() {
+  local key="$1" value="$2"
+  grep -q "^${key}=" "${environment_file}" 2>/dev/null || upsert_private_environment_value "${key}" "${value}"
 }
 
 for command in docker git curl node npm; do
@@ -143,6 +150,11 @@ upsert_private_environment_value "APP_VERSION" "${expected_sha}"
 upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
 unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET
 
+# Compose defaults are made explicit in the protected runtime envelope so all
+# deploy and recovery checks consume the same host-port source of truth.
+ensure_private_environment_value "APP_PORT" "4100"
+ensure_private_environment_value "WEB_PORT" "4173"
+
 export COMPOSE_PROJECT_NAME=factupapa_staging
 export COMPOSE_FILE="${infrastructure}/docker-compose.yml:${override_file}"
 runtime_path="${PATH}"
@@ -152,6 +164,8 @@ source "${environment_file}"
 set +a
 export PATH="${runtime_path}"
 unset runtime_path
+
+validate_runtime_ports
 
 test "${PUBLIC_HOST}" = "${public_host}"
 test "${PUBLIC_BIND_ADDRESS}" = "0.0.0.0"
@@ -202,8 +216,13 @@ for service in postgres redis minio api web caddy; do
   test "${healthy}" = "healthy"
 done
 
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/health)" = "200"
-test "$(curl --silent --show-error http://127.0.0.1:14100/health | node -e '
+api_health_url="$(api_local_url health)"
+api_ready_url="$(api_local_url ready)"
+web_health_url="$(web_local_url healthz)"
+test "$(docker compose --profile public port api 4100 | sed -E 's/.*://')" = "${APP_PORT}"
+test "$(docker compose --profile public port web 4173 | sed -E 's/.*://')" = "${WEB_PORT}"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${api_health_url}")" = "200"
+test "$(curl --silent --show-error "${api_health_url}" | node -e '
   let input = "";
   process.stdin.on("data", (chunk) => { input += chunk; });
   process.stdin.on("end", () => {
@@ -211,8 +230,8 @@ test "$(curl --silent --show-error http://127.0.0.1:14100/health | node -e '
     if (body.version !== process.env.GITHUB_SHA) process.exit(1);
   });
 ')" = ""
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14100/ready)" = "200"
-test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:14173/healthz)" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${api_ready_url}")" = "200"
+test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${web_health_url}")" = "200"
 
 public_status=""
 for _ in $(seq 1 90); do
