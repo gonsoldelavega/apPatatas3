@@ -594,6 +594,7 @@ export class FinanceService {
       mimeType: unknown;
       contentBase64: unknown;
       documentId?: unknown;
+      persist?: unknown;
     },
   ) {
     if (!this.s3 || !this.storage) throw new HttpError("conflict", 409);
@@ -611,7 +612,7 @@ export class FinanceService {
         (typeof input.documentId !== "string" ||
           !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
             input.documentId,
-          )))
+          ))) || (input.persist != null && typeof input.persist !== "boolean")
     )
       throw new HttpError("invalid_request", 400);
     const body = Buffer.from(input.contentBase64, "base64"),
@@ -793,7 +794,7 @@ export class FinanceService {
           ]),
         ],
       };
-    if (!isRetry) {
+    if (!isRetry && input.persist !== false) {
       await this.s3.send(
         new PutObjectCommand({
           Bucket: this.storage.bucket,
@@ -852,6 +853,16 @@ export class FinanceService {
               normalized.ocrConfidence == null
                 ? null
                 : normalized.ocrConfidence / 100;
+          if (input.persist === false) {
+            return {
+              id,
+              filename: (input.filename as string).trim(),
+              mimeType: mime,
+              byteSize: String(body.length),
+              status: "preview",
+              extractedData: normalized,
+            };
+          }
           if (isRetry) {
             const retried = (
               await c.query(
@@ -890,7 +901,7 @@ export class FinanceService {
         },
       );
     } catch (e) {
-      if (!isRetry)
+      if (!isRetry && input.persist !== false)
         await this.s3
           .send(
             new DeleteObjectCommand({ Bucket: this.storage.bucket, Key: key }),

@@ -62,6 +62,12 @@ export function createGmailRoutes(
       json(response, 200, await service.syncInbox(identity, finance));
       return true;
     }
+    if (request.method === "POST" && url.pathname === "/integrations/gmail/sync/dry-run") {
+      if (!service) throw new HttpError("not_found", 404);
+      const identity = await auth.authenticate(bearerToken(request));
+      json(response, 200, await service.syncInbox(identity, finance, { dryRun: true }));
+      return true;
+    }
     if (request.method === "POST" && url.pathname === "/integrations/gmail/connect") {
       if (!service) throw new HttpError("not_found", 404);
       const identity = await auth.authenticate(bearerToken(request));

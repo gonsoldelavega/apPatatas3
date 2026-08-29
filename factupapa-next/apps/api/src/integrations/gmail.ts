@@ -70,7 +70,21 @@ export interface GmailInboxSyncResult {
   failed: number;
   ignoredSelf: number;
   truncated: boolean;
+  messagesRelevant: number;
+  attachmentsDownloaded: number;
+  autoImportable: number;
+  errors: number;
+  ocrUsed: number;
+  visionUsed: number;
+  ocrFallback: number;
+  estimatedAiCost: number;
+  ignoredReasons: Record<string, number>;
+  reviewReasons: Record<string, number>;
+  errorReasons: Record<string, number>;
+  candidatesAudit?: Array<Record<string, unknown>>;
 }
+
+export interface GmailInboxSyncOptions { dryRun?: boolean }
 
 export type GmailDocumentDecision = "auto_import" | "review" | "ignore";
 
@@ -535,7 +549,8 @@ export class GmailIntegrationService {
     return (await response.json()) as T;
   }
 
-  async syncInbox(identity: SessionIdentity, finance: FinanceService): Promise<GmailInboxSyncResult> {
+  async syncInbox(identity: SessionIdentity, finance: FinanceService, options: GmailInboxSyncOptions = {}): Promise<GmailInboxSyncResult> {
+    const dryRun = options.dryRun === true;
     const connection = await withTenantTransaction(this.pool, identity, async (client) =>
       (
         await client.query<{
@@ -603,6 +618,21 @@ export class GmailIntegrationService {
       failed: 0,
       ignoredSelf: 0,
       truncated: mailboxTruncated,
+      messagesRelevant: 0,
+      attachmentsDownloaded: 0,
+      autoImportable: 0,
+      errors: 0,
+      ocrUsed: 0,
+      visionUsed: 0,
+      ocrFallback: 0,
+      estimatedAiCost: 0,
+      ignoredReasons: {},
+      reviewReasons: {},
+      errorReasons: {},
+      ...(dryRun ? { candidatesAudit: [] } : {}),
+    };
+    const incrementReason = (bucket: Record<string, number>, reason: string) => {
+      bucket[reason] = (bucket[reason] ?? 0) + 1;
     };
     let processed = 0;
     for (const messageId of ids.slice(0, GMAIL_MAX_MESSAGES_PER_RUN)) {
@@ -618,8 +648,10 @@ export class GmailIntegrationService {
       }
       if (shouldIgnoreGmailMessage(message)) {
         result.ignored += 1;
+        incrementReason(result.ignoredReasons, "generic_notification");
         continue;
       }
+      result.messagesRelevant += 1;
       const parts = collectGmailPurchaseAttachments(message.payload);
       let partIndex = 0;
       for (const part of parts) {
@@ -633,7 +665,19 @@ export class GmailIntegrationService {
         if (!mimeType) continue;
         result.attachmentsSeen += 1;
         const attachmentKey = part.body?.attachmentId ?? `inline-${partIndex}-${filename}`;
-        const claimed = await withTenantTransaction(this.pool, identity, async (client) =>
+        const existingImport = dryRun
+          ? await withTenantTransaction(this.pool, identity, async (client) =>
+              (await client.query<{ status: string }>(
+                `select status from gmail_purchase_imports where company_id=$1 and gmail_message_id=$2 and gmail_attachment_id=$3`,
+                [identity.companyId, messageId, attachmentKey],
+              )).rows[0]
+            )
+          : undefined;
+        if (dryRun && existingImport && ["imported", "needs_review", "ignored", "duplicate"].includes(existingImport.status)) {
+          result.duplicates += 1;
+          continue;
+        }
+        const claimed = dryRun ? { id: "dry-run" } : await withTenantTransaction(this.pool, identity, async (client) =>
           (
             await client.query<{ id: string }>(
               `insert into gmail_purchase_imports(
@@ -670,20 +714,31 @@ export class GmailIntegrationService {
             : part.body?.data;
           if (!encodedBody) throw new Error("gmail_attachment_empty");
           const body = Buffer.from(encodedBody, "base64url");
+          result.attachmentsDownloaded += 1;
           const sha = createHash("sha256").update(body).digest("hex");
           const existing = await finance.findPurchaseDocumentBySha(identity, sha);
           const document = existing ?? await finance.uploadDocument(identity, {
             filename,
             mimeType,
             contentBase64: body.toString("base64"),
+            persist: !dryRun,
           });
           const decision = existing ? "duplicate" : decideGmailDocument((document as { extractedData?: Record<string, unknown> }).extractedData ?? {});
+          const extractedData = (document as { extractedData?: Record<string, unknown> }).extractedData ?? {};
+          const source = String(extractedData.source ?? "");
+          if (source === "vision") result.visionUsed += 1;
+          if (source === "ocr") result.ocrUsed += 1;
+          if (source === "ocr" && (extractedData.warnings as unknown[] | undefined)?.some((warning) => String(warning).startsWith("vision_"))) result.ocrFallback += 1;
+          if (source === "vision") result.estimatedAiCost += 0.01;
           if (!existing && decision === "ignore") {
-            await finance.rejectPendingDocument(identity, document.id);
-            await withTenantTransaction(this.pool, identity, async (client) => {
-              await client.query(`update gmail_purchase_imports set document_id=$2,status='ignored',updated_at=now() where id=$1`, [claimed.id, document.id]);
-            });
+            if (!dryRun) {
+              await finance.rejectPendingDocument(identity, document.id);
+              await withTenantTransaction(this.pool, identity, async (client) => {
+                await client.query(`update gmail_purchase_imports set document_id=$2,status='ignored',updated_at=now() where id=$1`, [claimed.id, document.id]);
+              });
+            }
             result.ignored += 1;
+            incrementReason(result.ignoredReasons, String(extractedData.documentType ?? "not_invoice_like"));
             continue;
           }
           if (!existing) result.candidates += 1;
@@ -697,6 +752,10 @@ export class GmailIntegrationService {
               : undefined;
             const lines = Array.isArray(data.lines) ? data.lines.filter((line): line is Record<string, unknown> => Boolean(line && typeof line === "object")) : [];
             if (supplier && lines.length && data.issueDate && data.total) {
+              result.autoImportable += 1;
+              if (dryRun) {
+                result.candidatesAudit?.push({ gmailMessageId: messageId, attachmentIndex: partIndex, filename, mimeType, sha256: sha, decision: "AUTO_IMPORT", documentType: data.documentType, confidence: data.classificationConfidence ?? null, supplierNameMasked: data.supplierName ? `${String(data.supplierName).slice(0, 2)}***` : null, invoiceNumberMasked: data.supplierInvoiceNumber ? `***${String(data.supplierInvoiceNumber).slice(-4)}` : null, invoiceDate: data.issueDate, total: data.total, vat: data.taxTotal });
+              } else {
               await finance.createPurchase(identity, {
                 supplierId: supplier.id,
                 documentId: document.id,
@@ -716,25 +775,25 @@ export class GmailIntegrationService {
               });
               status = "imported";
               result.autoImported += 1;
+              }
             }
           }
-          await withTenantTransaction(this.pool, identity, async (client) => {
-            await client.query(
-              `update gmail_purchase_imports set document_id=$2,status=$3,updated_at=now()
-               where id=$1`,
-              [claimed.id, document.id, status],
-            );
+          if (!dryRun) await withTenantTransaction(this.pool, identity, async (client) => {
+            await client.query(`update gmail_purchase_imports set document_id=$2,status=$3,updated_at=now() where id=$1`, [claimed.id, document.id, status]);
           });
           if (existing) result.duplicates += 1;
           else if (status === "needs_review") {
-            result.imported += 1;
             result.review += 1;
+            incrementReason(result.reviewReasons, "probable_supplier_invoice_ambiguous");
+            result.candidatesAudit?.push({ gmailMessageId: messageId, attachmentIndex: partIndex, filename, mimeType, sha256: sha, decision: "REVIEW", documentType: extractedData.documentType ?? "unknown", reasons: ["probable_supplier_invoice_ambiguous"] });
           } else if (status === "imported") {
             result.imported += 1;
           }
         } catch (error) {
           result.failed += 1;
-          await withTenantTransaction(this.pool, identity, async (client) => {
+          result.errors += 1;
+          incrementReason(result.errorReasons, error instanceof HttpError ? error.code : "gmail_import_failed");
+          if (!dryRun) await withTenantTransaction(this.pool, identity, async (client) => {
             await client.query(
               `update gmail_purchase_imports set status='failed',error_code=$2,updated_at=now()
                where id=$1`,
@@ -746,7 +805,7 @@ export class GmailIntegrationService {
       if (result.truncated && processed >= GMAIL_MAX_ATTACHMENTS_PER_RUN) break;
     }
     const advanceCursor = result.failed === 0 && !result.truncated;
-    await withTenantTransaction(this.pool, identity, async (client) => {
+    if (!dryRun) await withTenantTransaction(this.pool, identity, async (client) => {
       await client.query(
         `update gmail_integrations set
            last_inbox_sync_at=now(),last_inbox_sync_status=$2,last_inbox_sync_error=null,
