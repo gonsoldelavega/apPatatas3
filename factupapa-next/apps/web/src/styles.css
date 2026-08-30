@@ -2298,6 +2298,11 @@ body {
 .payment-state--paid { color: var(--positive); }
 .payment-state--unpaid { color: var(--error); }
 .payment-state--partial { color: var(--pending); }
+.payment-status { border: 1px solid currentColor; border-radius: 999px; padding: 3px 8px; width: fit-content; }
+.payment-status--paid { color: var(--positive); background: color-mix(in srgb, var(--positive) 14%, transparent); }
+.payment-status--unpaid { color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
+.payment-status--overdue { color: var(--error); background: color-mix(in srgb, var(--error) 20%, transparent); }
+.payment-status--partial { color: var(--pending); background: color-mix(in srgb, var(--pending) 16%, transparent); }
 .metric-warning { border-color: color-mix(in srgb, #d89a33 45%, var(--line)) !important; }
 .metric-danger { border-color: color-mix(in srgb, var(--error) 48%, var(--line)) !important; }
 .top-products { margin-top: 20px; }

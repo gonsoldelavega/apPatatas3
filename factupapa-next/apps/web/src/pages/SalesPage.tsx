@@ -1,7 +1,8 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
   Ellipsis,
+  Banknote,
   FileText,
   MessageCircle,
   Plus,
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
+import { accountsApi, contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
 import type { Invoice } from "../api/types";
 import { EmptyState } from "../ui/EmptyState";
 import { Field } from "../ui/Field";
@@ -18,6 +19,7 @@ import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
 import { formatDocumentNumber, formatMoney } from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
+import { useToast } from "../ui/ToastProvider";
 
 const statuses: Record<string, string> = {
   draft: "Borrador",
@@ -82,6 +84,8 @@ export function SalesPage() {
   const [status, setStatus] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+  const toast = useToast();
   const quickAction = useMutation({
     mutationFn: ({
       invoice,
@@ -90,6 +94,27 @@ export function SalesPage() {
       invoice: Invoice;
       action: InvoiceQuickAction;
     }) => runInvoiceQuickAction(invoice, action),
+  });
+  const quickCollect = useMutation({
+    mutationFn: async (invoice: Invoice) => {
+      const amount = invoice.balanceDue ?? invoice.total;
+      return accountsApi.addInvoicePayment(invoice.id, {
+        amount: String(amount),
+        paidAt: new Date().toISOString(),
+        method: null,
+        reference: null,
+        notes: null,
+      });
+    },
+    onSuccess: async (_payment, invoice) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] }),
+        queryClient.invalidateQueries({ queryKey: ["finance-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+      ]);
+      toast.show("Factura marcada como cobrada.");
+    },
   });
 
   const filters = {
@@ -266,7 +291,7 @@ export function SalesPage() {
       <div className="card-list sales-list" aria-busy={activeQuery.isLoading}>
         {items?.map((item) => {
           const invoice = tab === "invoice" ? (item as Invoice) : undefined;
-          const statusLabel = invoice?.paymentStatus
+          const statusLabel = invoice?.status === "issued" && invoice.paymentStatus
             ? paymentStatuses[invoice.paymentStatus]
             : statuses[item.status];
 
@@ -283,7 +308,7 @@ export function SalesPage() {
                     ? `${invoice.contactLegalName} · ${item.issueDate}`
                     : item.issueDate}
                 </small>
-                <span className={`status status--${item.status}`}>
+                <span className={`status ${invoice?.status === "issued" ? `payment-status payment-status--${invoice.paymentStatus}` : `status--${item.status}`}`}>
                   {statusLabel ?? item.status}
                 </span>
               </span>
@@ -296,6 +321,8 @@ export function SalesPage() {
 
           const actionBusy =
             quickAction.isPending && quickAction.variables?.invoice.id === invoice.id;
+          const collectBusy = quickCollect.isPending && quickCollect.variables?.id === invoice.id;
+          const canCollect = item.status === "issued" && invoice.paymentStatus !== "paid" && Number(invoice.balanceDue ?? invoice.total) > 0;
           return (
             <article className="invoice-list-card" key={item.id}>
               {card}
@@ -320,6 +347,22 @@ export function SalesPage() {
                     >
                       <Printer aria-hidden="true" />
                     </button>
+                    {canCollect && (
+                      <button
+                        type="button"
+                        aria-label="Cobrar factura"
+                        title="Cobrar"
+                        disabled={actionBusy || collectBusy}
+                        onClick={() => {
+                          const amount = invoice.balanceDue ?? invoice.total;
+                          if (window.confirm(`¿Marcar ${formatDocumentNumber(invoice.series, invoice.number)} como cobrada por ${formatMoney(amount)} hoy?`)) {
+                            quickCollect.mutate(invoice);
+                          }
+                        }}
+                      >
+                        <Banknote aria-hidden="true" />
+                      </button>
+                    )}
                   </>
                 )}
                 <Link to={detailUrl} aria-label="Ver todas las opciones de la factura" title="Más opciones">
@@ -334,6 +377,11 @@ export function SalesPage() {
       {quickAction.isError && (
         <p className="action-feedback action-feedback--error" role="alert">
           No se pudo preparar el PDF. Inténtalo de nuevo.
+        </p>
+      )}
+      {quickCollect.isError && (
+        <p className="action-feedback action-feedback--error" role="alert">
+          No se pudo registrar el cobro. Inténtalo de nuevo.
         </p>
       )}
 
