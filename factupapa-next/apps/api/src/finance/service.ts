@@ -385,7 +385,13 @@ export class FinanceService {
              d.created_at::text "createdAt",g.sender_email "senderEmail",
              g.subject,g.received_at::text "receivedAt"
            from documents d
-           left join gmail_purchase_imports g on g.document_id=d.id
+           left join lateral (
+             select sender_email,subject,received_at
+             from gmail_purchase_imports
+             where document_id=d.id
+             order by updated_at desc, id desc
+             limit 1
+           ) g on true
            where d.kind='purchase_invoice' and d.status='needs_review'
              and not exists(select 1 from purchase_invoices p where p.document_id=d.id)
            order by coalesce(g.received_at,d.created_at) desc
