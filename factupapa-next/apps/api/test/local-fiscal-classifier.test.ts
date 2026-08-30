@@ -47,3 +47,16 @@ test("extrae una factura de servicios con CIF del emisor y una línea única", (
   assert.equal(result.documentType, "supplier_invoice");
   assert.equal(result.purchaseEligible, true);
 });
+
+test("reconoce facturas profesionales con resumen fiscal aunque no tengan tabla de líneas", () => {
+  const solred = `Solred S.A. C.I.F. A 79707345\nNIF ES45313973V\nNúm. Factura BBV260354046\nLugar y Fecha MADRID - 31/07/2026\nTotal Factura en Euros 125,78 26,41 152,19`;
+  const hetzner = `Hetzner Online GmbH\nVAT Reg. No.: DE812871812\nInvoice no.: 082001060516\nInvoice date: 03/08/2026\nTotal (excl. VAT) € 8.98 Tax Total € 1.88\nTotal € 8.98 € 1.88 € 10.86`;
+  const solredResult = classifyLocalFiscalDocument(solred, extractPurchaseFields(solred, "9737047_213544885903_ES.pdf"), own);
+  const hetznerResult = classifyLocalFiscalDocument(hetzner, extractPurchaseFields(hetzner, "Hetzner_2026-08-03_082001060516.pdf"), own);
+  assert.equal(solredResult.documentType, "supplier_invoice");
+  assert.equal(solredResult.recipientTaxId, "45313973V");
+  assert.equal(solredResult.purchaseEligible, true);
+  assert.equal(hetznerResult.documentType, "supplier_invoice");
+  assert.equal(hetznerResult.supplierTaxId, "DE812871812");
+  assert.equal(hetznerResult.purchaseEligible, true);
+});

@@ -17,16 +17,17 @@ export interface ExtractedPurchaseFields {
   warnings?: string[];
 }
 
-const TAX_ID_RE = /\b(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])\b/gi;
-const normTax = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const TAX_ID_RE = /\b(?:[A-Z]{2}\s*\d{7,12}[A-Z]?|(?:[A-Z]\s*\d{7,8}[A-Z0-9]?)|\d{8}[A-Z])\b/gi;
+const normTax = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^ES(?=[A-Z]?\d)/, "");
 export function classifyLocalFiscalDocument(text: string, fields: ExtractedPurchaseFields, ownTaxIds: string[]): ExtractedPurchaseFields {
   const clean = text.replace(/\s+/g, " ");
   const own = new Set(ownTaxIds.map(normTax));
-  const ids = [...clean.matchAll(TAX_ID_RE)].map(m => m[0].toUpperCase()).filter((v,i,a) => a.findIndex(x=>normTax(x)===normTax(v))===i);
+  const ids = [...clean.matchAll(TAX_ID_RE)].map(m => normTax(m[0]!)).filter((v,i,a) => a.indexOf(v)===i);
   const external = ids.find(v => !own.has(normTax(v)));
   const ownId = ids.find(v => own.has(normTax(v)));
   const reasons: string[] = [];
-  if (/(transferencia|justificante|extracto|movimiento bancario|autoservicio|confirmaci[oó]n de pago|ingreso bancario|account statement|payment confirmation)/i.test(clean))
+  const explicitSupplierInvoice = /(?:n[úu]m\.?\s*factura|n[ºo]\s*de\s*factura|invoice\s+no\.?|total\s+factura\s+en\s+euros)/i.test(clean);
+  if (/(transferencia|justificante|extracto|movimiento bancario|autoservicio|confirmaci[oó]n de pago|ingreso bancario|account statement|payment confirmation)/i.test(clean) && !explicitSupplierInvoice)
     return { ...fields, documentType: /extracto|account statement/i.test(clean) ? "account_statement" : "payment_confirmation", classificationConfidence: 0.98, purchaseEligible: false, blockingReasons: ["bank_document"] };
   if (/(abono|factura rectificativa|credit note|nota de cr[eé]dito)/i.test(clean))
     return { ...fields, documentType: "supplier_credit_note", classificationConfidence: 0.95, purchaseEligible: false, blockingReasons: ["credit_note"] };
@@ -133,6 +134,14 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
     if (invoiceToken)
       out.supplierInvoiceNumber = invoiceToken[0].toUpperCase().replace(/Ø/g, "0");
   }
+  if (!out.supplierInvoiceNumber) {
+    const invoiceNo = clean.match(/\binvoice\s+no\.?\s*[:#-]?\s*([A-Z0-9./_-]{4,50})/i);
+    if (invoiceNo) out.supplierInvoiceNumber = invoiceNo[1]!.replace(/\s+/g, "");
+  }
+  if (!out.supplierInvoiceNumber) {
+    const spanishInvoiceNo = clean.match(/\bn[úu]m\.?\s+factura\s*[:#-]?\s*([A-Z0-9./_-]{4,50})/i);
+    if (spanishInvoiceNo) out.supplierInvoiceNumber = spanishInvoiceNo[1]!.replace(/\s+/g, "");
+  }
   const date = clean.match(
     /(?:fecha(?:\s+de\s+emisi[oó]n)?)[\s:]*(\d{1,2})[/-](\d{1,2})[/-](\d{4})/i,
   );
@@ -171,6 +180,18 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
     ),
   ].at(-1);
   if (total) out.total = decimal(total[1]!);
+  const solredSummary = clean.match(/total\s+factura\s+en\s+euros\s+([0-9]{1,12}[.,][0-9]{2})\s+([0-9]{1,12}[.,][0-9]{2})\s+([0-9]{1,12}[.,][0-9]{2})/i);
+  if (solredSummary) {
+    out.subtotal = decimal(solredSummary[1]!);
+    out.taxTotal = decimal(solredSummary[2]!);
+    out.total = decimal(solredSummary[3]!);
+  }
+  const euroSummary = clean.match(/total\s+€?\s*([0-9]{1,12}[.,][0-9]{2})\s+€?\s*([0-9]{1,12}[.,][0-9]{2})\s+€?\s*([0-9]{1,12}[.,][0-9]{2})/i);
+  if (euroSummary) {
+    out.subtotal ??= decimal(euroSummary[1]!);
+    out.taxTotal ??= decimal(euroSummary[2]!);
+    out.total = decimal(euroSummary[3]!);
+  }
   if (!out.total) {
     const labeledTotal = clean.match(/\bTOTAL\s+(?:ENTREGADO\s*:\s*)?([0-9]{1,12}(?:[.,][0-9]{2,4}))/i);
     if (labeledTotal) out.total = decimal(labeledTotal[1]!);
@@ -267,11 +288,16 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
       }
     }
   }
-  const tax = clean.match(/(?:\bC\.?I\.?F\.?|\bN\.?I\.?F\.?|\bVAT)[\s:]*([A-Z][0-9A-Z-]{7,14})\b/i);
-  if (tax) out.supplierTaxId = tax[1]!.toUpperCase();
+  const tax = clean.match(/(?:\bC\.?I\.?F\.?|\bN\.?I\.?F\.?|\bVAT(?:\s+Reg\.?)?(?:\s+No\.?)?|\bNIF)[\s:]*([A-Z]{0,2}\s*[A-Z]?\s*\d[0-9A-Z-]{6,14})\b/i);
+  if (tax) out.supplierTaxId = normTax(tax[1]!);
   if (!out.supplierTaxId) {
     const trailingLabelTax = clean.match(/\b([A-Z]\d{7,8}[A-Z0-9]?)\s+C\.?I\.?F\.?\b/i);
-    if (trailingLabelTax) out.supplierTaxId = trailingLabelTax[1]!.toUpperCase();
+    if (trailingLabelTax) out.supplierTaxId = normTax(trailingLabelTax[1]!);
+  }
+  if (out.supplierTaxId && /^ES?\d/.test(out.supplierTaxId)) {
+    const externalTax = [...clean.matchAll(/\b(?:[A-Z]\s*\d{7,8}[A-Z0-9]?|[A-Z]{2}\s*[A-Z]?\d{7,8}[A-Z0-9]?)\b/gi)]
+      .map((match) => normTax(match[0]!)).find((value) => value !== out.supplierTaxId);
+    if (externalTax) out.supplierTaxId = externalTax;
   }
   if (!out.supplierTaxId) {
     const bareTaxId = text.match(/\b(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])\b/i);
@@ -285,7 +311,7 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
     if (issuerLine && /[A-ZÁÉÍÓÚÑ]{3}/.test(issuerLine) && !/gonzalez\s+cabrera|cliente/i.test(issuerLine))
       out.supplierName = issuerLine.replace(/\s+/g, " ").slice(0, 200);
   }
-  const legalName = text.match(/\b([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9 .&-]{2,80}?\s+(?:S\.?L\.?|S\.?A\.?|S\.?C\.?A\.?))\b/i);
+  const legalName = text.match(/\b([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9 .&-]{2,80}?\s+(?:S\.?L\.?U?\.?|S\.?A\.?|S\.?C\.?A\.?|GmbH))\b/i);
   const name = legalName?.[1] ?? lines.find((line) => /[A-ZÁÉÍÓÚÑ]{3}/.test(line) && !/factura|fecha|total|cif|nif/i.test(line));
   if (name && !out.supplierName) out.supplierName = name.replace(/\s+/g, " ").slice(0, 200);
   const concept = lines.find((line) => /patat|envase|transporte|gestor|servicio|producto/i.test(line));
@@ -328,6 +354,11 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
         break;
       }
     }
+  }
+  if (!extractedLines.length && out.subtotal && out.total && /(?:n[úu]m\.?\s*factura|total\s+factura\s+en\s+euros|invoice\s+no\.?)/i.test(clean)) {
+    const aggregateDescription = lines.find((line) => /(?:concepto|servicio|carburante|cloud|hosting|gesti[oó]n|asesor[ií]a)/i.test(line)) ?? out.concept ?? "Servicios y suministros";
+    const aggregateBase = Number(out.subtotal);
+    if (aggregateBase > 0) extractedLines.push({ description: aggregateDescription.slice(0, 500), quantity: "1", unit: "unit", unitCost: rounded(aggregateBase), taxRate: inferredTaxRate, lineTotal: rounded(aggregateBase) });
   }
   if (extractedLines.length) {
     out.lines = extractedLines;
