@@ -122,6 +122,8 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
     !/^(?:factura|vendedor|cliente|fecha|c[oó]digo)$/i.test(number[1]!)
   )
     out.supplierInvoiceNumber = number[1]!.replace(/Ø/g, "0");
+  const fiscalNumber = clean.match(/\b(\d{3}\/\d{4}[.]\d{3})\b/);
+  if (fiscalNumber) out.supplierInvoiceNumber = fiscalNumber[1]!;
   if (!out.supplierInvoiceNumber) {
     const invoiceToken = text.match(/\b(?:FV|FA|FC)(?=[A-Z0-9Ø/-]*\d)[A-Z0-9Ø/-]{5,40}\b/i);
     if (invoiceToken)
@@ -133,11 +135,26 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   if (date)
     out.issueDate = `${date[3]}-${date[2]!.padStart(2, "0")}-${date[1]!.padStart(2, "0")}`;
   if (!out.issueDate) {
+    const spanishMonth = clean.match(
+      /(?:fecha(?:\s+de\s+emisi[oó]n)?\s*)?(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(20\d{2})/i,
+    );
+    if (spanishMonth) {
+      const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+      const month = months.indexOf(spanishMonth[2]!.toLowerCase()) + 1;
+      out.issueDate = `${spanishMonth[3]}-${String(month).padStart(2, "0")}-${spanishMonth[1]!.padStart(2, "0")}`;
+    }
+  }
+  if (!out.issueDate) {
     const fallbackDate = `${text} ${filename}`.match(/(?:^|\D)(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\D|$)|(?:^|\D)(20\d{2})-(\d{2})-(\d{2})(?:\D|$)/);
     if (fallbackDate)
       out.issueDate = fallbackDate[4]
         ? `${fallbackDate[4]}-${fallbackDate[5]}-${fallbackDate[6]}`
         : `${fallbackDate[3]}-${fallbackDate[2]!.padStart(2, "0")}-${fallbackDate[1]!.padStart(2, "0")}`;
+  }
+  if (!out.issueDate) {
+    const compactFilenameDate = filename.match(/(?:^|[-_])(\d{2})(\d{2})(20\d{2})(?:[-_.]|$)/);
+    if (compactFilenameDate)
+      out.issueDate = `${compactFilenameDate[3]}-${compactFilenameDate[2]}-${compactFilenameDate[1]}`;
   }
   const dueDate = clean.match(
     /(?:fecha\s+de\s+vencimiento|vencimiento)[\s:]*(\d{1,2})[/-](\d{1,2})[/-](\d{4})/i,
@@ -151,6 +168,10 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   ].at(-1);
   if (total) out.total = decimal(total[1]!);
   if (!out.total) {
+    const labeledTotal = clean.match(/\bTOTAL\s+(?:ENTREGADO\s*:\s*)?([0-9]{1,12}(?:[.,][0-9]{2,4}))/i);
+    if (labeledTotal) out.total = decimal(labeledTotal[1]!);
+  }
+  if (!out.total) {
     const euroAmounts = [...text.matchAll(/\b([0-9]{1,12}(?:[.,][0-9]{2}))\s*€/g)];
     const filenameTotal = filename.match(/[_-]([0-9]{1,12},[0-9]{2})(?:\.[^.]+)?$/);
     const value = euroAmounts.at(-1)?.[1] ?? filenameTotal?.[1];
@@ -161,6 +182,15 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   if (!out.subtotal) {
     const tableSubtotal = clean.match(/b[ao]se\s+imponible.{0,100}?([0-9]{1,12}[.,][0-9]{2})/i);
     if (tableSubtotal) out.subtotal = decimal(tableSubtotal[1]!);
+  }
+  if (!out.subtotal || !out.taxTotal) {
+    const fiscalSummary = clean.match(
+      /base\s+imponible[\s\S]{0,220}?([0-9]{1,12}[.,][0-9]{2})\s+([0-9]{1,12}[.,][0-9]{2})\s+4(?:[.,]0+)?\s*%?/i,
+    );
+    if (fiscalSummary) {
+      if (!out.subtotal) out.subtotal = decimal(fiscalSummary[1]!);
+      if (!out.taxTotal) out.taxTotal = decimal(fiscalSummary[2]!);
+    }
   }
   const taxTotal = clean.match(
     /(?:cuota\s+(?:de\s+)?iva|total\s+iva|iva)(?:\s+\d{1,2}(?:[.,]\d+)?\s*%)?[\s:€]*([0-9]{1,12}(?:[.,][0-9]{2,4}))/i,
@@ -235,9 +265,16 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
     if (bareTaxId) out.supplierTaxId = bareTaxId[0].toUpperCase();
   }
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const nifLabelIndex = lines.findIndex((line) => /\bN\.?I\.?F\.?\s*:/i.test(line));
+  if (nifLabelIndex > 0) {
+    const issuerLine = lines.slice(Math.max(0, nifLabelIndex - 4), nifLabelIndex).reverse()
+      .find((line) => /(?:S\.?A\.?|S\.?L\.?)\b/i.test(line));
+    if (issuerLine && /[A-ZÁÉÍÓÚÑ]{3}/.test(issuerLine) && !/gonzalez\s+cabrera|cliente/i.test(issuerLine))
+      out.supplierName = issuerLine.replace(/\s+/g, " ").slice(0, 200);
+  }
   const legalName = text.match(/\b([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9 .&-]{2,80}?\s+(?:S\.?L\.?|S\.?A\.?|S\.?C\.?A\.?))\b/i);
   const name = legalName?.[1] ?? lines.find((line) => /[A-ZÁÉÍÓÚÑ]{3}/.test(line) && !/factura|fecha|total|cif|nif/i.test(line));
-  if (name) out.supplierName = name.replace(/\s+/g, " ").slice(0, 200);
+  if (name && !out.supplierName) out.supplierName = name.replace(/\s+/g, " ").slice(0, 200);
   const concept = lines.find((line) => /patat|envase|transporte|gestor|servicio|producto/i.test(line));
   if (concept) out.concept = concept.replace(/\s+/g, " ").slice(0, 500);
   const sacks = clean.match(

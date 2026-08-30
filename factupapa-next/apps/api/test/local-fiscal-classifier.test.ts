@@ -19,3 +19,17 @@ test("bloquea documentos bancarios, abonos y desconocidos", () => {
   assert.equal(classifyLocalFiscalDocument("Abono factura rectificativa proveedor", {}, own).documentType, "supplier_credit_note");
   assert.equal(classifyLocalFiscalDocument("Documento personal sin datos fiscales", {}, own).documentType, "unknown");
 });
+
+test("extrae el formato real de Gayca con fecha textual y total entregado", () => {
+  const text = `GONZALEZ CABRERA, IRENE\nNumero:\n21 agosto 2026\nFRUTAS Y PATATAS GAYCA, S.A.\nN.I.F.: A04037677\nFACTURA\n45313973V 006/0002.060\n33/008/329 008 PATATAS AGRIA 120,00 0,55 66,00\nBase Imponible % I.V.A. Cuota IVA\n66,00 2,64 4\nTOTAL\nEntregado: 68,64`;
+  const fields = extractPurchaseFields(text, "FV006-000002060-21082026.pdf");
+  const result = classifyLocalFiscalDocument(text, fields, own);
+  assert.equal(fields.supplierInvoiceNumber, "006/0002.060");
+  assert.equal(fields.issueDate, "2026-08-21");
+  assert.equal(fields.subtotal, "66.00");
+  assert.equal(fields.taxTotal, "2.64");
+  assert.equal(fields.total, "68.64");
+  assert.equal(fields.lines?.length, 1);
+  assert.equal(result.documentType, "supplier_invoice");
+  assert.equal(result.purchaseEligible, true);
+});
