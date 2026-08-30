@@ -218,6 +218,9 @@ export function PurchaseDetailPage() {
                   ? "Compra pagada"
                   : `${formatMoney(item.balanceDue)} pendientes`}
               </h2>
+              <span className={`payment-state payment-state--${item.paymentStatus}`}>
+                {({ unpaid: "Pendiente", partial: "Parcial", overdue: "Vencida", paid: "Pagada" } as const)[item.paymentStatus]}
+              </span>
             </div>
             {item.paymentStatus !== "paid" && (
               <button

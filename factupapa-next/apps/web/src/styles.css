@@ -2296,6 +2296,8 @@ body {
 }
 .payment-state--overdue { color: var(--error); }
 .payment-state--paid { color: var(--positive); }
+.payment-state--unpaid { color: var(--error); }
+.payment-state--partial { color: var(--pending); }
 .metric-warning { border-color: color-mix(in srgb, #d89a33 45%, var(--line)) !important; }
 .metric-danger { border-color: color-mix(in srgb, var(--error) 48%, var(--line)) !important; }
 .top-products { margin-top: 20px; }

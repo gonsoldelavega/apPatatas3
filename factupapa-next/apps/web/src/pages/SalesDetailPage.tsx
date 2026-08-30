@@ -407,6 +407,9 @@ export function SalesDetailPage() {
             <div>
               <p className="eyebrow">Cobros</p>
               <h2>{invoiceItem.paymentStatus === "paid" ? "Factura cobrada" : `${formatMoney(invoiceItem.balanceDue ?? invoiceItem.total)} pendientes`}</h2>
+              <span className={`payment-state payment-state--${invoiceItem.paymentStatus}`}>
+                {({ unpaid: "Pendiente", partial: "Parcial", overdue: "Vencida", paid: "Pagada" } as const)[invoiceItem.paymentStatus ?? "unpaid"]}
+              </span>
             </div>
             {invoiceItem.paymentStatus !== "paid" && (
               <button className="compact-action" onClick={() => {
