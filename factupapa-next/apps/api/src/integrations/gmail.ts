@@ -84,7 +84,10 @@ export interface GmailInboxSyncResult {
   candidatesAudit?: Array<Record<string, unknown>>;
 }
 
-export interface GmailInboxSyncOptions { dryRun?: boolean }
+export interface GmailInboxSyncOptions {
+  dryRun?: boolean;
+  lookbackDays?: number;
+}
 
 export type GmailDocumentDecision = "auto_import" | "review" | "ignore";
 
@@ -575,10 +578,15 @@ export class GmailIntegrationService {
       ? Date.parse(connection.inboxCursorAt)
       : nowMs - GMAIL_INITIAL_LOOKBACK_MS;
     const safeCursorMs = Number.isFinite(cursorMs) ? cursorMs : nowMs - GMAIL_INITIAL_LOOKBACK_MS;
-    const windowStartMs = Math.max(
-      nowMs - 30 * 24 * 60 * 60 * 1000,
-      safeCursorMs - GMAIL_OVERLAP_MS,
-    );
+    const historicalLookbackMs = dryRun && options.lookbackDays !== undefined
+      ? options.lookbackDays * 24 * 60 * 60 * 1000
+      : undefined;
+    const windowStartMs = historicalLookbackMs === undefined
+      ? Math.max(
+          nowMs - 30 * 24 * 60 * 60 * 1000,
+          safeCursorMs - GMAIL_OVERLAP_MS,
+        )
+      : nowMs - Math.min(historicalLookbackMs, 30 * 24 * 60 * 60 * 1000);
     const lookbackDays = Math.max(
       1,
       Math.min(30, Math.ceil((nowMs - windowStartMs) / (24 * 60 * 60 * 1000)) + 1),

@@ -12,12 +12,12 @@ const identity = {
   familyId: "test-family",
 } as const;
 
-function fakePool(sqlLog: string[]) {
+function fakePool(sqlLog: string[], inboxCursorAt: string | null = null) {
   const client = {
     async query(sql: string) {
       sqlLog.push(sql);
       if (sql.includes("from gmail_integrations"))
-        return { rows: [{ encryptedRefreshToken: "unused", scopes: ["https://www.googleapis.com/auth/gmail.readonly"], googleEmail: identity.email, inboxCursorAt: null }] };
+        return { rows: [{ encryptedRefreshToken: "unused", scopes: ["https://www.googleapis.com/auth/gmail.readonly"], googleEmail: identity.email, inboxCursorAt }] };
       if (sql.includes("from contacts")) return { rows: [{ id: "supplier-1" }] };
       return { rows: [] };
     },
@@ -97,4 +97,38 @@ test("Gmail dry-run reutiliza el pipeline y no persiste compras, imports ni curs
   assert.equal(createPurchaseCalls, 0);
   assert.equal(sqlLog.filter((sql) => /insert into gmail_purchase_imports|update gmail_purchase_imports|insert into documents/i.test(sql)).length, 0);
   assert.equal(sqlLog.filter((sql) => /update gmail_integrations/i.test(sql)).length, 0);
+});
+
+test("lookback histórico sólo amplía dry-run y nunca la sincronización normal", async () => {
+  const sqlLog: string[] = [];
+  const service = new GmailIntegrationService(fakePool(sqlLog, "2026-08-29T00:00:00.000Z"), {
+    clientId: "client", clientSecret: "secret", redirectUri: "https://example.test/callback",
+    frontendUrl: "https://example.test", encryptionSecret: "a-secret-long-enough-for-tests",
+  });
+  const internals = service as unknown as { decrypt: () => string; accessToken: () => Promise<string>; gmailJson: (token: string, path: string) => Promise<unknown> };
+  internals.decrypt = () => "refresh-token";
+  internals.accessToken = async () => "token";
+  const queries: string[] = [];
+  internals.gmailJson = async (_token, path) => {
+    if (path.startsWith("/messages?q=")) { queries.push(decodeURIComponent(path)); return { messages: [] }; }
+    return {};
+  };
+  const finance = { findPurchaseDocumentBySha: async () => undefined } as never;
+  await service.syncInbox(identity, finance, { dryRun: true, lookbackDays: 30 });
+  await service.syncInbox(identity, finance, { dryRun: true });
+  assert.equal(sqlLog.filter((sql) => /update gmail_integrations/i.test(sql)).length, 0);
+  await service.syncInbox(identity, finance, { lookbackDays: 30 });
+  assert.match(queries[0] ?? "", /newer_than:30d/);
+  assert.doesNotMatch(queries[1] ?? "", /newer_than:30d/);
+  assert.match(queries[2] ?? "", /newer_than:/);
+  assert.equal(sqlLog.filter((sql) => /update gmail_integrations/i.test(sql)).length, 1);
+});
+
+test("lookbackDays valida límites enteros", async () => {
+  const { parseGmailDryRunOptions } = await import("../src/integrations/gmail-routes.js");
+  assert.deepEqual(parseGmailDryRunOptions({}), { dryRun: true });
+  assert.deepEqual(parseGmailDryRunOptions({ lookbackDays: 30 }), { dryRun: true, lookbackDays: 30 });
+  for (const value of [0, 31, 1.5, "30", null]) {
+    assert.throws(() => parseGmailDryRunOptions({ lookbackDays: value }), /invalid_request/);
+  }
 });

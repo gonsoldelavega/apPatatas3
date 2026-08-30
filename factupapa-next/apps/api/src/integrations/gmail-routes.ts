@@ -1,5 +1,5 @@
 import type { AuthApplication } from "../auth/service.js";
-import { bearerToken, requireUuid } from "../http/request.js";
+import { bearerToken, readJson, requireUuid } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
 import { HttpError } from "../http/errors.js";
@@ -34,6 +34,15 @@ function callbackPaths(path: string): Set<string> {
   return new Set([path, path.startsWith("/api/") ? path.slice(4) : path]);
 }
 
+export function parseGmailDryRunOptions(body: Record<string, unknown>): { dryRun: true; lookbackDays?: number } {
+  const value = body.lookbackDays;
+  if (value !== undefined &&
+      (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 30)) {
+    throw new HttpError("invalid_request", 400);
+  }
+  return { dryRun: true, ...(value === undefined ? {} : { lookbackDays: value }) };
+}
+
 export function createGmailRoutes(
   auth: AuthApplication,
   service: GmailIntegrationService | undefined,
@@ -65,7 +74,8 @@ export function createGmailRoutes(
     if (request.method === "POST" && url.pathname === "/integrations/gmail/sync/dry-run") {
       if (!service) throw new HttpError("not_found", 404);
       const identity = await auth.authenticate(bearerToken(request));
-      json(response, 200, await service.syncInbox(identity, finance, { dryRun: true }));
+      const body = await readJson(request);
+      json(response, 200, await service.syncInbox(identity, finance, parseGmailDryRunOptions(body)));
       return true;
     }
     if (request.method === "POST" && url.pathname === "/integrations/gmail/connect") {
