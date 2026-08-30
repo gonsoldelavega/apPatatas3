@@ -70,6 +70,7 @@ export interface PurchaseInput {
     unitCost: string;
     taxRate: string;
   }>;
+  status?: "draft" | "confirmed";
 }
 export function validatePurchase(i: Json): PurchaseInput {
   allowed(i, [
@@ -81,6 +82,7 @@ export function validatePurchase(i: Json): PurchaseInput {
     "category",
     "notes",
     "lines",
+    "status",
   ]);
   if (!Array.isArray(i.lines) || i.lines.length > 200)
     throw new HttpError("invalid_request", 400);
@@ -119,6 +121,7 @@ export function validatePurchase(i: Json): PurchaseInput {
         taxRate: rate,
       };
     }),
+    status: i.status === "confirmed" ? "confirmed" : "draft",
   };
 }
 export interface RecurringExpenseInput {

@@ -788,6 +788,7 @@ export class GmailIntegrationService {
                 dueDate: data.dueDate ? String(data.dueDate) : null,
                 category: "mercancia",
                 notes: "Importada automáticamente desde Gmail",
+                status: "confirmed",
                 lines: lines.map((line) => ({
                   productId: null,
                   description: String(line.description ?? data.concept ?? "Compra"),

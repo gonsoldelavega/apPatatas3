@@ -3,6 +3,26 @@ import { test } from "node:test";
 import { extractPurchaseFields } from "../src/finance/extraction.js";
 import { stripOwnTaxId } from "../src/finance/extraction-vision.js";
 import { validatePurchase, validateStockLevel } from "../src/finance/validation.js";
+import { canonicalInvoiceNumber } from "../src/finance/invoice-number.js";
+
+test("normaliza variantes fiscales del mismo número", () => {
+  assert.equal(canonicalInvoiceNumber("FV006-000001861"), "S6:N1861");
+  assert.equal(canonicalInvoiceNumber("FV006-00001861"), "S6:N1861");
+  assert.equal(canonicalInvoiceNumber("006/0001.861"), "S6:N1861");
+});
+
+test("extrae proveedor real frente a texto administrativo VERI*FACTU", () => {
+  const result = extractPurchaseFields(
+    `J. EXPÓSITO CAZORLA E HIJOS, S.L.\nCIF: B04854154\nVERI*FACTU\nFACTURA Nº 26006118\nFecha: 08-07-26\nServicio 1 8,90 8,90\nBase imponible 9,90 IVA 0,40 TOTAL 10,30`,
+    "FACO126006118.PDF",
+  );
+  assert.equal(result.supplierTaxId, "B04854154");
+  assert.equal(result.supplierName, "J. EXPÓSITO CAZORLA E HIJOS, S.L.");
+  assert.equal(result.supplierInvoiceNumber, "26006118");
+  assert.equal(result.issueDate, "2026-07-08");
+  assert.equal(result.total, "10.30");
+  assert.notEqual(result.supplierName, "VERI*FACTU");
+});
 test("extrae y contrasta los campos fiscales sin conservar el texto", () => {
   const result = extractPurchaseFields(
     "FACTURA Número: PR-128 Fecha de emisión: 15/07/2026 Vencimiento: 30/07/2026 " +

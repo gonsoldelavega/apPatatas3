@@ -31,6 +31,7 @@ import {
   type OcrBudgetLimits,
 } from "./ocr-budget.js";
 import type { PurchaseInput, RecurringExpenseInput } from "./validation.js";
+import { canonicalInvoiceNumber, canonicalSupplierTaxId } from "./invoice-number.js";
 const extractionScore = (x: ExtractedPurchaseFields) =>
   (x.supplierTaxId ? 4 : 0) +
   (x.issueDate ? 3 : 0) +
@@ -279,9 +280,11 @@ export class FinanceService {
         if (invoiceNumber) {
           const duplicate = await client.query(
             `select 1 from purchase_invoices
-             where supplier_id=$1 and lower(btrim(supplier_invoice_number))=lower(btrim($2))
+             where company_id=$1 and supplier_tax_identity_key=$2
+               and supplier_invoice_number_key=$3
+               and extract(year from issue_date)=extract(year from $4::date)
                and status<>'cancelled'`,
-            [supplier.id, invoiceNumber],
+            [i.companyId, canonicalSupplierTaxId(supplier.tax_id) ?? supplier.id, canonicalInvoiceNumber(invoiceNumber), issueDate],
           );
           if (duplicate.rowCount) {
             skipped += 1;
@@ -293,14 +296,15 @@ export class FinanceService {
         const purchaseId = (
           await client.query(
             `insert into purchase_invoices(
-               company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_address,
-               supplier_invoice_number,issue_date,category,notes,subtotal,tax_total,total,
+               company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_tax_identity_key,supplier_address,
+               supplier_invoice_number,supplier_invoice_number_key,issue_date,category,notes,subtotal,tax_total,total,
                created_by_user_id,source_registry_key,source_registry_url,source_registry_filename)
-             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
              returning id`,
             [
               i.companyId, supplier.id, supplier.legal_name, supplier.tax_id,
-              supplier.address, invoiceNumber, issueDate, registryCategory(row[8]),
+              canonicalSupplierTaxId(supplier.tax_id) ?? supplier.id, supplier.address,
+              invoiceNumber, canonicalInvoiceNumber(invoiceNumber), issueDate, registryCategory(row[8]),
               [registryText(row[21]), "Importada del registro maestro"].filter(Boolean).join(" · "),
               subtotal, taxTotal, total, i.userId, key, registryUrl(row[18]),
               registryText(row[19]) || null,
@@ -831,8 +835,8 @@ export class FinanceService {
               ? Boolean(
                   (
                     await c.query(
-                      `select 1 from purchase_invoices where supplier_id=$1 and lower(btrim(supplier_invoice_number))=lower(btrim($2)) and status<>'cancelled' and deleted_at is null limit 1`,
-                      [supplier.id, extracted.supplierInvoiceNumber],
+                      `select 1 from purchase_invoices where company_id=$1 and supplier_tax_identity_key=$2 and supplier_invoice_number_key=$3 and extract(year from issue_date)=extract(year from $4::date) and status<>'cancelled' and deleted_at is null limit 1`,
+                      [i.companyId, canonicalSupplierTaxId(extracted.supplierTaxId) ?? supplier.id, canonicalInvoiceNumber(extracted.supplierInvoiceNumber), extracted.issueDate],
                     )
                   ).rowCount,
                 )
@@ -1009,15 +1013,17 @@ export class FinanceService {
           );
         const id = (
           await c.query(
-            `insert into purchase_invoices(company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_address,document_id,supplier_invoice_number,issue_date,due_date,category,notes,subtotal,tax_total,total,created_by_user_id)values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)returning id`,
+            `insert into purchase_invoices(company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_tax_identity_key,supplier_invoice_number,supplier_invoice_number_key,supplier_address,document_id,issue_date,due_date,category,notes,subtotal,tax_total,total,status,confirmed_at,created_by_user_id)values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)returning id`,
             [
               i.companyId,
               input.supplierId,
               supplier.legal_name,
               supplier.tax_id,
+              canonicalSupplierTaxId(supplier.tax_id) ?? input.supplierId,
+              input.supplierInvoiceNumber,
+              canonicalInvoiceNumber(input.supplierInvoiceNumber),
               supplier.address,
               input.documentId,
-              input.supplierInvoiceNumber,
               input.issueDate,
               input.dueDate,
               input.category,
@@ -1025,6 +1031,8 @@ export class FinanceService {
               totals.subtotal,
               totals.taxTotal,
               totals.total,
+              input.status ?? "draft",
+              input.status === "confirmed" ? new Date() : null,
               i.userId,
             ],
           )
@@ -1055,7 +1063,7 @@ export class FinanceService {
           entityType: "purchase_invoice",
           entityId: id,
           action: "purchase_invoice.created",
-          after: { status: "draft", total: totals.total },
+          after: { status: input.status ?? "draft", total: totals.total },
         });
         return this.getIn(c, id);
       });

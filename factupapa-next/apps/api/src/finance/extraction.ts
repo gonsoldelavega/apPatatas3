@@ -158,6 +158,13 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
     }
   }
   if (!out.issueDate) {
+    const shortDate = clean.match(/(?:fecha(?:\s+de\s+emisi[oó]n)?)[\s:]*(\d{1,2})[/-](\d{1,2})[/-](\d{2})(?:\D|$)/i);
+    if (shortDate) {
+      const year = Number(shortDate[3]) + 2000;
+      out.issueDate = `${year}-${shortDate[2]!.padStart(2, "0")}-${shortDate[1]!.padStart(2, "0")}`;
+    }
+  }
+  if (!out.issueDate) {
     const fallbackDate = `${text} ${filename}`.match(/(?:^|\D)(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\D|$)|(?:^|\D)(20\d{2})-(\d{2})-(\d{2})(?:\D|$)/);
     if (fallbackDate)
       out.issueDate = fallbackDate[4]
@@ -308,11 +315,14 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   if (nifLabelIndex > 0) {
     const issuerLine = lines.slice(Math.max(0, nifLabelIndex - 6), nifLabelIndex).reverse()
       .find((line) => /(?:S\.?A\.?|S\.?L\.?U?\.?|S\.?C\.?A\.?)\b/i.test(line));
-    if (issuerLine && /[A-ZÁÉÍÓÚÑ]{3}/.test(issuerLine) && !/gonzalez\s+cabrera|cliente/i.test(issuerLine))
+    if (issuerLine && /[A-ZÁÉÍÓÚÑ]{3}/.test(issuerLine) && !/gonzalez\s+cabrera|cliente|veri\*?factu|factura|invoice/i.test(issuerLine))
       out.supplierName = issuerLine.replace(/\s+/g, " ").slice(0, 200);
   }
-  const legalName = text.match(/\b([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9 .&-]{2,80}?\s+(?:S\.?L\.?U?\.?|S\.?A\.?|S\.?C\.?A\.?|GmbH))\b/i);
-  const name = legalName?.[1] ?? lines.find((line) => /[A-ZÁÉÍÓÚÑ]{3}/.test(line) && !/factura|fecha|total|cif|nif/i.test(line));
+  const legalName = text.match(/\b([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9 .,&'’\-]{2,100}?\s+(?:S\.?L\.?U?\.?|S\.?A\.?|S\.?C\.?A\.?|GmbH))\b/i);
+  const genericName = /^(?:VERI\*?FACTU|FACTURA|INVOICE|ALBAR[AÁ]N|ADMINISTRACI[ÓO]N|VENDEDOR|CLIENTE|PROVEEDOR|FECHA|TOTAL|NIF|CIF)$/i;
+  const name = legalName?.[1] && !genericName.test(legalName[1].trim())
+    ? legalName[1]
+    : undefined;
   if (name && !out.supplierName) out.supplierName = name.replace(/\s+/g, " ").slice(0, 200);
   const concept = lines.find((line) => /patat|envase|transporte|gestor|servicio|producto/i.test(line));
   if (concept) out.concept = concept.replace(/\s+/g, " ").slice(0, 500);
@@ -355,7 +365,7 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
       }
     }
   }
-  if (!extractedLines.length && out.subtotal && out.total && /(?:n[úu]m\.?\s*factura|total\s+factura\s+en\s+euros|invoice\s+no\.?)/i.test(clean)) {
+  if (!extractedLines.length && out.subtotal && out.total && /(?:servicio|producto|patata|gesti[oó]n|asesor[ií]a|carburante|cloud|hosting|total\s+factura\s+en\s+euros|invoice\s+no)/i.test(clean)) {
     const aggregateDescription = lines.find((line) => /(?:concepto|servicio|carburante|cloud|hosting|gesti[oó]n|asesor[ií]a)/i.test(line)) ?? out.concept ?? "Servicios y suministros";
     const aggregateBase = Number(out.subtotal);
     if (aggregateBase > 0) extractedLines.push({ description: aggregateDescription.slice(0, 500), quantity: "1", unit: "unit", unitCost: rounded(aggregateBase), taxRate: inferredTaxRate, lineTotal: rounded(aggregateBase) });
