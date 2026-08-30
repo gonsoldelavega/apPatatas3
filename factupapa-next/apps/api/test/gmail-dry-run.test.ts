@@ -43,7 +43,7 @@ test("Gmail autoimporta en staging un proveedor fiscal sólido aunque aún no ex
   };
   const finance = {
     findPurchaseDocumentBySha: async () => undefined,
-    uploadDocument: async () => ({ id: "preview-document", extractedData: { documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.98, supplierTaxId: "B12345678", supplierName: "Proveedor Nuevo", supplierInvoiceNumber: "F-2", issueDate: "2026-08-29", total: "10.00", lines: [{ description: "Producto", quantity: "1", unitCost: "9.60", taxRate: "4" }] } }),
+    uploadDocument: async () => ({ id: "preview-document", extractedData: { documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.82, supplierTaxId: "B12345678", supplierName: "Proveedor Nuevo", supplierInvoiceNumber: "F-2", issueDate: "2026-08-29", total: "10.00", lines: [{ description: "Producto", quantity: "1", unitCost: "9.60", taxRate: "4" }] } }),
   } as never;
   const result = await service.syncInbox(identity, finance, { dryRun: true });
   assert.equal(result.autoImportable, 1);

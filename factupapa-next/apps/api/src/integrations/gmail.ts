@@ -760,7 +760,7 @@ export class GmailIntegrationService {
               : undefined;
             // A supplier with a strong fiscal identity can be onboarded safely
             // on the real sync. Dry-runs only model this outcome in memory.
-            if (!supplier && data.supplierTaxId && data.supplierName && Number(data.classificationConfidence ?? 0) >= 0.9) {
+            if (!supplier && data.supplierTaxId && data.supplierName && Number(data.classificationConfidence ?? 0) >= 0.82) {
               supplier = dryRun
                 ? { id: "dry-run-supplier" }
                 : await withTenantTransaction(this.pool, identity, async (client) =>
