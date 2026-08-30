@@ -724,7 +724,11 @@ export class GmailIntegrationService {
           const body = Buffer.from(encodedBody, "base64url");
           result.attachmentsDownloaded += 1;
           const sha = createHash("sha256").update(body).digest("hex");
-          const existing = await finance.findPurchaseDocumentBySha(identity, sha);
+          // A failed/review import must be allowed to re-extract the source
+          // document after parser improvements. Finalized imports keep the
+          // normal SHA idempotency shortcut.
+          const retryableImport = existingImport?.status === "failed" || existingImport?.status === "needs_review";
+          const existing = retryableImport ? undefined : await finance.findPurchaseDocumentBySha(identity, sha);
           const document = existing ?? await finance.uploadDocument(identity, {
             filename,
             mimeType,
