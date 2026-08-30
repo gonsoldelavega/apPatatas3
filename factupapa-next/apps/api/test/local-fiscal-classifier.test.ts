@@ -54,6 +54,7 @@ test("reconoce facturas profesionales con resumen fiscal aunque no tengan tabla 
   const solredResult = classifyLocalFiscalDocument(solred, extractPurchaseFields(solred, "9737047_213544885903_ES.pdf"), own);
   const hetznerResult = classifyLocalFiscalDocument(hetzner, extractPurchaseFields(hetzner, "Hetzner_2026-08-03_082001060516.pdf"), own);
   assert.equal(solredResult.documentType, "supplier_invoice");
+  assert.equal(solredResult.supplierInvoiceNumber, "BBV260354046");
   assert.equal(solredResult.recipientTaxId, "45313973V");
   assert.equal(solredResult.purchaseEligible, true);
   assert.equal(hetznerResult.documentType, "supplier_invoice");
