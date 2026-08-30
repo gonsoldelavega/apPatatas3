@@ -33,3 +33,17 @@ test("extrae el formato real de Gayca con fecha textual y total entregado", () =
   assert.equal(result.documentType, "supplier_invoice");
   assert.equal(result.purchaseEligible, true);
 });
+
+test("extrae una factura de servicios con CIF del emisor y una línea única", () => {
+  const text = `6483 GONZALEZ CABRERA IRENE\nCONCEPTO CÓDIGO UNID. % RET. % IVA IMPORTE\nASESORIA AUTONOMOS ONLINE SLU\nB55764229 C.I.F.\nNº DE FACTURA FECHA\n11719 / 26 28/08/2026\nGestión fiscal y contable del empresario individual 1,00 2 24,00 24,00 21,00\nTotal A Pagar 29,04`;
+  const fields = extractPurchaseFields(text, "Facturas.pdf");
+  const result = classifyLocalFiscalDocument(text, fields, own);
+  assert.equal(fields.supplierName, "ASESORIA AUTONOMOS ONLINE SLU");
+  assert.equal(fields.supplierTaxId, "B55764229");
+  assert.equal(fields.supplierInvoiceNumber, "11719/26");
+  assert.equal(fields.issueDate, "2026-08-28");
+  assert.equal(fields.total, "29.04");
+  assert.equal(fields.lines?.length, 1);
+  assert.equal(result.documentType, "supplier_invoice");
+  assert.equal(result.purchaseEligible, true);
+});

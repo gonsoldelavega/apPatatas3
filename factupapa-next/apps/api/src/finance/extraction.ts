@@ -125,6 +125,10 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   const fiscalNumber = clean.match(/\b(\d{3}\/\d{4}[.]\d{3})\b/);
   if (fiscalNumber) out.supplierInvoiceNumber = fiscalNumber[1]!;
   if (!out.supplierInvoiceNumber) {
+    const labeledInvoice = clean.match(/n[º°]?\s*de\s*factura[\s\S]{0,80}?(\d{3,8}\s*\/\s*\d{1,4})\s+\d{1,2}[/-]\d{1,2}[/-]20\d{2}/i);
+    if (labeledInvoice) out.supplierInvoiceNumber = labeledInvoice[1]!.replace(/\s+/g, "");
+  }
+  if (!out.supplierInvoiceNumber) {
     const invoiceToken = text.match(/\b(?:FV|FA|FC)(?=[A-Z0-9Ø/-]*\d)[A-Z0-9Ø/-]{5,40}\b/i);
     if (invoiceToken)
       out.supplierInvoiceNumber = invoiceToken[0].toUpperCase().replace(/Ø/g, "0");
@@ -170,6 +174,11 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   if (!out.total) {
     const labeledTotal = clean.match(/\bTOTAL\s+(?:ENTREGADO\s*:\s*)?([0-9]{1,12}(?:[.,][0-9]{2,4}))/i);
     if (labeledTotal) out.total = decimal(labeledTotal[1]!);
+  }
+  if (!out.total) {
+    const labeledTotals = [...clean.matchAll(/\b(?:total\s+a\s+pagar|total\s+factura|total\s+l[ií]quido)\b[\s\S]{0,60}?([0-9]{1,12}(?:[.,][0-9]{2,4}))/gi)];
+    const labeled = labeledTotals.at(-1);
+    if (labeled) out.total = decimal(labeled[1]!);
   }
   if (!out.total) {
     const euroAmounts = [...text.matchAll(/\b([0-9]{1,12}(?:[.,][0-9]{2}))\s*€/g)];
@@ -258,17 +267,21 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
       }
     }
   }
-  const tax = clean.match(/\b(?:CIF|NIF|VAT)[\s:]*([A-Z][0-9A-Z-]{7,14})\b/i);
+  const tax = clean.match(/(?:\bC\.?I\.?F\.?|\bN\.?I\.?F\.?|\bVAT)[\s:]*([A-Z][0-9A-Z-]{7,14})\b/i);
   if (tax) out.supplierTaxId = tax[1]!.toUpperCase();
+  if (!out.supplierTaxId) {
+    const trailingLabelTax = clean.match(/\b([A-Z]\d{7,8}[A-Z0-9]?)\s+C\.?I\.?F\.?\b/i);
+    if (trailingLabelTax) out.supplierTaxId = trailingLabelTax[1]!.toUpperCase();
+  }
   if (!out.supplierTaxId) {
     const bareTaxId = text.match(/\b(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])\b/i);
     if (bareTaxId) out.supplierTaxId = bareTaxId[0].toUpperCase();
   }
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const nifLabelIndex = lines.findIndex((line) => /\bN\.?I\.?F\.?\s*:/i.test(line));
+  const nifLabelIndex = lines.findIndex((line) => /(?:N\.?I\.?F\.?|C\.?I\.?F\.?)\s*:?/i.test(line));
   if (nifLabelIndex > 0) {
-    const issuerLine = lines.slice(Math.max(0, nifLabelIndex - 4), nifLabelIndex).reverse()
-      .find((line) => /(?:S\.?A\.?|S\.?L\.?)\b/i.test(line));
+    const issuerLine = lines.slice(Math.max(0, nifLabelIndex - 6), nifLabelIndex).reverse()
+      .find((line) => /(?:S\.?A\.?|S\.?L\.?U?\.?|S\.?C\.?A\.?)\b/i.test(line));
     if (issuerLine && /[A-ZÁÉÍÓÚÑ]{3}/.test(issuerLine) && !/gonzalez\s+cabrera|cliente/i.test(issuerLine))
       out.supplierName = issuerLine.replace(/\s+/g, " ").slice(0, 200);
   }
@@ -303,6 +316,19 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
       ? rounded((Number(out.taxTotal) / Number(out.subtotal)) * 100)
       : "0";
   const extractedLines = extractLines(text, inferredTaxRate);
+  if (!extractedLines.length) {
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.replace(/\s+/g, " ").trim();
+      if (!/(gesti[oó]n|asesor[ií]a|servicio|honorarios|consultor[ií]a|mantenimiento)/i.test(line)) continue;
+      const service = line.match(/^(.{5,160}?)\s+(\d+[.,]\d{2})\s+(?:\d+[.,]?\d*\s+)?(\d+[.,]\d{2})\s+(\d+[.,]\d{2})\s+(\d+[.,]\d{2})$/);
+      if (!service) continue;
+      const quantity = Number(decimal(service[2]!)), unitCost = Number(decimal(service[3]!)), lineTotal = Number(decimal(service[4]!));
+      if (quantity > 0 && Math.abs(quantity * unitCost - lineTotal) <= 0.03) {
+        extractedLines.push({ description: service[1]!.trim(), quantity: rounded(quantity), unit: "unit", unitCost: rounded(unitCost), taxRate: decimal(service[5]!), lineTotal: rounded(lineTotal) });
+        break;
+      }
+    }
+  }
   if (extractedLines.length) {
     out.lines = extractedLines;
     const stockKg = extractedLines

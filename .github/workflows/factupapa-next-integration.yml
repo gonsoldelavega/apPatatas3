@@ -57,9 +57,11 @@ jobs:
           set -euo pipefail
           test -f factupapa-next/scripts/audit.sh
           test -x factupapa-next/scripts/audit.sh
-          # Both audit workflows share fixed localhost ports on the rootless host.
-          # A host lock serializes them without GitHub cancelling the other workflow.
-          flock -w 3300 /tmp/factupapa-next-rootless-host.lock factupapa-next/scripts/audit.sh
+          # Isolate every run in its own six-port block so a stale or concurrent
+          # audit cannot take down another run's PostgreSQL.
+          export FACTUPAPA_AUDIT_PORT_BASE=$((24000 + (GITHUB_RUN_ID % 3000) * 10))
+          echo "audit_port_base=${FACTUPAPA_AUDIT_PORT_BASE}"
+          flock -w 3300 /tmp/factupapa-next-rootless-host.lock env FACTUPAPA_AUDIT_PORT_BASE="${FACTUPAPA_AUDIT_PORT_BASE}" factupapa-next/scripts/audit.sh
 
       - name: Upload sanitized fictitious evidence
         if: always()
