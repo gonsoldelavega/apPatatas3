@@ -299,7 +299,7 @@ export class FinanceService {
                company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_tax_identity_key,supplier_address,
                supplier_invoice_number,supplier_invoice_number_key,issue_date,category,notes,subtotal,tax_total,total,
                created_by_user_id,source_registry_key,source_registry_url,source_registry_filename)
-             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
              returning id`,
             [
               i.companyId, supplier.id, supplier.legal_name, supplier.tax_id,
