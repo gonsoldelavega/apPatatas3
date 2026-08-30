@@ -753,11 +753,27 @@ export class GmailIntegrationService {
           let status: "duplicate" | "needs_review" | "imported" = existing ? "duplicate" : "needs_review";
           if (!existing && decision === "auto_import") {
             const data = (document as { extractedData?: Record<string, unknown> }).extractedData ?? {};
-            const supplier = data.supplierTaxId
+            let supplier = data.supplierTaxId
               ? (await withTenantTransaction(this.pool, identity, async (client) => (await client.query<{ id: string }>(
                   `select id from contacts where is_active and kind in ('supplier','both') and upper(regexp_replace(coalesce(tax_id,''),'[^A-Z0-9]','','g'))=upper(regexp_replace($1,'[^A-Z0-9]','','g')) limit 1`, [String(data.supplierTaxId)]
                 )).rows[0]))
               : undefined;
+            // A supplier with a strong fiscal identity can be onboarded safely
+            // on the real sync. Dry-runs only model this outcome in memory.
+            if (!supplier && data.supplierTaxId && data.supplierName && Number(data.classificationConfidence ?? 0) >= 0.9) {
+              supplier = dryRun
+                ? { id: "dry-run-supplier" }
+                : await withTenantTransaction(this.pool, identity, async (client) =>
+                    (await client.query<{ id: string }>(
+                      `insert into contacts(company_id,kind,legal_name,tax_id,address)
+                       values($1,'supplier',$2,$3,'{}'::jsonb)
+                       on conflict (company_id,lower(btrim(tax_id))) where tax_id is not null and btrim(tax_id) <> ''
+                       do update set is_active=true
+                       returning id`,
+                      [identity.companyId, String(data.supplierName).slice(0, 200), String(data.supplierTaxId)],
+                    )).rows[0]
+                  );
+            }
             const lines = Array.isArray(data.lines) ? data.lines.filter((line): line is Record<string, unknown> => Boolean(line && typeof line === "object")) : [];
             if (supplier && lines.length && data.issueDate && data.total) {
               result.autoImportable += 1;

@@ -12,19 +12,44 @@ const identity = {
   familyId: "test-family",
 } as const;
 
-function fakePool(sqlLog: string[], inboxCursorAt: string | null = null) {
+function fakePool(sqlLog: string[], inboxCursorAt: string | null = null, withSupplier = true) {
   const client = {
     async query(sql: string) {
       sqlLog.push(sql);
       if (sql.includes("from gmail_integrations"))
         return { rows: [{ encryptedRefreshToken: "unused", scopes: ["https://www.googleapis.com/auth/gmail.readonly"], googleEmail: identity.email, inboxCursorAt }] };
-      if (sql.includes("from contacts")) return { rows: [{ id: "supplier-1" }] };
+      if (sql.includes("from contacts")) return { rows: withSupplier ? [{ id: "supplier-1" }] : [] };
       return { rows: [] };
     },
     release() {},
   };
   return { async connect() { return client; } } as never;
 }
+
+test("Gmail autoimporta en staging un proveedor fiscal sólido aunque aún no exista", async () => {
+  const sqlLog: string[] = [];
+  const service = new GmailIntegrationService(fakePool(sqlLog, null, false), {
+    clientId: "client", clientSecret: "secret", redirectUri: "https://example.test/callback",
+    frontendUrl: "https://example.test", encryptionSecret: "a-secret-long-enough-for-tests",
+  });
+  const now = Date.now();
+  const internals = service as unknown as { decrypt: () => string; accessToken: () => Promise<string>; gmailJson: (token: string, path: string) => Promise<unknown> };
+  internals.decrypt = () => "refresh-token";
+  internals.accessToken = async () => "token";
+  internals.gmailJson = async (_token, path) => {
+    if (path.startsWith("/messages?q=")) return { messages: [{ id: "message-strong" }] };
+    if (path === "/messages/message-strong?format=full") return { id: "message-strong", internalDate: String(now), payload: { headers: [{ name: "From", value: "new@supplier.test" }, { name: "Subject", value: "Factura proveedor" }], parts: [{ filename: "factura.pdf", mimeType: "application/pdf", body: { attachmentId: "attachment-strong" } }] } };
+    return { data: Buffer.from("%PDF-test").toString("base64url") };
+  };
+  const finance = {
+    findPurchaseDocumentBySha: async () => undefined,
+    uploadDocument: async () => ({ id: "preview-document", extractedData: { documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.98, supplierTaxId: "B12345678", supplierName: "Proveedor Nuevo", supplierInvoiceNumber: "F-2", issueDate: "2026-08-29", total: "10.00", lines: [{ description: "Producto", quantity: "1", unitCost: "9.60", taxRate: "4" }] } }),
+  } as never;
+  const result = await service.syncInbox(identity, finance, { dryRun: true });
+  assert.equal(result.autoImportable, 1);
+  assert.equal(result.review, 0);
+  assert.equal(sqlLog.some((sql) => /insert into contacts/i.test(sql)), false);
+});
 
 test("Gmail dry-run reutiliza el pipeline y no persiste compras, imports ni cursor", async () => {
   const sqlLog: string[] = [];
