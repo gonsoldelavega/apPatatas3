@@ -16,6 +16,32 @@ export interface ExtractedPurchaseFields {
   fieldConfidence?: Record<string, "high" | "medium" | "low">;
   warnings?: string[];
 }
+
+const TAX_ID_RE = /\b(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])\b/gi;
+const normTax = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+export function classifyLocalFiscalDocument(text: string, fields: ExtractedPurchaseFields, ownTaxIds: string[]): ExtractedPurchaseFields {
+  const clean = text.replace(/\s+/g, " ");
+  const own = new Set(ownTaxIds.map(normTax));
+  const ids = [...clean.matchAll(TAX_ID_RE)].map(m => m[0].toUpperCase()).filter((v,i,a) => a.findIndex(x=>normTax(x)===normTax(v))===i);
+  const external = ids.find(v => !own.has(normTax(v)));
+  const ownId = ids.find(v => own.has(normTax(v)));
+  const reasons: string[] = [];
+  if (/(transferencia|justificante|extracto|movimiento bancario|autoservicio|confirmaci[oó]n de pago|ingreso bancario|account statement|payment confirmation)/i.test(clean))
+    return { ...fields, documentType: /extracto|account statement/i.test(clean) ? "account_statement" : "payment_confirmation", classificationConfidence: 0.98, purchaseEligible: false, blockingReasons: ["bank_document"] };
+  if (/(abono|factura rectificativa|credit note|nota de cr[eé]dito)/i.test(clean))
+    return { ...fields, documentType: "supplier_credit_note", classificationConfidence: 0.95, purchaseEligible: false, blockingReasons: ["credit_note"] };
+  const invoiceLike = /(factura|invoice|iva|base imponible|total)/i.test(clean) || Boolean(fields.supplierInvoiceNumber);
+  const ownNearIssuer = ownId && new RegExp(`(?:emisor|issuer|vendedor|seller)[^]{0,80}${ownId}|${ownId}[^]{0,80}(?:emisor|issuer|vendedor|seller)`, "i").test(clean);
+  const ownNearRecipient = ownId && new RegExp(`(?:cliente|customer|destinatario|receptor|facturado a|bill to)[^]{0,80}${ownId}|${ownId}[^]{0,80}(?:cliente|customer|destinatario|receptor|facturado a|bill to)`, "i").test(clean);
+  if (ownNearIssuer) return { ...fields, issuerTaxId: ownId, documentType: "issued_sales_invoice", classificationConfidence: 0.99, purchaseEligible: false, blockingReasons: ["own_company_is_issuer"] };
+  if (invoiceLike && external && ownId) {
+    reasons.push("external_issuer_and_own_recipient");
+    return { ...fields, issuerTaxId: external, recipientTaxId: ownId, supplierTaxId: external, documentType: "supplier_invoice", classificationConfidence: 0.9, purchaseEligible: Boolean(fields.supplierInvoiceNumber && fields.issueDate && fields.total && fields.lines?.length), classificationReasons: reasons };
+  }
+  if (invoiceLike && external)
+    return { ...fields, issuerTaxId: external, supplierTaxId: external, documentType: "supplier_invoice", classificationConfidence: 0.82, purchaseEligible: Boolean(fields.supplierInvoiceNumber && fields.issueDate && fields.total && fields.lines?.length) };
+  return { ...fields, documentType: fields.documentType ?? "unknown", classificationConfidence: fields.classificationConfidence ?? 0.2, purchaseEligible: false };
+}
 export interface ExtractedPurchaseLine {
   description: string;
   quantity: string;

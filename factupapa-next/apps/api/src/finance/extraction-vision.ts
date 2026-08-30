@@ -135,15 +135,16 @@ export function stripOwnTaxId(
   fields: ExtractedPurchaseFields,
   ownTaxIds: string[],
 ): ExtractedPurchaseFields {
-  if (!fields.supplierTaxId || !isOwnTaxId(fields.supplierTaxId, ownTaxIds))
+  const issuerCandidate = (fields as ExtractedPurchaseFields & { issuerTaxId?: string }).issuerTaxId ?? fields.supplierTaxId;
+  if (!issuerCandidate || !isOwnTaxId(issuerCandidate, ownTaxIds))
     return fields;
-  const ownIssuerTaxId = normalizeTaxId(fields.supplierTaxId);
-  const { supplierTaxId: _dropped, ...rest } = fields;
+  const ownIssuerTaxId = normalizeTaxId(issuerCandidate);
+  const { supplierTaxId: _dropped, issuerTaxId: _issuer, ...rest } = fields;
   const fieldConfidence = { ...rest.fieldConfidence };
   delete fieldConfidence.supplierTaxId;
   return {
     ...rest,
-    issuerTaxId: rest.issuerTaxId ?? ownIssuerTaxId,
+    issuerTaxId: (rest as ExtractedPurchaseFields & { issuerTaxId?: string }).issuerTaxId ?? ownIssuerTaxId,
     documentType: "issued_sales_invoice",
     classificationConfidence: Math.max(rest.classificationConfidence ?? 0, 0.99),
     purchaseEligible: false,

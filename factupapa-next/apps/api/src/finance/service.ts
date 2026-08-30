@@ -14,6 +14,7 @@ import { HttpError, isPostgresUniqueViolation } from "../http/errors.js";
 import { lineAmounts, sumAmounts } from "../sales/money.js";
 import {
   extractPurchaseFields,
+  classifyLocalFiscalDocument,
   type ExtractedPurchaseFields,
 } from "./extraction.js";
 import {
@@ -710,7 +711,7 @@ export class FinanceService {
           textFields &&
           (textFields.total || textFields.supplierTaxId)
         ) {
-          extracted = { ...textFields, ocrConfidence: 100, source: "pdf_text" };
+          extracted = classifyLocalFiscalDocument(parsed.text, { ...textFields, ocrConfidence: 100, source: "pdf_text" }, this.extraction?.ownTaxIds ?? []);
         } else if (!extracted.source) {
           const screenshots = await parser.getScreenshot({
             first: 2,
@@ -736,7 +737,8 @@ export class FinanceService {
             const pages = [];
             for (const buffer of pageBuffers)
               pages.push(await bestOcr(buffer, input.filename));
-            const fields = extractPurchaseFields(pages.map((x) => x.page.text).join("\n"), input.filename);
+            const ocrText = pages.map((x) => x.page.text).join("\n");
+            const fields = classifyLocalFiscalDocument(ocrText, extractPurchaseFields(ocrText, input.filename), this.extraction?.ownTaxIds ?? []);
             extracted = {
               ...fields,
               ocrConfidence: pages.length
@@ -772,7 +774,7 @@ export class FinanceService {
           const candidate = await bestOcr(body, input.filename),
             page = candidate.page;
           extracted = {
-            ...candidate.fields,
+            ...classifyLocalFiscalDocument(candidate.page.text, candidate.fields, this.extraction?.ownTaxIds ?? []),
             ocrConfidence: page.confidence,
             source: "ocr",
           };
