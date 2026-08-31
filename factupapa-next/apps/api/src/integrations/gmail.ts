@@ -781,21 +781,17 @@ export class GmailIntegrationService {
               persist: !dryRun,
             });
           } catch (error) {
-            // A previous attempt may already have materialized the same
-            // fiscal purchase while leaving the old document pending.  Treat
-            // that conflict as a terminal duplicate, never as a failed sync.
-            if (!(error instanceof HttpError) || error.code !== "conflict" || !retryableImport) throw error;
-            // If the historical document is no longer writable (for example
-            // an old import points at a stale row), re-materialize the same
-            // Gmail bytes as a fresh document and resolve the old pending row
-            // after classification.  This preserves the source and avoids a
-            // permanent retry loop while the fiscal dedupe protects purchases.
-            document = await finance.uploadDocument(identity, {
-              filename,
-              mimeType,
-              contentBase64: body.toString("base64"),
-              persist: !dryRun,
+            if (!(error instanceof HttpError) || error.code !== "conflict" || !retryableImport || !existingImport?.documentId) throw error;
+            // Never create a second document for a historical retry.  The
+            // original row remains the audit anchor; resolve its import as a
+            // terminal duplicate and remove it from the review queue.
+            status = "duplicate";
+            result.duplicates += 1;
+            await withTenantTransaction(this.pool, identity, async (client) => {
+              await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [existingImport.documentId]);
+              await client.query(`update gmail_purchase_imports set document_id=$2,status='duplicate',error_code=null,updated_at=now() where id=$1`, [claimed.id, existingImport.documentId]);
             });
+            continue;
           }
           stage = "classification";
           const decision = existing ? "duplicate" : decideGmailDocument((document as { extractedData?: Record<string, unknown> }).extractedData ?? {});
