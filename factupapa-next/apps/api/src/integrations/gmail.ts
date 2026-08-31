@@ -782,15 +782,21 @@ export class GmailIntegrationService {
               persist: !dryRun,
             });
           } catch (error) {
-            if (!(error instanceof HttpError) || error.code !== "conflict" || !retryableImport || !existingImport?.documentId) throw error;
+            const targetDocumentId = replayDocumentId ?? existingImport?.documentId;
+            if (!(error instanceof HttpError) || error.code !== "conflict" || !retryableImport || !targetDocumentId) throw error;
             // Never create a second document for a historical retry.  The
             // original row remains the audit anchor; resolve its import as a
             // terminal duplicate and remove it from the review queue.
             status = "duplicate";
             result.duplicates += 1;
+            const linked = await withTenantTransaction(this.pool, identity, async (client) => {
+              const row = await client.query<{ count: string }>(`select count(*)::text count from purchase_invoices where document_id=$1`, [targetDocumentId]);
+              return Number(row.rows[0]?.count ?? 0) > 0;
+            });
+            if (!linked) throw error;
             await withTenantTransaction(this.pool, identity, async (client) => {
-              await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [existingImport.documentId]);
-              await client.query(`update gmail_purchase_imports set document_id=$2,status='duplicate',error_code=null,updated_at=now() where id=$1`, [claimed.id, existingImport.documentId]);
+              await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [targetDocumentId]);
+              await client.query(`update gmail_purchase_imports set document_id=$2,status='duplicate',error_code=null,updated_at=now() where id=$1`, [claimed.id, targetDocumentId]);
             });
             continue;
           }
