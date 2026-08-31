@@ -26,6 +26,11 @@ export function createFinanceRoutes(
       json(response, 200, await finance.listRejectedDocuments(id));
       return true;
     }
+    if (url.pathname === "/purchase-documents/reprocess-pending" && request.method === "POST") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.reprocessPendingPurchaseDocuments(id));
+      return true;
+    }
     if (url.pathname === "/purchase-documents" && request.method === "POST") {
       const id = await auth.authenticate(bearerToken(request)),
         body = await readJson(request, 14_000_000);

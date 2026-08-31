@@ -465,6 +465,17 @@ export class FinanceService {
       return row;
     });
   }
+  async reprocessPendingPurchaseDocuments(i: SessionIdentity) {
+    const rows = await withTenantTransaction(this.pool, i, async (client) =>
+      (await client.query<{ id: string }>(`select id from documents where company_id=$1 and kind='purchase_invoice' and status='needs_review' order by updated_at`, [i.companyId])).rows,
+    );
+    const results = [];
+    for (const row of rows) {
+      try { results.push(await this.reprocessPurchaseDocument(i, row.id)); }
+      catch { /* preserve genuinely unprocessable documents for review */ }
+    }
+    return { processed: results.length, total: rows.length };
+  }
   async rejectPendingDocument(i: SessionIdentity, id: string) {
     return withTenantTransaction(this.pool, i, async (client) => {
       const row = (
