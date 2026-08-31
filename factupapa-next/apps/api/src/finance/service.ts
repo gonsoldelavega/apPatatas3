@@ -493,7 +493,20 @@ export class FinanceService {
         if (decision === "review") await withTenantTransaction(this.pool, i, async (client) => { await client.query(`update gmail_purchase_imports set status='needs_review',updated_at=now() where document_id=$1`, [row.id]); });
         results.push({ documentId: row.id, success: true, decision, purchaseId, result });
       }
-      catch (error) { results.push({ documentId: row.id, success: false, errorCode: error instanceof HttpError ? error.code : "reprocess_failed", errorMessage: error instanceof Error ? error.message.replace(/[^a-zA-Z0-9 _:-]/g, "").slice(0,120) : "reprocess_failed" }); }
+      catch (error) {
+        if (error instanceof HttpError && error.code === "conflict") {
+          const linked = await withTenantTransaction(this.pool, i, async (client) => (await client.query<{ id: string }>(`select id from purchase_invoices where document_id=$1 limit 1`, [row.id])).rows[0]);
+          if (linked) {
+            await withTenantTransaction(this.pool, i, async (client) => {
+              await client.query(`update documents set status='validated',updated_at=now() where id=$1`, [row.id]);
+              await client.query(`update gmail_purchase_imports set status='duplicate',error_code=null,updated_at=now() where document_id=$1`, [row.id]);
+            });
+            results.push({ documentId: row.id, success: true, decision: "duplicate", purchaseId: linked.id });
+            continue;
+          }
+        }
+        results.push({ documentId: row.id, success: false, errorCode: error instanceof HttpError ? error.code : "reprocess_failed", errorMessage: error instanceof Error ? error.message.replace(/[^a-zA-Z0-9 _:-]/g, "").slice(0,120) : "reprocess_failed" });
+      }
     }
     return { processed: results.length, resolved: results.filter((x) => x.success).length, failed: results.filter((x) => !x.success).length, results };
   }
