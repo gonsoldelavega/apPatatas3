@@ -373,7 +373,7 @@ export class FinanceService {
         await client.query<{ id: string; status: string }>(
           `select id,status from documents
            where kind='purchase_invoice' and sha256=$1
-           order by created_at desc limit 1`,
+           order by case when status='needs_review' then 0 when status='validated' then 1 else 2 end, created_at desc limit 1`,
           [sha256],
         )
       ).rows[0] ?? null,
