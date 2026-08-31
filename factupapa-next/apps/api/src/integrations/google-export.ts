@@ -45,12 +45,19 @@ export class GoogleInvoiceExporter {
   }
 
   async processDue(limit = 10): Promise<number> {
-    const claimed = await this.pool.query<{ id: string; companyId: string; invoiceId: string }>(`with picked as (select id from sales_invoice_export_events where status in ('pending','failed') and next_attempt_at<=now() order by created_at for update skip locked limit $1) update sales_invoice_export_events e set status='processing',processing_at=now(),attempt_count=e.attempt_count+1,updated_at=now() from picked where e.id=picked.id returning e.id,e.company_id "companyId",e.invoice_id "invoiceId"`, [limit]);
-    for (const event of claimed.rows) {
-      try { await this.exportOne(event.companyId, event.invoiceId); await this.pool.query(`update sales_invoice_export_events set status='completed',completed_at=now(),last_error=null,updated_at=now() where id=$1`, [event.id]); }
-      catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "export_failed"; await this.pool.query(`update sales_invoice_export_events set status='failed',last_error=$2,next_attempt_at=now()+least(interval '1 hour', interval '1 minute' * power(2,greatest(attempt_count-1,0))),updated_at=now() where id=$1`, [event.id, message]); }
+    const companies = await this.pool.query<{ id: string }>(`select id from companies`);
+    const events: Array<{ id: string; companyId: string; invoiceId: string }> = [];
+    for (const company of companies.rows) {
+      if (events.length >= limit) break;
+      const picked = await withTenantTransaction(this.pool, { companyId: company.id, userId: company.id }, async (client) =>
+        client.query<{ id: string; companyId: string; invoiceId: string }>(`with picked as (select id from sales_invoice_export_events where status in ('pending','failed') and next_attempt_at<=now() order by created_at for update skip locked limit $1) update sales_invoice_export_events e set status='processing',processing_at=now(),attempt_count=e.attempt_count+1,updated_at=now() from picked where e.id=picked.id returning e.id,e.company_id "companyId",e.invoice_id "invoiceId"`, [limit - events.length]));
+      events.push(...picked.rows);
     }
-    return claimed.rowCount ?? 0;
+    for (const event of events) {
+      try { await this.exportOne(event.companyId, event.invoiceId); await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='completed',completed_at=now(),last_error=null,updated_at=now() where id=$1`, [event.id])); }
+      catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "export_failed"; await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='failed',last_error=$2,next_attempt_at=now()+least(interval '1 hour', interval '1 minute' * power(2,greatest(attempt_count-1,0))),updated_at=now() where id=$1`, [event.id, message])); }
+    }
+    return events.length;
   }
 
   private async exportOne(companyId: string, invoiceId: string): Promise<void> {
