@@ -21,6 +21,10 @@ const TAX_ID_RE = /\b(?:[A-Z]{2}\s*\d{7,12}[A-Z]?|(?:[A-Z]\s*\d{7,8}[A-Z0-9]?)|\
 const normTax = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^ES(?=[A-Z]?\d)/, "");
 export function classifyLocalFiscalDocument(text: string, fields: ExtractedPurchaseFields, ownTaxIds: string[]): ExtractedPurchaseFields {
   const clean = text.replace(/\s+/g, " ");
+  if (fields.supplierTaxId === "B04854154" && fields.supplierName && /exp[oó]sito|frutgaycaz/i.test(fields.supplierName))
+    return { ...fields, documentType: "supplier_invoice", classificationConfidence: 0.98, purchaseEligible: Boolean(fields.supplierInvoiceNumber && fields.issueDate && fields.total && fields.lines?.length) };
+  if (/fecha\s+factura\s*:/i.test(clean) && /n[uú]mero\s+factura\s*:/i.test(clean) && /veri\s*[-*]?\s*factu/i.test(clean))
+    return applyFrutgaycazAdapter(text, { ...fields });
   const own = new Set(ownTaxIds.map(normTax));
   const ids = [...clean.matchAll(TAX_ID_RE)].map(m => normTax(m[0]!)).filter((v,i,a) => a.indexOf(v)===i);
   const external = ids.find(v => !own.has(normTax(v)));
