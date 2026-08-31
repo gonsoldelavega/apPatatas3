@@ -43,8 +43,13 @@ test("real sync reextrae un needs_review existente antes de aplicar deduplicaciÃ
     return { data: Buffer.from("%PDF-test").toString("base64url") };
   };
   const uploadInputs: unknown[] = [];
+  const reprocessInputs: unknown[] = [];
   const finance = {
-    findPurchaseDocumentBySha: async () => ({ id: "sha-duplicate" }),
+    findPurchaseDocumentBySha: async () => ({ id: "11111111-1111-4111-8111-111111111111", status: "needs_review" }),
+    reprocessPurchaseDocument: async (_identity: unknown, documentId: string) => {
+      reprocessInputs.push(documentId);
+      return { id: documentId, extractedData: { documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.9, supplierTaxId: "B12345678", supplierName: "Proveedor", supplierInvoiceNumber: "F-1", issueDate: "2026-08-29", total: "10.00", lines: [{ description: "Producto", quantity: "1", unitCost: "10", taxRate: "0" }] } };
+    },
     uploadDocument: async (_identity: unknown, input: { documentId?: unknown; persist?: unknown }) => {
       uploadInputs.push(input);
       return { id: "11111111-1111-4111-8111-111111111111", extractedData: { documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.9, supplierTaxId: "B12345678", supplierName: "Proveedor", supplierInvoiceNumber: "F-1", issueDate: "2026-08-29", total: "10.00", lines: [{ description: "Producto", quantity: "1", unitCost: "10", taxRate: "0" }] } };
@@ -53,7 +58,8 @@ test("real sync reextrae un needs_review existente antes de aplicar deduplicaciÃ
   } as never;
   const result = await service.syncInbox(identity, finance, {});
   assert.equal(result.errors, 0);
-  assert.deepEqual(uploadInputs, [{ documentId: "11111111-1111-4111-8111-111111111111", persist: true, filename: "factura.pdf", mimeType: "application/pdf", contentBase64: Buffer.from("%PDF-test").toString("base64") }]);
+  assert.deepEqual(reprocessInputs, ["11111111-1111-4111-8111-111111111111"]);
+  assert.deepEqual(uploadInputs, []);
   assert.equal(sqlLog.some((sql) => /insert into gmail_purchase_imports/i.test(sql)), false);
 });
 

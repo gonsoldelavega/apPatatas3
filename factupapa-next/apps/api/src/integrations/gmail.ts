@@ -773,11 +773,7 @@ export class GmailIntegrationService {
           stage = "upload";
           try {
             document = existing ?? (replayDocumentId && typeof finance.reprocessPurchaseDocument === "function"
-              ? await finance.reprocessPurchaseDocument(identity, replayDocumentId, {
-                  filename,
-                  mimeType,
-                  contentBase64: body.toString("base64"),
-                })
+              ? await finance.reprocessPurchaseDocument(identity, replayDocumentId)
               : await finance.uploadDocument(identity, {
               filename,
               mimeType,

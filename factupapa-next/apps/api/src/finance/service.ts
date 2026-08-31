@@ -630,6 +630,20 @@ export class FinanceService {
       persist?: unknown;
     },
   ) {
+    if (input.documentId != null) throw new HttpError("invalid_request", 400);
+    return this.processDocument(i, input);
+  }
+
+  private async processDocument(
+    i: SessionIdentity,
+    input: {
+      filename: unknown;
+      mimeType: unknown;
+      contentBase64: unknown;
+      documentId?: unknown;
+      persist?: unknown;
+    },
+  ) {
     if ((!this.s3 || !this.storage) && input.documentId == null) throw new HttpError("conflict", 409);
     if (
       typeof input.filename !== "string" ||
@@ -929,20 +943,25 @@ export class FinanceService {
   }
 
   /** Reprocess an existing purchase document without allocating a new id. */
-  async reprocessPurchaseDocument(
-    i: SessionIdentity,
-    documentId: string,
-    input: { filename: string; mimeType: string; contentBase64: string },
-  ) {
+  async reprocessPurchaseDocument(i: SessionIdentity, documentId: string) {
     const row = await withTenantTransaction(this.pool, i, async (client) =>
-      (await client.query<{ filename: string; mimeType: string }>(
-        `select original_filename filename,mime_type "mimeType" from documents
+      (await client.query<{ filename: string; mimeType: string; sha256: string | null }>(
+        `select original_filename filename,mime_type "mimeType",sha256 from documents
          where id=$1 and company_id=$2 and kind='purchase_invoice'`,
         [documentId, i.companyId],
       )).rows[0],
     );
     if (!row) throw new HttpError("not_found", 404);
-    return this.uploadDocument(i, { ...input, documentId, persist: true });
+    const stored = await this.downloadDocument(i, documentId);
+    const sha = createHash("sha256").update(stored.body).digest("hex");
+    if (row.sha256 && row.sha256 !== sha) throw new HttpError("conflict", 409);
+    return this.processDocument(i, {
+      filename: row.filename,
+      mimeType: row.mimeType,
+      contentBase64: stored.body.toString("base64"),
+      documentId,
+      persist: true,
+    });
   }
   async downloadDocument(i: SessionIdentity, id: string) {
     if (!this.s3 || !this.storage) throw new HttpError("not_found", 404);
