@@ -338,6 +338,12 @@ export class InvoiceService {
         `update invoices set number=$2,status='issued',issued_at=now() where id=$1`,
         [id, seq.rows[0]!.number],
       );
+      await c.query(
+        `insert into sales_invoice_export_events(company_id,invoice_id,event_type)
+         values($1,$2,'sales_invoice_export_requested')
+         on conflict(company_id,invoice_id,event_type) do nothing`,
+        [identity.companyId, id],
+      );
       const after = await this.repository.get(c, id);
       await recordAudit(c, {
         companyId: identity.companyId,

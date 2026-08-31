@@ -40,6 +40,10 @@ export interface AppConfig {
   ocrMonthlyBudgetMicrousd: number;
   purchaseRegistryUrl?: string;
   purchaseRegistryToken?: string;
+  googleMasterSpreadsheetId: string;
+  googleMasterSheetName: string;
+  googleLinesSheetName: string;
+  googleDriveFolderId?: string;
 }
 
 const placeholder = /^(changeme|change_me|password|secret|default|cambiar(?:_|$)|minioadmin)/i;
@@ -330,6 +334,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ...(env.PURCHASE_REGISTRY_WEBAPP_TOKEN?.trim()
       ? { purchaseRegistryToken: env.PURCHASE_REGISTRY_WEBAPP_TOKEN.trim() }
       : {}),
+    googleMasterSpreadsheetId: env.GOOGLE_MASTER_SPREADSHEET_ID?.trim() || "1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU",
+    googleMasterSheetName: env.GOOGLE_MASTER_SHEET_NAME?.trim() || "REGISTRO",
+    googleLinesSheetName: env.GOOGLE_LINES_SHEET_NAME?.trim() || "LINEAS_FACTURA",
+    ...(env.GOOGLE_DRIVE_FOLDER_ID?.trim() ? { googleDriveFolderId: env.GOOGLE_DRIVE_FOLDER_ID.trim() } : {}),
   };
 }
 

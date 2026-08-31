@@ -60,6 +60,8 @@ export function createGmailRoutes(
             email: null,
             connectedAt: null,
             canRead: false,
+            canWriteDrive: false,
+            canWriteSheets: false,
             lastInboxSyncAt: null,
             lastInboxSyncStatus: null,
           });

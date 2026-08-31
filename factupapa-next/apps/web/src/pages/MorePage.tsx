@@ -185,7 +185,7 @@ export function MorePage() {
               <p>
                 {gmail.data?.connected
                   ? gmail.data.canRead
-                    ? `Cuenta autorizada: ${gmail.data.email}. FactuPapa puede enviar facturas y leer únicamente los mensajes necesarios para importar adjuntos de compra.`
+                    ? `Cuenta autorizada: ${gmail.data.email}. Gmail: conectado · Drive: ${gmail.data.canWriteDrive ? "autorizado" : "pendiente"} · Registro Maestro: ${gmail.data.canWriteSheets ? "autorizado" : "pendiente"}.`
                     : `La cuenta ${gmail.data.email} conserva el permiso de envío, pero necesita autorizar una vez la lectura para importar facturas recibidas.`
                   : gmail.data?.available === false
                     ? "La conexión de Gmail no está configurada en este entorno."
@@ -235,7 +235,7 @@ export function MorePage() {
                       connectGmail.mutate();
                     }}
                   >
-                    {gmail.data?.connected ? "Autorizar lectura de Gmail" : "Conectar Gmail"}
+                    {gmail.data?.connected && (!gmail.data.canWriteDrive || !gmail.data.canWriteSheets) ? "Autorizar Drive y Registro Maestro" : gmail.data?.connected ? "Reconectar Google" : "Conectar Gmail"}
                   </Button>
                 )}
               </div>

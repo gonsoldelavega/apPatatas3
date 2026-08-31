@@ -69,6 +69,8 @@ export interface GmailConnection {
   email: string | null;
   connectedAt: string | null;
   canRead: boolean;
+  canWriteDrive: boolean;
+  canWriteSheets: boolean;
   lastInboxSyncAt: string | null;
   lastInboxSyncStatus: string | null;
 }

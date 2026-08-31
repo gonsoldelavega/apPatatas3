@@ -28,6 +28,8 @@ import { AccountsService } from "./accounts/service.js";
 import { createAccountsRoutes } from "./accounts/routes.js";
 import { GmailIntegrationService } from "./integrations/gmail.js";
 import { createGmailRoutes } from "./integrations/gmail-routes.js";
+import { GoogleInvoiceExporter } from "./integrations/google-export.js";
+import { createGoogleExportRoutes } from "./integrations/google-export-routes.js";
 
 const config = loadConfig();
 const database = createDatabaseProbe(config.databaseUrl);
@@ -96,6 +98,14 @@ const finance = new FinanceService(
     : undefined,
 );
 const accounts = new AccountsService(database.pool);
+const googleExporter = gmail
+  ? new GoogleInvoiceExporter(database.pool, gmail, {
+      spreadsheetId: config.googleMasterSpreadsheetId,
+      registrySheet: config.googleMasterSheetName,
+      linesSheet: config.googleLinesSheetName,
+      ...(config.googleDriveFolderId ? { folderId: config.googleDriveFolderId } : {}),
+    })
+  : undefined;
 const server = createApp({
   database,
   auth,
@@ -132,6 +142,7 @@ const server = createApp({
   },
   routes: [
     createGmailRoutes(auth, gmail, finance, config.authCookieSecure),
+    ...(googleExporter ? [createGoogleExportRoutes(auth, googleExporter)] : []),
     createAccountsRoutes(auth, accounts),
     createFinanceRoutes(auth, finance),
     createSalesPreferencesRoutes(auth, salesPreferences),
@@ -159,9 +170,15 @@ const gmailInboxTimer = gmail
   : undefined;
 gmailInboxTimer?.unref();
 if (gmail) setTimeout(() => void gmail.syncDueInboxes(finance), 30_000).unref();
+const googleExportTimer = googleExporter
+  ? setInterval(() => void googleExporter.processDue(), 60_000)
+  : undefined;
+googleExportTimer?.unref();
+if (googleExporter) setTimeout(() => void googleExporter.processDue(), 45_000).unref();
 
 async function shutdown(signal: string) {
   if (gmailInboxTimer) clearInterval(gmailInboxTimer);
+  if (googleExportTimer) clearInterval(googleExportTimer);
   log("info", {
     event: "service.stopping",
     signal,

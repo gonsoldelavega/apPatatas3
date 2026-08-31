@@ -29,6 +29,8 @@ export interface GmailConnection {
   email: string | null;
   connectedAt: string | null;
   canRead: boolean;
+  canWriteDrive: boolean;
+  canWriteSheets: boolean;
   lastInboxSyncAt: string | null;
   lastInboxSyncStatus: string | null;
   nextInboxSyncAt?: string | null;
@@ -123,6 +125,8 @@ function safeFilename(value: string): string {
 }
 
 const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+export const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const GMAIL_OVERLAP_MS = 2 * 60 * 60 * 1000;
 const GMAIL_INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const GMAIL_MAX_MESSAGES_PER_RUN = 500;
@@ -286,7 +290,7 @@ export class GmailIntegrationService {
     url.searchParams.set("response_type", "code");
     url.searchParams.set(
       "scope",
-      `openid email https://www.googleapis.com/auth/gmail.send ${GMAIL_READ_SCOPE}`,
+      `openid email https://www.googleapis.com/auth/gmail.send ${GMAIL_READ_SCOPE} ${GOOGLE_DRIVE_SCOPE} ${GOOGLE_SHEETS_SCOPE}`,
     );
     url.searchParams.set("state", state.nonce);
     url.searchParams.set("code_challenge", challenge);
@@ -341,7 +345,7 @@ export class GmailIntegrationService {
     }
   }
 
-  private async accessToken(refreshToken: string): Promise<string> {
+  async accessToken(refreshToken: string): Promise<string> {
     let response: Response;
     try {
       response = await fetch("https://oauth2.googleapis.com/token", {
@@ -507,6 +511,8 @@ export class GmailIntegrationService {
             email: row.googleEmail,
             connectedAt: row.connectedAt,
             canRead: row.scopes.includes(GMAIL_READ_SCOPE),
+            canWriteDrive: row.scopes.includes(GOOGLE_DRIVE_SCOPE),
+            canWriteSheets: row.scopes.includes(GOOGLE_SHEETS_SCOPE),
             lastInboxSyncAt: row.lastInboxSyncAt,
             lastInboxSyncStatus: row.lastInboxSyncStatus,
             nextInboxSyncAt: row.lastInboxSyncAt
@@ -527,12 +533,25 @@ export class GmailIntegrationService {
             email: null,
             connectedAt: null,
             canRead: false,
+            canWriteDrive: false,
+            canWriteSheets: false,
             lastInboxSyncAt: null,
             lastInboxSyncStatus: null,
             nextInboxSyncAt: null,
             inboxCursorAt: null,
             lastInboxMetrics: null,
           };
+    });
+  }
+
+  async googleAccess(identity: TenantContext): Promise<{ token: string; scopes: string[]; email: string }> {
+    return withTenantTransaction(this.pool, identity, async (client) => {
+      const row = (await client.query<{ encrypted: string; scopes: string[]; email: string }>(
+        `select encrypted_refresh_token encrypted, scopes, google_email email from gmail_integrations where company_id=$1`,
+        [identity.companyId],
+      )).rows[0];
+      if (!row) throw new HttpError("gmail_not_connected", 409);
+      return { token: await this.accessToken(this.decrypt(row.encrypted)), scopes: row.scopes, email: row.email };
     });
   }
 
