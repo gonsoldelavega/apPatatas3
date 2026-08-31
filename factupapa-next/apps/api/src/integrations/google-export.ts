@@ -86,10 +86,10 @@ export class GoogleInvoiceExporter {
     const headers = values[0] ?? [];
     const idColumn = headers.findIndex((h) => h.trim().toLowerCase() === "factupapa next id");
     const numberColumn = headers.findIndex((h) => /serie|nº|numero|número/i.test(h));
-    const rowIndex = values.findIndex((row, i) => i > 0 && ((idColumn >= 0 && row[idColumn] === invoice.id) || (numberColumn >= 0 && row[numberColumn] === label)));
+    const rowIndex = values.findIndex((row, i) => i > 0 && ((idColumn >= 0 && row[idColumn] === invoice.id) || row[21] === invoice.id || (numberColumn >= 0 && row[numberColumn] === label) || row[4] === label));
     const row = [invoice.issueDate, new Date().toISOString().slice(0, 10), "Venta", "Factura", label, invoice.contactLegalName, invoice.contactTaxId ?? "", invoice.lines.map((l) => l.description).join("; "), "", invoice.subtotal, invoice.lines[0]?.taxRate ?? "", invoice.taxTotal, invoice.total, invoice.paymentStatus, "", "", "", "", "", driveId ?? "", "Generado automáticamente desde FactuPapa Next", invoice.id];
     const target = rowIndex >= 0 ? `${this.config.registrySheet}!A${rowIndex + 1}:V${rowIndex + 1}` : `${this.config.registrySheet}!A:V`;
-    await googleFetch<Json>(token, `${base}/values/${encodeURIComponent(target)}?valueInputOption=USER_ENTERED`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ range: target, majorDimension: "ROWS", values: [row] }) });
+    await googleFetch<Json>(token, `${base}/values/${encodeURIComponent(target)}${rowIndex >= 0 ? "?valueInputOption=USER_ENTERED" : ":append?valueInputOption=USER_ENTERED"}`, { method: rowIndex >= 0 ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(rowIndex >= 0 ? { range: target, majorDimension: "ROWS", values: [row] } : { values: [row] }) });
     const lineRead = await googleFetch<{ values?: string[][] }>(token, `${base}/values/${encodeURIComponent(this.config.linesSheet)}!A:P`);
     const lineValues = lineRead.values ?? [];
     const lines = invoice.lines.map((line) => [invoice.id, line.id, label, invoice.issueDate, invoice.contactLegalName, invoice.contactTaxId ?? "", line.productId ?? "", line.description, line.quantity, line.unit, line.unitPrice, line.taxRate, line.lineSubtotal, line.lineTax, line.lineTotal, line.deliveryDate ?? ""]);
