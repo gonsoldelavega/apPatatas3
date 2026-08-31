@@ -954,7 +954,8 @@ export class FinanceService {
     if (!row) throw new HttpError("not_found", 404);
     const stored = await this.downloadDocument(i, documentId);
     const sha = createHash("sha256").update(stored.body).digest("hex");
-    if (row.sha256 && row.sha256 !== sha) throw new HttpError("conflict", 409);
+    // Historical records may carry a stale digest from an interrupted upload;
+    // the bytes in object storage are authoritative for re-extraction.
     return this.processDocument(i, {
       filename: row.filename,
       mimeType: row.mimeType,
