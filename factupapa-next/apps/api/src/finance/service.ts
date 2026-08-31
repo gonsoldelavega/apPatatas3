@@ -469,12 +469,12 @@ export class FinanceService {
     const rows = await withTenantTransaction(this.pool, i, async (client) =>
       (await client.query<{ id: string }>(`select id from documents where company_id=$1 and kind='purchase_invoice' and status='needs_review' order by updated_at`, [i.companyId])).rows,
     );
-    const results = [];
+    const results: Array<Record<string, unknown>> = [];
     for (const row of rows) {
-      try { results.push(await this.reprocessPurchaseDocument(i, row.id)); }
-      catch { /* preserve genuinely unprocessable documents for review */ }
+      try { results.push({ documentId: row.id, success: true, result: await this.reprocessPurchaseDocument(i, row.id) }); }
+      catch (error) { results.push({ documentId: row.id, success: false, errorCode: error instanceof HttpError ? error.code : "reprocess_failed", errorMessage: error instanceof Error ? error.message.replace(/[^a-zA-Z0-9 _:-]/g, "").slice(0,120) : "reprocess_failed" }); }
     }
-    return { processed: results.length, total: rows.length };
+    return { processed: results.length, resolved: results.filter((x) => x.success).length, failed: results.filter((x) => !x.success).length, results };
   }
   async rejectPendingDocument(i: SessionIdentity, id: string) {
     return withTenantTransaction(this.pool, i, async (client) => {
@@ -742,7 +742,7 @@ export class FinanceService {
         const hasTextLayer = parsed.text.replace(/\s/g, "").length >= 80;
         if (hasTextLayer) {
           const vision = await tryVision({ kind: "text", text: parsed.text });
-          if (vision)
+          if (vision && vision.supplierTaxId && vision.supplierInvoiceNumber && vision.issueDate && vision.total && vision.documentType === "supplier_invoice")
             extracted = { ...vision, ocrConfidence: 100, source: "pdf_text" };
         }
         const textFields = !extracted.source
