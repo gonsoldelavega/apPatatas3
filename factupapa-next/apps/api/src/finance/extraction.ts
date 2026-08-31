@@ -113,7 +113,10 @@ function extractFrutgaycazLines(text: string, fallbackTaxRate: string): Extracte
     const nums = [...line.matchAll(/\d+(?:[.,]\d+)?/g)];
     if (nums.length < 5) continue;
     const last = nums.slice(-5).map((m) => Number(decimal(m[0])));
-    const [, quantity, unitCost, taxRate, lineTotal] = last;
+    const quantity = last[1] ?? NaN;
+    const unitCost = last[2] ?? NaN;
+    const taxRate = last[3] ?? NaN;
+    const lineTotal = last[4] ?? NaN;
     if (![quantity, unitCost, taxRate, lineTotal].every(Number.isFinite) || quantity <= 0 || unitCost < 0) continue;
     if (Math.abs(quantity * unitCost - lineTotal) > Math.max(0.03, lineTotal * 0.015)) continue;
     const descEnd = nums[nums.length - 5]!.index ?? line.length;
