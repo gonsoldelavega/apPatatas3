@@ -701,7 +701,8 @@ export class GmailIntegrationService {
             `select g.id,g.status,g.document_id "documentId",d.status "documentStatus"
                from gmail_purchase_imports g
                left join documents d on d.id=g.document_id
-              where g.company_id=$1 and g.gmail_message_id=$2 and g.gmail_attachment_id=$3`,
+              where g.company_id=$1 and g.gmail_message_id=$2 and g.gmail_attachment_id=$3
+              order by case when g.status in ('needs_review','failed') then 0 else 1 end, g.updated_at desc`,
             [identity.companyId, messageId, attachmentKey],
           )).rows[0]
         );
@@ -758,14 +759,15 @@ export class GmailIntegrationService {
           // A failed/review import must be allowed to re-extract the source
           // document after parser improvements. Finalized imports keep the
           // normal SHA idempotency shortcut.
-          const shaDocument = retryableImport
-            ? undefined
-            : await finance.findPurchaseDocumentBySha(identity, sha);
+          const shaDocument = await finance.findPurchaseDocumentBySha(identity, sha);
           // Historical rows can have lost their message/attachment link while
           // retaining the source document.  If the SHA points at a document
           // still awaiting review, replay that exact document rather than
           // treating it as a finalized duplicate.
-          const replayDocumentId = shaDocument?.status === "needs_review" ? shaDocument.id : undefined;
+          const replayDocumentId = retryableImport && existingImport?.documentId &&
+            (!shaDocument || shaDocument.status == null || ["needs_review", "validated"].includes(shaDocument.status))
+            ? existingImport.documentId
+            : undefined;
           const existing = replayDocumentId ? undefined : shaDocument;
           let status: "duplicate" | "needs_review" | "imported" = existing ? "duplicate" : "needs_review";
           let document;
