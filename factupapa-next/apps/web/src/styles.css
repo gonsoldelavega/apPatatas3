@@ -2293,11 +2293,18 @@ body {
 .payment-state {
   margin-top: 3px;
   text-transform: capitalize;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 650;
 }
-.payment-state--overdue { color: var(--error); }
-.payment-state--paid { color: var(--positive); }
-.payment-state--unpaid { color: var(--error); }
-.payment-state--partial { color: var(--pending); }
+.payment-state--overdue { color: var(--error); background: color-mix(in srgb, var(--error) 20%, transparent); }
+.payment-state--paid { color: var(--positive); background: color-mix(in srgb, var(--positive) 14%, transparent); }
+.payment-state--unpaid { color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
+.payment-state--partial { color: var(--pending); background: color-mix(in srgb, var(--pending) 16%, transparent); }
 .payment-status { border: 1px solid currentColor; border-radius: 999px; padding: 3px 8px; width: fit-content; }
 .payment-status--paid { color: var(--positive); background: color-mix(in srgb, var(--positive) 14%, transparent); }
 .payment-status--unpaid { color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
