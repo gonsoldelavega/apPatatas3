@@ -12,12 +12,13 @@ const identity = {
   familyId: "test-family",
 } as const;
 
-function fakePool(sqlLog: string[], inboxCursorAt: string | null = null, withSupplier = true) {
+function fakePool(sqlLog: string[], inboxCursorAt: string | null = null, withSupplier = true, existingImport?: { id: string; status: string; documentId: string | null }) {
   const client = {
     async query(sql: string) {
       sqlLog.push(sql);
       if (sql.includes("from gmail_integrations"))
         return { rows: [{ encryptedRefreshToken: "unused", scopes: ["https://www.googleapis.com/auth/gmail.readonly"], googleEmail: identity.email, inboxCursorAt }] };
+      if (sql.includes("from gmail_purchase_imports")) return { rows: existingImport ? [existingImport] : [] };
       if (sql.includes("from contacts")) return { rows: withSupplier ? [{ id: "supplier-1" }] : [] };
       return { rows: [] };
     },
@@ -25,6 +26,36 @@ function fakePool(sqlLog: string[], inboxCursorAt: string | null = null, withSup
   };
   return { async connect() { return client; } } as never;
 }
+
+test("real sync reextrae un needs_review existente antes de aplicar deduplicación SHA", async () => {
+  const sqlLog: string[] = [];
+  const service = new GmailIntegrationService(fakePool(sqlLog, null, true, { id: "import-1", status: "needs_review", documentId: "11111111-1111-4111-8111-111111111111" }), {
+    clientId: "client", clientSecret: "secret", redirectUri: "https://example.test/callback",
+    frontendUrl: "https://example.test", encryptionSecret: "a-secret-long-enough-for-tests",
+  });
+  const now = Date.now();
+  const internals = service as unknown as { decrypt: () => string; accessToken: () => Promise<string>; gmailJson: (token: string, path: string) => Promise<unknown> };
+  internals.decrypt = () => "refresh-token";
+  internals.accessToken = async () => "token";
+  internals.gmailJson = async (_token, path) => {
+    if (path.startsWith("/messages?q=")) return { messages: [{ id: "message-retry" }] };
+    if (path === "/messages/message-retry?format=full") return { id: "message-retry", internalDate: String(now), payload: { headers: [{ name: "From", value: "supplier@example.test" }, { name: "Subject", value: "Factura corregida" }], parts: [{ filename: "factura.pdf", mimeType: "application/pdf", body: { attachmentId: "attachment-retry" } }] } };
+    return { data: Buffer.from("%PDF-test").toString("base64url") };
+  };
+  const uploadInputs: unknown[] = [];
+  const finance = {
+    findPurchaseDocumentBySha: async () => ({ id: "sha-duplicate" }),
+    uploadDocument: async (_identity: unknown, input: { documentId?: unknown; persist?: unknown }) => {
+      uploadInputs.push(input);
+      return { id: "11111111-1111-4111-8111-111111111111", extractedData: { documentType: "supplier_invoice", purchaseEligible: true, classificationConfidence: 0.9, supplierTaxId: "B12345678", supplierName: "Proveedor", supplierInvoiceNumber: "F-1", issueDate: "2026-08-29", total: "10.00", lines: [{ description: "Producto", quantity: "1", unitCost: "10", taxRate: "0" }] } };
+    },
+    createPurchase: async () => undefined,
+  } as never;
+  const result = await service.syncInbox(identity, finance, {});
+  assert.equal(result.errors, 0);
+  assert.deepEqual(uploadInputs, [{ documentId: "11111111-1111-4111-8111-111111111111", persist: true, filename: "factura.pdf", mimeType: "application/pdf", contentBase64: Buffer.from("%PDF-test").toString("base64") }]);
+  assert.equal(sqlLog.some((sql) => /insert into gmail_purchase_imports/i.test(sql)), false);
+});
 
 test("Gmail autoimporta en staging un proveedor fiscal sólido aunque aún no exista", async () => {
   const sqlLog: string[] = [];

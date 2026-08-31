@@ -692,19 +692,30 @@ export class GmailIntegrationService {
         if (!mimeType) continue;
         result.attachmentsSeen += 1;
         const attachmentKey = part.body?.attachmentId ?? `inline-${partIndex}-${filename}`;
-        const existingImport = dryRun
-          ? await withTenantTransaction(this.pool, identity, async (client) =>
-              (await client.query<{ status: string }>(
-                `select status from gmail_purchase_imports where company_id=$1 and gmail_message_id=$2 and gmail_attachment_id=$3`,
-                [identity.companyId, messageId, attachmentKey],
-              )).rows[0]
-            )
-          : undefined;
+        // Look up the import in every mode.  A needs_review/failed import is
+        // explicitly replayable: its source document must be re-extracted
+        // before SHA idempotency is considered.  Dry-run only suppresses
+        // writes; it must not change the processing semantics.
+        const existingImport = await withTenantTransaction(this.pool, identity, async (client) =>
+          (await client.query<{ id: string; status: string; documentId: string | null; documentStatus: string | null }>(
+            `select g.id,g.status,g.document_id "documentId",d.status "documentStatus"
+               from gmail_purchase_imports g
+               left join documents d on d.id=g.document_id
+              where g.company_id=$1 and g.gmail_message_id=$2 and g.gmail_attachment_id=$3`,
+            [identity.companyId, messageId, attachmentKey],
+          )).rows[0]
+        );
         if (dryRun && existingImport && ["imported", "needs_review", "ignored", "duplicate"].includes(existingImport.status)) {
           result.duplicates += 1;
           continue;
         }
-        const claimed = dryRun ? { id: "dry-run" } : await withTenantTransaction(this.pool, identity, async (client) =>
+        const retryableImport = existingImport?.status === "failed" || existingImport?.status === "needs_review" ||
+          (Boolean(existingImport?.documentId) && !["validated", "rejected", "archived"].includes(String(existingImport?.documentStatus ?? "")));
+        const claimed = dryRun
+          ? { id: "dry-run" }
+          : retryableImport && existingImport
+            ? existingImport
+            : await withTenantTransaction(this.pool, identity, async (client) =>
           (
             await client.query<{ id: string }>(
               `insert into gmail_purchase_imports(
@@ -713,7 +724,7 @@ export class GmailIntegrationService {
                values($1,$2,$3,$4,$5,to_timestamp($6::double precision / 1000),$7,'processing')
                on conflict(company_id,gmail_message_id,gmail_attachment_id) do update
                  set status='processing',error_code=null,updated_at=now()
-                 where gmail_purchase_imports.status='failed'
+                 where gmail_purchase_imports.status in ('failed','needs_review')
                     or gmail_purchase_imports.updated_at < now() - interval '2 hours'
                returning id`,
               [
@@ -730,6 +741,7 @@ export class GmailIntegrationService {
         );
         if (!claimed) continue;
         processed += 1;
+        let stage = "attachment";
         try {
           const encodedBody = part.body?.attachmentId
             ? (
@@ -746,14 +758,46 @@ export class GmailIntegrationService {
           // A failed/review import must be allowed to re-extract the source
           // document after parser improvements. Finalized imports keep the
           // normal SHA idempotency shortcut.
-          const retryableImport = existingImport?.status === "failed" || existingImport?.status === "needs_review";
-          const existing = retryableImport ? undefined : await finance.findPurchaseDocumentBySha(identity, sha);
-          const document = existing ?? await finance.uploadDocument(identity, {
-            filename,
-            mimeType,
-            contentBase64: body.toString("base64"),
-            persist: !dryRun,
-          });
+          const shaDocument = retryableImport
+            ? undefined
+            : await finance.findPurchaseDocumentBySha(identity, sha);
+          // Historical rows can have lost their message/attachment link while
+          // retaining the source document.  If the SHA points at a document
+          // still awaiting review, replay that exact document rather than
+          // treating it as a finalized duplicate.
+          const replayDocumentId = shaDocument?.status === "needs_review" ? shaDocument.id : undefined;
+          const existing = replayDocumentId ? undefined : shaDocument;
+          let status: "duplicate" | "needs_review" | "imported" = existing ? "duplicate" : "needs_review";
+          let document;
+          stage = "upload";
+          try {
+            document = existing ?? await finance.uploadDocument(identity, {
+              filename,
+              mimeType,
+              contentBase64: body.toString("base64"),
+              ...((retryableImport && existingImport?.documentId) || replayDocumentId
+                ? { documentId: existingImport?.documentId ?? replayDocumentId }
+                : {}),
+              persist: !dryRun,
+            });
+          } catch (error) {
+            // A previous attempt may already have materialized the same
+            // fiscal purchase while leaving the old document pending.  Treat
+            // that conflict as a terminal duplicate, never as a failed sync.
+            if (!(error instanceof HttpError) || error.code !== "conflict" || !retryableImport) throw error;
+            // If the historical document is no longer writable (for example
+            // an old import points at a stale row), re-materialize the same
+            // Gmail bytes as a fresh document and resolve the old pending row
+            // after classification.  This preserves the source and avoids a
+            // permanent retry loop while the fiscal dedupe protects purchases.
+            document = await finance.uploadDocument(identity, {
+              filename,
+              mimeType,
+              contentBase64: body.toString("base64"),
+              persist: !dryRun,
+            });
+          }
+          stage = "classification";
           const decision = existing ? "duplicate" : decideGmailDocument((document as { extractedData?: Record<string, unknown> }).extractedData ?? {});
           const extractedData = (document as { extractedData?: Record<string, unknown> }).extractedData ?? {};
           const source = String(extractedData.source ?? "");
@@ -773,7 +817,6 @@ export class GmailIntegrationService {
             continue;
           }
           if (!existing) result.candidates += 1;
-          let status: "duplicate" | "needs_review" | "imported" = existing ? "duplicate" : "needs_review";
           if (!existing && decision === "auto_import") {
             const data = (document as { extractedData?: Record<string, unknown> }).extractedData ?? {};
             let supplier = data.supplierTaxId
@@ -799,34 +842,66 @@ export class GmailIntegrationService {
             }
             const lines = Array.isArray(data.lines) ? data.lines.filter((line): line is Record<string, unknown> => Boolean(line && typeof line === "object")) : [];
             if (supplier && lines.length && data.issueDate && data.total) {
+              const existingPurchase = data.supplierTaxId && data.supplierInvoiceNumber
+                ? await finance.findPurchaseByInvoiceIdentity?.(identity, String(data.supplierTaxId), String(data.supplierInvoiceNumber), String(data.issueDate))
+                : null;
+              if (existingPurchase) {
+                status = "duplicate";
+                result.duplicates += 1;
+                await withTenantTransaction(this.pool, identity, async (client) => {
+                  await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [document.id]);
+                  if (existingImport?.documentId && existingImport.documentId !== document.id)
+                    await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [existingImport.documentId]);
+                });
+              } else {
               result.autoImportable += 1;
               if (dryRun) {
                 result.candidatesAudit?.push({ gmailMessageId: messageId, attachmentIndex: partIndex, filename, mimeType, sha256: sha, decision: "AUTO_IMPORT", documentType: data.documentType, confidence: data.classificationConfidence ?? null, supplierNameMasked: data.supplierName ? `${String(data.supplierName).slice(0, 2)}***` : null, invoiceNumberMasked: data.supplierInvoiceNumber ? `***${String(data.supplierInvoiceNumber).slice(-4)}` : null, invoiceDate: data.issueDate, total: data.total, vat: data.taxTotal });
               } else {
-              await finance.createPurchase(identity, {
-                supplierId: supplier.id,
-                documentId: document.id,
-                supplierInvoiceNumber: data.supplierInvoiceNumber ? String(data.supplierInvoiceNumber) : null,
-                issueDate: String(data.issueDate),
-                dueDate: data.dueDate ? String(data.dueDate) : null,
-                category: "mercancia",
-                notes: "Importada automáticamente desde Gmail",
-                status: "confirmed",
-                lines: lines.map((line) => ({
-                  productId: null,
-                  description: String(line.description ?? data.concept ?? "Compra"),
-                  quantity: String(line.quantity ?? "1"),
-                  unit: String(line.unit ?? "unit"),
-                  unitCost: String(line.unitCost ?? "0"),
-                  taxRate: String(line.taxRate ?? "0"),
-                })),
-              });
-              status = "imported";
-              result.autoImported += 1;
+              try {
+                stage = "create_purchase";
+                await finance.createPurchase(identity, {
+                  supplierId: supplier.id,
+                  documentId: document.id,
+                  supplierInvoiceNumber: data.supplierInvoiceNumber ? String(data.supplierInvoiceNumber) : null,
+                  issueDate: String(data.issueDate),
+                  dueDate: data.dueDate ? String(data.dueDate) : null,
+                  category: "mercancia",
+                  notes: "Importada automáticamente desde Gmail",
+                  status: "confirmed",
+                  lines: lines.map((line) => ({
+                    productId: null,
+                    description: String(line.description ?? data.concept ?? "Compra"),
+                    quantity: String(line.quantity ?? "1"),
+                    unit: String(line.unit ?? "unit"),
+                    unitCost: String(line.unitCost ?? "0"),
+                    taxRate: String(line.taxRate ?? "0"),
+                  })),
+                });
+              } catch (error) {
+                if (!(error instanceof HttpError) || error.code !== "conflict") throw error;
+                status = "duplicate";
+                result.duplicates += 1;
+              }
+              if (status === "duplicate") {
+                await withTenantTransaction(this.pool, identity, async (client) => {
+                  await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [document.id]);
+                });
+              } else {
+                // A successfully imported document is no longer pending human
+                // review.  Keeping it validated also prevents later Gmail
+                // messages with the same SHA from replaying it indefinitely.
+                await withTenantTransaction(this.pool, identity, async (client) => {
+                  await client.query(`update documents set status='validated',updated_at=now() where id=$1 and status='needs_review'`, [document.id]);
+                });
+                status = "imported";
+                result.autoImported += 1;
+              }
               }
               // Dry-run records the same final decision without counting it as
               // a persisted import or placing it in the review queue.
-              status = "imported";
+              if (status !== "duplicate") status = "imported";
+              }
             }
           }
           if (!dryRun) await withTenantTransaction(this.pool, identity, async (client) => {
@@ -843,7 +918,8 @@ export class GmailIntegrationService {
         } catch (error) {
           result.failed += 1;
           result.errors += 1;
-          incrementReason(result.errorReasons, error instanceof HttpError ? error.code : "gmail_import_failed");
+          const errorReason = error instanceof HttpError ? error.code : error instanceof Error ? error.message.replace(/[^a-zA-Z0-9_:-]/g, "_").slice(0, 80) : "gmail_import_failed";
+          incrementReason(result.errorReasons, `${stage}_${errorReason}`);
           if (!dryRun) await withTenantTransaction(this.pool, identity, async (client) => {
             await client.query(
               `update gmail_purchase_imports set status='failed',error_code=$2,updated_at=now()

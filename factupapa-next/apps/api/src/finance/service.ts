@@ -370,11 +370,33 @@ export class FinanceService {
   async findPurchaseDocumentBySha(i: SessionIdentity, sha256: string) {
     return withTenantTransaction(this.pool, i, async (client) =>
       (
-        await client.query<{ id: string }>(
-          `select id from documents
+        await client.query<{ id: string; status: string }>(
+          `select id,status from documents
            where kind='purchase_invoice' and sha256=$1
            order by created_at desc limit 1`,
           [sha256],
+        )
+      ).rows[0] ?? null,
+    );
+  }
+
+  async findPurchaseByInvoiceIdentity(
+    i: SessionIdentity,
+    supplierTaxId: string,
+    invoiceNumber: string,
+    issueDate: string,
+  ) {
+    return withTenantTransaction(this.pool, i, async (client) =>
+      (
+        await client.query<{ id: string }>(
+          `select id from purchase_invoices
+             where company_id=$1
+               and supplier_tax_identity_key=$2
+               and supplier_invoice_number_key=$3
+               and extract(year from issue_date)=extract(year from $4::date)
+               and status<>'cancelled' and deleted_at is null
+             limit 1`,
+          [i.companyId, canonicalSupplierTaxId(supplierTaxId), canonicalInvoiceNumber(invoiceNumber), issueDate],
         )
       ).rows[0] ?? null,
     );
@@ -649,22 +671,6 @@ export class FinanceService {
       key = `${i.companyId}/purchases/${id}.${ext}`,
       sha = createHash("sha256").update(body).digest("hex"),
       isRetry = Boolean(input.documentId);
-    if (isRetry) {
-      await withTenantTransaction(this.pool, i, async (c) => {
-        const existing = (
-          await c.query(
-            `select 1 from documents d
-             where d.id=$1 and d.kind='purchase_invoice'
-               and d.sha256=$2 and d.status='needs_review'
-               and not exists(
-                 select 1 from purchase_invoices p where p.document_id=d.id
-               )`,
-            [id, sha],
-          )
-        ).rows[0];
-        if (!existing) throw new HttpError("conflict", 409);
-      });
-    }
     let extracted: ExtractedPurchaseFields = {};
     const visionEnabled = Boolean(this.extraction?.anthropicApiKey);
     let visionFailed = false;
@@ -879,9 +885,8 @@ export class FinanceService {
             const retried = (
               await c.query(
                 `update documents
-                 set ocr_provider=$2,ocr_confidence=$3,extracted_data=$4,updated_at=now()
+                 set sha256=$5,ocr_provider=$2,ocr_confidence=$3,extracted_data=$4,updated_at=now()
                  where id=$1 and kind='purchase_invoice' and status='needs_review'
-                   and sha256=$5
                    and not exists(
                      select 1 from purchase_invoices p where p.document_id=documents.id
                    )
