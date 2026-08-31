@@ -927,6 +927,23 @@ export class FinanceService {
       throw e;
     }
   }
+
+  /** Reprocess an existing purchase document without allocating a new id. */
+  async reprocessPurchaseDocument(
+    i: SessionIdentity,
+    documentId: string,
+    input: { filename: string; mimeType: string; contentBase64: string },
+  ) {
+    const row = await withTenantTransaction(this.pool, i, async (client) =>
+      (await client.query<{ filename: string; mimeType: string }>(
+        `select original_filename filename,mime_type "mimeType" from documents
+         where id=$1 and company_id=$2 and kind='purchase_invoice'`,
+        [documentId, i.companyId],
+      )).rows[0],
+    );
+    if (!row) throw new HttpError("not_found", 404);
+    return this.uploadDocument(i, { ...input, documentId, persist: true });
+  }
   async downloadDocument(i: SessionIdentity, id: string) {
     if (!this.s3 || !this.storage) throw new HttpError("not_found", 404);
     return withTenantTransaction(this.pool, i, async (c) => {

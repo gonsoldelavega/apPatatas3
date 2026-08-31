@@ -772,15 +772,18 @@ export class GmailIntegrationService {
           let document;
           stage = "upload";
           try {
-            document = existing ?? await finance.uploadDocument(identity, {
+            document = existing ?? (replayDocumentId && typeof finance.reprocessPurchaseDocument === "function"
+              ? await finance.reprocessPurchaseDocument(identity, replayDocumentId, {
+                  filename,
+                  mimeType,
+                  contentBase64: body.toString("base64"),
+                })
+              : await finance.uploadDocument(identity, {
               filename,
               mimeType,
               contentBase64: body.toString("base64"),
-              ...((retryableImport && existingImport?.documentId) || replayDocumentId
-                ? { documentId: existingImport?.documentId ?? replayDocumentId }
-                : {}),
               persist: !dryRun,
-            });
+            }));
           } catch (error) {
             const targetDocumentId = replayDocumentId ?? existingImport?.documentId;
             if (!(error instanceof HttpError) || error.code !== "conflict" || !retryableImport || !targetDocumentId) throw error;
