@@ -521,7 +521,7 @@ export class FinanceService {
       contentBase64: unknown;
     },
   ) {
-    if (!this.s3 || !this.storage) throw new HttpError("conflict", 409);
+    if ((!this.s3 || !this.storage) && input.documentId == null) throw new HttpError("conflict", 409);
     if (
       typeof input.filename !== "string" ||
       !input.filename.trim() ||
