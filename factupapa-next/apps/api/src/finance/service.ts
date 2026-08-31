@@ -628,6 +628,7 @@ export class FinanceService {
       contentBase64: unknown;
       documentId?: unknown;
       persist?: unknown;
+      allowLinked?: boolean;
     },
   ) {
     if (input.documentId != null) throw new HttpError("invalid_request", 400);
@@ -642,6 +643,7 @@ export class FinanceService {
       contentBase64: unknown;
       documentId?: unknown;
       persist?: unknown;
+      allowLinked?: boolean;
     },
   ) {
     if ((!this.s3 || !this.storage) && input.documentId == null) throw new HttpError("conflict", 409);
@@ -901,9 +903,10 @@ export class FinanceService {
                 `update documents
                  set sha256=$5,ocr_provider=$2,ocr_confidence=$3,extracted_data=$4,updated_at=now()
                  where id=$1 and kind='purchase_invoice'
-                   and not exists(
+                   and ${input.allowLinked ? "true" : "not exists("}
+                   ${input.allowLinked ? "" : `(
                      select 1 from purchase_invoices p where p.document_id=documents.id
-                   )
+                   ))`}
                  returning id,original_filename filename,mime_type "mimeType",byte_size::text "byteSize",status,extracted_data "extractedData"`,
                 [id, provider, confidence, normalized, sha],
               )
@@ -962,6 +965,7 @@ export class FinanceService {
       contentBase64: stored.body.toString("base64"),
       documentId,
       persist: true,
+      allowLinked: true,
     });
   }
   async downloadDocument(i: SessionIdentity, id: string) {
