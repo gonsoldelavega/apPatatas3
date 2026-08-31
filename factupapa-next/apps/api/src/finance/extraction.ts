@@ -127,8 +127,8 @@ function extractFrutgaycazLines(text: string, fallbackTaxRate: string): Extracte
   return result;
 }
 
-function applyFrutgaycazAdapter(text: string, out: ExtractedPurchaseFields): ExtractedPurchaseFields {
-  const marker = /fecha\s+factura\s*:/i.test(text) && /n[uú]mero\s+factura\s*:/i.test(text) && /c[oó]digo\s+cliente\s*:/i.test(text) && /vendedor\s*:/i.test(text) && /veri\s*[-*]?\s*factu/i.test(text);
+function applyFrutgaycazAdapter(text: string, out: ExtractedPurchaseFields, filename = ""): ExtractedPurchaseFields {
+  const marker = (/fecha\s+factura\s*:/i.test(text) && /n[uú]mero\s+factura\s*:/i.test(text) && /veri\s*[-*]?\s*factu/i.test(text)) || (/^FAC0\d+\.pdf$/i.test(filename) && Boolean(out.supplierInvoiceNumber && out.issueDate));
   if (!marker) return out;
   const number = text.match(/n[uú]mero\s+factura\s*:\s*([0-9A-ZØ./_-]+)/i);
   const date = text.match(/fecha\s+factura\s*:\s*(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/i);
@@ -443,5 +443,5 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   if (!out.total) warnings.push("total_missing");
   if (!out.issueDate) warnings.push("issue_date_missing");
   out.warnings = warnings;
-  return applyFrutgaycazAdapter(text, out);
+  return applyFrutgaycazAdapter(text, out, filename);
 }
