@@ -102,6 +102,54 @@ function extractLines(text: string, fallbackTaxRate: string): ExtractedPurchaseL
   }
   return result;
 }
+
+/** Deterministic parser for the FRUTGAYCAZ supplier layout. The PDF text
+ * layer contains invoice data but omits the graphical supplier header. */
+function extractFrutgaycazLines(text: string, fallbackTaxRate: string): ExtractedPurchaseLine[] {
+  const result: ExtractedPurchaseLine[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (!/^\d{3,8}\s+/.test(line) || /(?:bruto|base imponible|total factura|c[oó]digo|fecha|n[uú]mero)/i.test(line)) continue;
+    const nums = [...line.matchAll(/\d+(?:[.,]\d+)?/g)];
+    if (nums.length < 5) continue;
+    const last = nums.slice(-5).map((m) => Number(decimal(m[0])));
+    const [, quantity, unitCost, taxRate, lineTotal] = last;
+    if (![quantity, unitCost, taxRate, lineTotal].every(Number.isFinite) || quantity <= 0 || unitCost < 0) continue;
+    if (Math.abs(quantity * unitCost - lineTotal) > Math.max(0.03, lineTotal * 0.015)) continue;
+    const descEnd = nums[nums.length - 5]!.index ?? line.length;
+    const description = line.slice(0, descEnd).replace(/^\d{3,8}\s+/, "").trim();
+    if (!description) continue;
+    result.push({ description, quantity: rounded(quantity), unit: "unit", unitCost: rounded(unitCost), taxRate: Number.isFinite(taxRate) ? rounded(taxRate) : fallbackTaxRate, lineTotal: rounded(lineTotal) });
+  }
+  return result;
+}
+
+function applyFrutgaycazAdapter(text: string, out: ExtractedPurchaseFields): ExtractedPurchaseFields {
+  const marker = /fecha\s+factura\s*:/i.test(text) && /n[uú]mero\s+factura\s*:/i.test(text) && /c[oó]digo\s+cliente\s*:/i.test(text) && /vendedor\s*:/i.test(text) && /veri\s*[-*]?\s*factu/i.test(text);
+  if (!marker) return out;
+  const number = text.match(/n[uú]mero\s+factura\s*:\s*([0-9A-ZØ./_-]+)/i);
+  const date = text.match(/fecha\s+factura\s*:\s*(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/i);
+  if (number) out.supplierInvoiceNumber = number[1]!.replace(/Ø/g, "0");
+  if (date) out.issueDate = `${Number(date[3]) < 100 ? 2000 + Number(date[3]) : date[3]}-${date[2]!.padStart(2,"0")}-${date[1]!.padStart(2,"0")}`;
+  out.supplierTaxId = "B04854154";
+  out.supplierName = "J. EXPÓSITO CAZORLA E HIJOS, S.L.";
+  const summary = text.match(/(?:total\s+factura[\s\S]{0,120}?)(\d+[.,]\d{2})\s+(\d+[.,]\d{2})\s+(\d+[.,]\d{2})\s+(\d+[.,]\d{2})\s+(\d+[.,]\d{2})/i);
+  if (summary) {
+    const amounts = summary.slice(1).filter(Boolean) as string[];
+    if (amounts.length >= 5) {
+      out.subtotal = decimal(amounts[0]!);
+      out.taxTotal = decimal(amounts[3]!);
+      out.total = decimal(amounts[4]!);
+    }
+  }
+  const lines = extractFrutgaycazLines(text, out.subtotal && out.taxTotal ? rounded(Number(out.taxTotal) / Number(out.subtotal) * 100) : "4");
+  if (lines.length) out.lines = lines;
+  out.documentType = "supplier_invoice";
+  out.classificationConfidence = 0.98;
+  out.purchaseEligible = Boolean(out.supplierInvoiceNumber && out.issueDate && out.total && out.lines?.length && (!out.subtotal || !out.taxTotal || Math.abs(Number(out.subtotal) + Number(out.taxTotal) - Number(out.total)) <= 0.02));
+  out.warnings = (out.warnings ?? []).filter((w) => w !== "supplier_tax_id_missing" && w !== "issue_date_missing");
+  return out;
+}
 export function extractPurchaseFields(text: string, filename = ""): ExtractedPurchaseFields {
   const clean = text
       .replace(/[\r\n\t]+/g, " ")
@@ -392,5 +440,5 @@ export function extractPurchaseFields(text: string, filename = ""): ExtractedPur
   if (!out.total) warnings.push("total_missing");
   if (!out.issueDate) warnings.push("issue_date_missing");
   out.warnings = warnings;
-  return out;
+  return applyFrutgaycazAdapter(text, out);
 }

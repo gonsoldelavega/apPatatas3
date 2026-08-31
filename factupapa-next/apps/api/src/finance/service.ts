@@ -471,7 +471,28 @@ export class FinanceService {
     );
     const results: Array<Record<string, unknown>> = [];
     for (const row of rows) {
-      try { results.push({ documentId: row.id, success: true, result: await this.reprocessPurchaseDocument(i, row.id) }); }
+      try {
+        const result = await this.reprocessPurchaseDocument(i, row.id) as { id: string; status: string; extractedData?: ExtractedPurchaseFields };
+        const data = result.extractedData ?? {};
+        let decision = "review", purchaseId: string | null = null;
+        if (data.documentType === "supplier_invoice" && data.purchaseEligible === true && data.supplierTaxId && data.supplierInvoiceNumber && data.issueDate && data.total && data.lines?.length) {
+          const supplier = await withTenantTransaction(this.pool, i, async (client) => (await client.query<{ id: string }>(`select id from contacts where company_id=$1 and is_active and kind in ('supplier','both') and upper(regexp_replace(coalesce(tax_id,''),'[^A-Z0-9]','','g'))=upper(regexp_replace($2,'[^A-Z0-9]','','g')) limit 1`, [i.companyId, data.supplierTaxId])).rows[0]);
+          if (supplier) {
+            const existing = await this.findPurchaseByInvoiceIdentity?.(i, data.supplierTaxId, data.supplierInvoiceNumber, data.issueDate);
+            if (existing) { purchaseId = existing.id; decision = "duplicate"; }
+            else {
+              const created = await this.createPurchase(i, { supplierId: supplier.id, documentId: row.id, supplierInvoiceNumber: data.supplierInvoiceNumber, issueDate: data.issueDate, dueDate: data.dueDate ?? null, category: "mercancia", notes: "Importada automáticamente desde Gmail", status: "confirmed", lines: data.lines.map((l) => ({ productId: null, description: l.description, quantity: l.quantity, unit: l.unit, unitCost: l.unitCost, taxRate: l.taxRate })) });
+              purchaseId = created.id; decision = "imported";
+            }
+            await withTenantTransaction(this.pool, i, async (client) => {
+              await client.query(`update documents set status='validated',updated_at=now() where id=$1`, [row.id]);
+              await client.query(`update gmail_purchase_imports set status=$2,error_code=null,updated_at=now() where document_id=$1`, [row.id, decision === "duplicate" ? "duplicate" : "imported"]);
+            });
+          }
+        }
+        if (decision === "review") await withTenantTransaction(this.pool, i, async (client) => { await client.query(`update gmail_purchase_imports set status='needs_review',updated_at=now() where document_id=$1`, [row.id]); });
+        results.push({ documentId: row.id, success: true, decision, purchaseId, result });
+      }
       catch (error) { results.push({ documentId: row.id, success: false, errorCode: error instanceof HttpError ? error.code : "reprocess_failed", errorMessage: error instanceof Error ? error.message.replace(/[^a-zA-Z0-9 _:-]/g, "").slice(0,120) : "reprocess_failed" }); }
     }
     return { processed: results.length, resolved: results.filter((x) => x.success).length, failed: results.filter((x) => !x.success).length, results };
@@ -748,12 +769,13 @@ export class FinanceService {
         const textFields = !extracted.source
           ? extractPurchaseFields(parsed.text, input.filename)
           : undefined;
-        if (
-          !extracted.source &&
-          hasTextLayer &&
-          textFields &&
-          (textFields.total || textFields.supplierTaxId)
-        ) {
+        const strongTextExtraction = Boolean(
+          textFields?.supplierTaxId &&
+          textFields?.supplierInvoiceNumber &&
+          textFields?.issueDate &&
+          textFields?.total,
+        );
+        if (!extracted.source && hasTextLayer && textFields && strongTextExtraction) {
           extracted = classifyLocalFiscalDocument(parsed.text, { ...textFields, ocrConfidence: 100, source: "pdf_text" }, this.extraction?.ownTaxIds ?? []);
         } else if (!extracted.source) {
           const screenshots = await parser.getScreenshot({
