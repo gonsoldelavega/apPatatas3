@@ -813,9 +813,9 @@ export class FinanceService {
         ],
       };
     if (!isRetry && input.persist !== false) {
-      await this.s3.send(
+      await this.s3!.send(
         new PutObjectCommand({
-          Bucket: this.storage.bucket,
+          Bucket: this.storage!.bucket,
           Key: key,
           Body: body,
           ContentType: mime,
@@ -919,9 +919,9 @@ export class FinanceService {
       );
     } catch (e) {
       if (!isRetry && input.persist !== false)
-        await this.s3
+        await this.s3!
           .send(
-            new DeleteObjectCommand({ Bucket: this.storage.bucket, Key: key }),
+            new DeleteObjectCommand({ Bucket: this.storage!.bucket, Key: key }),
           )
           .catch(() => undefined);
       throw e;
