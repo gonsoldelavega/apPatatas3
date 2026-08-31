@@ -211,7 +211,26 @@ export function MorePage() {
                 <p className="integration-feedback integration-feedback--error">No se pudo conectar Gmail. Inténtalo de nuevo.</p>
               )}
               <div className="integration-card__actions">
-                {gmail.data?.connected && gmail.data.canRead ? (
+                {gmail.data?.connected && (!gmail.data.canWriteDrive || !gmail.data.canWriteSheets) ? (
+                  <>
+                    <Button
+                      busy={connectGmail.isPending}
+                      disabled={gmail.isLoading || gmail.isError}
+                      onClick={() => connectGmail.mutate()}
+                    >
+                      Autorizar Drive y Registro Maestro
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      busy={disconnectGmail.isPending}
+                      onClick={() => {
+                        if (window.confirm("¿Desconectar esta cuenta de Gmail?")) disconnectGmail.mutate();
+                      }}
+                    >
+                      Desconectar Gmail
+                    </Button>
+                  </>
+                ) : gmail.data?.connected && gmail.data.canRead ? (
                   <Button
                     variant="secondary"
                     busy={disconnectGmail.isPending}
