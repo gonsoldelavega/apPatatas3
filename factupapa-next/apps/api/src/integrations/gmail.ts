@@ -764,8 +764,8 @@ export class GmailIntegrationService {
           // retaining the source document.  If the SHA points at a document
           // still awaiting review, replay that exact document rather than
           // treating it as a finalized duplicate.
-          const replayDocumentId = retryableImport && existingImport?.documentId
-            ? existingImport.documentId
+          const replayDocumentId = shaDocument && ["needs_review", "validated"].includes(shaDocument.status)
+            ? (existingImport?.documentId ?? shaDocument.id)
             : undefined;
           const existing = replayDocumentId ? undefined : shaDocument;
           let status: "duplicate" | "needs_review" | "imported" = existing ? "duplicate" : "needs_review";
