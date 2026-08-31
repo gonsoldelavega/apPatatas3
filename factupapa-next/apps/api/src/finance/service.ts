@@ -886,7 +886,7 @@ export class FinanceService {
               await c.query(
                 `update documents
                  set sha256=$5,ocr_provider=$2,ocr_confidence=$3,extracted_data=$4,updated_at=now()
-                 where id=$1 and kind='purchase_invoice' and status in ('needs_review','validated')
+                 where id=$1 and kind='purchase_invoice'
                    and not exists(
                      select 1 from purchase_invoices p where p.document_id=documents.id
                    )
