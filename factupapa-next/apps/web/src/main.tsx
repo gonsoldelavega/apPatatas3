@@ -21,8 +21,8 @@ import "./mobile-login-fix.css";
 // Authoritative palette and interaction layer; keep this import last.
 import "./financial-blue.css";
 import "./reference-redesign.css";
-// Final mobile product layer: Ticket de Lonja.
-import "./ticket-lonja.css";
+// Consolidated visual system: the final, semantic product layer.
+import "./visual-system.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
