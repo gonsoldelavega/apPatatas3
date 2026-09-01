@@ -281,6 +281,21 @@ test("compras y gastos se adapta al móvil y permite archivo o cámara", async (
   await expect(fileInput).toHaveAttribute("accept", /application\/pdf/);
   await expect(cameraInput).toHaveAttribute("capture", "environment");
   await expect(cameraInput).toHaveAttribute("accept", "image/*");
+
+  const submitAction = page.locator(".purchase-form-page > .sticky-submit");
+  if ((page.viewportSize()?.width ?? 0) < 960) {
+    await expect(submitAction).toHaveCSS("position", "sticky");
+    await submitAction.scrollIntoViewIfNeeded();
+    const finalCard = page.locator(".purchase-form-page .form-card").last();
+    const [cardBox, actionBox] = await Promise.all([
+      finalCard.boundingBox(),
+      submitAction.boundingBox(),
+    ]);
+    expect(cardBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    expect(actionBox!.y).toBeGreaterThanOrEqual(cardBox!.y + cardBox!.height - 1);
+  }
+
   await assertNoHorizontalOverflow(page);
 });
 

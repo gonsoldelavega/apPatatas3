@@ -148,3 +148,25 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   .dashboard-page .result-card__metrics b { font-size: clamp(.72rem, 3.2vw, .84rem); }
   .sales-list .entity-card__chevron { align-self: center; }
 }
+
+
+/* Purchase review action stays in the scroll flow on mobile.
+ * Fixed descendants of the animated route use that route as their containing
+ * block in iOS Safari, which could place this bar over the final form content. */
+@media (max-width: 959px) {
+  .purchase-form-page {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  .purchase-form-page > .sticky-submit {
+    position: sticky;
+    inset: auto 0 calc(68px + env(safe-area-inset-bottom));
+    z-index: 25;
+    margin-top: 16px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+}
