@@ -338,6 +338,8 @@ export function ExpensesPage() {
           )}
         </details>
       )}
+      <details className="filter-sheet">
+        <summary>Más filtros</summary>
       <section className="filter-card purchase-filters">
         <SelectField
           label="Categoría de compras"
@@ -385,6 +387,7 @@ export function ExpensesPage() {
           <option value="paid">Pagada</option>
         </SelectField>
       </section>
+      </details>
       <div className="finance-actions">
         <Link className="compact-action" to="/gastos/nuevo">
           <FilePlus2 />

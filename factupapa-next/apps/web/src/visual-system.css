@@ -16,6 +16,15 @@ button, .button, .compact-action { min-height: 44px; border-radius: var(--radius
 .month-quick-filter { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; }
 .month-quick-filter button { width:44px; padding:0; font-size:24px; }
 .month-quick-filter input { width:160px; text-align:center; }
+.bottom-nav { border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 22px 22px 0 0; background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%); }
+.bottom-nav .nav-item--active { color: var(--chart-balance); }
+.bottom-nav__indicator { background: color-mix(in srgb, var(--chart-balance) 12%, transparent); }
+.filter-sheet { margin-top: 12px; }
+.filter-sheet > summary { min-height: 44px; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:12px; font-weight:600; color:var(--chart-balance); cursor:pointer; }
+.filter-sheet[open] > summary { border-radius:12px 12px 0 0; }
+.filter-sheet .purchase-filters { border-radius:0 0 16px 16px; border-top:0; }
+.invoice-list-card .entity-card { border-radius:16px 16px 8px 8px; }
+.invoice-card-actions { border:1px solid var(--line); border-top:0; border-radius:0 0 16px 16px; background:var(--surface); }
 .sales-list .entity-card__icon { display: none; }
 .sales-list .entity-card { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 10px; }
 .invoice-list-card { position: relative; }
