@@ -200,7 +200,14 @@ echo "Creando copia verificada previa al despliegue"
 cd "${infrastructure}"
 docker compose --profile public config --quiet
 docker compose build
-docker compose --profile public up -d
+if ! docker compose --profile public up -d; then
+  echo "El despliegue no pudo completar sus servicios; mostrando diagnóstico seguro" >&2
+  docker compose --profile public logs --no-color --tail=100 provision-api-role >&2 || true
+  # Compose ya ha creado las nuevas unidades. Arrancarlas sin volver a evaluar
+  # dependencias mantiene disponible el acceso mientras se conserva el fallo.
+  docker compose --profile public start api web caddy || true
+  exit 1
+fi
 
 for service in postgres redis minio api web caddy; do
   healthy=""
