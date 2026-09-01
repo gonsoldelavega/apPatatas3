@@ -4,7 +4,7 @@ set -eu
 test "${API_DATABASE_USER}" = "factupapa_api"
 test -n "${API_DATABASE_PASSWORD}"
 
-psql \
+psql "${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL}" \
   --no-psqlrc \
   --set=ON_ERROR_STOP=1 \
   --set=api_password="${API_DATABASE_PASSWORD}" \
