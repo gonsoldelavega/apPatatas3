@@ -319,8 +319,7 @@ export function PurchaseFormPage() {
     [validLines],
   );
   const documentBlocksPurchase = Boolean(
-    documentId && ocr &&
-      (ocr.documentType !== "supplier_invoice" || ocr.purchaseEligible !== true),
+    documentId && ocr && ["issued_sales_invoice", "bank_transfer_receipt", "bank_deposit_receipt", "payment_confirmation", "account_statement", "supplier_credit_note"].includes(ocr.documentType ?? ""),
   );
   const save = useMutation({
     mutationFn: () =>

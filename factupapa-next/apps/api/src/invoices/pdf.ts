@@ -10,16 +10,6 @@ const decimal = (value: string, minimum = 0, maximum = 2) => {
   });
 };
 const money = (value: string) => `${decimal(value, 2, 2)} EUR`;
-const packaging = (line: Invoice["lines"][number]) => {
-  if (!line.packageKind || !line.packageQuantity || !line.unitsPerPackage) return null;
-  const names = { bag: ["bolsa","bolsas"], box: ["caja","cajas"], sack: ["saco","sacos"],
-    tray: ["bandeja","bandejas"], custom: ["envase","envases"] } as const;
-  const count = Number(line.packageQuantity);
-  const noun = names[line.packageKind][Math.abs(count - 1) < 1e-9 ? 0 : 1];
-  return line.packageLabel
-    ? `${decimal(line.packageQuantity, 0, 2)} × ${line.packageLabel}`
-    : `${decimal(line.packageQuantity, 0, 2)} ${noun} de ${decimal(line.unitsPerPackage, 0, 2)} ${line.unit}`;
-};
 const date = (v: string) => v.split("-").reverse().join("/");
 const documentNumber = (series: string, number: number | null) => {
   const annual = series.match(/^(.+)_([0-9]{4})$/u);
@@ -180,7 +170,6 @@ export async function createInvoicePdf(
         doc.addPage();
         y = 60;
       }
-      const packageText = packaging(line);
       const descriptionHeight = doc.heightOfString(line.description, { width: 158 });
       doc
         .fontSize(9)
@@ -195,13 +184,7 @@ export async function createInvoicePdf(
           align: "right",
         })
         .text(money(line.lineTotal), 458, y, { width: 89, align: "right" });
-      if (packageText)
-        doc
-          .fontSize(7)
-          .fillColor("#555555")
-          .text(packageText, 56, y + descriptionHeight + 2, { width: 158 })
-          .fillColor("#111111");
-      y += Math.max(26, descriptionHeight + (packageText ? 12 : 4));
+      y += Math.max(26, descriptionHeight + 4);
       doc
         .moveTo(48, y - 7)
         .lineTo(547, y - 7)

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, FilePlus2, MailCheck, Receipt, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { contactsApi, financeApi, gmailApi } from "../api/services";
 import { ApiError } from "../api/client";
 import { Button } from "../ui/Button";
@@ -44,11 +44,24 @@ const decimal = (value: string) => value.replace(",", "."),
   };
 
 export function ExpensesPage() {
-  const [period, setPeriod] = useState(currentPeriod("all")),
-    [purchaseCategory, setPurchaseCategory] = useState(""),
-    [purchaseSupplier, setPurchaseSupplier] = useState(""),
-    [purchaseStatus, setPurchaseStatus] = useState(""),
-    [purchasePaymentStatus, setPurchasePaymentStatus] = useState(""),
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialPeriod = { ...currentPeriod((searchParams.get("period") as "all" | "month" | "quarter" | "year") || "all"), month: searchParams.get("month") || currentPeriod("month").month, quarter: searchParams.get("quarter") || "1", year: searchParams.get("year") || currentPeriod("month").year };
+  const [period, setPeriod] = useState(initialPeriod),
+    [purchaseCategory, setPurchaseCategory] = useState(searchParams.get("category") || ""),
+    [purchaseSupplier, setPurchaseSupplier] = useState(searchParams.get("supplier") || ""),
+    [purchaseStatus, setPurchaseStatus] = useState(searchParams.get("status") || ""),
+    [purchasePaymentStatus, setPurchasePaymentStatus] = useState(searchParams.get("payment") || ""),
+    _persistFilters = useEffect(() => {
+      const next = new URLSearchParams(); next.set("period", period.kind);
+      if (period.kind === "month") next.set("month", period.month);
+      if (period.kind === "quarter") { next.set("quarter", period.quarter); next.set("year", period.year); }
+      if (period.kind === "year") next.set("year", period.year);
+      if (purchaseCategory) next.set("category", purchaseCategory);
+      if (purchaseSupplier) next.set("supplier", purchaseSupplier);
+      if (purchaseStatus) next.set("status", purchaseStatus);
+      if (purchasePaymentStatus) next.set("payment", purchasePaymentStatus);
+      setSearchParams(next, { replace: true });
+    }, [period, purchaseCategory, purchaseSupplier, purchaseStatus, purchasePaymentStatus, setSearchParams]),
     partialRange = periodRange(period),
     purchaseRange =
       partialRange.from && partialRange.to
@@ -205,6 +218,11 @@ export function ExpensesPage() {
         <Link to="/stock">Stock</Link>
       </nav>
       <section className="filter-card period-filter">
+        <div className="month-quick-filter" aria-label="Mes rápido">
+          <button type="button" aria-label="Mes anterior" onClick={() => { const d = new Date(`${period.month}-01T00:00:00`); d.setMonth(d.getMonth()-1); setPeriod({ ...period, kind: "month", month: d.toISOString().slice(0,7) }); }}>‹</button>
+          <input aria-label="Seleccionar mes" type="month" value={period.month} onChange={(e) => setPeriod({ ...period, kind: "month", month: e.target.value })} />
+          <button type="button" aria-label="Mes siguiente" onClick={() => { const d = new Date(`${period.month}-01T00:00:00`); d.setMonth(d.getMonth()+1); setPeriod({ ...period, kind: "month", month: d.toISOString().slice(0,7) }); }}>›</button>
+        </div>
         <PeriodPicker value={period} onChange={setPeriod} allowAll />
       </section>
       <section className="expense-overview" aria-label="Resumen de gastos del periodo">
