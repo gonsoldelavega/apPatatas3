@@ -50,8 +50,8 @@ export function ExpensesPage() {
     [purchaseCategory, setPurchaseCategory] = useState(searchParams.get("category") || ""),
     [purchaseSupplier, setPurchaseSupplier] = useState(searchParams.get("supplier") || ""),
     [purchaseStatus, setPurchaseStatus] = useState(searchParams.get("status") || ""),
-    [purchasePaymentStatus, setPurchasePaymentStatus] = useState(searchParams.get("payment") || ""),
-    _persistFilters = useEffect(() => {
+    [purchasePaymentStatus, setPurchasePaymentStatus] = useState(searchParams.get("payment") || "");
+  useEffect(() => {
       const next = new URLSearchParams(); next.set("period", period.kind);
       if (period.kind === "month") next.set("month", period.month);
       if (period.kind === "quarter") { next.set("quarter", period.quarter); next.set("year", period.year); }
@@ -61,8 +61,8 @@ export function ExpensesPage() {
       if (purchaseStatus) next.set("status", purchaseStatus);
       if (purchasePaymentStatus) next.set("payment", purchasePaymentStatus);
       setSearchParams(next, { replace: true });
-    }, [period, purchaseCategory, purchaseSupplier, purchaseStatus, purchasePaymentStatus, setSearchParams]),
-    partialRange = periodRange(period),
+    }, [period, purchaseCategory, purchaseSupplier, purchaseStatus, purchasePaymentStatus, setSearchParams]);
+  const partialRange = periodRange(period),
     purchaseRange =
       partialRange.from && partialRange.to
         ? { from: partialRange.from, to: partialRange.to }
