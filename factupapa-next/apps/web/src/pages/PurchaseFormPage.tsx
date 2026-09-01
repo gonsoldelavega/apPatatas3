@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
-import { apiClient } from "../api/client";
+import { apiClient, ApiError } from "../api/client";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
@@ -322,19 +322,48 @@ export function PurchaseFormPage() {
     documentId && ocr && ["issued_sales_invoice", "bank_transfer_receipt", "bank_deposit_receipt", "payment_confirmation", "account_statement", "supplier_credit_note"].includes(ocr.documentType ?? ""),
   );
   const save = useMutation({
-    mutationFn: () =>
-      financeApi.createPurchase({
-        supplierId,
-        documentId,
-        supplierInvoiceNumber: supplierInvoiceNumber.trim() || null,
-        issueDate,
-        dueDate: dueDate || null,
-        category,
-        notes: notes.trim() || null,
-        lines: validLines,
-      }),
+    mutationFn: async () => {
+      const create = () =>
+        financeApi.createPurchase({
+          supplierId,
+          documentId,
+          supplierInvoiceNumber: supplierInvoiceNumber.trim() || null,
+          issueDate,
+          dueDate: dueDate || null,
+          category,
+          notes: notes.trim() || null,
+          lines: validLines,
+        });
+      try {
+        return await create();
+      } catch (error) {
+        // A POST rejected with 401 has not reached the purchase service. The
+        // API client has already refreshed the session, so this single retry
+        // is safe and avoids asking the user to press Guardar twice.
+        if (
+          error instanceof ApiError &&
+          error.code === "session_renewed_retry_required"
+        )
+          return create();
+        throw error;
+      }
+    },
     onSuccess: (purchase) => navigate(`/gastos/${purchase.id}`),
   });
+  const saveErrorMessage = (() => {
+    const error = save.error;
+    if (!(error instanceof ApiError))
+      return "No se pudo guardar la compra. Tus datos siguen en pantalla; vuelve a intentarlo.";
+    if (error.code === "conflict")
+      return "Esta compra parece estar ya registrada para ese proveedor. Revisa el número de factura antes de repetirla.";
+    if (error.code === "not_found")
+      return "El proveedor seleccionado ya no está disponible. Vuelve a elegirlo.";
+    if (error.code === "invalid_request")
+      return "Hay un dato con formato incorrecto. Revisa la fecha, la descripción, los kilos y el precio.";
+    if (error.code === "request_timeout" || error.code === "network_error")
+      return "No se pudo conectar. Tus datos siguen en pantalla; comprueba la conexión y vuelve a guardar.";
+    return "No se pudo guardar la compra. Tus datos siguen en pantalla; vuelve a intentarlo.";
+  })();
   const rejectImportedDocument = useMutation({
     mutationFn: () => financeApi.rejectPendingPurchaseDocument(importedDocumentId!),
     onSuccess: async () => {
@@ -652,7 +681,7 @@ export function PurchaseFormPage() {
         )}
       </section>
 
-      {save.isError && <div className="form-alert" role="alert">No se pudo guardar la compra. Revisa proveedor, clasificación, fechas e importes.</div>}
+      {save.isError && <div className="form-alert" role="alert">{saveErrorMessage}</div>}
       <div className="sticky-submit">
         <Button
           disabled={documentBlocksPurchase || !supplierId || !issueDate || !allLinesValid || upload.isPending}
