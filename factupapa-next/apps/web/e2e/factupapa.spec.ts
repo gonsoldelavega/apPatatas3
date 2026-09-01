@@ -285,7 +285,8 @@ test("compras y gastos se adapta al móvil y permite archivo o cámara", async (
   const submitAction = page.locator(".purchase-form-page > .sticky-submit");
   if ((page.viewportSize()?.width ?? 0) < 960) {
     await expect(submitAction).toHaveCSS("position", "sticky");
-    await submitAction.scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     const finalCard = page.locator(".purchase-form-page .form-card").last();
     const [cardBox, actionBox] = await Promise.all([
       finalCard.boundingBox(),
