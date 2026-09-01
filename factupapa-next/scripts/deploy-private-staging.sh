@@ -205,7 +205,10 @@ if ! docker compose --profile public up -d; then
   docker compose --profile public logs --no-color --tail=100 provision-api-role >&2 || true
   # Compose ya ha creado las nuevas unidades. Arrancarlas sin volver a evaluar
   # dependencias mantiene disponible el acceso mientras se conserva el fallo.
-  docker compose --profile public start api web caddy || true
+  for service in api web caddy; do
+    recovery_container="$(docker compose --profile public ps -aq "${service}")"
+    [ -z "${recovery_container}" ] || docker start "${recovery_container}" >/dev/null || true
+  done
   exit 1
 fi
 

@@ -18,6 +18,21 @@ if [ "${admin_user}" = "${API_DATABASE_USER}" ]; then
   exit 0
 fi
 
+target_is_superuser="$(
+  psql "${DATABASE_ADMIN_URL}" \
+    --no-psqlrc \
+    --tuples-only \
+    --no-align \
+    --set=ON_ERROR_STOP=1 \
+    --set=api_user="${API_DATABASE_USER}" \
+    --command="select coalesce((select rolsuper from pg_catalog.pg_roles where rolname = :'api_user'), false)"
+)"
+
+if [ "${target_is_superuser}" = "t" ]; then
+  echo "El rol existente de la API es superusuario; se conserva para una migración de privilegios separada"
+  exit 0
+fi
+
 psql "${DATABASE_ADMIN_URL}" \
   --no-psqlrc \
   --set=ON_ERROR_STOP=1 \
