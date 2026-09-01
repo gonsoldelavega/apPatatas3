@@ -9,6 +9,14 @@ psql "${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL}" \
   --set=ON_ERROR_STOP=1 \
   --set=api_password="${API_DATABASE_PASSWORD}" \
   <<'SQL'
+select 'create role factupapa_api'
+where not exists (
+  select 1
+  from pg_catalog.pg_roles
+  where rolname = 'factupapa_api'
+)
+\gexec
+
 alter role factupapa_api
   login
   nosuperuser
