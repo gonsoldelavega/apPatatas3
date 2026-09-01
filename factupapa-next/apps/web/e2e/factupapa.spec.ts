@@ -259,6 +259,7 @@ test("compras y gastos se adapta al móvil y permite archivo o cámara", async (
   await expect(
     page.getByRole("heading", { name: "Compras y gastos", exact: true }),
   ).toBeVisible();
+  await page.getByText("Más filtros", { exact: true }).click();
   await expect(page.getByLabel("Estado del documento")).toBeVisible();
   await expect(page.getByLabel("Estado del pago")).toBeVisible();
   await assertNoHorizontalOverflow(page);
