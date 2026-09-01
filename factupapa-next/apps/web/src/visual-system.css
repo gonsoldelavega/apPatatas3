@@ -16,11 +16,20 @@ button, .button, .compact-action { min-height: 44px; border-radius: var(--radius
 .month-quick-filter { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; }
 .month-quick-filter button { width:44px; padding:0; font-size:24px; }
 .month-quick-filter input { width:160px; text-align:center; }
+.sales-list .entity-card__icon { display: none; }
+.sales-list .entity-card { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 10px; }
+.invoice-list-card { position: relative; }
+.invoice-card-actions { display:flex; justify-content:flex-end; gap:4px; padding: 4px 8px 8px; }
+.invoice-card-actions button, .invoice-card-actions a { width:40px; min-height:40px; display:grid; place-items:center; border-radius:10px; }
+.invoice-card-actions button:hover, .invoice-card-actions a:hover { background: var(--surface-soft); }
+.toast-region { bottom: calc(96px + env(safe-area-inset-bottom)); }
+main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 @media (max-width: 759px) {
   .page { padding-left: 16px; padding-right: 16px; }
   .page-heading p:not(.eyebrow) { font-size: var(--font-size-sm); }
   .entity-card { padding: 14px; }
   .card-list { gap: 10px; }
+  .invoice-card-actions { padding-inline: 4px; }
   .field__label, .field > span { font-size: var(--font-size-sm); font-weight: 600; }
 }
 @media (prefers-color-scheme: dark) {
