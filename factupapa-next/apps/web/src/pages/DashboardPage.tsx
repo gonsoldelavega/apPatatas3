@@ -362,7 +362,7 @@ export function DashboardPage() {
             </Link>
           )}
           {Boolean(data?.finance.criticalStockProducts) && (
-            <Link to="/productos" className="attention-row attention-row--danger">
+            <Link to="/stock" className="attention-row attention-row--danger">
               <Package aria-hidden="true" />
               <span><strong>{data?.finance.criticalStockProducts} producto{data?.finance.criticalStockProducts === 1 ? "" : "s"} sin stock</strong></span>
               <ArrowRight aria-hidden="true" />

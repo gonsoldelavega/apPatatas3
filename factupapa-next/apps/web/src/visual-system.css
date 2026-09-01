@@ -44,3 +44,107 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 @media (prefers-color-scheme: dark) {
   .entity-card, .form-card, .detail-card, .filter-card, .info-card, .card { box-shadow: 0 4px 18px rgb(0 0 0 / 22%); }
 }
+
+/* Mobile invoice hierarchy and compact dashboard summary. */
+.sales-list .invoice-list-card {
+  display: block;
+  overflow: hidden;
+}
+.sales-list .invoice-list-card > .entity-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 108px;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 10px;
+  padding: 15px 16px 13px;
+}
+.sales-list .entity-card__body { min-width: 0; overflow: hidden; }
+.sales-list .entity-card__headline {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+.sales-list .entity-card__headline > strong:first-child {
+  min-width: max-content;
+  color: var(--deep);
+  font-size: 16px;
+  white-space: nowrap;
+}
+.sales-list .entity-card__amount {
+  min-width: max-content;
+  display: block;
+  color: var(--deep);
+  font-size: 17px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.sales-list .entity-card__customer {
+  display: block;
+  margin-top: 6px;
+  overflow: visible;
+  color: var(--deep);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: clip;
+  white-space: normal;
+}
+.sales-list .entity-card__date {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sales-list .invoice-card-actions {
+  position: static;
+  inset: auto;
+  width: 100%;
+  min-height: 52px;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 12px 8px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 16px 16px;
+  background: var(--surface);
+  transform: none;
+}
+.sales-list .invoice-card-actions button,
+.sales-list .invoice-card-actions a {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 759px) {
+  .dashboard-page .result-card {
+    height: auto;
+    min-height: 0 !important;
+    max-height: none;
+    gap: 18px;
+    padding: 17px 16px 14px;
+  }
+  .dashboard-page .result-card__heading { min-height: 0; }
+  .dashboard-page .result-card__heading strong {
+    margin-top: 5px;
+    font-size: clamp(2.35rem, 11.8vw, 2.95rem);
+  }
+  .dashboard-page .dashboard-month-picker--ticket {
+    min-width: 118px;
+    min-height: 36px;
+    padding-inline: 10px;
+    font-size: 11px;
+  }
+  .dashboard-page .dashboard-month-picker--ticket input { min-height: 36px; }
+  .dashboard-page .result-card__metrics {
+    height: auto;
+    min-height: 72px;
+  }
+  .dashboard-page .result-card__metrics > div { padding: 9px 8px; }
+  .dashboard-page .result-card__metrics b { font-size: clamp(.72rem, 3.2vw, .84rem); }
+  .sales-list .entity-card__chevron { align-self: center; }
+}

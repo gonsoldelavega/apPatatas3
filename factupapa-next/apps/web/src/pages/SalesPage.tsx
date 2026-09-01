@@ -302,17 +302,18 @@ export function SalesPage() {
                 {tab === "delivery" ? <ScrollText /> : <FileText />}
               </span>
               <span className="entity-card__body">
-                <strong>{formatDocumentNumber(item.series, item.number)}</strong>
-                <small>
-                  {invoice
-                    ? `${invoice.contactLegalName} · ${item.issueDate}`
-                    : item.issueDate}
-                </small>
+                <span className="entity-card__headline">
+                  <strong>{formatDocumentNumber(item.series, item.number)}</strong>
+                  <strong className="entity-card__amount">{formatMoney(item.total)}</strong>
+                </span>
+                {invoice && (
+                  <small className="entity-card__customer">{invoice.contactLegalName}</small>
+                )}
+                <small className="entity-card__date">{item.issueDate}</small>
                 <span className={`status ${invoice?.status === "issued" ? `payment-status payment-status--${invoice.paymentStatus}` : `status--${item.status}`}`}>
                   {statusLabel ?? item.status}
                 </span>
               </span>
-              <strong className="entity-card__amount">{formatMoney(item.total)}</strong>
               <ChevronRight className="entity-card__chevron" aria-hidden="true" />
             </Link>
           );
