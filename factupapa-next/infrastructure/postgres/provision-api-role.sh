@@ -1,23 +1,24 @@
 #!/bin/sh
 set -eu
 
-test "${API_DATABASE_USER}" = "factupapa_api"
+test -n "${API_DATABASE_USER}"
 test -n "${API_DATABASE_PASSWORD}"
 
 psql "${DATABASE_ADMIN_URL:?Define DATABASE_ADMIN_URL}" \
   --no-psqlrc \
   --set=ON_ERROR_STOP=1 \
+  --set=api_user="${API_DATABASE_USER}" \
   --set=api_password="${API_DATABASE_PASSWORD}" \
   <<'SQL'
-select 'create role factupapa_api'
+select format('create role %I', :'api_user')
 where not exists (
   select 1
   from pg_catalog.pg_roles
-  where rolname = 'factupapa_api'
+  where rolname = :'api_user'
 )
 \gexec
 
-alter role factupapa_api
+alter role :"api_user"
   login
   nosuperuser
   nocreatedb
