@@ -172,10 +172,10 @@ const gmailInboxTimer = gmail
 gmailInboxTimer?.unref();
 if (gmail) setTimeout(() => void gmail.syncDueInboxes(finance), 30_000).unref();
 const googleExportTimer = googleExporter
-  ? setInterval(() => void googleExporter.processDue(), 60_000)
+  ? setInterval(() => void googleExporter.processDue(100), 60_000)
   : undefined;
 googleExportTimer?.unref();
-if (googleExporter) setTimeout(() => void googleExporter.processDue(), 45_000).unref();
+if (googleExporter) setTimeout(() => void googleExporter.processDue(100), 45_000).unref();
 
 async function shutdown(signal: string) {
   if (gmailInboxTimer) clearInterval(gmailInboxTimer);
