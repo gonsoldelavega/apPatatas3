@@ -78,7 +78,7 @@ export class GoogleInvoiceExporter {
     const data = await withTenantTransaction(this.pool, identity, async (client) => {
       const purchase = (await client.query<any>(`select p.id,p.issue_date::text "issueDate",p.supplier_legal_name "supplierName",p.supplier_tax_id "supplierTaxId",p.supplier_invoice_number "invoiceNumber",p.category,p.subtotal,p.tax_total "taxTotal",p.total,p.status,p.document_id "documentId",d.storage_key "storageKey",d.mime_type "mimeType",d.original_filename "filename" from purchase_invoices p left join documents d on d.id=p.document_id where p.id=$1 and p.company_id=$2`, [purchaseId, companyId])).rows[0];
       if (!purchase || purchase.status !== "confirmed" || !purchase.documentId) throw new HttpError("conflict", 409);
-      const lines = (await client.query<any[]>(`select id,product_id "productId",description,quantity::text,unit,unit_cost::text "unitCost",tax_rate::text "taxRate",line_subtotal::text "lineSubtotal",line_tax::text "lineTax",line_total::text "lineTotal",coalesce(delivery_date::text,'') "deliveryDate" from purchase_invoice_lines where purchase_invoice_id=$1 order by position,id`, [purchaseId])).rows;
+      const lines = (await client.query<any[]>(`select id,product_id "productId",description,quantity::text,unit,unit_cost::text "unitCost",tax_rate::text "taxRate",line_subtotal::text "lineSubtotal",line_tax::text "lineTax",line_total::text "lineTotal",'' "deliveryDate" from purchase_invoice_lines where purchase_invoice_id=$1 order by position,id`, [purchaseId])).rows;
       return { purchase, lines };
     });
     const google = await this.gmail.googleAccess(identity);
