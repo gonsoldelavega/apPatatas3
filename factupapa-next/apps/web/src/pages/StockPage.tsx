@@ -26,6 +26,23 @@ export function StockPage() {
     [sacks, setSacks] = useState(""),
     [looseKg, setLooseKg] = useState("");
   const productionRuns=useQuery({queryKey:["production-runs"],queryFn:financeApi.productionRuns});
+  const selectStockProduct = (value: string, scrollToForm = false) => {
+    const item = q.data?.find((stockItem) => stockItem.productId === value),
+      quantity = Number(item?.quantity ?? 0);
+    setProductId(value);
+    setTargetQuantity(item?.quantity ?? "");
+    setSacks(String(Math.floor(quantity / 15)));
+    setLooseKg(String(Math.round((quantity % 15) * 10_000) / 10_000));
+    setOpen(true);
+    if (scrollToForm) {
+      window.setTimeout(() => {
+        document.getElementById("stock-adjustment-form")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 0);
+    }
+  };
   const selected = q.data?.find((x) => x.productId === productId),
     target = selected?.unit === "kg"
       ? String(Number(sacks || 0) * 15 + Number((looseKg || "0").replace(",", ".")))
@@ -128,19 +145,11 @@ export function StockPage() {
         </section>
       )}
       {open && (
-        <section className="form-card">
+        <section className="form-card" id="stock-adjustment-form">
           <SelectField
             label="Producto"
             value={productId}
-            onChange={(e) => {
-              const value = e.target.value,
-                item = q.data?.find((x) => x.productId === value),
-                quantity = Number(item?.quantity ?? 0);
-              setProductId(value);
-              setTargetQuantity(item?.quantity ?? "");
-              setSacks(String(Math.floor(quantity / 15)));
-              setLooseKg(String(Math.round((quantity % 15) * 10_000) / 10_000));
-            }}
+            onChange={(e) => selectStockProduct(e.target.value)}
           >
             <option value="">Selecciona</option>
             {q.data?.map((x) => (
@@ -206,6 +215,14 @@ export function StockPage() {
             {x.potentialGrossMargin && (
               <p>Margen bruto posible: {formatMoney(x.potentialGrossMargin)}</p>
             )}
+            <button
+              type="button"
+              className="stock-card__adjust"
+              onClick={() => selectStockProduct(x.productId, true)}
+            >
+              <RefreshCw aria-hidden="true" />
+              Ajustar stock
+            </button>
           </article>
         ))}
       </div>

@@ -3,6 +3,8 @@ import {
   ArrowRight,
   Building2,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   FileText,
   Package,
@@ -49,6 +51,12 @@ const monthPickerLabel = (month: string) => {
     parts.find((part) => part.type === "year")?.value ?? ""
   }`.trim();
   return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+const adjacentMonth = (month: string, offset: number) => {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + offset, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 };
 
 const compactEuros = (value: number) =>
@@ -266,18 +274,34 @@ export function DashboardPage() {
                 {data ? formatMoney(data.finance.balance) : "—"}
               </strong>
             </div>
-            <label className="dashboard-month-picker dashboard-month-picker--ticket">
-              <span className="sr-only">Mes del resumen</span>
-              <span aria-hidden="true">{monthPickerLabel(selectedMonth)}</span>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(event) => {
-                  if (event.target.value) setSelectedMonth(event.target.value);
-                }}
-                aria-label="Mes del resumen"
-              />
-            </label>
+            <div className="dashboard-month-nav" aria-label="Cambiar mes del resumen">
+              <button
+                type="button"
+                onClick={() => setSelectedMonth((month) => adjacentMonth(month, -1))}
+                aria-label="Mes anterior"
+              >
+                <ChevronLeft aria-hidden="true" />
+              </button>
+              <label className="dashboard-month-picker dashboard-month-picker--ticket">
+                <span className="sr-only">Mes del resumen</span>
+                <span aria-hidden="true">{monthPickerLabel(selectedMonth)}</span>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(event) => {
+                    if (event.target.value) setSelectedMonth(event.target.value);
+                  }}
+                  aria-label="Mes del resumen"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setSelectedMonth((month) => adjacentMonth(month, 1))}
+                aria-label="Mes siguiente"
+              >
+                <ChevronRight aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <div className="result-card__metrics">
             <div><span>Facturado</span><b>{data ? formatMoney(data.finance.sales) : "—"}</b></div>
