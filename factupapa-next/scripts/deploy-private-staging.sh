@@ -199,7 +199,11 @@ echo "Creando copia verificada previa al despliegue"
 
 cd "${infrastructure}"
 docker compose --profile public config --quiet
-docker compose build
+# Rebuild from the audited checkout without reusing a potentially stale
+# migration layer.  The migration runner validates file checksums against
+# the live database, so a cached image could otherwise ship an older SQL file
+# even when the source checkout is correct.
+docker compose build --no-cache
 if ! docker compose --profile public up -d; then
   echo "El despliegue no pudo completar sus servicios; mostrando diagnóstico seguro" >&2
   docker compose --profile public logs --no-color --tail=100 provision-api-role >&2 || true
