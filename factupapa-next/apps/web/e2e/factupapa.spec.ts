@@ -211,7 +211,9 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
   await captureReference("facturas");
 
   await navigation.getByRole("link", { name: "Gastos" }).click();
-  await expect(page).toHaveURL(/\/gastos$/);
+  // Expenses preserves its filter state in the query string (period=all by
+  // default), so assert the route while allowing those navigation params.
+  await expect(page).toHaveURL(/\/gastos(?:\?.*)?$/);
   await expect(page.getByRole("heading", { name: "Compras y gastos", exact: true })).toBeVisible();
   await expect(navigation).toHaveCSS("--active-nav-index", "2");
   await expect.poll(() => page.evaluate(() =>
