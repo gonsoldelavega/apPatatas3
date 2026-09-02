@@ -73,30 +73,32 @@ export class GoogleInvoiceExporter {
   }
 
   private async exportPurchaseOne(companyId: string, purchaseId: string): Promise<void> {
-    if (!this.s3 || !this.config.storage) throw new HttpError("conflict", 409);
     const identity = { companyId, userId: companyId };
     const data = await withTenantTransaction(this.pool, identity, async (client) => {
       const purchase = (await client.query<any>(`select p.id,p.issue_date::text "issueDate",p.supplier_legal_name "supplierName",p.supplier_tax_id "supplierTaxId",p.supplier_invoice_number "invoiceNumber",p.category,p.subtotal,p.tax_total "taxTotal",p.total,p.status,p.document_id "documentId",d.storage_key "storageKey",d.mime_type "mimeType",d.original_filename "filename" from purchase_invoices p left join documents d on d.id=p.document_id where p.id=$1 and p.company_id=$2`, [purchaseId, companyId])).rows[0];
-      if (!purchase || purchase.status !== "confirmed" || !purchase.documentId) throw new HttpError("conflict", 409);
+      if (!purchase || purchase.status !== "confirmed") throw new HttpError("conflict", 409);
       const lines = (await client.query<any[]>(`select id,product_id "productId",description,quantity::text,unit,unit_cost::text "unitCost",tax_rate::text "taxRate",line_subtotal::text "lineSubtotal",line_tax::text "lineTax",line_total::text "lineTotal",'' "deliveryDate" from purchase_invoice_lines where purchase_invoice_id=$1 order by position,id`, [purchaseId])).rows;
       return { purchase, lines };
     });
     const google = await this.gmail.googleAccess(identity);
     if (!google.scopes.includes(GOOGLE_DRIVE_SCOPE) || !google.scopes.includes(GOOGLE_SHEETS_SCOPE)) throw new HttpError("gmail_reauthorization_required", 409);
-    const object = await this.s3.send(new GetObjectCommand({ Bucket: this.config.storage.bucket, Key: data.purchase.storageKey }));
-    if (!object.Body) throw new HttpError("not_found", 404);
-    const bytes = Buffer.from(await object.Body.transformToByteArray());
-    const metadata = { name: data.purchase.filename || `${data.purchase.invoiceNumber || purchaseId}`, mimeType: data.purchase.mimeType || "application/pdf", appProperties: { factupapa_company_id: companyId, factupapa_purchase_invoice_id: purchaseId, factupapa_document_id: data.purchase.documentId }, ...(this.config.folderId ? { parents: [this.config.folderId] } : {}) };
-    const query = `appProperties has { key='factupapa_purchase_invoice_id' and value='${purchaseId}' } and trashed=false`;
-    const list = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
-    const boundary = `factupapa-purchase-${Date.now()}`;
-    const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
-    const file = list.files?.[0];
-    const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
-    let driveId = file?.id ?? uploaded.id ?? null;
-    if (!driveId) {
-      const confirmed = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
-      driveId = confirmed.files?.[0]?.id ?? null;
+    let driveId: string | null = null;
+    if (data.purchase.documentId && data.purchase.storageKey && this.s3 && this.config.storage) {
+      const object = await this.s3.send(new GetObjectCommand({ Bucket: this.config.storage.bucket, Key: data.purchase.storageKey }));
+      if (!object.Body) throw new HttpError("not_found", 404);
+      const bytes = Buffer.from(await object.Body.transformToByteArray());
+      const metadata = { name: data.purchase.filename || `${data.purchase.invoiceNumber || purchaseId}`, mimeType: data.purchase.mimeType || "application/pdf", appProperties: { factupapa_company_id: companyId, factupapa_purchase_invoice_id: purchaseId, factupapa_document_id: data.purchase.documentId }, ...(this.config.folderId ? { parents: [this.config.folderId] } : {}) };
+      const query = `appProperties has { key='factupapa_purchase_invoice_id' and value='${purchaseId}' } and trashed=false`;
+      const list = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+      const boundary = `factupapa-purchase-${Date.now()}`;
+      const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
+      const file = list.files?.[0];
+      const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+      driveId = file?.id ?? uploaded.id ?? null;
+      if (!driveId) {
+        const confirmed = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+        driveId = confirmed.files?.[0]?.id ?? null;
+      }
     }
     await this.upsertPurchaseSheets(google.token, data.purchase, data.lines, driveId);
     if (driveId) await this.pool.query(`update purchase_invoice_export_events set drive_file_id=$1 where company_id=$2 and purchase_invoice_id=$3`, [driveId, companyId, purchaseId]);
