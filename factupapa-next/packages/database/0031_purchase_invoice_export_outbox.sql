@@ -10,6 +10,3 @@ begin
  return query with picked as (select e.id from purchase_invoice_export_events e where e.status in ('pending','failed') and e.next_attempt_at<=now() order by e.created_at for update skip locked limit p_limit)
  update purchase_invoice_export_events e set status='processing',processing_at=now(),attempt_count=e.attempt_count+1,updated_at=now() from picked where e.id=picked.id returning e.id,e.company_id,e.purchase_invoice_id;
 end $$;
-alter table purchase_invoice_export_events owner to factupapa_migrator;
-grant select,insert,update on purchase_invoice_export_events to factupapa_api;
-grant execute on function claim_purchase_invoice_export_events(integer) to factupapa_api;
