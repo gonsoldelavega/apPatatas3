@@ -6,9 +6,10 @@ interface PeriodPickerProps {
   value: Period;
   onChange: (period: Period) => void;
   allowAll?: boolean;
+  hideMonthField?: boolean;
 }
 
-export function PeriodPicker({ value, onChange, allowAll }: PeriodPickerProps) {
+export function PeriodPicker({ value, onChange, allowAll, hideMonthField }: PeriodPickerProps) {
   return (
     <>
       <SelectField
@@ -21,7 +22,7 @@ export function PeriodPicker({ value, onChange, allowAll }: PeriodPickerProps) {
         <option value="quarter">Trimestre</option>
         <option value="year">Año</option>
       </SelectField>
-      {value.kind === "month" && (
+      {value.kind === "month" && !hideMonthField && (
         <Field
           label="Mes"
           type="month"

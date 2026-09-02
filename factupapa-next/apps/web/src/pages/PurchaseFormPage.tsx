@@ -158,6 +158,7 @@ export function PurchaseFormPage() {
   const [documentPreviewOpen, setDocumentPreviewOpen] = useState(Boolean(importedDocumentId));
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [ocr, setOcr] = useState<ExtractedPurchase | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [lines, setLines] = useState<DraftPurchaseLine[]>([emptyLine()]);
   const selectedDocument = useRef<File | null>(null);
   const appliedImportedDocument = useRef<string | null>(null);
@@ -321,6 +322,21 @@ export function PurchaseFormPage() {
   const documentBlocksPurchase = Boolean(
     documentId && ocr && ["issued_sales_invoice", "bank_transfer_receipt", "bank_deposit_receipt", "payment_confirmation", "account_statement", "supplier_credit_note"].includes(ocr.documentType ?? ""),
   );
+  const validateForm = () => {
+    const next: Record<string, string> = {};
+    if (!supplierId) next.supplierId = "Selecciona un proveedor.";
+    if (!issueDate) next.issueDate = "Indica la fecha de la factura.";
+    lines.forEach((line) => {
+      if (!line.description.trim()) next[`${line.clientId}.description`] = "Indica el concepto.";
+      if (!line.quantity.trim() || !Number.isFinite(Number(decimal(line.quantity))) || Number(decimal(line.quantity)) <= 0) next[`${line.clientId}.quantity`] = "Indica una cantidad válida.";
+      if (!line.unitCost.trim() || !Number.isFinite(Number(decimal(line.unitCost))) || Number(decimal(line.unitCost)) < 0) next[`${line.clientId}.unitCost`] = "Indica un coste válido.";
+      if (!line.taxRate.trim() || !Number.isFinite(Number(decimal(line.taxRate))) || Number(decimal(line.taxRate)) < 0 || Number(decimal(line.taxRate)) > 100) next[`${line.clientId}.taxRate`] = "Indica un IVA válido.";
+    });
+    setFieldErrors(next);
+    const first = Object.keys(next)[0];
+    if (first) document.querySelector<HTMLElement>(`[data-field-key="${first}"]`)?.focus();
+    return Object.keys(next).length === 0;
+  };
   const save = useMutation({
     mutationFn: async () => {
       const create = () =>
@@ -594,7 +610,7 @@ export function PurchaseFormPage() {
         {documentBlocksPurchase && (
           <p className="field-help">Los campos de compra permanecen separados del documento bloqueado. Quita el documento si necesitas registrar una compra manual independiente.</p>
         )}
-        <SelectField label="Proveedor obligatorio" value={supplierId} disabled={documentBlocksPurchase} onChange={(event) => setSupplierId(event.target.value)}>
+        <SelectField label="Proveedor obligatorio" error={fieldErrors.supplierId} value={supplierId} disabled={documentBlocksPurchase} data-field-key="supplierId" onChange={(event) => { setSupplierId(event.target.value); setFieldErrors((e) => ({ ...e, supplierId: "" })); }}>
           <option value="">Selecciona un proveedor</option>
           {suppliers.data?.items.map((supplier) => (
             <option key={supplier.id} value={supplier.id}>{supplier.tradeName || supplier.legalName}</option>
@@ -621,7 +637,7 @@ export function PurchaseFormPage() {
         )}
         <Field className={confidenceClass("supplierInvoiceNumber")} hint={confidenceHint("supplierInvoiceNumber")} label="Número de factura del proveedor" disabled={documentBlocksPurchase} value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
         <div className="form-grid">
-          <Field className={confidenceClass("issueDate")} hint={confidenceHint("issueDate")} label="Fecha de emisión" type="date" disabled={documentBlocksPurchase} value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
+          <Field className={confidenceClass("issueDate")} hint={confidenceHint("issueDate")} error={fieldErrors.issueDate} label="Fecha de emisión" type="date" disabled={documentBlocksPurchase} value={issueDate} data-field-key="issueDate" onChange={(event) => { setIssueDate(event.target.value); setFieldErrors((e) => ({ ...e, issueDate: "" })); }} required />
           <Field className={confidenceClass("dueDate")} hint={confidenceHint("dueDate")} label="Fecha de vencimiento" type="date" disabled={documentBlocksPurchase} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         </div>
         <SelectField label="Categoría" value={category} disabled={documentBlocksPurchase} onChange={(event) => setCategory(event.target.value)}>
@@ -658,14 +674,14 @@ export function PurchaseFormPage() {
               <option value="">No afecta al stock</option>
               {products.data?.items.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
             </SelectField>
-            <Field label="Descripción" disabled={documentBlocksPurchase} value={line.description} onChange={(event) => patchLine(index, { description: event.target.value })} />
-            <Field label="Cantidad" inputMode="decimal" disabled={documentBlocksPurchase} value={line.quantity} onChange={(event) => patchLine(index, { quantity: event.target.value })} />
+            <Field label="Descripción" error={fieldErrors[`${line.clientId}.description`]} disabled={documentBlocksPurchase} value={line.description} data-field-key={`${line.clientId}.description`} onChange={(event) => patchLine(index, { description: event.target.value })} />
+            <Field label="Cantidad" error={fieldErrors[`${line.clientId}.quantity`]} inputMode="decimal" disabled={documentBlocksPurchase} value={line.quantity} data-field-key={`${line.clientId}.quantity`} onChange={(event) => patchLine(index, { quantity: event.target.value })} />
             <SelectField label="Unidad" value={line.unit} disabled={documentBlocksPurchase} onChange={(event) => patchLine(index, { unit: event.target.value as ProductUnit })}>
               <option value="kg">kg</option><option value="g">g</option><option value="unit">unidad</option>
               <option value="box">caja</option><option value="custom">otra</option>
             </SelectField>
-            <Field label="Coste unidad sin IVA" inputMode="decimal" disabled={documentBlocksPurchase} value={line.unitCost} onChange={(event) => patchLine(index, { unitCost: event.target.value })} />
-            <Field label="IVA %" inputMode="decimal" disabled={documentBlocksPurchase} value={line.taxRate} onChange={(event) => patchLine(index, { taxRate: event.target.value })} />
+            <Field label="Coste unidad sin IVA" error={fieldErrors[`${line.clientId}.unitCost`]} inputMode="decimal" disabled={documentBlocksPurchase} value={line.unitCost} data-field-key={`${line.clientId}.unitCost`} onChange={(event) => patchLine(index, { unitCost: event.target.value })} />
+            <Field label="IVA %" error={fieldErrors[`${line.clientId}.taxRate`]} inputMode="decimal" disabled={documentBlocksPurchase} value={line.taxRate} data-field-key={`${line.clientId}.taxRate`} onChange={(event) => patchLine(index, { taxRate: event.target.value })} />
             {lines.length > 1 && !documentBlocksPurchase && (
               <button className="icon-button" type="button" aria-label={`Eliminar concepto ${index + 1}`} onClick={() => setLines((current) => current.filter((_, position) => position !== index))}>
                 <Trash2 />
@@ -684,9 +700,9 @@ export function PurchaseFormPage() {
       {save.isError && <div className="form-alert" role="alert">{saveErrorMessage}</div>}
       <div className="sticky-submit">
         <Button
-          disabled={documentBlocksPurchase || !supplierId || !issueDate || !allLinesValid || upload.isPending}
+          disabled={documentBlocksPurchase || upload.isPending}
           busy={save.isPending}
-          onClick={() => save.mutate()}
+          onClick={() => { if (validateForm()) save.mutate(); }}
         >
           {documentBlocksPurchase ? "Documento bloqueado para compras" : "Guardar para revisión"}
         </Button>

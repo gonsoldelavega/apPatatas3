@@ -53,3 +53,13 @@ export function periodLabel(period: Period): string {
   if (period.kind === "year") return period.year;
   return "todo";
 }
+
+/** Moves a YYYY-MM value without constructing a local-time Date. */
+export function shiftYearMonth(value: string, delta: number): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const index = Number(match[1]) * 12 + Number(match[2]) - 1 + delta;
+  const year = Math.floor(index / 12);
+  const month = ((index % 12) + 12) % 12 + 1;
+  return `${year}-${String(month).padStart(2, "0")}`;
+}

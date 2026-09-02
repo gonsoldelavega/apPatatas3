@@ -9,7 +9,7 @@ import { Field } from "../ui/Field";
 import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
 import { formatMoney, formatQuantity } from "../utils/format";
-import { currentPeriod, periodLabel, periodRange } from "../utils/period";
+import { currentPeriod, periodLabel, periodRange, shiftYearMonth } from "../utils/period";
 const cats: Record<string, string> = {
     autonomo: "Cuota de autónomo",
     gestoria: "Gestoría",
@@ -219,11 +219,11 @@ export function ExpensesPage() {
       </nav>
       <section className="filter-card period-filter">
         <div className="month-quick-filter" aria-label="Mes rápido">
-          <button type="button" aria-label="Mes anterior" onClick={() => { const d = new Date(`${period.month}-01T00:00:00`); d.setMonth(d.getMonth()-1); setPeriod({ ...period, kind: "month", month: d.toISOString().slice(0,7) }); }}>‹</button>
+          <button type="button" aria-label="Mes anterior" onClick={() => setPeriod({ ...period, kind: "month", month: shiftYearMonth(period.month, -1) })}>‹</button>
           <input aria-label="Seleccionar mes" type="month" value={period.month} onChange={(e) => setPeriod({ ...period, kind: "month", month: e.target.value })} />
-          <button type="button" aria-label="Mes siguiente" onClick={() => { const d = new Date(`${period.month}-01T00:00:00`); d.setMonth(d.getMonth()+1); setPeriod({ ...period, kind: "month", month: d.toISOString().slice(0,7) }); }}>›</button>
+          <button type="button" aria-label="Mes siguiente" onClick={() => setPeriod({ ...period, kind: "month", month: shiftYearMonth(period.month, 1) })}>›</button>
         </div>
-        <PeriodPicker value={period} onChange={setPeriod} allowAll />
+        <PeriodPicker value={period} onChange={setPeriod} allowAll hideMonthField />
       </section>
       <section className="expense-overview" aria-label="Resumen de gastos del periodo">
         <div>

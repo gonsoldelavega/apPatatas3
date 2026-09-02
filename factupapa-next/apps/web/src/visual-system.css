@@ -13,9 +13,12 @@ button, .button, .compact-action { min-height: 44px; border-radius: var(--radius
 .entity-card, .form-card, .detail-card, .filter-card, .info-card, .card { border-radius: var(--radius-card); box-shadow: 0 4px 16px rgb(16 38 79 / 6%); }
 .payment-state { font-weight: 600; font-size: var(--font-size-sm); }
 .bottom-nav a, .bottom-nav button { min-width: 44px; min-height: 44px; }
-.month-quick-filter { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; }
-.month-quick-filter button { width:44px; padding:0; font-size:24px; }
-.month-quick-filter input { width:160px; text-align:center; }
+.month-quick-filter { display:flex; align-items:center; justify-content:center; gap:4px; margin-bottom:12px; padding:3px; border:1px solid color-mix(in srgb, var(--border) 65%, white); border-radius:999px; background:color-mix(in srgb, var(--surface) 82%, transparent); box-shadow:0 4px 14px rgba(18,43,33,.08); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+.month-quick-filter button { width:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; font-size:24px; color:var(--text); }
+.month-quick-filter button:active { background:color-mix(in srgb, var(--accent) 14%, transparent); }
+.month-quick-filter input { width:160px; min-height:44px; text-align:center; border:0; background:transparent; font-weight:650; }
+.month-quick-filter input:focus { outline:2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset:1px; }
+.field__error { color:var(--error,#b42318); font-size:13px; margin-top:4px; }
 .bottom-nav { border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 22px 22px 0 0; background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%); }
 .bottom-nav .nav-item--active { color: var(--chart-balance); }
 .bottom-nav__indicator { background: color-mix(in srgb, var(--chart-balance) 12%, transparent); }
