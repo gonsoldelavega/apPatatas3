@@ -181,7 +181,11 @@ test "${APP_VERSION}" = "${expected_sha}"
 # could be built below.
 cd "${infrastructure}"
 docker compose --profile public config --quiet
-docker compose build --no-cache
+# Only the migration image needs a cache-busting rebuild: its embedded SQL
+# manifest is validated against the live database.  Keep API/web layers
+# cached to avoid exhausting the small staging runner disk.
+docker compose build --no-cache migrate
+docker compose build
 cd - >/dev/null
 
 echo "Creando copia verificada previa al despliegue"
