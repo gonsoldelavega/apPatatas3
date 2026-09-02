@@ -175,6 +175,15 @@ test "${AUTH_COOKIE_PATH}" = "/api/auth"
 test "${WEB_API_BASE_URL}" = "/api"
 test "${APP_VERSION}" = "${expected_sha}"
 
+# Build the audited images before the isolated restore verification.  That
+# verification starts the migration image; using the previously cached image
+# would validate an older migration manifest and fail before the new image
+# could be built below.
+cd "${infrastructure}"
+docker compose --profile public config --quiet
+docker compose build --no-cache
+cd - >/dev/null
+
 echo "Creando copia verificada previa al despliegue"
 (
   cd "${repository}/factupapa-next/apps/api"
@@ -199,11 +208,6 @@ echo "Creando copia verificada previa al despliegue"
 
 cd "${infrastructure}"
 docker compose --profile public config --quiet
-# Rebuild from the audited checkout without reusing a potentially stale
-# migration layer.  The migration runner validates file checksums against
-# the live database, so a cached image could otherwise ship an older SQL file
-# even when the source checkout is correct.
-docker compose build --no-cache
 if ! docker compose --profile public up -d; then
   echo "El despliegue no pudo completar sus servicios; mostrando diagnóstico seguro" >&2
   docker compose --profile public logs --no-color --tail=100 provision-api-role >&2 || true
