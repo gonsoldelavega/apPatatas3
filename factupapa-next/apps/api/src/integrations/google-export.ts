@@ -92,9 +92,10 @@ export class GoogleInvoiceExporter {
     const boundary = `factupapa-purchase-${Date.now()}`;
     const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
     const file = list.files?.[0];
-    await googleFetch<Json>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
-    await this.upsertPurchaseSheets(google.token, data.purchase, data.lines, file?.id ?? null);
-    if (file?.id) await this.pool.query(`update purchase_invoice_export_events set drive_file_id=$1 where company_id=$2 and purchase_invoice_id=$3`, [file.id, companyId, purchaseId]);
+    const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+    const driveId = file?.id ?? uploaded.id ?? null;
+    await this.upsertPurchaseSheets(google.token, data.purchase, data.lines, driveId);
+    if (driveId) await this.pool.query(`update purchase_invoice_export_events set drive_file_id=$1 where company_id=$2 and purchase_invoice_id=$3`, [driveId, companyId, purchaseId]);
   }
 
   private async upsertPurchaseSheets(token: string, purchase: any, lines: any[], driveId: string | null) {
