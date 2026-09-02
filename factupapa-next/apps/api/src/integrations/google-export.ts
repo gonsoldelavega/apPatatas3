@@ -93,7 +93,11 @@ export class GoogleInvoiceExporter {
     const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
     const file = list.files?.[0];
     const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
-    const driveId = file?.id ?? uploaded.id ?? null;
+    let driveId = file?.id ?? uploaded.id ?? null;
+    if (!driveId) {
+      const confirmed = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+      driveId = confirmed.files?.[0]?.id ?? null;
+    }
     await this.upsertPurchaseSheets(google.token, data.purchase, data.lines, driveId);
     if (driveId) await this.pool.query(`update purchase_invoice_export_events set drive_file_id=$1 where company_id=$2 and purchase_invoice_id=$3`, [driveId, companyId, purchaseId]);
   }
