@@ -207,9 +207,7 @@ export function ExpensesPage() {
   return (
     <div className="page expenses-page">
       <header className="page-heading">
-        <p className="eyebrow">Compras y gastos</p>
         <h1>Compras y gastos</h1>
-        <p>Facturas de proveedores, documentos por revisar y gastos recurrentes, separados de las ventas.</p>
       </header>
       <nav className="business-tabs" aria-label="Secciones del negocio">
         <a className="active" href="#compras">Compras</a>

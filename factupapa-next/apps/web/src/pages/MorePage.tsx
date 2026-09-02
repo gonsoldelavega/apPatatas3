@@ -70,9 +70,7 @@ export function MorePage() {
   return (
     <div className="page more-page">
       <header className="page-heading">
-        <p className="eyebrow">Gestión y configuración</p>
         <h1>Otros</h1>
-        <p>Clientes, importaciones, seguridad, exportación e integraciones.</p>
       </header>
 
       <section className="profile-card">

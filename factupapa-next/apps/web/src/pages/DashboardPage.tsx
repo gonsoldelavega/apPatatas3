@@ -302,19 +302,6 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="dashboard-snapshot-grid" aria-label="Estado del negocio">
-        <Link to="/ventas">
-          <span><ReceiptText aria-hidden="true" /></span>
-          <small>Facturas pendientes</small>
-          <strong>{data ? formatMoney(data.finance.receivables) : "—"}</strong>
-        </Link>
-        <Link to="/ventas">
-          <span><WalletCards aria-hidden="true" /></span>
-          <small>Cobros vencidos</small>
-          <strong>{data ? formatMoney(data.finance.overdueReceivables) : "—"}</strong>
-        </Link>
-      </section>
-
       <section className="dashboard-section attention-premium">
         <div className="dashboard-section__heading">
           <h2>Pendientes</h2>

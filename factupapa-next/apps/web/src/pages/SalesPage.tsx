@@ -150,9 +150,7 @@ export function SalesPage() {
     <div className="page sales-page">
       <header className="page-heading page-heading--with-action">
         <div>
-          <p className="eyebrow">Cobros y facturación</p>
           <h1>Facturas</h1>
-          <p>Crea facturas directas, controla lo pendiente y registra los cobros.</p>
         </div>
         <Link className="compact-action" to="/ventas/nuevo/factura">
           <Plus aria-hidden="true" />
