@@ -1149,6 +1149,9 @@ export class FinanceService {
             ],
           );
         }
+        if (input.status === "confirmed") {
+          await c.query(`insert into purchase_invoice_export_events(company_id,purchase_invoice_id) values($1,$2) on conflict(company_id,purchase_invoice_id,event_type) do update set status=case when purchase_invoice_export_events.status='completed' then purchase_invoice_export_events.status else 'pending' end,next_attempt_at=now(),updated_at=now()`, [i.companyId, id]);
+        }
         await recordAudit(c, {
           companyId: i.companyId,
           actorUserId: i.userId,
