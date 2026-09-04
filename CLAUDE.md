@@ -1,63 +1,85 @@
-# CLAUDE.md — Guía para Claude en este proyecto
+# CLAUDE.md — Guía específica para Claude
 
-## Autorizaciones permanentes (el dueño las ha concedido)
+## Política canónica
 
-- Claude **puede fusionar Pull Requests y desplegar a producción sin pedir confirmación** cada vez.
-- Claude **puede hacer push a ramas de trabajo y a `main`** cuando el cambio esté verificado
-  (sintaxis comprobada con `node --check`) y sea coherente con lo pedido.
-- Aun así, **avisa claramente** de lo que has hecho y de cualquier riesgo relevante.
-- No reintroduzcas IA/OCR/escáner ni cambios de arquitectura grandes sin pedirlo antes.
+Lee y aplica primero `AGENTS.md`.
+
+`AGENTS.md` es la autoridad del repositorio para:
+
+- autonomía;
+- aprobaciones;
+- definición de tarea terminada;
+- verificación;
+- Git y despliegue;
+- cuándo ejecutar auditorías de datos o cierres mensuales.
+
+Este archivo añade contexto específico de Factupapa y del entorno de Claude. **No crea nuevas puertas de aprobación.** Si una frase de este archivo pudiera interpretarse como una confirmación adicional, prevalece `AGENTS.md`.
 
 ## Qué es este proyecto
 
-PWA mobile-first de facturación y gestión para un negocio pequeño (patatas/hortalizas).
-- **Fuente de verdad de las compras:** la hoja de Google Sheets `REGISTRO`
-  (`Gonsol de la Vega - Registro maestro`), que alimenta la app vía `/api/purchase-registry`.
-- **Supabase** es almacén secundario y suele estar **pausado** (plan gratis); no es la fuente principal.
-- **Sin IA, sin OCR en la app, sin escáner**: se eliminaron. No volver a meterlos.
+Factupapa es una PWA mobile-first de facturación y gestión para un negocio pequeño de patatas/hortalizas.
 
-## El agente de facturas (Google Apps Script)
+- **Fuente de verdad de las compras:** Google Sheets `REGISTRO` (`Gonsol de la Vega - Registro maestro`), consumido por `/api/purchase-registry`.
+- **Supabase** es almacenamiento secundario y puede estar pausado; no debe asumirse como fuente principal de compras.
+- **Sin IA/OCR/escáner dentro de la app:** esas funciones se eliminaron. No reintroducirlas salvo petición explícita del usuario, según `AGENTS.md`.
 
-- Proyecto `Gonsol Drive Organizer` (carpeta `apps-script/gonsol-drive-organizer/`).
-- Lee facturas de la bandeja de Drive (OCR gratis de Google), extrae datos por reglas,
-  registra en `REGISTRO` y archiva en `02_COMPRAS/<año>/<trimestre>/<mes>`.
-- Proveedores con parser propio: **GAYCA** (A04037677), **FRUTCAYCAZ/J. Expósito** (B04854154),
-  **HIGIENLAB** (B42743211). NIF propio (cliente) a excluir: `45313973V`.
-- **Regla contable clave: cada factura va a SU mes. Nunca mezclar meses.**
-- **Importación desde Gmail** (`importInvoicesFromGmail_`, config `GONSOL_GMAIL_IMPORT`):
-  coge los PDF de GAYCA del correo (posteriores a `after`, por defecto 2026/07/01),
-  los deja en la bandeja de Drive y etiqueta el hilo (`FACTURAS_IMPORTADAS`).
-  Desde que esté activo, **las facturas de GAYCA no se escanean a mano** (duplicarían).
-- Despliegue: workflow `.github/workflows/deploy-appsscript.yml` con secretos
-  `CLASP_REFRESH_TOKEN`/`CLASP_CLIENT_ID`/`CLASP_CLIENT_SECRET`/`SCRIPT_ID`.
-  **ROTO desde 2026-06-09** (`invalid_grant`: el refresh token caduca a los 7 días con
-  la app OAuth en modo "Prueba"). Arreglo pendiente del dueño: publicar la app OAuth a
-  Producción + regenerar refresh token en OAuth Playground + actualizar los 3 secretos.
-  Cambios en `Code.gs` posteriores al 2026-06-02 NO están en producción hasta entonces.
-  Tras el primer despliegue con el scope de Gmail, hay que abrir el editor de Apps
-  Script y ejecutar una función una vez para autorizar el permiso nuevo.
+## Agente de facturas de Google Apps Script
 
-## Límites técnicos del entorno (para no prometer de más)
+Proyecto: `Gonsol Drive Organizer` en `apps-script/gonsol-drive-organizer/`.
 
-- No hay acceso al editor de Google Apps Script (despliegue → vía GitHub Action o pegado manual).
-- El conector de Vercel no gestiona variables de entorno (las pone el dueño en el panel).
-- El conector de Google Drive es de lectura (no borra ni mueve archivos).
-- Supabase: hay acceso de escritura por MCP, pero el proyecto suele estar pausado.
+Responsabilidades conocidas:
 
-## Reglas de trabajo
+- lee facturas desde la bandeja de Drive usando OCR de Google;
+- extrae datos mediante reglas/parsers;
+- registra en `REGISTRO`;
+- archiva en `02_COMPRAS/<año>/<trimestre>/<mes>`;
+- importa PDFs de determinados proveedores desde Gmail cuando la configuración correspondiente está activa.
 
-- Verifica antes de subir: `node scripts/check-syntax.mjs` + `npm test` (para `.gs`, copiar a `.js` y `node --check`).
-- Mantén el español en la UI y los textos de cara al usuario.
-- El usuario trabaja a menudo desde el móvil: explica los pasos manuales muy concretos.
-- **Auto-despliegue:** tras CUALQUIER cambio verificado, ejecuta `/desplegar` **automáticamente y sin pedir confirmación** (ya está autorizado). No esperes a que el usuario lo pida.
-- **Auto-chequeo:** al empezar una sesión de trabajo sustancial, ejecuta `/revisar-datos` de forma proactiva; y si empieza un mes nuevo con datos, `/cierre-mensual`. Requisito: el token de sync. Úsalo desde `APP_SYNC_TOKEN` (variable de entorno) si existe; si no, pídelo una vez. No lo guardes en ningún archivo (repo público).
-- Flujo git: commit en la rama de trabajo → merge `--no-ff` a `main` → push (con reintentos backoff). Nunca subir el token de sync a un archivo (repo público).
-- Proveedores conocidos por NIF: `A04037677` GAYCA · `B04854154` J. Expósito · `B42743211` Higienlab · Solred/Repsol (combustible).
+Proveedores con parser/NIF conocido:
 
-## Eficiencia (para no disparar el gasto de tokens)
+- `A04037677` → FRUTAS Y PATATAS GAYCA, S.A.
+- `B04854154` → J. EXPÓSITO CAZORLA E HIJOS, S.L.
+- `B42743211` → HIGIENLAB 2020 S.L.
+- Solred/Repsol → combustible
 
-El coste crece con la LONGITUD del hilo: cada turno reenvía todo el historial. Por eso:
-- **Una conversación por tema.** Tema nuevo → chat nuevo. Cuando un hilo se alargue, usar `/compact` (resume y libera memoria sin perder el contexto). Este es el mayor ahorro.
-- **No volcar salidas grandes al contexto.** Filtrar siempre con `grep`/`python`/`head`; no imprimir listados enteros (deployments de Vercel, hilos de Gmail, JSON de estado completo, `index.html`).
-- **No leer archivos grandes enteros.** `bootstrap.js` (~3.200 líneas): usar Grep o lecturas con `offset/limit`, nunca de una vez.
-- **Respuestas al grano**, sin repetir lo ya dicho.
+NIF propio a excluir como proveedor: `45313973V`.
+
+Regla contable clave: **cada factura pertenece a su mes; nunca mezclar meses.**
+
+Cuando la importación automática de Gmail de GAYCA esté activa, no dupliques esa entrada mediante un segundo flujo manual/automático.
+
+### Despliegue de Apps Script
+
+Existe `.github/workflows/deploy-appsscript.yml` con credenciales gestionadas como secretos de GitHub.
+
+La documentación histórica indica que el flujo tuvo un problema `invalid_grant` relacionado con OAuth en modo prueba. **No asumas que ese estado histórico sigue vigente**: antes de afirmar que el despliegue de Apps Script está roto o activo, verifica el estado actual del workflow y de sus ejecuciones si las herramientas disponibles lo permiten.
+
+Tras introducir por primera vez scopes nuevos de Google, puede ser necesaria una autorización interactiva en Apps Script. Si ese paso sigue siendo necesario y no puede realizarse con las herramientas disponibles, repórtalo como bloqueo externo real; no lo conviertas en una confirmación rutinaria.
+
+## Capacidades del entorno
+
+Las capacidades de conectores cambian con el tiempo. Antes de afirmar que una operación es imposible, comprueba las herramientas disponibles en la sesión.
+
+Reglas estables:
+
+- nunca guardes `APP_SYNC_TOKEN`, OAuth tokens, claves, secretos o credenciales en el repositorio público;
+- usa variables de entorno o mecanismos de secretos cuando estén disponibles;
+- si una acción requiere una interfaz o permiso no disponible, completa primero todo lo que sí pueda hacerse y reporta únicamente el paso externo pendiente.
+
+## Reglas de trabajo específicas
+
+- Mantén español en la UI y textos de cara al usuario.
+- El usuario trabaja con frecuencia desde móvil: cuando quede un paso manual inevitable, descríbelo de forma concreta.
+- No pidas confirmación para commit, push, merge a `main` o despliegue verificado de cambios ya solicitados: esa autorización está definida en `AGENTS.md`.
+- No ejecutes auditorías de datos ni cierres mensuales como ritual al comienzo de cualquier sesión. Usa las condiciones de `AGENTS.md`.
+- Para despliegues, usa `.claude/commands/desplegar.md` o `.agents/skills/factupapa-deploy/SKILL.md`.
+- Para integridad de datos, usa `.claude/commands/revisar-datos.md` o `.agents/skills/factupapa-data-audit/SKILL.md`.
+- Para cierre mensual, usa `.claude/commands/cierre-mensual.md` o `.agents/skills/factupapa-monthly-close/SKILL.md`.
+
+## Eficiencia
+
+- Mantén el contexto enfocado en el trabajo actual.
+- No vuelques salidas enormes si basta con filtros, rangos o búsquedas dirigidas.
+- En archivos grandes, usa búsquedas y lecturas por secciones en lugar de imprimir el archivo entero cuando no sea necesario.
+- No repitas información ya confirmada.
+- La eficiencia nunca debe usarse como excusa para saltarse verificaciones necesarias o terminar una tarea a medias.
