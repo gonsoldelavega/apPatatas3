@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factupapa Quality Sweep"
+  short_description: "Audita y mejora Factupapa de extremo a extremo"
+  default_prompt: "Use $factupapa-quality-sweep to inspect Factupapa Next through all specialist quality roles, implement the authorized high-impact improvements, validate them, publish application changes, and verify the result end to end."
