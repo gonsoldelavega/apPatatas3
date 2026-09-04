@@ -7,7 +7,7 @@ create table if not exists purchase_invoice_export_events(
 create index if not exists purchase_invoice_export_due on purchase_invoice_export_events(status,next_attempt_at);
 create or replace function claim_purchase_invoice_export_events(p_limit integer default 10) returns table(id uuid, company_id uuid, purchase_invoice_id uuid) language plpgsql security definer as $$
 begin
- return query with picked as (select e.id from purchase_invoice_export_events e where e.status in ('pending','failed') and e.next_attempt_at<=now() order by e.created_at for update skip locked limit p_limit)
+ return query with picked as (select e.id from purchase_invoice_export_events e where ((e.status in ('pending','failed') and e.next_attempt_at<=now()) or (e.status='processing' and e.processing_at < now() - interval '15 minutes')) order by e.created_at for update skip locked limit p_limit)
  update purchase_invoice_export_events e set status='processing',processing_at=now(),attempt_count=e.attempt_count+1,updated_at=now() from picked where e.id=picked.id returning e.id,e.company_id,e.purchase_invoice_id;
 end $$;
 alter table purchase_invoice_export_events owner to factupapa_migrator;

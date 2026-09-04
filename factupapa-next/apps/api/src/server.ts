@@ -104,6 +104,8 @@ const googleExporter = gmail
       registrySheet: config.googleMasterSheetName,
       linesSheet: config.googleLinesSheetName,
       ...(config.googleDriveFolderId ? { folderId: config.googleDriveFolderId } : {}),
+      ...(config.googleDriveSalesFolderId ? { salesFolderId: config.googleDriveSalesFolderId } : {}),
+      ...(config.googleDrivePurchasesFolderId ? { purchasesFolderId: config.googleDrivePurchasesFolderId } : {}),
       ...(config.s3Endpoint && config.s3AccessKey && config.s3SecretKey ? { storage: { endpoint: config.s3Endpoint, bucket: config.s3Bucket, accessKey: config.s3AccessKey, secretKey: config.s3SecretKey } } : {}),
     })
   : undefined;

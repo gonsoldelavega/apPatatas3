@@ -44,6 +44,8 @@ export interface AppConfig {
   googleMasterSheetName: string;
   googleLinesSheetName: string;
   googleDriveFolderId?: string;
+  googleDriveSalesFolderId?: string;
+  googleDrivePurchasesFolderId?: string;
 }
 
 const placeholder = /^(changeme|change_me|password|secret|default|cambiar(?:_|$)|minioadmin)/i;
@@ -338,6 +340,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     googleMasterSheetName: env.GOOGLE_MASTER_SHEET_NAME?.trim() || "REGISTRO",
     googleLinesSheetName: env.GOOGLE_LINES_SHEET_NAME?.trim() || "LINEAS_FACTURA",
     ...(env.GOOGLE_DRIVE_FOLDER_ID?.trim() ? { googleDriveFolderId: env.GOOGLE_DRIVE_FOLDER_ID.trim() } : {}),
+    ...(env.GOOGLE_DRIVE_SALES_FOLDER_ID?.trim() ? { googleDriveSalesFolderId: env.GOOGLE_DRIVE_SALES_FOLDER_ID.trim() } : {}),
+    ...(env.GOOGLE_DRIVE_PURCHASES_FOLDER_ID?.trim() ? { googleDrivePurchasesFolderId: env.GOOGLE_DRIVE_PURCHASES_FOLDER_ID.trim() } : {}),
   };
 }
 

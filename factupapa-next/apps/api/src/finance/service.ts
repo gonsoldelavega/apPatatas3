@@ -1193,6 +1193,16 @@ export class FinanceService {
              where id=$1`,
         [id],
       );
+      if (status === "confirmed") {
+        await c.query(
+          `insert into purchase_invoice_export_events(company_id,purchase_invoice_id,event_type)
+           select company_id,id,'purchase_invoice_export_requested' from purchase_invoices where id=$1
+           on conflict(company_id,purchase_invoice_id,event_type) do update set
+             status=case when purchase_invoice_export_events.status='completed' then purchase_invoice_export_events.status else 'pending' end,
+             next_attempt_at=now(),updated_at=now()`,
+          [id],
+        );
+      }
       return this.getIn(c, id);
     });
   }
