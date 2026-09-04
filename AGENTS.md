@@ -168,6 +168,18 @@ A monthly close must never block unrelated application work.
 
 Use `.agents/skills/factupapa-monthly-close/SKILL.md` or `.claude/commands/cierre-mensual.md` for details.
 
+## Comprehensive quality sweeps
+
+When the user broadly asks to inspect/review **and improve, fix, polish, modernize, or raise the quality of Factupapa Next**, use `.agents/skills/factupapa-quality-sweep/SKILL.md` as the canonical orchestration workflow.
+
+- The specialist role cards live under `.agents/roles/` and cover product UX, visual design, mobile/accessibility, business QA, data/sync, architecture/performance, security/privacy, and release/regression verification.
+- `docs/quality/FACTUPAPA_QUALITY_STANDARD.md` defines the shared quality bar and severity/exit criteria.
+- Specialist passes are internal checkpoints, not approval gates.
+- If the request authorizes improvements, do not stop at an audit report: consolidate findings, implement in-scope high-confidence fixes, validate, publish application changes through `factupapa-deploy`, and re-check production.
+- If the request is inspection-only, run the same lenses read-only and report findings without modifying the project.
+- Security/privacy, business/data correctness, and accessibility/usability take precedence over purely aesthetic preferences when recommendations conflict.
+- Do not ask for `APP_SYNC_TOKEN` merely to conduct a visual/UX sweep unless protected production data is genuinely required for the requested task.
+
 ## Product standard
 
 Factupapa must feel like a premium mobile-first business app, not a generic admin template.
