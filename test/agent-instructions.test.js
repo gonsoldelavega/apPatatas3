@@ -22,6 +22,7 @@ const commands = {
 };
 
 const qualityStandard = read("docs/quality/FACTUPAPA_QUALITY_STANDARD.md");
+const qualityRolesIndex = read(".agents/roles/README.md");
 const qualityRoles = {
   lead: read(".agents/roles/quality-lead.md"),
   ux: read(".agents/roles/product-ux.md"),
@@ -117,7 +118,7 @@ test("quality team contains all non-overlapping specialist lenses", () => {
 });
 
 test("quality sweep preserves safety precedence over aesthetics", () => {
-  const qualityText = `${skills.quality}\n${qualityStandard}\n${Object.values(qualityRoles).join("\n")}`;
+  const qualityText = `${skills.quality}\n${qualityStandard}\n${qualityRolesIndex}\n${Object.values(qualityRoles).join("\n")}`;
   assert.match(qualityText, /security\/privacy > business\/data correctness > accessibility\/usability > product UX > performance\/maintainability > visual polish/);
   assert.match(qualityText, /do not weaken security or data safeguards for aesthetics/i);
   assert.match(qualityText, /destructive mutation of production business data remains subject to `AGENTS\.md` approval gates/i);
