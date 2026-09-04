@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factupapa Deploy"
+  short_description: "Publica cambios verificados hasta producción"
+  default_prompt: "Use $factupapa-deploy to publish the current authorized Factupapa application changes end to end, including verification and recovery from interrupted publish states."

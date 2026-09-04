@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factupapa Data Audit"
+  short_description: "Audita datos sin modificar registros"
+  default_prompt: "Use $factupapa-data-audit to perform a complete read-only integrity audit of Factupapa data, continue through all findings, and propose repairs without applying them."
