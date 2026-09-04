@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factupapa Monthly Close"
+  short_description: "Prepara el cierre mensual para Bongest"
+  default_prompt: "Use $factupapa-monthly-close to reconcile the requested month, prepare the attachment checklist, surface discrepancies, and create a Gmail draft when supported without sending it."
