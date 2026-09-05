@@ -21,6 +21,11 @@ concurrency:
 
 jobs:
   integration:
+    # A [deploy-staging] push already runs the complete rootless audit in the
+    # staging workflow immediately before publishing. Running the same audit
+    # here as well would serialize two identical audits on the single private
+    # runner and needlessly delay the deploy.
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[deploy-staging]') }}
     runs-on: [self-hosted, linux, x64, factupapa-next]
     timeout-minutes: 60
     env:
