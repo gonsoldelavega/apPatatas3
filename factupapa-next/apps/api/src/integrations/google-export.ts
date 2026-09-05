@@ -63,13 +63,22 @@ async function ensureDrivePath(token: string, rootId: string | undefined, issueD
   return parent;
 }
 
-async function moveDriveFile(token: string, fileId: string, destinationId: string | undefined): Promise<void> {
-  if (!destinationId) return;
+async function moveDriveFile(token: string, fileId: string, destinationId: string | undefined): Promise<boolean> {
+  if (!destinationId) return true;
   const current = await googleFetch<{ parents?: string[] }>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`);
   const oldParents = (current.parents ?? []).filter((id) => id !== destinationId);
   const params = new URLSearchParams({ addParents: destinationId, fields: "id,parents", supportsAllDrives: "true" });
   if (oldParents.length) params.set("removeParents", oldParents.join(","));
-  await googleFetch<Json>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?${params.toString()}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" });
+  try {
+    await googleFetch<Json>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?${params.toString()}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" });
+    return true;
+  } catch (error) {
+    // drive.file tokens cannot move legacy files into folders they did not
+    // create. Keep the stable file and let the controlled recovery report it
+    // as existing-but-misplaced instead of losing the accounting projection.
+    if (error instanceof Error && error.message === "google_403") return false;
+    throw error;
+  }
 }
 
 function retryAtSql() {
