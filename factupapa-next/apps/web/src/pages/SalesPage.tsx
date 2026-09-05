@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { accountsApi, contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
 import type { Invoice } from "../api/types";
+import { retryAfterSessionRenewal } from "../api/retry-renewed-write";
 import { EmptyState } from "../ui/EmptyState";
 import { Field } from "../ui/Field";
 import { PeriodPicker } from "../ui/PeriodPicker";
@@ -97,14 +98,17 @@ export function SalesPage() {
   });
   const quickCollect = useMutation({
     mutationFn: async (invoice: Invoice) => {
-      const amount = invoice.balanceDue ?? invoice.total;
-      return accountsApi.addInvoicePayment(invoice.id, {
-        amount: String(amount),
+      const amount = Math.max(0, Number(invoice.balanceDue ?? invoice.total)).toFixed(2);
+      const input = {
+        amount,
         paidAt: new Date().toISOString(),
         method: null,
         reference: null,
         notes: null,
-      });
+      };
+      return retryAfterSessionRenewal(() =>
+        accountsApi.addInvoicePayment(invoice.id, input),
+      );
     },
     onSuccess: async (_payment, invoice) => {
       await Promise.all([
@@ -114,6 +118,9 @@ export function SalesPage() {
         queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
       ]);
       toast.show("Factura marcada como cobrada.");
+    },
+    onError: () => {
+      toast.show("No se pudo registrar el cobro. Inténtalo de nuevo.");
     },
   });
 
