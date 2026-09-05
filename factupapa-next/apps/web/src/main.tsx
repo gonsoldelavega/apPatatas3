@@ -14,7 +14,7 @@ import "./factupapa-premium.css";
 // The current product palette is applied by financial-blue.css below.
 import "./verde-tinta.css";
 import "./premium-dashboard.css";
-import "./purchase-capture-access.css";
+import "./purchase-flow.css";
 import "./more-page-refinement.css";
 import "./expenses-page-refinement.css";
 import "./mobile-login-fix.css";
