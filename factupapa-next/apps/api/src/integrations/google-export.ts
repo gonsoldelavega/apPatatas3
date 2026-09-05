@@ -118,6 +118,11 @@ export class GoogleInvoiceExporter {
   }
 
   async processDue(limit = 10): Promise<number> {
+    // Recover work left in processing after a worker restart. The claim
+    // functions intentionally remain immutable; this bounded reset is safe
+    // under concurrent workers because only stale rows are reopened.
+    await this.pool.query(`update sales_invoice_export_events set status='failed',next_attempt_at=now(),updated_at=now(),last_error='stale_processing_recovered' where status='processing' and processing_at < now() - interval '15 minutes'`);
+    await this.pool.query(`update purchase_invoice_export_events set status='failed',next_attempt_at=now(),updated_at=now(),last_error='stale_processing_recovered' where status='processing' and processing_at < now() - interval '15 minutes'`);
     const claimed = await this.pool.query<{ id: string; companyId: string; invoiceId: string }>(`select id,company_id "companyId",invoice_id "invoiceId" from public.claim_sales_invoice_export_events($1)`, [limit]);
     const events = claimed.rows;
     for (const event of events) {
