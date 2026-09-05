@@ -1,4 +1,4 @@
-import { forwardRef, type SelectHTMLAttributes } from "react";
+import { forwardRef, useId, type SelectHTMLAttributes } from "react";
 
 interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
@@ -7,7 +7,9 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
   function SelectField({ label, error, id, children, ...props }, ref) {
-    const selectId = id ?? props.name;
+    const generatedId = useId();
+    const selectId = id ?? props.name ?? generatedId;
+    const errorId = error ? `${selectId}-error` : undefined;
     return (
       <label className="field" htmlFor={selectId}>
         <span className="field__label">{label}</span>
@@ -15,14 +17,16 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
           <select
             ref={ref}
             id={selectId}
+            aria-label={props["aria-label"] ?? label}
             aria-invalid={Boolean(error)}
+            aria-describedby={errorId}
             {...props}
           >
             {children}
           </select>
         </span>
         {error && (
-          <span className="field__error" role="alert">
+          <span id={errorId} className="field__error" role="alert">
             {error}
           </span>
         )}

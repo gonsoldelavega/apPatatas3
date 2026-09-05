@@ -275,7 +275,7 @@ test("compras y gastos se adapta al móvil y permite archivar un documento opcio
   await page.getByText("Más datos y documento · opcional", { exact: true }).click();
   await expect(page.getByText("Documento original", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Factupapa no lo interpreta ni crea datos desde el archivo.", { exact: true }),
+    page.getByText("Se archiva tal cual. Factupapa no lo interpreta ni crea datos desde el archivo.", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Adjuntar PDF o imagen", { exact: true })).toBeVisible();
   const fileInput = page.locator(

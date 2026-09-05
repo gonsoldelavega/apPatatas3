@@ -103,6 +103,16 @@ export class InvoiceService {
     });
   }
 
+  private async advanceReservedNumber(client: PoolClient, companyId: string, series: string, number: number) {
+    await client.query(
+      `insert into document_sequences(company_id,document_type,series,next_number)
+       values($1,'invoice',$2,$3)
+       on conflict(company_id,document_type,series)
+       do update set next_number=greatest(document_sequences.next_number,excluded.next_number)`,
+      [companyId, series, number + 1],
+    );
+  }
+
   async create(identity: SessionIdentity, input: InvoiceCreate) {
     return withTenantTransaction(this.pool, identity, async (c) => {
       if (input.number != null)
@@ -119,6 +129,8 @@ export class InvoiceService {
         input,
       );
       if (!invoice) throw new HttpError("not_found", 404);
+      if (input.number != null)
+        await this.advanceReservedNumber(c, identity.companyId, input.series, input.number);
       await recordAudit(c, {
         companyId: identity.companyId,
         actorUserId: identity.userId,
@@ -159,6 +171,8 @@ export class InvoiceService {
 
       const targetSeries = input.series ?? before.series;
       const targetNumber = input.number === undefined ? before.number : input.number;
+      if (targetNumber != null && (input.number !== undefined || input.series !== undefined))
+        await this.advanceReservedNumber(c, identity.companyId, targetSeries, targetNumber);
       if (targetNumber != null && (input.number !== undefined || input.series !== undefined))
         await this.assertNumberAvailable(
           c,
