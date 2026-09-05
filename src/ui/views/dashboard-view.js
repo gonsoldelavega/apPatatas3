@@ -4,40 +4,13 @@
     return match ? parseInt(match[1], 10) : 0;
   }
 
-  function plural(count, singular, pluralForm){
-    return `${count} ${count === 1 ? singular : pluralForm}`;
-  }
-
-  function bindMonthNavigator(){
-    if(global.__factupapaDashboardMonthNavigatorBound) return;
-    global.__factupapaDashboardMonthNavigatorBound = true;
-    document.addEventListener("click", event => {
-      const button = event.target.closest("[data-dashboard-month-step]");
-      if(!button) return;
-      const navigator = button.closest(".month-navigator");
-      const select = navigator?.querySelector('[data-search="dashboardMonth"]');
-      if(!select || select.disabled) return;
-      const step = Number(button.dataset.dashboardMonthStep || 0);
-      const nextIndex = select.selectedIndex + step;
-      if(!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= select.options.length) return;
-      select.selectedIndex = nextIndex;
-      select.dispatchEvent(new Event("change", { bubbles:true }));
-    });
-  }
-
-  bindMonthNavigator();
-
   function renderDashboardView(ctx){
     const availableMonths = Array.from(new Set([
       ...ctx.state.invoices.map(x => ctx.monthKey(x.issueDate)),
       ...ctx.state.expenses.map(x => ctx.monthKey(x.date)),
       ...ctx.state.purchases.map(x => ctx.monthKey(x.date))
     ].filter(Boolean))).sort((a, b) => String(b).localeCompare(String(a)));
-    const fallbackMonth = availableMonths[0] || ctx.today().slice(0, 7);
-    const requestedMonth = ctx.ui.search.dashboardMonth || fallbackMonth;
-    const month = availableMonths.includes(requestedMonth) ? requestedMonth : fallbackMonth;
-    const monthOptions = availableMonths.length ? availableMonths : [month];
-    const monthIndex = monthOptions.indexOf(month);
+    const month = ctx.ui.search.dashboardMonth || availableMonths[0] || ctx.today().slice(0, 7);
 
     const invoicesMonth = ctx.state.invoices
       .filter(x => ctx.monthKey(x.issueDate) === month)
@@ -87,14 +60,12 @@
     return `<div class="view-stack dashboard-home">
       <section class="home-top-grid">
         <article class="hero-primary hero-primary-compact">
-          <div class="month-navigator" aria-label="Navegar por meses">
-            <button type="button" data-dashboard-month-step="1" aria-label="Mes anterior" ${monthIndex >= monthOptions.length - 1 ? "disabled" : ""}>‹</button>
-            <div class="month-navigator-select">
+          <div class="search-shell" style="margin-bottom:14px;">
+            <div class="search-row">
               <select data-search="dashboardMonth" aria-label="Mes del balance">
-                ${monthOptions.map(key => `<option value="${ctx.esc(key)}" ${key === month ? "selected" : ""}>${ctx.esc(ctx.formatMonthLabel(key))}</option>`).join("")}
+                ${availableMonths.map(key => `<option value="${ctx.esc(key)}" ${key === month ? "selected" : ""}>${ctx.esc(ctx.formatMonthLabel(key))}</option>`).join("")}
               </select>
             </div>
-            <button type="button" data-dashboard-month-step="-1" aria-label="Mes siguiente" ${monthIndex <= 0 ? "disabled" : ""}>›</button>
           </div>
           <h2>${ctx.money(monthBalance)}</h2>
           <p>BALANCE DE ${ctx.esc(String(ctx.formatMonthLabel(month) || month).toUpperCase())}</p>
@@ -145,14 +116,14 @@
         <div class="section-title">
           <div>
             <h3>FACTURAS DEL MES</h3>
-            <p>${plural(invoicesMonth.length, "factura", "facturas")} en ${ctx.esc(ctx.formatMonthLabel(month))}</p>
+            <p>${invoicesMonth.length} factura(s) en ${ctx.esc(ctx.formatMonthLabel(month))}</p>
           </div>
           <button class="ghost" data-view="billing">VER TODAS</button>
         </div>
         ${featuredInvoices.length ? `
           <div class="dashboard-list">
             ${featuredInvoices.map(({ invoice, totals, status, tone, overdue }) => `
-              <article class="list-row list-row-interactive invoice-list-card" data-dashboard-invoice="${invoice.id}">
+              <article class="list-row list-row-interactive invoice-list-card" data-dashboard-invoice="${invoice.id}" role="button" tabindex="0">
                 <div class="invoice-card-top">
                   <div class="invoice-copy">
                     <p class="invoice-card-number">${ctx.esc(invoice.number)}</p>
@@ -160,14 +131,14 @@
                   </div>
                   <div class="price">${ctx.money(totals.total)}</div>
                 </div>
-                <p class="invoice-card-dates">EMISIÓN: ${ctx.date(invoice.issueDate)}${invoice.dueDate ? ` · VENCE: ${ctx.date(invoice.dueDate)}` : ""}</p>
+                <p class="invoice-card-dates">EMISION: ${ctx.date(invoice.issueDate)}${invoice.dueDate ? ` · VENCE: ${ctx.date(invoice.dueDate)}` : ""}</p>
                 <div class="inline-summary invoice-meta-row">
                   <button class="chip payment-chip ${tone}" data-action="update-invoice-payment" data-id="${invoice.id}">${ctx.esc(status)}</button>
                   ${overdue ? '<span class="chip danger">Vencida</span>' : ""}
                   <span class="chip ${totals.pending > 0.009 ? "warn" : "good"}">PENDIENTE: ${ctx.money(totals.pending)}</span>
                 </div>
                 <div class="card-actions">
-                  <button data-action="preview-invoice" data-id="${invoice.id}" aria-label="Ver factura ${ctx.esc(invoice.number)}">Ver</button>
+                  <button data-action="preview-invoice" data-id="${invoice.id}">Ver</button>
                   <button data-action="edit-invoice" data-id="${invoice.id}">Editar</button>
                   <button data-action="download-invoice-pdf" data-id="${invoice.id}">PDF</button>
                   <button data-action="print-invoice" data-id="${invoice.id}">Imprimir</button>

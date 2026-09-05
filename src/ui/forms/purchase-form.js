@@ -10,47 +10,38 @@
     const storedTotal = Number.isFinite(Number(item.totalAmount)) ? ctx.n(item.totalAmount) : Number.isFinite(Number(item.amount)) ? ctx.n(item.amount) : Number.isFinite(Number(item.total)) ? ctx.n(item.total) : ctx.purchaseTotal(item);
     const draft = {
       ...item,
-      totalAmount:storedTotal ? String(Number(storedTotal.toFixed(2))) : "",
-      taxAmount:storedTax ? String(Number(storedTax.toFixed(2))) : "",
-      baseAmount:storedBase ? String(Number(storedBase.toFixed(2))) : ""
+      totalAmount: storedTotal ? String(Number(storedTotal.toFixed(2))) : "",
+      taxAmount: storedTax ? String(Number(storedTax.toFixed(2))) : "",
+      baseAmount: storedBase ? String(Number(storedBase.toFixed(2))) : ""
     };
 
     global.AppUIModal.openModal(
       id ? "Editar compra" : "Nueva compra",
-      "Proveedor, fecha, cantidades y precios. Añade más datos solo si los necesitas.",
+      "Registra la compra manualmente. Las compras tambien se cargan desde el registro de Sheets.",
       `<form id="purchaseForm" class="sheet-grid">
-        <div class="field"><label>Fecha</label><input name="date" type="date" value="${ctx.esc(draft.date)}"></div>
+        <div class="field"><label>Fecha emision</label><input name="date" type="date" value="${ctx.esc(draft.date)}"></div>
         <div class="field"><label>Proveedor</label><select name="supplierId"><option value="">Selecciona proveedor</option>${ctx.state.suppliers.map(s => `<option value="${s.id}" ${draft.supplierId === s.id ? "selected" : ""}>${ctx.esc(s.name)}</option>`).join("")}</select></div>
-        <input name="totalAmount" type="hidden" value="${ctx.esc(draft.totalAmount)}">
-        <input name="taxAmount" type="hidden" value="${ctx.esc(draft.taxAmount)}">
+        <div class="field"><label>Total documento</label><input name="totalAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.totalAmount)}" placeholder="0.00" readonly></div>
+        <div class="field"><label>IVA / impuesto</label><input name="taxAmount" type="number" step="0.01" min="0" value="${ctx.esc(draft.taxAmount)}" placeholder="0.00" readonly></div>
         <div class="field" style="grid-column:1/-1;">
-          <label>Productos, kilos o unidades</label>
+          <label>Lineas de compra</label>
           <div id="purchaseLines" class="line-list"></div>
         </div>
-
-        <details class="form-optional" ${draft.attachment || draft.notes ? "open" : ""}>
-          <summary>
-            <div><strong>Nota y documento</strong><span>Solo si quieres guardar una referencia o adjunto.</span></div>
-            <span class="chip">Opcional</span>
-          </summary>
-          <div class="form-optional-body">
-            <div class="field"><label>Notas</label><textarea name="notes" placeholder="Referencia, observaciones, etc.">${ctx.esc(draft.notes || "")}</textarea></div>
-            <div class="field">
-              <label>Documento adjunto</label>
-              <div class="actions">
-                <button type="button" class="primary" id="purchaseAttachmentTrigger">Adjuntar PDF o imagen</button>
-                <button type="button" class="ghost ${draft.attachment ? "" : "hidden"}" id="purchaseAttachmentRemove">Quitar adjunto</button>
-              </div>
-              <input id="purchaseAttachmentInput" type="file" accept="application/pdf,image/*,.pdf" class="hidden">
-              <div id="purchaseAttachmentPreview">${renderAttachment(draft.attachment, ctx)}</div>
-            </div>
+        <div class="field" style="grid-column:1/-1;"><label>Notas</label><textarea name="notes" placeholder="Observaciones, referencia del proveedor, etc.">${ctx.esc(draft.notes || "")}</textarea></div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Documento adjunto</label>
+          <div class="actions">
+            <button type="button" class="primary" id="purchaseAttachmentTrigger">Importar PDF o imagen</button>
+            <button type="button" class="ghost ${draft.attachment ? "" : "hidden"}" id="purchaseAttachmentRemove">Quitar adjunto</button>
           </div>
-        </details>
-
+          <input id="purchaseAttachmentInput" type="file" accept="application/pdf,image/*,.pdf" class="hidden">
+          <div class="hint">Adjunta aqui el PDF o la imagen exportada desde Adobe Scan.</div>
+          <div id="purchaseAttachmentPreview">${renderAttachment(draft.attachment, ctx)}</div>
+        </div>
         <div class="summary" style="grid-column:1/-1;">
           <div class="summary-row"><span>Base</span><strong id="purchaseBasePreview">0,00 €</strong></div>
           <div class="summary-row"><span>IVA</span><strong id="purchaseTaxPreview">0,00 €</strong></div>
-          <div class="summary-row total"><span>Total compra</span><strong id="purchasePreview">0,00 €</strong></div>
+          <div class="summary-row"><span>Total compra</span><strong id="purchasePreview">0,00 €</strong></div>
         </div>
       </form>`,
       (body, actions) => {
@@ -118,11 +109,11 @@
           const selectedSupplierName = data.supplierId ? (ctx.getSupplier(data.supplierId)?.name || "") : "";
           const normalizedLines = lines.map(line => ({
             ...line,
-            description:String(line.description || ctx.getProduct(line.productId)?.name || "").trim(),
-            quantity:ctx.n(line.quantity),
-            price:ctx.n(line.price),
-            iva:ctx.n(line.iva),
-            ivaPct:ctx.n(line.ivaPct ?? line.iva)
+            description: String(line.description || ctx.getProduct(line.productId)?.name || "").trim(),
+            quantity: ctx.n(line.quantity),
+            price: ctx.n(line.price),
+            iva: ctx.n(line.iva),
+            ivaPct: ctx.n(line.ivaPct ?? line.iva)
           }));
 
           ctx.saveEntity("purchases", {
@@ -138,7 +129,7 @@
             total,
             amount:total,
             baseAmount:base,
-            ivaAmount,
+            ivaAmount:ivaAmount,
             totalAmount:total,
             supplier:selectedSupplierName || item.supplier || "",
             supplierName:selectedSupplierName || item.supplierName || item.supplier || "",
@@ -156,7 +147,9 @@
   }
 
   function renderAttachment(attachment, ctx){
-    if(!attachment) return '<div class="hint">Sin documento adjunto.</div>';
+    if(!attachment){
+      return '<div class="hint">Aun no has anadido ningun documento.</div>';
+    }
     const isImage = String(attachment.mimeType || "").startsWith("image/");
     return `<div class="card" style="padding:12px;">
       ${isImage ? `<img src="${attachment.dataUrl}" alt="${ctx.esc(attachment.name || "Documento adjunto")}" style="display:block;width:100%;max-height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px;">` : ""}
