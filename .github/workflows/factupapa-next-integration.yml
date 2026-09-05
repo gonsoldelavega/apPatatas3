@@ -14,7 +14,10 @@ permissions:
 
 concurrency:
   group: factupapa-next-integration-${{ github.ref }}
-  cancel-in-progress: false
+  # The private staging branch only needs the newest audited state. A stale
+  # integration run must not occupy the single rootless runner and delay the
+  # newer commit that is waiting to deploy.
+  cancel-in-progress: true
 
 jobs:
   integration:
