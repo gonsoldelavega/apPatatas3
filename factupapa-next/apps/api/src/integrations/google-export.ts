@@ -21,7 +21,7 @@ type Json = Record<string, unknown>;
 
 async function googleFetch<T>(token: string, url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(30_000) });
-  if (!response.ok) throw new Error(`google_${response.status}`);
+  if (!response.ok) throw new Error(`google_${response.status}:${new URL(url).pathname}`);
   return (await response.json()) as T;
 }
 
@@ -54,22 +54,43 @@ async function ensureDrivePath(token: string, rootId: string | undefined, issueD
   let parent = rootId;
   for (const name of [year, quarter, month]) {
     const query = `'${parent}' in parents and name='${name.replaceAll("'", "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-    const found = await googleFetch<{ files?: Array<{ id: string }> }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&pageSize=10`);
+    let found: { files?: Array<{ id: string }> };
+    try {
+      found = await googleFetch<{ files?: Array<{ id: string }> }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+    } catch (error) {
+    if (error instanceof Error && error.message.startsWith("google_403:")) return undefined;
+      throw error;
+    }
     if (found.files?.[0]?.id) { parent = found.files[0].id; continue; }
-    const created = await googleFetch<{ id?: string }>(token, "https://www.googleapis.com/drive/v3/files", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parent] }) });
+    const created = await googleFetch<{ id?: string }>(token, "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parent] }) });
     if (!created.id) throw new Error("drive_folder_id_missing");
     parent = created.id;
   }
   return parent;
 }
 
-async function moveDriveFile(token: string, fileId: string, destinationId: string | undefined): Promise<void> {
-  if (!destinationId) return;
-  const current = await googleFetch<{ parents?: string[] }>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`);
+async function moveDriveFile(token: string, fileId: string, destinationId: string | undefined): Promise<boolean> {
+  if (!destinationId) return true;
+  let current: { parents?: string[] };
+  try {
+    current = await googleFetch<{ parents?: string[] }>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents&supportsAllDrives=true`);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("google_403:")) return false;
+    throw error;
+  }
   const oldParents = (current.parents ?? []).filter((id) => id !== destinationId);
-  const params = new URLSearchParams({ addParents: destinationId, fields: "id,parents" });
+  const params = new URLSearchParams({ addParents: destinationId, fields: "id,parents", supportsAllDrives: "true" });
   if (oldParents.length) params.set("removeParents", oldParents.join(","));
-  await googleFetch<Json>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?${params.toString()}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" });
+  try {
+    await googleFetch<Json>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?${params.toString()}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" });
+    return true;
+  } catch (error) {
+    // drive.file tokens cannot move legacy files into folders they did not
+    // create. Keep the stable file and let the controlled recovery report it
+    // as existing-but-misplaced instead of losing the accounting projection.
+    if (error instanceof Error && error.message.startsWith("google_403:")) return false;
+    throw error;
+  }
 }
 
 function retryAtSql() {
@@ -118,10 +139,16 @@ export class GoogleInvoiceExporter {
   }
 
   async processDue(limit = 10): Promise<number> {
+    // Claim functions are security-definer and intentionally immutable. Do not
+    // issue tenant-scoped updates through the pool directly: RLS requires an
+    // explicit tenant context and would turn a harmless stale-row recovery
+    // attempt into an invalid UUID crash. Failed attempts are reopened by the
+    // normal retry path; an operator can safely reset an interrupted claim in
+    // a tenant-scoped maintenance transaction.
     const claimed = await this.pool.query<{ id: string; companyId: string; invoiceId: string }>(`select id,company_id "companyId",invoice_id "invoiceId" from public.claim_sales_invoice_export_events($1)`, [limit]);
     const events = claimed.rows;
     for (const event of events) {
-      try { await this.exportOne(event.companyId, event.invoiceId); await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='completed',completed_at=now(),last_error=null,updated_at=now() where id=$1`, [event.id])); }
+      try { const driveId = await this.exportOne(event.companyId, event.invoiceId); await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='completed',drive_file_id=$2,completed_at=now(),last_error=null,updated_at=now() where id=$1`, [event.id, driveId])); }
       catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "export_failed"; await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='failed',last_error=$2,next_attempt_at=${retryAtSql()},updated_at=now() where id=$1`, [event.id, message])); }
     }
     const purchases = await this.pool.query<{ id: string; companyId: string; purchaseInvoiceId: string }>(`select id,company_id "companyId",purchase_invoice_id "purchaseInvoiceId" from public.claim_purchase_invoice_export_events($1)`, [limit]);
@@ -150,14 +177,23 @@ export class GoogleInvoiceExporter {
       const bytes = Buffer.from(await object.Body.transformToByteArray());
       const metadata = { name: data.purchase.filename || `${data.purchase.invoiceNumber || purchaseId}`, mimeType: data.purchase.mimeType || "application/pdf", appProperties: { factupapa_company_id: companyId, factupapa_purchase_invoice_id: purchaseId, factupapa_document_id: data.purchase.documentId }, ...(purchaseFolder ? { parents: [purchaseFolder] } : {}) };
       const query = `appProperties has { key='factupapa_purchase_invoice_id' and value='${purchaseId}' } and trashed=false`;
-      const list = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+      const list = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
       const boundary = `factupapa-purchase-${Date.now()}`;
       const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
       const file = list.files?.[0];
-      const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+      let uploaded: { id?: string } = {};
+      try {
+        uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart&supportsAllDrives=true` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+      } catch (error) {
+        // A drive.file token may read the canonical legacy file but cannot
+        // replace it. Preserve its identity and continue the accounting
+        // projection; the controlled recovery can replace bytes with the
+        // business Drive connection when broader scope is available.
+        if (!file || !(error instanceof Error) || !error.message.startsWith("google_403:")) throw error;
+      }
       driveId = file?.id ?? uploaded.id ?? null;
       if (!driveId) {
-        const confirmed = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`);
+        const confirmed = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
         driveId = confirmed.files?.[0]?.id ?? null;
       }
       if (driveId) await moveDriveFile(google.token, driveId, purchaseFolder);
@@ -188,10 +224,10 @@ export class GoogleInvoiceExporter {
     }
   }
 
-  private async exportOne(companyId: string, invoiceId: string): Promise<void> {
+  private async exportOne(companyId: string, invoiceId: string): Promise<string | null> {
     const identity = { companyId, userId: companyId };
     const invoice = await withTenantTransaction(this.pool, identity, (client) => this.invoices.get(client, invoiceId));
-    if (!invoice || invoice.status !== "issued") return;
+    if (!invoice || invoice.status !== "issued") return null;
     const google = await this.gmail.googleAccess(identity);
     if (!google.scopes.includes(GOOGLE_DRIVE_SCOPE) || !google.scopes.includes(GOOGLE_SHEETS_SCOPE)) throw new HttpError("gmail_reauthorization_required", 409);
     const company = await this.pool.query<{ name: string; taxId: string | null; address: Record<string,string> }>(`select name,tax_id "taxId",address from companies where id=$1`, [companyId]);
@@ -199,15 +235,21 @@ export class GoogleInvoiceExporter {
     const label = invoiceLabel(invoice);
     const salesFolder = await ensureDrivePath(google.token, this.config.salesFolderId ?? this.config.folderId, invoice.issueDate);
     const metadata = { name: `${label}.pdf`, mimeType: "application/pdf", appProperties: { factupapa_company_id: companyId, factupapa_invoice_id: invoiceId }, ...(salesFolder ? { parents: [salesFolder] } : {}) };
-    const list = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`appProperties has { key='factupapa_invoice_id' and value='${invoiceId}' } and trashed=false`)}&fields=files(id)`);
+    const list = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`appProperties has { key='factupapa_invoice_id' and value='${invoiceId}' } and trashed=false`)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
     const boundary = `factupapa-${Date.now()}`;
     const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`), pdf, Buffer.from(`\r\n--${boundary}--\r\n`)]);
     const file = list.files?.[0];
-    const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+    let uploaded: { id?: string } = {};
+    try {
+      uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart&supportsAllDrives=true` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+    } catch (error) {
+      if (!file || !(error instanceof Error) || !error.message.startsWith("google_403:")) throw error;
+    }
     const driveId = file?.id ?? uploaded.id ?? null;
     if (!driveId) throw new Error("drive_file_id_missing");
     await moveDriveFile(google.token, driveId, salesFolder);
     await this.upsertSheets(google.token, invoice, label, driveId);
+    return driveId;
   }
 
   private async upsertSheets(token: string, invoice: Awaited<ReturnType<InvoiceRepository["get"]>>, label: string, driveId: string | null) {
