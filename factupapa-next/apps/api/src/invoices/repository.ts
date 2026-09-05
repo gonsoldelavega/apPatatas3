@@ -92,7 +92,7 @@ export class InvoiceRepository {
       `insert into invoices(company_id,contact_id,direction,series,number,issue_date,due_date,operation_start_date,operation_end_date,delivery_dates,payment_terms,general_information,
          status, notes, source, source_type, created_by_user_id, contact_legal_name, contact_tax_id, contact_address,
          issuer_legal_name, issuer_tax_id, issuer_address)
-       values($1,$2,'sale',$3,null,$4,coalesce($5,case when $14::boolean then $4::date + $22::integer else null end),$6,$7,$8,coalesce($9,case when $14::boolean then $23::text else null end),coalesce($10,case when $14::boolean then $15::text else null end),'draft',$11,'native',$12,$13,$16,$17,$18,$19,$20,$21)
+       values($1,$2,'sale',$3,$24,$4,coalesce($5,case when $14::boolean then $4::date + $22::integer else null end),$6,$7,$8,coalesce($9,case when $14::boolean then $23::text else null end),coalesce($10,case when $14::boolean then $15::text else null end),'draft',$11,'native',$12,$13,$16,$17,$18,$19,$20,$21)
        returning id`,
       [
         companyId,
@@ -118,6 +118,7 @@ export class InvoiceRepository {
         issuer.address,
         snapshot.paymentTermsDays || STANDARD_PAYMENT_DAYS,
         snapshot.paymentTermsText,
+        input.number ?? null,
       ],
     );
     return this.get(client, result.rows[0]!.id);
