@@ -41,31 +41,26 @@ function applyTheme(theme: ThemeChoice) {
   }
 }
 
-const gmailSyncLabel = (value: string | null) => {
-  if (!value) return "Todavía no se ha revisado la bandeja.";
-  return `Última revisión: ${new Intl.DateTimeFormat("es-ES", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value))}`;
-};
-
 export function MorePage() {
   const auth = useAuth();
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const gmail = useQuery({ queryKey: ["gmail-connection"], queryFn: gmailApi.status });
-  const connectGmail = useMutation({
+  const google = useQuery({ queryKey: ["gmail-connection"], queryFn: gmailApi.status });
+  const connectGoogle = useMutation({
     mutationFn: gmailApi.connect,
     onSuccess: ({ url }) => window.location.assign(url),
   });
-  const disconnectGmail = useMutation({
+  const disconnectGoogle = useMutation({
     mutationFn: gmailApi.disconnect,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["gmail-connection"] });
     },
   });
-  const gmailResult = searchParams.get("gmail");
+  const googleResult = searchParams.get("gmail");
+  const googleReady = Boolean(
+    google.data?.connected && google.data.canWriteDrive && google.data.canWriteSheets,
+  );
 
   return (
     <div className="page more-page">
@@ -153,7 +148,7 @@ export function MorePage() {
           <a href="#integraciones">
             <Mail aria-hidden="true" />
             <strong>Integraciones</strong>
-            <small>Gmail y servicios</small>
+            <small>Google y servicios</small>
           </a>
         </div>
       </section>
@@ -163,102 +158,103 @@ export function MorePage() {
           Integraciones
         </h2>
         <div className="more-card-grid">
-          <section id="integraciones" className="info-card integration-card" aria-label="Estado de Gmail">
+          <section
+            id="integraciones"
+            className="info-card integration-card"
+            aria-label="Estado de la integración de Google"
+          >
             <span className="info-card__icon info-card__icon--mail">
               <Mail />
             </span>
             <div className="info-card__body">
               <div className="integration-card__heading">
-                <h2>Gmail</h2>
-                <span className={`connection-status ${gmail.data?.connected ? "connection-status--on" : "connection-status--off"}`}>
-                  {gmail.isLoading
+                <h2>Google</h2>
+                <span
+                  className={`connection-status ${
+                    googleReady ? "connection-status--on" : "connection-status--off"
+                  }`}
+                >
+                  {google.isLoading
                     ? "Comprobando"
-                    : gmail.data?.connected
-                      ? gmail.data.canRead ? "Conectado" : "Falta autorizar lectura"
-                      : gmail.data?.available === false
-                        ? "No disponible"
-                        : "No conectado"}
+                    : googleReady
+                      ? "Conectado"
+                      : google.data?.connected
+                        ? "Permisos incompletos"
+                        : google.data?.available === false
+                          ? "No disponible"
+                          : "No conectado"}
                 </span>
               </div>
               <p>
-                {gmail.data?.connected
-                  ? gmail.data.canRead
-                    ? `Cuenta autorizada: ${gmail.data.email}. Gmail: conectado · Drive: ${gmail.data.canWriteDrive ? "autorizado" : "pendiente"} · Registro Maestro: ${gmail.data.canWriteSheets ? "autorizado" : "pendiente"}.`
-                    : `La cuenta ${gmail.data.email} conserva el permiso de envío, pero necesita autorizar una vez la lectura para importar facturas recibidas.`
-                  : gmail.data?.available === false
-                    ? "La conexión de Gmail no está configurada en este entorno."
-                    : "Tu inicio de sesión identifica la cuenta, pero Gmail necesita un permiso separado de solo envío."}
+                {google.data?.connected
+                  ? `Cuenta: ${google.data.email ?? "Google"}. Drive: ${
+                      google.data.canWriteDrive ? "autorizado" : "pendiente"
+                    } · Registro Maestro: ${
+                      google.data.canWriteSheets ? "autorizado" : "pendiente"
+                    }.${google.data.canRead ? " Gmail disponible para funciones explícitas de correo." : ""}`
+                  : google.data?.available === false
+                    ? "La integración de Google no está configurada en este entorno."
+                    : "Conecta la cuenta del negocio para autorizar Drive, Registro Maestro y las funciones explícitas de correo que utilices desde Factupapa."}
               </p>
-              {gmail.data?.connected && gmail.data.canRead && (
-                <p className={`gmail-sync-state gmail-sync-state--${gmail.data.lastInboxSyncStatus ?? "idle"}`}>
-                  <strong>
-                    {gmail.data.lastInboxSyncStatus === "failed"
-                      ? "La última revisión falló"
-                      : gmail.data.lastInboxSyncStatus === "running"
-                        ? "Revisando Gmail"
-                        : "Sincronización automática activa"}
-                  </strong>
-                  <span>{gmailSyncLabel(gmail.data.lastInboxSyncAt)}</span>
-                  <small>Se revisa automáticamente cada 6 horas.</small>
+              <p className="integration-card__note">
+                Las compras no se crean automáticamente desde adjuntos de Gmail. El flujo de entrada pasa por el Registro Maestro y se importa de forma supervisada desde Gastos.
+              </p>
+              {googleResult === "success" && (
+                <p className="integration-feedback integration-feedback--success">
+                  Google se ha conectado correctamente.
                 </p>
               )}
-              {gmailResult === "success" && (
-                <p className="integration-feedback integration-feedback--success">Gmail se ha conectado correctamente.</p>
-              )}
-              {gmailResult === "error" && (
-                <p className="integration-feedback integration-feedback--error">No se pudo conectar Gmail. Inténtalo de nuevo.</p>
+              {googleResult === "error" && (
+                <p className="integration-feedback integration-feedback--error">
+                  No se pudo conectar Google. Inténtalo de nuevo.
+                </p>
               )}
               <div className="integration-card__actions">
-                {gmail.data?.connected && (!gmail.data.canWriteDrive || !gmail.data.canWriteSheets) ? (
+                {google.data?.connected ? (
                   <>
-                    <Button
-                      busy={connectGmail.isPending}
-                      disabled={gmail.isLoading || gmail.isError}
-                      onClick={() => connectGmail.mutate()}
-                    >
-                      Autorizar Drive y Registro Maestro
-                    </Button>
+                    {!googleReady && (
+                      <Button
+                        busy={connectGoogle.isPending}
+                        disabled={google.isLoading || google.isError}
+                        onClick={() => connectGoogle.mutate()}
+                      >
+                        Completar permisos Google
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
-                      busy={disconnectGmail.isPending}
+                      busy={disconnectGoogle.isPending}
                       onClick={() => {
-                        if (window.confirm("¿Desconectar esta cuenta de Gmail?")) disconnectGmail.mutate();
+                        if (window.confirm("¿Desconectar esta cuenta de Google?"))
+                          disconnectGoogle.mutate();
                       }}
                     >
-                      Desconectar Gmail
+                      Desconectar Google
                     </Button>
                   </>
-                ) : gmail.data?.connected && gmail.data.canRead ? (
-                  <Button
-                    variant="secondary"
-                    busy={disconnectGmail.isPending}
-                    onClick={() => {
-                      if (window.confirm("¿Desconectar esta cuenta de Gmail?"))
-                        disconnectGmail.mutate();
-                    }}
-                  >
-                    Desconectar Gmail
-                  </Button>
                 ) : (
                   <Button
-                    busy={connectGmail.isPending}
-                    disabled={gmail.isLoading || gmail.isError || gmail.data?.available === false}
+                    busy={connectGoogle.isPending}
+                    disabled={
+                      google.isLoading ||
+                      google.isError ||
+                      google.data?.available === false
+                    }
                     onClick={() => {
-                      if (gmailResult) {
+                      if (googleResult) {
                         const next = new URLSearchParams(searchParams);
                         next.delete("gmail");
                         setSearchParams(next, { replace: true });
                       }
-                      connectGmail.mutate();
+                      connectGoogle.mutate();
                     }}
                   >
-                    {gmail.data?.connected && (!gmail.data.canWriteDrive || !gmail.data.canWriteSheets) ? "Autorizar Drive y Registro Maestro" : gmail.data?.connected ? "Reconectar Google" : "Conectar Gmail"}
+                    Conectar Google
                   </Button>
                 )}
               </div>
             </div>
           </section>
-
         </div>
       </section>
 
@@ -321,11 +317,7 @@ export function MorePage() {
         </div>
       </section>
 
-      <Button
-        variant="danger"
-        icon={<LogOut />}
-        onClick={() => void auth.logout()}
-      >
+      <Button variant="danger" icon={<LogOut />} onClick={() => void auth.logout()}>
         Cerrar sesión
       </Button>
 
