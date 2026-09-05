@@ -54,7 +54,13 @@ async function ensureDrivePath(token: string, rootId: string | undefined, issueD
   let parent = rootId;
   for (const name of [year, quarter, month]) {
     const query = `'${parent}' in parents and name='${name.replaceAll("'", "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-    const found = await googleFetch<{ files?: Array<{ id: string }> }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+    let found: { files?: Array<{ id: string }> };
+    try {
+      found = await googleFetch<{ files?: Array<{ id: string }> }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+    } catch (error) {
+      if (error instanceof Error && error.message === "google_403") return undefined;
+      throw error;
+    }
     if (found.files?.[0]?.id) { parent = found.files[0].id; continue; }
     const created = await googleFetch<{ id?: string }>(token, "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parent] }) });
     if (!created.id) throw new Error("drive_folder_id_missing");
