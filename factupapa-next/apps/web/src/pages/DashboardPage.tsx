@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
-  Camera,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -29,7 +28,6 @@ import {
   contactsApi,
   deliveryNotesApi,
   financeApi,
-  gmailApi,
   importsApi,
   invoicesApi,
 } from "../api/services";
@@ -80,8 +78,6 @@ interface DashboardSummary {
   pendingImports: number;
   failedImports: number;
   pendingNotes: number;
-  pendingPurchaseDocuments: number;
-  gmailSyncFailed: boolean;
   issuedInvoices: number;
   finance: FinanceSummary;
   monthly: MonthlyFinanceSummary[];
@@ -99,8 +95,6 @@ const previewSummary: DashboardSummary = {
   pendingImports: 1,
   failedImports: 0,
   pendingNotes: 3,
-  pendingPurchaseDocuments: 2,
-  gmailSyncFailed: false,
   issuedInvoices: 14,
   finance: {
     sales: "3420.00",
@@ -213,21 +207,18 @@ export function DashboardPage() {
     queryKey: ["dashboard-summary", selectedMonth],
     enabled: !isPreview,
     queryFn: async (): Promise<DashboardSummary> => {
-      const [customers, imports, notes, purchaseDocuments, gmail, invoices, finance, monthly] =
-        await Promise.all([
-          contactsApi.list({ isActive: true, pageSize: 1 }),
-          importsApi.list(1, 100),
-          deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
-          financeApi.pendingPurchaseDocuments(),
-          gmailApi.status(),
-          invoicesApi.list({
-            pageSize: 100,
-            from: selectedRange.from,
-            to: selectedRange.to,
-          }),
-          financeApi.summary(selectedRange.from, selectedRange.to),
-          financeApi.monthlySummary(6),
-        ]);
+      const [customers, imports, notes, invoices, finance, monthly] = await Promise.all([
+        contactsApi.list({ isActive: true, pageSize: 1 }),
+        importsApi.list(1, 100),
+        deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
+        invoicesApi.list({
+          pageSize: 100,
+          from: selectedRange.from,
+          to: selectedRange.to,
+        }),
+        financeApi.summary(selectedRange.from, selectedRange.to),
+        financeApi.monthlySummary(6),
+      ]);
 
       return {
         customers: customers.total,
@@ -236,8 +227,6 @@ export function DashboardPage() {
         ).length,
         failedImports: imports.items.filter((item) => item.status === "failed").length,
         pendingNotes: notes.total,
-        pendingPurchaseDocuments: purchaseDocuments.length,
-        gmailSyncFailed: gmail.connected && gmail.lastInboxSyncStatus === "failed",
         issuedInvoices: invoices.items.filter((invoice) => invoice.status === "issued").length,
         finance,
         monthly,
@@ -250,6 +239,7 @@ export function DashboardPage() {
 
   const data = isPreview ? previewSummary : summary.data;
   const result = Number(data?.finance.balance ?? 0);
+
   return (
     <div className="page dashboard-page dashboard-premium">
       <header className="dashboard-topbar dashboard-topbar--minimal">
@@ -318,8 +308,8 @@ export function DashboardPage() {
             <span><strong>Nueva factura</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
-          <Link className="dashboard-action dashboard-action--capture" to="/gastos/nuevo?captura=1">
-            <Camera aria-hidden="true" />
+          <Link className="dashboard-action dashboard-action--purchase" to="/gastos/nuevo">
+            <ReceiptText aria-hidden="true" />
             <span><strong>Registrar compra</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
@@ -354,17 +344,6 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {Boolean(data?.pendingPurchaseDocuments) && (
-            <Link to="/gastos#recibidas-gmail" className="attention-row attention-row--gmail">
-              <ReceiptText aria-hidden="true" />
-              <span>
-                <strong>
-                  {data?.pendingPurchaseDocuments} factura{data?.pendingPurchaseDocuments === 1 ? "" : "s"} de Gmail por revisar
-                </strong>
-              </span>
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          )}
           {Number(data?.finance.receivables ?? 0) > Number(data?.finance.overdueReceivables ?? 0) && (
             <Link to="/ventas" className="attention-row">
               <WalletCards aria-hidden="true" />
@@ -386,16 +365,14 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {data?.gmailSyncFailed && (
-            <Link to="/mas#integraciones" className="attention-row attention-row--danger">
-              <CircleAlert aria-hidden="true" />
-              <span><strong>Error al revisar Gmail</strong></span>
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          )}
-          {!summary.isLoading && !Number(data?.finance.receivables ?? 0) && !data?.finance.criticalStockProducts && !data?.pendingNotes && !data?.pendingImports && !data?.failedImports && !data?.pendingPurchaseDocuments && !data?.gmailSyncFailed && (
-            <p className="dashboard-all-clear">Sin pendientes</p>
-          )}
+          {!summary.isLoading &&
+            !Number(data?.finance.receivables ?? 0) &&
+            !data?.finance.criticalStockProducts &&
+            !data?.pendingNotes &&
+            !data?.pendingImports &&
+            !data?.failedImports && (
+              <p className="dashboard-all-clear">Sin pendientes</p>
+            )}
         </div>
       </section>
 
@@ -444,7 +421,14 @@ export function DashboardPage() {
         {data?.monthly.length ? (
           <div className="premium-chart" aria-label="Ingresos y balance por mes">
             <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={data.monthly.map((row) => ({ label: monthLabel(row.month), Ingresos: Number(row.sales), Balance: Number(row.balance) }))} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+              <ComposedChart
+                data={data.monthly.map((row) => ({
+                  label: monthLabel(row.month),
+                  Ingresos: Number(row.sales),
+                  Balance: Number(row.balance),
+                }))}
+                margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+              >
                 <CartesianGrid stroke="var(--line)" vertical={false} />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 11 }} />
                 <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "var(--muted)", fontSize: 10 }} tickFormatter={compactEuros} />
