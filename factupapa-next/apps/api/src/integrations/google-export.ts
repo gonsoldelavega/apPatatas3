@@ -21,7 +21,7 @@ type Json = Record<string, unknown>;
 
 async function googleFetch<T>(token: string, url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(30_000) });
-  if (!response.ok) throw new Error(`google_${response.status}`);
+  if (!response.ok) throw new Error(`google_${response.status}:${new URL(url).pathname}`);
   return (await response.json()) as T;
 }
 
@@ -58,7 +58,7 @@ async function ensureDrivePath(token: string, rootId: string | undefined, issueD
     try {
       found = await googleFetch<{ files?: Array<{ id: string }> }>(token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`);
     } catch (error) {
-      if (error instanceof Error && error.message === "google_403") return undefined;
+    if (error instanceof Error && error.message.startsWith("google_403:")) return undefined;
       throw error;
     }
     if (found.files?.[0]?.id) { parent = found.files[0].id; continue; }
@@ -75,7 +75,7 @@ async function moveDriveFile(token: string, fileId: string, destinationId: strin
   try {
     current = await googleFetch<{ parents?: string[] }>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents&supportsAllDrives=true`);
   } catch (error) {
-    if (error instanceof Error && error.message === "google_403") return false;
+    if (error instanceof Error && error.message.startsWith("google_403:")) return false;
     throw error;
   }
   const oldParents = (current.parents ?? []).filter((id) => id !== destinationId);
@@ -88,7 +88,7 @@ async function moveDriveFile(token: string, fileId: string, destinationId: strin
     // drive.file tokens cannot move legacy files into folders they did not
     // create. Keep the stable file and let the controlled recovery report it
     // as existing-but-misplaced instead of losing the accounting projection.
-    if (error instanceof Error && error.message === "google_403") return false;
+    if (error instanceof Error && error.message.startsWith("google_403:")) return false;
     throw error;
   }
 }
