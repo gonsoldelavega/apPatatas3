@@ -58,9 +58,8 @@ jobs:
         run: bash factupapa-next/scripts/install-staging-control-worker.sh
 
       - name: Return a sanitized result to the private task branch
-        if: always()
+        if: ${{ always() && !inputs.bootstrap_worker }}
         shell: bash
-        if: ${{ !inputs.bootstrap_worker }}
         run: |
           set -Eeuo pipefail
           git config user.name 'FactuPapa staging control'
