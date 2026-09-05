@@ -71,7 +71,13 @@ async function ensureDrivePath(token: string, rootId: string | undefined, issueD
 
 async function moveDriveFile(token: string, fileId: string, destinationId: string | undefined): Promise<boolean> {
   if (!destinationId) return true;
-  const current = await googleFetch<{ parents?: string[] }>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`);
+  let current: { parents?: string[] };
+  try {
+    current = await googleFetch<{ parents?: string[] }>(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents&supportsAllDrives=true`);
+  } catch (error) {
+    if (error instanceof Error && error.message === "google_403") return false;
+    throw error;
+  }
   const oldParents = (current.parents ?? []).filter((id) => id !== destinationId);
   const params = new URLSearchParams({ addParents: destinationId, fields: "id,parents", supportsAllDrives: "true" });
   if (oldParents.length) params.set("removeParents", oldParents.join(","));
