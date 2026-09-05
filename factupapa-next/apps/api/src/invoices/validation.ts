@@ -23,6 +23,12 @@ function series(value: unknown): string {
     throw new HttpError("invalid_request", 400);
   return result.toUpperCase();
 }
+function invoiceNumber(value: unknown): number {
+  const result = typeof value === "string" && value.trim() ? Number(value) : value;
+  if (!Number.isInteger(result) || Number(result) < 1 || Number(result) > 999_999_999)
+    throw new HttpError("invalid_request", 400);
+  return Number(result);
+}
 function date(value: unknown): string {
   return (
     isoDate(value) ??
@@ -32,12 +38,17 @@ function date(value: unknown): string {
   );
 }
 
+export function validateInvoiceNumberPreview(seriesValue: unknown, issueDateValue: unknown) {
+  return { series: series(seriesValue), issueDate: date(issueDateValue) };
+}
+
 export function validateInvoiceCreate(
   body: Record<string, unknown>,
 ): InvoiceCreate {
   assertAllowedKeys(body, [
     "contactId",
     "series",
+    "number",
     "issueDate",
     "dueDate",
     "notes",
@@ -51,6 +62,9 @@ export function validateInvoiceCreate(
   const result: InvoiceCreate = {
     contactId: uuid(body.contactId),
     series: series(body.series ?? "F"),
+    ...(body.number === undefined || body.number === null
+      ? {}
+      : { number: invoiceNumber(body.number) }),
     issueDate: date(body.issueDate),
     ...(body.dueDate === undefined || body.dueDate === null
       ? {}
@@ -84,6 +98,7 @@ export function validateInvoicePatch(
     [
       "contactId",
       "series",
+      "number",
       "issueDate",
       "dueDate",
       "notes",
@@ -100,6 +115,9 @@ export function validateInvoicePatch(
       ? {}
       : { contactId: uuid(body.contactId) }),
     ...(body.series === undefined ? {} : { series: series(body.series) }),
+    ...(body.number === undefined
+      ? {}
+      : { number: body.number === null ? null : invoiceNumber(body.number) }),
     ...(body.issueDate === undefined
       ? {}
       : { issueDate: date(body.issueDate) }),

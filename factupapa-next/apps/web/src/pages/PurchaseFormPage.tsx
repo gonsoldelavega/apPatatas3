@@ -1,18 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  Building2,
-  Camera,
-  FileCheck2,
-  FileUp,
-  Plus,
-  RefreshCw,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Building2, FileCheck2, FileUp, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
 import { apiClient, ApiError } from "../api/client";
@@ -22,57 +11,13 @@ import { SelectField } from "../ui/SelectField";
 import { todayLocal } from "../utils/format";
 
 type DraftPurchaseLine = PurchaseLineInput & { clientId: string };
-type Confidence = "high" | "medium" | "low";
-type DocumentType =
-  | "supplier_invoice"
-  | "issued_sales_invoice"
-  | "supplier_credit_note"
-  | "bank_transfer_receipt"
-  | "bank_deposit_receipt"
-  | "payment_confirmation"
-  | "delivery_note"
-  | "account_statement"
-  | "non_fiscal_document"
-  | "unknown";
-type ExtractedPurchase = {
-  documentType?: DocumentType;
-  classificationConfidence?: number;
-  classificationEvidence?: Array<{ page?: number; field?: string; quote: string }>;
-  classificationReasons?: string[];
-  purchaseEligible?: boolean;
-  blockingReasons?: string[];
-  issuerName?: string;
-  issuerTaxId?: string;
-  recipientName?: string;
-  recipientTaxId?: string;
-  currency?: string;
-  supplierId?: string;
-  supplierName?: string;
-  supplierTaxId?: string;
-  supplierInvoiceNumber?: string;
-  issueDate?: string;
-  dueDate?: string;
-  subtotal?: string;
-  taxTotal?: string;
-  total?: string;
-  concept?: string;
-  purchasedSacks?: number;
-  purchasedQuantityKg?: string;
-  lines?: Array<{
-    description: string;
-    quantity: string;
-    unit: "kg" | "g" | "unit";
-    unitCost: string;
-    taxRate: string;
-    discount?: string;
-    lineTotal?: string;
-  }>;
-  ocrConfidence?: number;
-  source?: "pdf_text" | "ocr" | "vision";
-  fieldConfidence?: Record<string, Confidence>;
-  warnings?: string[];
+type ArchivedDocument = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  byteSize: string;
+  status: string;
 };
-type PurchaseDocumentResponse = { id: string; extractedData: ExtractedPurchase };
 
 const emptyLine = (): DraftPurchaseLine => ({
   clientId: crypto.randomUUID(),
@@ -83,9 +28,29 @@ const emptyLine = (): DraftPurchaseLine => ({
   unitCost: "",
   taxRate: "4",
 });
+
 const decimal = (value: string) => value.replace(",", ".");
 const documentAccept = "application/pdf,image/jpeg,image/png,image/heic,image/heif";
-const lineIsValid = (line: DraftPurchaseLine) => {
+
+const encoded = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
+    reader.readAsDataURL(file);
+  });
+
+function mimeFor(file: File) {
+  if (file.type) return file.type;
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".heic")) return "image/heic";
+  if (name.endsWith(".heif")) return "image/heif";
+  return "image/jpeg";
+}
+
+function lineIsValid(line: DraftPurchaseLine) {
   const quantity = Number(decimal(line.quantity));
   const unitCost = Number(decimal(line.unitCost));
   const taxRate = Number(decimal(line.taxRate));
@@ -102,46 +67,10 @@ const lineIsValid = (line: DraftPurchaseLine) => {
       taxRate >= 0 &&
       taxRate <= 100,
   );
-};
-const encoded = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
-    reader.readAsDataURL(file);
-  });
-
-const documentTypeLabel = (type?: DocumentType) =>
-  ({
-    supplier_invoice: "Factura de proveedor",
-    issued_sales_invoice: "Factura de venta emitida por nosotros",
-    supplier_credit_note: "Factura rectificativa / abono de proveedor",
-    bank_transfer_receipt: "Justificante de transferencia bancaria",
-    bank_deposit_receipt: "Justificante de ingreso o abono bancario",
-    payment_confirmation: "Confirmación o recibo de pago",
-    delivery_note: "Albarán",
-    account_statement: "Extracto bancario",
-    non_fiscal_document: "Documento no fiscal",
-    unknown: "Documento sin clasificar",
-  } satisfies Record<DocumentType, string>)[type ?? "unknown"];
-
-const blockingReasonLabel = (reason: string) =>
-  ({
-    document_type_not_supplier_invoice: "No es una factura normal de proveedor.",
-    external_issuer_not_proven: "No se ha demostrado que el emisor sea un proveedor externo.",
-    own_company_recipient_not_proven: "No se ha demostrado que nuestra empresa sea el receptor de la factura.",
-    invoice_number_missing: "Falta el número de factura.",
-    issue_date_missing: "Falta la fecha de emisión.",
-    total_missing: "Falta el total.",
-    totals_mismatch: "Base, IVA y total no cuadran.",
-    classification_confidence_low: "La clasificación documental no tiene confianza suficiente.",
-    own_company_is_issuer: "Nuestra empresa figura como emisora: este documento nunca puede ser una compra.",
-  })[reason] ?? reason;
+}
 
 export function PurchaseFormPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const importedDocumentId = searchParams.get("document");
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
   const [showSupplierCreate, setShowSupplierCreate] = useState(false);
@@ -155,13 +84,9 @@ export function PurchaseFormPage() {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
-  const [documentPreviewOpen, setDocumentPreviewOpen] = useState(Boolean(importedDocumentId));
   const [documentError, setDocumentError] = useState<string | null>(null);
-  const [ocr, setOcr] = useState<ExtractedPurchase | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [lines, setLines] = useState<DraftPurchaseLine[]>([emptyLine()]);
-  const selectedDocument = useRef<File | null>(null);
-  const appliedImportedDocument = useRef<string | null>(null);
 
   const suppliers = useQuery({
     queryKey: ["purchase-suppliers"],
@@ -171,11 +96,6 @@ export function PurchaseFormPage() {
     queryKey: ["purchase-products"],
     queryFn: () => productsApi.list({ isActive: true, pageSize: 100 }),
   });
-  const importedDocument = useQuery({
-    queryKey: ["pending-purchase-document", importedDocumentId],
-    queryFn: () => financeApi.pendingPurchaseDocument(importedDocumentId!),
-    enabled: Boolean(importedDocumentId),
-  });
 
   const patchLine = (index: number, value: Partial<PurchaseLineInput>) =>
     setLines((current) =>
@@ -183,101 +103,6 @@ export function PurchaseFormPage() {
         position === index ? { ...line, ...value } : line,
       ),
     );
-
-  const suggestProductId = (description: string, unit: ProductUnit) => {
-    const normalized = description.trim().toLowerCase();
-    if (!normalized) return null;
-    const exact = products.data?.items.find(
-      (product) =>
-        product.unit === unit &&
-        normalized.includes(product.name.trim().toLowerCase()),
-    );
-    if (exact) return exact.id;
-    const sameUnit = products.data?.items.filter((product) => product.unit === unit) ?? [];
-    return sameUnit.length === 1 && unit === "kg" ? sameUnit[0].id : null;
-  };
-
-  const applyExtractedData = (id: string, extractedData: ExtractedPurchase) => {
-    setDocumentId(id);
-    setOcr(extractedData);
-    const purchaseAllowed =
-      extractedData.documentType === "supplier_invoice" &&
-      extractedData.purchaseEligible === true;
-    if (!purchaseAllowed) return;
-    if (extractedData.supplierId) setSupplierId(extractedData.supplierId);
-    setNewSupplierName(extractedData.supplierName ?? "");
-    setNewSupplierTaxId(extractedData.supplierTaxId ?? "");
-    if (extractedData.supplierInvoiceNumber)
-      setSupplierInvoiceNumber(extractedData.supplierInvoiceNumber);
-    if (extractedData.issueDate) setIssueDate(extractedData.issueDate);
-    if (extractedData.dueDate) setDueDate(extractedData.dueDate);
-    if (extractedData.lines?.length) {
-      setLines(
-        extractedData.lines.map(({ discount, lineTotal, ...line }) => ({
-          clientId: crypto.randomUUID(),
-          productId: suggestProductId(line.description, line.unit),
-          ...line,
-          unitCost:
-            lineTotal && Number(line.quantity) > 0 && Number(discount ?? 0) !== 0
-              ? String(Math.round((Number(lineTotal) / Number(line.quantity)) * 10_000) / 10_000)
-              : line.unitCost,
-        })),
-      );
-    } else if (
-      extractedData.concept ||
-      extractedData.subtotal ||
-      extractedData.purchasedQuantityKg
-    ) {
-      const quantity = extractedData.purchasedQuantityKg ?? "1";
-      const subtotal = extractedData.subtotal ?? "";
-      const taxRate =
-        subtotal && extractedData.taxTotal
-          ? String(Math.round((Number(extractedData.taxTotal) / Number(subtotal)) * 10_000) / 100)
-          : "4";
-      setLines([{
-        clientId: crypto.randomUUID(),
-        productId: suggestProductId(
-          extractedData.concept ?? extractedData.supplierName ?? "",
-          extractedData.purchasedQuantityKg ? "kg" : "unit",
-        ),
-        description: extractedData.concept ?? extractedData.supplierName ?? "Compra según factura",
-        quantity,
-        unit: extractedData.purchasedQuantityKg ? "kg" : "unit",
-        unitCost:
-          subtotal && Number(quantity) > 0
-            ? String(Math.round((Number(subtotal) / Number(quantity)) * 10_000) / 10_000)
-            : "",
-        taxRate,
-      }]);
-    }
-  };
-
-  const upload = useMutation({
-    mutationFn: async (file: File) =>
-      apiClient.request<PurchaseDocumentResponse>("/purchase-documents", {
-        method: "POST",
-        body: JSON.stringify({
-          filename: file.name,
-          mimeType: file.type,
-          contentBase64: await encoded(file),
-        }),
-        timeoutMs: 120_000,
-      }),
-    onSuccess: ({ id, extractedData }, file) => {
-      if (selectedDocument.current !== file) return;
-      applyExtractedData(id, extractedData);
-    },
-  });
-
-  useEffect(() => {
-    const document = importedDocument.data;
-    if (!document || appliedImportedDocument.current === document.id || !products.data) return;
-    appliedImportedDocument.current = document.id;
-    applyExtractedData(document.id, document.extractedData as ExtractedPurchase);
-    void financeApi.downloadPurchaseDocument(document.id).then((blob) => {
-      setDocumentFile(new File([blob], document.filename, { type: document.mimeType }));
-    }).catch(() => setDocumentError("No se pudo abrir el adjunto original."));
-  }, [importedDocument.data, products.data]);
 
   const createSupplier = useMutation({
     mutationFn: () =>
@@ -298,8 +123,7 @@ export function PurchaseFormPage() {
     },
   });
 
-  const allLinesValid = lines.length > 0 && lines.every(lineIsValid);
-  const validLines = allLinesValid
+  const validLines = lines.every(lineIsValid)
     ? lines.map(({ clientId: _clientId, ...line }) => ({
         ...line,
         quantity: decimal(line.quantity),
@@ -307,42 +131,67 @@ export function PurchaseFormPage() {
         taxRate: decimal(line.taxRate),
       }))
     : [];
-  const total = useMemo(
+
+  const totals = useMemo(
     () =>
       validLines.reduce(
-        (sum, line) =>
-          sum +
-          Number(line.quantity) *
-            Number(line.unitCost) *
-            (1 + Number(line.taxRate) / 100),
-        0,
+        (result, line) => {
+          const base = Number(line.quantity) * Number(line.unitCost);
+          const tax = base * (Number(line.taxRate) / 100);
+          return {
+            base: result.base + base,
+            tax: result.tax + tax,
+            total: result.total + base + tax,
+          };
+        },
+        { base: 0, tax: 0, total: 0 },
       ),
     [validLines],
   );
-  const documentBlocksPurchase = Boolean(
-    documentId && ocr && ["issued_sales_invoice", "bank_transfer_receipt", "bank_deposit_receipt", "payment_confirmation", "account_statement", "supplier_credit_note"].includes(ocr.documentType ?? ""),
-  );
+
   const validateForm = () => {
     const next: Record<string, string> = {};
     if (!supplierId) next.supplierId = "Selecciona un proveedor.";
     if (!issueDate) next.issueDate = "Indica la fecha de la factura.";
     lines.forEach((line) => {
       if (!line.description.trim()) next[`${line.clientId}.description`] = "Indica el concepto.";
-      if (!line.quantity.trim() || !Number.isFinite(Number(decimal(line.quantity))) || Number(decimal(line.quantity)) <= 0) next[`${line.clientId}.quantity`] = "Indica una cantidad válida.";
-      if (!line.unitCost.trim() || !Number.isFinite(Number(decimal(line.unitCost))) || Number(decimal(line.unitCost)) < 0) next[`${line.clientId}.unitCost`] = "Indica un coste válido.";
-      if (!line.taxRate.trim() || !Number.isFinite(Number(decimal(line.taxRate))) || Number(decimal(line.taxRate)) < 0 || Number(decimal(line.taxRate)) > 100) next[`${line.clientId}.taxRate`] = "Indica un IVA válido.";
+      if (!line.quantity.trim() || !Number.isFinite(Number(decimal(line.quantity))) || Number(decimal(line.quantity)) <= 0)
+        next[`${line.clientId}.quantity`] = "Indica una cantidad válida.";
+      if (!line.unitCost.trim() || !Number.isFinite(Number(decimal(line.unitCost))) || Number(decimal(line.unitCost)) < 0)
+        next[`${line.clientId}.unitCost`] = "Indica un coste válido.";
+      if (!line.taxRate.trim() || !Number.isFinite(Number(decimal(line.taxRate))) || Number(decimal(line.taxRate)) < 0 || Number(decimal(line.taxRate)) > 100)
+        next[`${line.clientId}.taxRate`] = "Indica un IVA válido.";
     });
     setFieldErrors(next);
     const first = Object.keys(next)[0];
     if (first) document.querySelector<HTMLElement>(`[data-field-key="${first}"]`)?.focus();
     return Object.keys(next).length === 0;
   };
+
   const save = useMutation({
     mutationFn: async () => {
+      let linkedDocumentId = documentId;
+      if (documentFile && !linkedDocumentId) {
+        const archived = await apiClient.request<ArchivedDocument>(
+          "/purchase-documents/archive",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              filename: documentFile.name,
+              mimeType: mimeFor(documentFile),
+              contentBase64: await encoded(documentFile),
+            }),
+            timeoutMs: 30_000,
+          },
+        );
+        linkedDocumentId = archived.id;
+        setDocumentId(archived.id);
+      }
+
       const create = () =>
         financeApi.createPurchase({
           supplierId,
-          documentId,
+          documentId: linkedDocumentId,
           supplierInvoiceNumber: supplierInvoiceNumber.trim() || null,
           issueDate,
           dueDate: dueDate || null,
@@ -353,9 +202,6 @@ export function PurchaseFormPage() {
       try {
         return await create();
       } catch (error) {
-        // A POST rejected with 401 has not reached the purchase service. The
-        // API client has already refreshed the session, so this single retry
-        // is safe and avoids asking the user to press Guardar twice.
         if (
           error instanceof ApiError &&
           error.code === "session_renewed_retry_required"
@@ -364,29 +210,26 @@ export function PurchaseFormPage() {
         throw error;
       }
     },
-    onSuccess: (purchase) => navigate(`/gastos/${purchase.id}`),
+    onSuccess: async (purchase) => {
+      await queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      navigate(`/gastos/${purchase.id}`);
+    },
   });
+
   const saveErrorMessage = (() => {
     const error = save.error;
     if (!(error instanceof ApiError))
       return "No se pudo guardar la compra. Tus datos siguen en pantalla; vuelve a intentarlo.";
     if (error.code === "conflict")
-      return "Esta compra parece estar ya registrada para ese proveedor. Revisa el número de factura antes de repetirla.";
+      return "Esta compra parece estar ya registrada. Revisa proveedor y número de factura antes de repetirla.";
     if (error.code === "not_found")
       return "El proveedor seleccionado ya no está disponible. Vuelve a elegirlo.";
     if (error.code === "invalid_request")
-      return "Hay un dato con formato incorrecto. Revisa la fecha, la descripción, los kilos y el precio.";
+      return "Hay un dato con formato incorrecto. Revisa fecha, cantidad, coste, IVA y el adjunto.";
     if (error.code === "request_timeout" || error.code === "network_error")
       return "No se pudo conectar. Tus datos siguen en pantalla; comprueba la conexión y vuelve a guardar.";
     return "No se pudo guardar la compra. Tus datos siguen en pantalla; vuelve a intentarlo.";
   })();
-  const rejectImportedDocument = useMutation({
-    mutationFn: () => financeApi.rejectPendingPurchaseDocument(importedDocumentId!),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["pending-purchase-documents"] });
-      navigate("/gastos#recibidas-gmail", { replace: true });
-    },
-  });
 
   useEffect(() => {
     if (!documentFile) {
@@ -398,56 +241,21 @@ export function PurchaseFormPage() {
     return () => URL.revokeObjectURL(url);
   }, [documentFile]);
 
-  const removeDocument = () => {
-    selectedDocument.current = null;
-    setDocumentFile(null);
-    setDocumentId(null);
-    setDocumentError(null);
-    setOcr(null);
-    upload.reset();
-  };
-
   const selectDocument = (file?: File) => {
     if (!file) return;
     if (file.size > 10_000_000) {
-      setDocumentError("La factura supera el límite de 10 MB.");
+      setDocumentError("El documento supera el límite de 10 MB.");
       return;
     }
     setDocumentError(null);
-    selectedDocument.current = file;
-    setDocumentFile(file);
     setDocumentId(null);
-    setOcr(null);
-    upload.mutate(file);
+    setDocumentFile(file);
   };
 
-  const warningLabel = (warning: string) =>
-    ({
-      totals_mismatch: "Los importes no cuadran: revisa base, IVA y total.",
-      supplier_tax_id_missing: "No se reconoció el NIF del proveedor.",
-      supplier_tax_id_own: "Se detectó el NIF propio como emisor; no se permite registrarlo como compra.",
-      document_not_purchase_eligible: "El documento está bloqueado para compras hasta que su clasificación sea inequívoca.",
-      line_amount_mismatch: "Alguna línea no cuadra con cantidad, precio y descuento.",
-      vision_unavailable: "La visión no estaba disponible y se usó el OCR alternativo; queda pendiente de clasificación segura.",
-      vision_budget_exhausted: "Se alcanzó el límite de lectura inteligente; el OCR alternativo no autoriza compras automáticamente.",
-      total_missing: "No se reconoció el total.",
-      issue_date_missing: "No se reconoció la fecha.",
-      possible_duplicate: "Posible factura duplicada.",
-      ocr_failed: "La imagen no pudo leerse.",
-      low_confidence: "Lectura poco nítida: revisa todos los campos.",
-    })[warning] ?? "Campo pendiente de revisión.";
-  const confidenceFor = (field: string) => ocr?.fieldConfidence?.[field];
-  const confidenceClass = (field: string) => {
-    const confidence = confidenceFor(field);
-    return confidence ? `field--confidence-${confidence}` : "";
-  };
-  const confidenceHint = (field: string) => {
-    const confidence = confidenceFor(field);
-    return confidence === "low"
-      ? "Dato dudoso: compruébalo en la factura original."
-      : confidence === "medium"
-        ? "Conviene comprobar este dato."
-        : undefined;
+  const removeDocument = () => {
+    setDocumentFile(null);
+    setDocumentId(null);
+    setDocumentError(null);
   };
 
   return (
@@ -457,26 +265,178 @@ export function PurchaseFormPage() {
           <ArrowLeft />
         </Link>
         <div>
-          <p className="eyebrow">Gasto o mercancía</p>
+          <p className="eyebrow">Compra manual</p>
           <h1>Nueva compra</h1>
         </div>
       </header>
 
-      <section className="upload-card purchase-capture-card">
-        <p className="eyebrow">Lectura automática</p>
-        <h2>Añade el documento</h2>
+      <section className="form-card purchase-manual-intro">
+        <strong>Solo necesitas proveedor, fecha, cantidad y coste.</strong>
         <p>
-          Primero se identifica qué tipo de documento es. Solo una factura inequívoca de un proveedor externo dirigida a tu empresa puede convertirse en compra.
+          Las compras automáticas llegan desde el Registro de Google Sheets. Aquí puedes registrar una compra manual y, si quieres, conservar el PDF o imagen original sin lectura automática.
         </p>
-        {!documentFile ? (
-          <div className="purchase-capture-picker">
-            <div className="purchase-capture-actions">
+      </section>
+
+      <section className="form-card purchase-main-fields">
+        <div className="section-heading">
+          <div><p className="eyebrow">Proveedor</p><h2>Datos principales</h2></div>
+          <button className="compact-action" type="button" onClick={() => setShowSupplierCreate((current) => !current)}>
+            <Building2 /> Nuevo proveedor
+          </button>
+        </div>
+        <SelectField
+          label="Proveedor"
+          error={fieldErrors.supplierId}
+          value={supplierId}
+          data-field-key="supplierId"
+          onChange={(event) => {
+            setSupplierId(event.target.value);
+            setFieldErrors((current) => ({ ...current, supplierId: "" }));
+          }}
+        >
+          <option value="">Selecciona un proveedor</option>
+          {suppliers.data?.items.map((supplier) => (
+            <option key={supplier.id} value={supplier.id}>{supplier.tradeName || supplier.legalName}</option>
+          ))}
+        </SelectField>
+
+        {showSupplierCreate && (
+          <div className="inline-create-card">
+            <strong>Nuevo proveedor</strong>
+            <Field label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
+            <Field label="NIF/CIF (opcional)" value={newSupplierTaxId} onChange={(event) => setNewSupplierTaxId(event.target.value.toUpperCase())} />
+            {createSupplier.isError && <p className="field-error" role="alert">No se pudo crear. Comprueba si ya existe.</p>}
+            <div className="inline-create-card__actions">
+              <button type="button" onClick={() => setShowSupplierCreate(false)}>Cancelar</button>
+              <Button type="button" disabled={!newSupplierName.trim()} busy={createSupplier.isPending} onClick={() => createSupplier.mutate()}>
+                Crear y seleccionar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="form-grid">
+          <Field
+            label="Fecha"
+            error={fieldErrors.issueDate}
+            type="date"
+            value={issueDate}
+            data-field-key="issueDate"
+            onChange={(event) => {
+              setIssueDate(event.target.value);
+              setFieldErrors((current) => ({ ...current, issueDate: "" }));
+            }}
+            required
+          />
+          <Field
+            label="Nº factura proveedor (opcional)"
+            value={supplierInvoiceNumber}
+            onChange={(event) => setSupplierInvoiceNumber(event.target.value)}
+          />
+        </div>
+      </section>
+
+      <section className="form-card">
+        <div className="section-heading">
+          <div><p className="eyebrow">Mercancía</p><h2>Conceptos</h2></div>
+          <strong>{new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(totals.total)}</strong>
+        </div>
+        {lines.map((line, index) => (
+          <div className="purchase-line-editor purchase-line-editor--compact" key={line.clientId}>
+            <SelectField
+              label="Producto de stock (opcional)"
+              value={line.productId ?? ""}
+              onChange={(event) => {
+                const product = products.data?.items.find((item) => item.id === event.target.value);
+                patchLine(index, {
+                  productId: event.target.value || null,
+                  description: product?.name ?? line.description,
+                  unit: product?.unit ?? line.unit,
+                });
+              }}
+            >
+              <option value="">No vincular a stock</option>
+              {products.data?.items.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+            </SelectField>
+            <Field
+              label="Descripción"
+              error={fieldErrors[`${line.clientId}.description`]}
+              value={line.description}
+              data-field-key={`${line.clientId}.description`}
+              onChange={(event) => patchLine(index, { description: event.target.value })}
+            />
+            <div className="purchase-line-numbers">
+              <Field
+                label="Cantidad"
+                error={fieldErrors[`${line.clientId}.quantity`]}
+                inputMode="decimal"
+                value={line.quantity}
+                data-field-key={`${line.clientId}.quantity`}
+                onChange={(event) => patchLine(index, { quantity: event.target.value })}
+              />
+              <SelectField label="Unidad" value={line.unit} onChange={(event) => patchLine(index, { unit: event.target.value as ProductUnit })}>
+                <option value="kg">kg</option><option value="g">g</option><option value="unit">unidad</option>
+                <option value="box">caja</option><option value="custom">otra</option>
+              </SelectField>
+              <Field
+                label="Coste sin IVA"
+                error={fieldErrors[`${line.clientId}.unitCost`]}
+                inputMode="decimal"
+                value={line.unitCost}
+                data-field-key={`${line.clientId}.unitCost`}
+                onChange={(event) => patchLine(index, { unitCost: event.target.value })}
+              />
+              <Field
+                label="IVA %"
+                error={fieldErrors[`${line.clientId}.taxRate`]}
+                inputMode="decimal"
+                value={line.taxRate}
+                data-field-key={`${line.clientId}.taxRate`}
+                onChange={(event) => patchLine(index, { taxRate: event.target.value })}
+              />
+            </div>
+            {lines.length > 1 && (
+              <button className="compact-action compact-action--danger" type="button" onClick={() => setLines((current) => current.filter((_, position) => position !== index))}>
+                <Trash2 /> Quitar concepto
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="compact-action" type="button" onClick={() => setLines((current) => [...current, emptyLine()])}>
+          <Plus /> Añadir concepto
+        </button>
+        <div className="purchase-total-summary" aria-live="polite">
+          <span><small>Base</small><strong>{totals.base.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong></span>
+          <span><small>IVA</small><strong>{totals.tax.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong></span>
+          <span className="purchase-total-summary__total"><small>Total</small><strong>{totals.total.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong></span>
+        </div>
+      </section>
+
+      <details className="form-card form-options purchase-optional-card">
+        <summary>Más datos y documento · opcional</summary>
+        <div className="conditional-fields">
+          <div className="form-grid">
+            <Field label="Vencimiento" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+            <SelectField label="Categoría" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <option value="mercancia">Mercancía</option><option value="gestoria">Gestoría</option>
+              <option value="transporte">Transporte</option><option value="suministros">Suministros</option>
+              <option value="alquiler">Alquiler</option><option value="autonomo">Autónomo</option>
+              <option value="impuestos">Impuestos</option><option value="otros">Otros</option>
+            </SelectField>
+          </div>
+          <label className="field"><span className="field__label">Notas</span>
+            <textarea rows={3} maxLength={4000} value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+
+          <div className="purchase-archive-block">
+            <div>
+              <strong>Documento original</strong>
+              <p>Se archiva tal cual. Factupapa no lo interpreta ni crea datos desde el archivo.</p>
+            </div>
+            {!documentFile ? (
               <label className="purchase-capture-option purchase-capture-option--file">
                 <FileUp />
-                <span>
-                  <strong>Elegir archivo</strong>
-                  <small>PDF o imagen guardada</small>
-                </span>
+                <span><strong>Adjuntar PDF o imagen</strong><small>Máximo 10 MB</small></span>
                 <input
                   className="sr-only"
                   type="file"
@@ -487,224 +447,33 @@ export function PurchaseFormPage() {
                   }}
                 />
               </label>
-              <label className="purchase-capture-option purchase-capture-option--camera">
-                <Camera />
-                <span>
-                  <strong>Hacer foto</strong>
-                  <small>Abrir la cámara</small>
-                </span>
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) => {
-                    selectDocument(event.currentTarget.files?.[0]);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
-            </div>
-            <p className="purchase-capture-hint">JPG, PNG, HEIC o PDF · máximo 10 MB</p>
-          </div>
-        ) : (
-          <div className="attachment-card">
-            <FileCheck2 />
-            <span>
-              <strong>{documentFile.name}</strong>
-              <small>{(documentFile.size / 1024).toFixed(1)} KB</small>
-            </span>
-            <button className="icon-button" type="button" aria-label="Quitar documento" onClick={removeDocument}>
-              <X />
-            </button>
-          </div>
-        )}
-        {upload.isPending && (
-          <p className="ai-reading-status" role="status">
-            <Sparkles /> Leyendo y clasificando el documento…
-          </p>
-        )}
-        {documentId && !documentBlocksPurchase && <p className="success-note">Factura de proveedor clasificada, protegida y vinculada.</p>}
-        {documentError && <div className="form-alert" role="alert">{documentError}</div>}
-        {upload.isError && (
-          <div className="form-alert" role="alert">
-            No se pudo leer ni adjuntar el documento. Puedes reintentarlo o quitarlo y registrar una compra manual sin adjunto.
-            <Button type="button" variant="secondary" onClick={() => documentFile && upload.mutate(documentFile)}>
-              <RefreshCw /> Reintentar lectura
-            </Button>
-          </div>
-        )}
-        {importedDocumentId && (
-          <button
-            type="button"
-            className="purchase-document-reject"
-            disabled={rejectImportedDocument.isPending || save.isPending}
-            onClick={() => rejectImportedDocument.mutate()}
-          >
-            <Trash2 aria-hidden="true" />
-            {rejectImportedDocument.isPending ? "Descartando…" : "No es una compra · conservar como revisado"}
-          </button>
-        )}
-        {rejectImportedDocument.isError && (
-          <p className="field-error" role="alert">
-            No se pudo cerrar la revisión. El documento sigue intacto y pendiente.
-          </p>
-        )}
-        {ocr && (
-          <div className="ocr-review" aria-label="Resultado de la lectura automática">
-            <strong>{documentTypeLabel(ocr.documentType)}</strong>
-            <span>
-              Clasificación: {Math.round((ocr.classificationConfidence ?? 0) * 100)}% · Lectura: {ocr.ocrConfidence ?? 0}%
-            </span>
-            <span>{ocr.source === "vision" ? "Anthropic Vision" : ocr.source === "pdf_text" ? "Texto del PDF interpretado" : "OCR alternativo"}</span>
-            {ocr.issuerName && <span>Emisor: {ocr.issuerName}{ocr.issuerTaxId ? ` · ${ocr.issuerTaxId}` : ""}</span>}
-            {ocr.recipientName && <span>Receptor: {ocr.recipientName}{ocr.recipientTaxId ? ` · ${ocr.recipientTaxId}` : ""}</span>}
-            {ocr.total && <span>Total detectado: {ocr.total} {ocr.currency ?? "EUR"}</span>}
-            {documentBlocksPurchase && (
-              <div className="form-alert" role="alert">
-                <strong>Bloqueado para compras.</strong>
-                {(ocr.blockingReasons?.length ? ocr.blockingReasons : ["document_type_not_supplier_invoice"]).map((reason) => (
-                  <span key={reason}>{blockingReasonLabel(reason)}</span>
-                ))}
+            ) : (
+              <div className="attachment-card">
+                <FileCheck2 />
+                <span><strong>{documentFile.name}</strong><small>{(documentFile.size / 1024).toFixed(1)} KB</small></span>
+                <button className="icon-button" type="button" aria-label="Quitar documento" onClick={removeDocument}><X /></button>
               </div>
             )}
-            {ocr.classificationReasons?.map((reason) => <span key={reason}>{reason}</span>)}
-            {ocr.classificationEvidence?.slice(0, 4).map((evidence, index) => (
-              <span key={`${evidence.page ?? 0}-${index}`}>
-                {evidence.page ? `Pág. ${evidence.page}: ` : ""}{evidence.quote}
-              </span>
-            ))}
-            {!documentBlocksPurchase && ocr.supplierName && <span>Proveedor: {ocr.supplierName}</span>}
-            {!documentBlocksPurchase && ocr.lines?.length ? <span>{ocr.lines.length} conceptos detectados para revisar.</span> : null}
-            <span className="confidence-legend">
-              <i className="confidence-dot confidence-dot--high" />Seguro
-              <i className="confidence-dot confidence-dot--medium" />Revisar
-              <i className="confidence-dot confidence-dot--low" />Dudoso
-            </span>
-            {ocr.warnings?.map((warning) => <span className="field-error" key={warning}>{warningLabel(warning)}</span>)}
-          </div>
-        )}
-        {documentPreview && (
-          <details
-            className="document-preview"
-            open={documentPreviewOpen}
-            onToggle={(event) => setDocumentPreviewOpen(event.currentTarget.open)}
-          >
-            <summary>Documento original</summary>
-            {documentFile?.type === "application/pdf" ? (
-              <iframe src={documentPreview} title="Documento original" />
-            ) : (
-              <img src={documentPreview} alt="Documento original" />
-            )}
-          </details>
-        )}
-      </section>
-
-      <section className="form-card">
-        <div className="section-heading">
-          <div><p className="eyebrow">Proveedor</p><h2>Datos de la compra</h2></div>
-          <button className="compact-action" type="button" disabled={documentBlocksPurchase} onClick={() => setShowSupplierCreate((current) => !current)}>
-            <Building2 /> Nuevo proveedor
-          </button>
-        </div>
-        {documentBlocksPurchase && (
-          <p className="field-help">Los campos de compra permanecen separados del documento bloqueado. Quita el documento si necesitas registrar una compra manual independiente.</p>
-        )}
-        <SelectField label="Proveedor obligatorio" error={fieldErrors.supplierId} value={supplierId} disabled={documentBlocksPurchase} data-field-key="supplierId" onChange={(event) => { setSupplierId(event.target.value); setFieldErrors((e) => ({ ...e, supplierId: "" })); }}>
-          <option value="">Selecciona un proveedor</option>
-          {suppliers.data?.items.map((supplier) => (
-            <option key={supplier.id} value={supplier.id}>{supplier.tradeName || supplier.legalName}</option>
-          ))}
-        </SelectField>
-        {ocr?.supplierName && !ocr.supplierId && !showSupplierCreate && !documentBlocksPurchase && (
-          <button className="compact-action" type="button" onClick={() => setShowSupplierCreate(true)}>
-            <Building2 /> Crear proveedor detectado
-          </button>
-        )}
-        {showSupplierCreate && !documentBlocksPurchase && (
-          <div className="inline-create-card">
-            <strong>Revisar proveedor nuevo</strong>
-            <Field className={confidenceClass("supplierName")} hint={confidenceHint("supplierName")} label="Nombre legal" value={newSupplierName} onChange={(event) => setNewSupplierName(event.target.value)} />
-            <Field className={confidenceClass("supplierTaxId")} hint={confidenceHint("supplierTaxId")} label="NIF" value={newSupplierTaxId} onChange={(event) => setNewSupplierTaxId(event.target.value.toUpperCase())} />
-            {createSupplier.isError && <p className="field-error" role="alert">No se pudo crear. Comprueba si ya existe.</p>}
-            <div className="inline-create-card__actions">
-              <button type="button" onClick={() => setShowSupplierCreate(false)}>Cancelar</button>
-              <Button type="button" disabled={!newSupplierName.trim()} busy={createSupplier.isPending} onClick={() => createSupplier.mutate()}>
-                Crear y seleccionar
-              </Button>
-            </div>
-          </div>
-        )}
-        <Field className={confidenceClass("supplierInvoiceNumber")} hint={confidenceHint("supplierInvoiceNumber")} label="Número de factura del proveedor" disabled={documentBlocksPurchase} value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
-        <div className="form-grid">
-          <Field className={confidenceClass("issueDate")} hint={confidenceHint("issueDate")} error={fieldErrors.issueDate} label="Fecha de emisión" type="date" disabled={documentBlocksPurchase} value={issueDate} data-field-key="issueDate" onChange={(event) => { setIssueDate(event.target.value); setFieldErrors((e) => ({ ...e, issueDate: "" })); }} required />
-          <Field className={confidenceClass("dueDate")} hint={confidenceHint("dueDate")} label="Fecha de vencimiento" type="date" disabled={documentBlocksPurchase} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-        </div>
-        <SelectField label="Categoría" value={category} disabled={documentBlocksPurchase} onChange={(event) => setCategory(event.target.value)}>
-          <option value="mercancia">Mercancía</option><option value="gestoria">Gestoría</option>
-          <option value="transporte">Transporte</option><option value="suministros">Suministros</option>
-          <option value="alquiler">Alquiler</option><option value="autonomo">Autónomo</option>
-          <option value="impuestos">Impuestos</option><option value="otros">Otros</option>
-        </SelectField>
-        <label className="field"><span className="field__label">Notas</span>
-          <textarea rows={3} maxLength={4000} disabled={documentBlocksPurchase} value={notes} onChange={(event) => setNotes(event.target.value)} />
-        </label>
-      </section>
-
-      <section className="form-card">
-        <div className="section-heading">
-          <div><p className="eyebrow">Detalle</p><h2>Conceptos</h2></div>
-          <strong>{new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(total)}</strong>
-        </div>
-        {lines.map((line, index) => (
-          <div className="purchase-line-editor" key={line.clientId}>
-            <SelectField
-              label="Producto de stock"
-              value={line.productId ?? ""}
-              disabled={documentBlocksPurchase}
-              onChange={(event) => {
-                const product = products.data?.items.find((item) => item.id === event.target.value);
-                patchLine(index, {
-                  productId: event.target.value || null,
-                  description: product?.name ?? line.description,
-                  unit: product?.unit ?? line.unit,
-                });
-              }}
-            >
-              <option value="">No afecta al stock</option>
-              {products.data?.items.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-            </SelectField>
-            <Field label="Descripción" error={fieldErrors[`${line.clientId}.description`]} disabled={documentBlocksPurchase} value={line.description} data-field-key={`${line.clientId}.description`} onChange={(event) => patchLine(index, { description: event.target.value })} />
-            <Field label="Cantidad" error={fieldErrors[`${line.clientId}.quantity`]} inputMode="decimal" disabled={documentBlocksPurchase} value={line.quantity} data-field-key={`${line.clientId}.quantity`} onChange={(event) => patchLine(index, { quantity: event.target.value })} />
-            <SelectField label="Unidad" value={line.unit} disabled={documentBlocksPurchase} onChange={(event) => patchLine(index, { unit: event.target.value as ProductUnit })}>
-              <option value="kg">kg</option><option value="g">g</option><option value="unit">unidad</option>
-              <option value="box">caja</option><option value="custom">otra</option>
-            </SelectField>
-            <Field label="Coste unidad sin IVA" error={fieldErrors[`${line.clientId}.unitCost`]} inputMode="decimal" disabled={documentBlocksPurchase} value={line.unitCost} data-field-key={`${line.clientId}.unitCost`} onChange={(event) => patchLine(index, { unitCost: event.target.value })} />
-            <Field label="IVA %" error={fieldErrors[`${line.clientId}.taxRate`]} inputMode="decimal" disabled={documentBlocksPurchase} value={line.taxRate} data-field-key={`${line.clientId}.taxRate`} onChange={(event) => patchLine(index, { taxRate: event.target.value })} />
-            {lines.length > 1 && !documentBlocksPurchase && (
-              <button className="icon-button" type="button" aria-label={`Eliminar concepto ${index + 1}`} onClick={() => setLines((current) => current.filter((_, position) => position !== index))}>
-                <Trash2 />
-              </button>
+            {documentError && <div className="form-alert" role="alert">{documentError}</div>}
+            {documentPreview && (
+              <details className="document-preview">
+                <summary>Ver documento</summary>
+                {mimeFor(documentFile!) === "application/pdf" ? (
+                  <iframe src={documentPreview} title="Documento original" />
+                ) : (
+                  <img src={documentPreview} alt="Documento original" />
+                )}
+              </details>
             )}
           </div>
-        ))}
-        {!allLinesValid && !documentBlocksPurchase && <p className="field-help" role="status">Completa descripción, cantidad, coste e IVA de todos los conceptos.</p>}
-        {!documentBlocksPurchase && (
-          <button className="compact-action" type="button" onClick={() => setLines((current) => [...current, emptyLine()])}>
-            <Plus /> Añadir concepto
-          </button>
-        )}
-      </section>
+        </div>
+      </details>
 
       {save.isError && <div className="form-alert" role="alert">{saveErrorMessage}</div>}
-      <div className="sticky-submit">
-        <Button
-          disabled={documentBlocksPurchase || upload.isPending}
-          busy={save.isPending}
-          onClick={() => { if (validateForm()) save.mutate(); }}
-        >
-          {documentBlocksPurchase ? "Documento bloqueado para compras" : "Guardar para revisión"}
+      <div className="sticky-submit purchase-sticky-submit">
+        <span className="invoice-sticky-total"><small>Total</small><strong>{totals.total.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong></span>
+        <Button busy={save.isPending} disabled={!supplierId || !issueDate || !validLines.length} onClick={() => { if (validateForm()) save.mutate(); }}>
+          Guardar compra
         </Button>
       </div>
     </div>

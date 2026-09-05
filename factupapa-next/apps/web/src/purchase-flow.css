@@ -1,0 +1,340 @@
+/* Purchase, expense-ingestion and invoice-number UX.
+ * This layer intentionally contains no camera/OCR states: manual purchases
+ * archive originals only and automated purchases arrive through REGISTRO. */
+
+.dashboard-actions__featured {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.dashboard-action--purchase {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 13px;
+  min-height: 74px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--deep) 18%, var(--line));
+  border-radius: 20px;
+  color: var(--strong);
+  background: color-mix(in srgb, var(--surface) 96%, var(--deep) 4%);
+  box-shadow: 0 12px 34px rgb(15 23 42 / 5%);
+  text-decoration: none;
+}
+
+.dashboard-action--purchase > svg:first-child {
+  width: 44px;
+  height: 44px;
+  padding: 11px;
+  border-radius: 14px;
+  color: #fff;
+  background: var(--deep);
+}
+
+.dashboard-action--purchase > svg:last-child {
+  width: 18px;
+  color: var(--muted);
+}
+
+.dashboard-action--purchase span,
+.dashboard-action--purchase strong {
+  min-width: 0;
+  display: block;
+}
+
+.purchase-manual-intro {
+  display: grid;
+  gap: 5px;
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--line));
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent) 4%);
+}
+
+.purchase-manual-intro strong {
+  color: var(--strong);
+  font-size: 0.98rem;
+}
+
+.purchase-manual-intro p,
+.purchase-archive-block p,
+.purchase-ingestion-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.purchase-main-fields,
+.purchase-line-editor--compact {
+  min-width: 0;
+}
+
+.purchase-line-editor--compact {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-soft) 52%, var(--surface));
+}
+
+.purchase-line-editor--compact + .purchase-line-editor--compact {
+  margin-top: 12px;
+}
+
+.purchase-line-numbers {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.25fr) minmax(90px, .8fr) minmax(120px, 1.25fr) minmax(90px, .8fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.purchase-total-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.purchase-total-summary > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+}
+
+.purchase-total-summary small {
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.purchase-total-summary strong {
+  overflow: hidden;
+  color: var(--strong);
+  font-size: .92rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.purchase-total-summary__total {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line)) !important;
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent) 6%) !important;
+}
+
+.purchase-optional-card > summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--strong);
+  font-weight: 700;
+}
+
+.purchase-archive-block {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.purchase-capture-option--file {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 38%, var(--line));
+  border-radius: 15px;
+  color: var(--strong);
+  background: color-mix(in srgb, var(--surface-soft) 60%, var(--surface));
+  cursor: pointer;
+}
+
+.purchase-capture-option--file > svg {
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  border-radius: 13px;
+  color: #fff;
+  background: var(--deep);
+}
+
+.purchase-capture-option--file span,
+.purchase-capture-option--file strong,
+.purchase-capture-option--file small {
+  min-width: 0;
+  display: block;
+}
+
+.purchase-capture-option--file small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.purchase-ingestion-card {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+  padding: 17px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 95%, var(--accent) 5%);
+  box-shadow: 0 10px 30px rgb(15 23 42 / 5%);
+}
+
+.purchase-ingestion-card__copy {
+  display: grid;
+  gap: 5px;
+}
+
+.purchase-ingestion-card__copy h2 {
+  margin: 0;
+  color: var(--strong);
+  font-size: 1.05rem;
+}
+
+.purchase-ingestion-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.purchase-ingestion-card__actions > * {
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+}
+
+.purchase-ingestion-card__status {
+  padding-top: 2px;
+  font-size: .78rem;
+}
+
+.compact-action--strong,
+.primary-inline-action {
+  border-color: color-mix(in srgb, var(--deep) 26%, var(--line));
+  color: #fff;
+  background: var(--deep);
+}
+
+.primary-inline-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid color-mix(in srgb, var(--deep) 26%, var(--line));
+  border-radius: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.primary-inline-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+.expenses-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.finance-actions--secondary {
+  margin-top: 12px;
+}
+
+.recurring-expense-form {
+  margin-top: 10px;
+}
+
+.invoice-number-editor {
+  display: grid;
+  grid-template-columns: minmax(150px, .85fr) minmax(190px, 1.15fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.invoice-number-editor .automatic-number {
+  min-height: 100%;
+  display: grid;
+  align-content: center;
+}
+
+.integration-card__note {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  font-size: .78rem;
+}
+
+.purchase-form-page,
+.sales-form-page {
+  padding-bottom: calc(118px + env(safe-area-inset-bottom));
+}
+
+.purchase-sticky-submit,
+.invoice-sticky-submit {
+  gap: 12px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.purchase-sticky-submit .invoice-sticky-total,
+.invoice-sticky-submit .invoice-sticky-total {
+  min-width: 0;
+}
+
+@media (max-width: 620px) {
+  .purchase-line-numbers {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .purchase-total-summary > span {
+    padding-inline: 9px;
+  }
+
+  .purchase-total-summary strong {
+    font-size: .84rem;
+  }
+
+  .purchase-ingestion-card__actions,
+  .invoice-number-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expenses-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .expenses-heading .primary-inline-action {
+    width: 100%;
+  }
+
+  .purchase-sticky-submit,
+  .invoice-sticky-submit {
+    grid-template-columns: minmax(0, .8fr) minmax(150px, 1.2fr);
+  }
+}
+
+@media (min-width: 720px) {
+  .dashboard-actions__featured {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-action--purchase {
+    transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  }
+
+  .dashboard-action--purchase:hover {
+    transform: translateY(-1px);
+  }
+}

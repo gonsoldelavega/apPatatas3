@@ -17,6 +17,7 @@ export class InvoiceService {
     private pool: Pool,
     private repository = new InvoiceRepository(),
   ) {}
+
   private async totals(client: PoolClient, id: string) {
     const r = await client.query<
       {
@@ -46,8 +47,71 @@ export class InvoiceService {
       [id, t.subtotal, t.taxTotal, t.total],
     );
   }
+
+  private async assertNumberAvailable(
+    client: PoolClient,
+    companyId: string,
+    series: string,
+    number: number,
+    exceptId?: string,
+  ) {
+    const duplicate = await client.query<{ id: string } & QueryResultRow>(
+      `select id from invoices
+       where company_id=$1 and direction='sale' and series=$2 and number=$3
+         and ($4::uuid is null or id<>$4::uuid)
+       limit 1`,
+      [companyId, series, number, exceptId ?? null],
+    );
+    if (duplicate.rowCount) throw new HttpError("invoice_number_conflict", 409);
+  }
+
+  async numberPreview(
+    identity: SessionIdentity,
+    input: { series: string; issueDate: string },
+  ) {
+    return withTenantTransaction(this.pool, identity, async (client) => {
+      const sequence = await client.query<{ nextNumber: number } & QueryResultRow>(
+        `select next_number "nextNumber" from document_sequences
+         where company_id=$1 and document_type='invoice' and series=$2`,
+        [identity.companyId, input.series],
+      );
+      if (sequence.rows[0])
+        return { series: input.series, number: Number(sequence.rows[0].nextNumber) };
+
+      const preferences = await client.query<
+        {
+          numberingMode: "test" | "live";
+          invoicePrefix: string;
+          invoiceStartNumber: number;
+        } & QueryResultRow
+      >(
+        `select numbering_mode "numberingMode",invoice_prefix "invoicePrefix",invoice_start_number "invoiceStartNumber"
+         from company_sales_preferences where company_id=$1`,
+        [identity.companyId],
+      );
+      const pref = preferences.rows[0];
+      const liveSeries = pref
+        ? `${pref.invoicePrefix}_${input.issueDate.slice(0, 4)}`
+        : "";
+      const number =
+        pref?.numberingMode === "live" && input.series === liveSeries
+          ? Number(pref.invoiceStartNumber)
+          : /^[A-Z0-9_-]{1,12}_[0-9]{4}$/.test(input.series)
+            ? 100
+            : 1;
+      return { series: input.series, number };
+    });
+  }
+
   async create(identity: SessionIdentity, input: InvoiceCreate) {
     return withTenantTransaction(this.pool, identity, async (c) => {
+      if (input.number != null)
+        await this.assertNumberAvailable(
+          c,
+          identity.companyId,
+          input.series,
+          input.number,
+        );
       const invoice = await this.repository.create(
         c,
         identity.companyId,
@@ -66,6 +130,7 @@ export class InvoiceService {
       return invoice;
     });
   }
+
   async get(identity: SessionIdentity, id: string) {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const x = await this.repository.get(c, id);
@@ -73,19 +138,40 @@ export class InvoiceService {
       return x;
     });
   }
+
   async list(identity: SessionIdentity, url: URL) {
     return withTenantTransaction(this.pool, identity, (c) =>
       this.repository.list(c, url),
     );
   }
+
   async update(identity: SessionIdentity, id: string, input: InvoicePatch) {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const before = await this.repository.get(c, id, true);
       if (!before) throw new HttpError("not_found", 404);
       if (!isInvoiceEditableStatus(before.status)) throw new HttpError("conflict", 409);
+      if (
+        before.status === "issued" &&
+        input.number !== undefined &&
+        input.number !== before.number
+      )
+        throw new HttpError("conflict", 409);
+
+      const targetSeries = input.series ?? before.series;
+      const targetNumber = input.number === undefined ? before.number : input.number;
+      if (targetNumber != null && (input.number !== undefined || input.series !== undefined))
+        await this.assertNumberAvailable(
+          c,
+          identity.companyId,
+          targetSeries,
+          targetNumber,
+          id,
+        );
+
       const map = {
         contactId: "contact_id",
         series: "series",
+        number: "number",
         issueDate: "issue_date",
         dueDate: "due_date",
         notes: "notes",
@@ -133,6 +219,7 @@ export class InvoiceService {
       return after;
     });
   }
+
   async line(
     identity: SessionIdentity,
     id: string,
@@ -266,6 +353,7 @@ export class InvoiceService {
       return after;
     });
   }
+
   async deleteLine(identity: SessionIdentity, id: string, lineId: string) {
     await withTenantTransaction(this.pool, identity, async (c) => {
       const inv = await this.repository.get(c, id, true);
@@ -286,6 +374,7 @@ export class InvoiceService {
       });
     });
   }
+
   async issue(identity: SessionIdentity, id: string) {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const before = await this.repository.get(c, id, true);
@@ -324,19 +413,39 @@ export class InvoiceService {
           `${numbering.rows[0].invoicePrefix}_${before.issueDate.slice(0, 4)}`
       )
         throw new HttpError("conflict", 409);
-      const seq = await c.query<{ number: number } & QueryResultRow>(
-        `insert into document_sequences(company_id,document_type,series,next_number)
-         values($1,'invoice',$2,coalesce((select invoice_start_number + 1
-           from company_sales_preferences where company_id=$1
-             and $2 = invoice_prefix || '_' || extract(year from $3::date)::int::text),
-           case when $2 ~ '^[A-Z0-9_-]{1,12}_[0-9]{4}$' then 101 else 2 end))
-         on conflict(company_id,document_type,series) do update set next_number=document_sequences.next_number+1
-         returning next_number-1 number`,
-        [identity.companyId, before.series, before.issueDate],
-      );
+
+      let number = before.number;
+      if (number != null) {
+        await this.assertNumberAvailable(
+          c,
+          identity.companyId,
+          before.series,
+          number,
+          id,
+        );
+        await c.query(
+          `insert into document_sequences(company_id,document_type,series,next_number)
+           values($1,'invoice',$2,$3)
+           on conflict(company_id,document_type,series)
+           do update set next_number=greatest(document_sequences.next_number,excluded.next_number)`,
+          [identity.companyId, before.series, number + 1],
+        );
+      } else {
+        const seq = await c.query<{ number: number } & QueryResultRow>(
+          `insert into document_sequences(company_id,document_type,series,next_number)
+           values($1,'invoice',$2,coalesce((select invoice_start_number + 1
+             from company_sales_preferences where company_id=$1
+               and $2 = invoice_prefix || '_' || extract(year from $3::date)::int::text),
+             case when $2 ~ '^[A-Z0-9_-]{1,12}_[0-9]{4}$' then 101 else 2 end))
+           on conflict(company_id,document_type,series) do update set next_number=document_sequences.next_number+1
+           returning next_number-1 number`,
+          [identity.companyId, before.series, before.issueDate],
+        );
+        number = seq.rows[0]!.number;
+      }
       await c.query(
         `update invoices set number=$2,status='issued',issued_at=now() where id=$1`,
-        [id, seq.rows[0]!.number],
+        [id, number],
       );
       await c.query(
         `insert into sales_invoice_export_events(company_id,invoice_id,event_type)
@@ -357,6 +466,7 @@ export class InvoiceService {
       return after;
     });
   }
+
   async cancel(identity: SessionIdentity, id: string) {
     return withTenantTransaction(this.pool, identity, async (c) => {
       const before = await this.repository.get(c, id, true);
@@ -367,6 +477,7 @@ export class InvoiceService {
       return after;
     });
   }
+
   async fromDeliveryNotes(
     identity: SessionIdentity,
     input: {

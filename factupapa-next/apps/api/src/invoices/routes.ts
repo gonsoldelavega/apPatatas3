@@ -13,6 +13,7 @@ import {
   validateFromDeliveryNotes,
   validateInvoiceCreate,
   validateInvoiceLine,
+  validateInvoiceNumberPreview,
   validateInvoicePatch,
 } from "./validation.js";
 export function createInvoiceRoutes(
@@ -31,6 +32,21 @@ export function createInvoiceRoutes(
         await service.fromDeliveryNotes(
           i,
           validateFromDeliveryNotes(await readJson(request)),
+        ),
+      );
+      return true;
+    }
+    if (url.pathname === "/invoices/number-preview" && request.method === "GET") {
+      const i = await auth.authenticate(bearerToken(request));
+      json(
+        response,
+        200,
+        await service.numberPreview(
+          i,
+          validateInvoiceNumberPreview(
+            url.searchParams.get("series"),
+            url.searchParams.get("issueDate"),
+          ),
         ),
       );
       return true;

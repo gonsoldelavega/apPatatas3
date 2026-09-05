@@ -31,6 +31,20 @@ export function createFinanceRoutes(
       json(response, 200, await finance.reprocessPendingPurchaseDocuments(id));
       return true;
     }
+    if (url.pathname === "/purchase-documents/archive" && request.method === "POST") {
+      const id = await auth.authenticate(bearerToken(request));
+      const body = await readJson(request, 14_000_000);
+      json(
+        response,
+        201,
+        await finance.archiveDocument(id, {
+          filename: body.filename,
+          mimeType: body.mimeType,
+          contentBase64: body.contentBase64,
+        }),
+      );
+      return true;
+    }
     if (url.pathname === "/purchase-documents" && request.method === "POST") {
       const id = await auth.authenticate(bearerToken(request)),
         body = await readJson(request, 14_000_000);
