@@ -181,7 +181,16 @@ export class GoogleInvoiceExporter {
       const boundary = `factupapa-purchase-${Date.now()}`;
       const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
       const file = list.files?.[0];
-      const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart&supportsAllDrives=true` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+      let uploaded: { id?: string } = {};
+      try {
+        uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart&supportsAllDrives=true` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+      } catch (error) {
+        // A drive.file token may read the canonical legacy file but cannot
+        // replace it. Preserve its identity and continue the accounting
+        // projection; the controlled recovery can replace bytes with the
+        // business Drive connection when broader scope is available.
+        if (!file || !(error instanceof Error) || !error.message.startsWith("google_403:")) throw error;
+      }
       driveId = file?.id ?? uploaded.id ?? null;
       if (!driveId) {
         const confirmed = await googleFetch<{ files?: Array<{ id: string }> }>(google.token, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
@@ -230,7 +239,12 @@ export class GoogleInvoiceExporter {
     const boundary = `factupapa-${Date.now()}`;
     const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`), pdf, Buffer.from(`\r\n--${boundary}--\r\n`)]);
     const file = list.files?.[0];
-    const uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart&supportsAllDrives=true` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+    let uploaded: { id?: string } = {};
+    try {
+      uploaded = await googleFetch<{ id?: string }>(google.token, file ? `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart&supportsAllDrives=true` : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", { method: file ? "PATCH" : "POST", headers: { "content-type": `multipart/related; boundary=${boundary}` }, body });
+    } catch (error) {
+      if (!file || !(error instanceof Error) || !error.message.startsWith("google_403:")) throw error;
+    }
     const driveId = file?.id ?? uploaded.id ?? null;
     if (!driveId) throw new Error("drive_file_id_missing");
     await moveDriveFile(google.token, driveId, salesFolder);
