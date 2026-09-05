@@ -4,12 +4,12 @@
       <div class="list-row-top">
         <div>
           <h3 class="list-row-title">${ctx.esc(supplier.name)}</h3>
-          <p class="list-row-sub">${ctx.esc(supplier.nif || "Sin NIF/CIF")} \u00b7 ${ctx.esc(supplier.phone || "Sin tel\u00e9fono")}</p>
+          <p class="list-row-sub">${ctx.esc(supplier.nif || "Sin NIF/CIF")} · ${ctx.esc(supplier.phone || "Sin teléfono")}</p>
         </div>
       </div>
       <div class="inline-summary">
         <span class="chip">${ctx.esc(supplier.email || "Sin email")}</span>
-        <span class="chip">${ctx.esc(supplier.address || "Sin direcci\u00f3n")}</span>
+        <span class="chip">${ctx.esc(supplier.address || "Sin dirección")}</span>
       </div>
       <div class="card-actions">
         <button data-action="edit-supplier" data-id="${supplier.id}">Editar</button>
@@ -25,17 +25,14 @@
     return `<div class="dual">
       <div class="panel">
         <div class="panel-h">
-          <div>
-            <h2>Art\u00edculos</h2>
-            <div class="sub">Cat\u00e1logo, precio, IVA y stock editable</div>
-          </div>
+          <div><h2>Productos</h2><div class="sub">Precio, IVA y stock en un solo sitio</div></div>
           <div class="actions"><button class="primary" data-action="new-product">Nuevo producto</button></div>
         </div>
         <div class="panel-b">
           <div class="search-shell">
             <div class="search-row">
-              <input placeholder="Buscar producto o proveedor" value="${ctx.esc(ctx.ui.search.products)}" data-search="products">
-              <select data-search="productsCategory"><option value="">Todas las categor\u00edas</option>${categories.map(c => `<option value="${ctx.esc(c)}" ${ctx.ui.search.productsCategory === c ? "selected" : ""}>${ctx.esc(c)}</option>`).join("")}</select>
+              <input placeholder="Buscar producto o proveedor" aria-label="Buscar productos" value="${ctx.esc(ctx.ui.search.products)}" data-search="products">
+              <select data-search="productsCategory" aria-label="Filtrar productos por categoría"><option value="">Todas las categorías</option>${categories.map(c => `<option value="${ctx.esc(c)}" ${ctx.ui.search.productsCategory === c ? "selected" : ""}>${ctx.esc(c)}</option>`).join("")}</select>
             </div>
           </div>
           <div class="entity-stack">${products.length ? products.map(ctx.productCard).join("") : '<div class="empty"><p>No hay productos para mostrar.</p></div>'}</div>
@@ -43,15 +40,12 @@
       </div>
       <div class="panel">
         <div class="panel-h">
-          <div>
-            <h2>Proveedores</h2>
-            <div class="sub">Base independiente para compras y gastos</div>
-          </div>
+          <div><h2>Proveedores</h2><div class="sub">Contactos y proveedores de compras</div></div>
           <div class="actions"><button class="primary" data-action="new-supplier">Nuevo proveedor</button></div>
         </div>
         <div class="panel-b">
           <div class="search-shell">
-            <div class="search-row"><input placeholder="Buscar proveedor" value="${ctx.esc(ctx.ui.search.suppliers)}" data-search="suppliers"></div>
+            <div class="search-row"><input placeholder="Buscar proveedor" aria-label="Buscar proveedores" value="${ctx.esc(ctx.ui.search.suppliers)}" data-search="suppliers"></div>
           </div>
           <div class="entity-stack">${suppliers.length ? suppliers.map(supplier => renderSupplierCard(supplier, ctx)).join("") : '<div class="empty"><p>No hay proveedores cargados.</p></div>'}</div>
         </div>

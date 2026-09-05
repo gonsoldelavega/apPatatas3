@@ -72,7 +72,7 @@
     }));
     const isValidDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 
-    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Flujo guiado: cliente, entregas, cobro y revisión", `<form id="invoiceForm" class="invoice-guided-form" novalidate>
+    global.AppUIModal.openModal(id ? "Editar factura" : "Nueva factura", "Cliente, entregas, cobro y revisión", `<form id="invoiceForm" class="invoice-guided-form" novalidate>
       <div class="invoice-sticky-summary" id="invoiceStickySummary">
         <div>
           <span class="invoice-step-eyebrow">Factura preparada</span>
@@ -82,10 +82,10 @@
       </div>
 
       <section class="invoice-step-card">
-        <div class="invoice-step-head"><span>1</span><div><h3>Cliente y numeración</h3><p>El número no se consume hasta guardar.</p></div></div>
+        <div class="invoice-step-head"><span>1</span><div><h3>Cliente y numeración</h3><p>Se propone el siguiente número, pero puedes modificarlo antes de guardar.</p></div></div>
         <div class="sheet-grid invoice-step-grid">
           <div class="field"><label>Cliente</label><select name="clientId" id="invoiceClient"><option value="">Selecciona cliente</option>${ctx.state.clients.map(c => `<option value="${c.id}" ${invoice.clientId === c.id ? "selected" : ""}>${ctx.esc(c.name)}</option>`).join("")}</select></div>
-          <div class="field"><label>Número</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" ${isNewInvoice ? "readonly" : ""}></div>
+          <div class="field"><label>Número</label><input name="number" value="${ctx.esc(invoice.number)}" placeholder="${ctx.esc(ctx.composeInvoiceNumber(ctx.state.settings.nextInvoiceNumber))}" autocomplete="off"></div>
           <div class="field"><label>Fecha de emisión</label><input name="issueDate" type="date" value="${ctx.esc(invoice.issueDate)}"></div>
           <div class="field"><label>Plantilla</label><select name="templateId" id="invoiceTemplate"><option value="">Selecciona plantilla</option>${ctx.state.templates.map(t => `<option value="${t.id}" ${invoice.templateId === t.id ? "selected" : ""}>${ctx.esc(t.name)}</option>`).join("")}</select></div>
         </div>
@@ -104,7 +104,7 @@
         <div class="invoice-step-head"><span>3</span><div><h3>Cobro y condiciones</h3><p>Registra si ya hay cobro parcial o total.</p></div></div>
         <div class="sheet-grid invoice-step-grid">
           <div class="field"><label>Estado de envío interno</label><select name="sendStatus"><option value="">Sin estado</option>${["pendiente","enviada","revisar"].map(s => `<option value="${s}" ${invoice.sendStatus === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
-          <div class="field"><label>Importe cobrado</label><input name="amountPaid" type="number" step="0.01" value="${ctx.esc(invoice.amountPaid)}"></div>
+          <div class="field"><label>Importe cobrado</label><input name="amountPaid" type="number" step="0.01" inputmode="decimal" value="${ctx.esc(invoice.amountPaid)}"></div>
           <div class="field"><label>Mostrar cláusula legal</label><select name="showPaymentTerms" id="invoiceTerms"><option value="false" ${invoice.showPaymentTerms ? "" : "selected"}>No</option><option value="true" ${invoice.showPaymentTerms ? "selected" : ""}>Sí</option></select></div>
           <div class="field" style="grid-column:1/-1;"><label>Nota interna</label><textarea name="internalNote">${ctx.esc(invoice.internalNote)}</textarea></div>
         </div>
@@ -134,7 +134,7 @@
 
       function getFormData(){
         const data = Object.fromEntries(new FormData(form).entries());
-        if(isNewInvoice) data.number = computePreviewInvoiceNumber();
+        data.number = String(data.number || "").trim() || computePreviewInvoiceNumber();
         data.showPaymentTerms = data.showPaymentTerms === "true";
         return data;
       }
@@ -180,8 +180,6 @@
       }
 
       async function saveInvoice(btn){
-        // Guardia anti-fantasma: si este formulario ya no está montado (se abrió otro
-        // modal encima), este cierre es obsoleto y no debe guardar nada.
         if(!form.isConnected) return;
         const originalLabel = btn?.textContent || "Guardar factura";
         try{

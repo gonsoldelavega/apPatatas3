@@ -23,12 +23,11 @@
     const themePref = (typeof window !== "undefined" && window.__factupapaTheme) ? window.__factupapaTheme.get() : "system";
 
     return `<div class="view-stack workspace-stack">
-
       <div class="workspace-hero settings-hero">
         <div class="workspace-hero-copy">
           <span class="eyebrow">Centro operativo</span>
           <h2>Todo lo importante, sin ruido técnico.</h2>
-          <p>Accesos rápidos, clientes, productos, exportaciones y estado de sincronización.</p>
+          <p>Clientes, productos, exportaciones, apariencia y sincronización.</p>
         </div>
         <div class="hero-mini-grid">
           <div class="mini-stat"><span>Facturas del mes</span><strong>${monthInvoices}</strong></div>
@@ -43,7 +42,7 @@
             ${hubCard("Clientes", `${ctx.state.clients.length} fichas`, "clients")}
             ${hubCard("Productos", `${ctx.state.products.length} productos · ${ctx.state.suppliers.length} proveedores`, "catalog")}
             ${hubCard("Gestoría", "Exportaciones, fiscalidad y backup", "exports")}
-            ${hubCard("Compras y gastos", "Operativa, escáner y documentos", "operations")}
+            ${hubCard("Compras y gastos", "Compras, gastos y documentos", "operations")}
             ${hubCard("Monedero", "Saldo y movimientos de efectivo", "wallet")}
           </div>
         </div>
@@ -61,7 +60,7 @@
       </div>
 
       <div class="panel soft-block">
-        <div class="panel-h"><div><h2>Nube y dispositivos</h2><p>Sincroniza facturas, clientes, productos y todo entre tus dos móviles.</p></div></div>
+        <div class="panel-h"><div><h2>Nube y dispositivos</h2><p>Sincroniza facturas, clientes y productos entre dispositivos.</p></div></div>
         <div class="panel-b">
           <div class="hub-grid">
             ${actionCard("Nube", "Conectar este móvil a la nube", "enable-cloud-sync", "primary")}
@@ -72,27 +71,20 @@
 
       <div class="panel soft-block">
         <div class="panel-h"><div><h2>Acciones útiles</h2><p>Procesos rápidos sin entrar en configuración técnica.</p></div></div>
-        <div class="panel-b">
-          <div class="hub-grid">
-            ${actionCard("Compras", "Sincronizar compras del registro", "sync-purchase-registry")}
-          </div>
-        </div>
+        <div class="panel-b"><div class="hub-grid">${actionCard("Compras", "Sincronizar compras del registro", "sync-purchase-registry")}</div></div>
       </div>
 
       <div class="panel soft-block">
         <details>
           <summary class="settings-diagnostic-summary">
-            <div>
-              <h2>Diagnóstico avanzado</h2>
-              <p>Supabase, Drive, service worker, versión y siguiente numeración.</p>
-            </div>
+            <div><h2>Diagnóstico avanzado</h2><p>Supabase, Drive, service worker, versión y numeración.</p></div>
             <span class="chip">Ver estado</span>
           </summary>
           <div class="panel-b" style="border-top:1px solid var(--line);">
             <div class="summary">
-              <div class="summary-row"><span>Version</span><strong>${ctx.esc(ctx.appVersion || "Sin version")}</strong></div>
-              <div class="summary-row"><span>Ultimo commit</span><strong>${ctx.esc(ctx.appCommit || "No disponible en runtime")}</strong></div>
-              <div class="summary-row"><span>Ultima sincronizacion</span><strong>${ctx.health?.lastSyncAt ? ctx.date(ctx.health.lastSyncAt) : "Sin dato"}</strong></div>
+              <div class="summary-row"><span>Versión</span><strong>${ctx.esc(ctx.appVersion || "Sin versión")}</strong></div>
+              <div class="summary-row"><span>Último commit</span><strong>${ctx.esc(ctx.appCommit || "No disponible en runtime")}</strong></div>
+              <div class="summary-row"><span>Última sincronización</span><strong>${ctx.health?.lastSyncAt ? ctx.date(ctx.health.lastSyncAt) : "Sin dato"}</strong></div>
               <div class="summary-row"><span>Supabase</span><strong>${ctx.esc(ctx.health?.supabaseStatus || "Sin dato")}</strong></div>
               <div class="summary-row"><span>Google Drive</span><strong>${ctx.esc(ctx.health?.googleDriveStatus || "Sin conectar")}</strong></div>
               <div class="summary-row"><span>Service worker</span><strong>${ctx.esc(ctx.health?.serviceWorkerStatus || "Sin dato")}</strong></div>
@@ -107,10 +99,7 @@
       <div class="panel soft-block">
         <details>
           <summary class="settings-diagnostic-summary">
-            <div>
-              <h2>Configuración general</h2>
-              <p>Empresa, numeración, cuenta bancaria, Drive y registro de compras.</p>
-            </div>
+            <div><h2>Configuración general</h2><p>Empresa, numeración, cuenta bancaria, Drive y registro de compras.</p></div>
             <span class="chip">Editar</span>
           </summary>
           <div class="panel-b" style="border-top:1px solid var(--line);">
@@ -130,66 +119,47 @@
               <div class="field"><label>PDF factura a Drive</label><select name="driveAutoUpload"><option value="false" ${ctx.state.settings.driveAutoUpload ? "" : "selected"}>No</option><option value="true" ${ctx.state.settings.driveAutoUpload ? "selected" : ""}>Sí</option></select></div>
               <div class="field"><label>Archivo datos Drive</label><input name="driveStateFileName" value="${ctx.esc(ctx.state.settings.driveStateFileName || "apPatatas-state.json")}"></div>
               <div class="field"><label>Sync automática Drive</label><select name="driveStateAutoSync"><option value="false" ${ctx.state.settings.driveStateAutoSync ? "" : "selected"}>No</option><option value="true" ${ctx.state.settings.driveStateAutoSync ? "selected" : ""}>Sí</option></select></div>
-              <div class="field"><label>Compras desde registro</label><select name="purchaseRegistryAutoSync"><option value="true" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "" : "selected"}>Si</option><option value="false" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "selected" : ""}>No</option></select></div>
+              <div class="field"><label>Compras desde registro</label><select name="purchaseRegistryAutoSync"><option value="true" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "" : "selected"}>Sí</option><option value="false" ${ctx.state.settings.purchaseRegistryAutoSync === false ? "selected" : ""}>No</option></select></div>
               <div class="field"><label>ID registro compras</label><input name="purchaseRegistrySpreadsheetId" value="${ctx.esc(ctx.state.settings.purchaseRegistrySpreadsheetId || "1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU")}"></div>
               <div class="field"><label>Hoja registro compras</label><input name="purchaseRegistrySheetName" value="${ctx.esc(ctx.state.settings.purchaseRegistrySheetName || "REGISTRO")}"></div>
               <div class="field" style="grid-column:1/-1;"><label>URL compras (CSV publicado o app web)</label><input name="purchaseRegistryWebAppUrl" value="${ctx.esc(ctx.state.settings.purchaseRegistryWebAppUrl || "")}" placeholder="https://docs.google.com/.../pub?output=csv"></div>
               <div class="field" style="grid-column:1/-1;"><button class="primary" type="submit">Guardar ajustes</button></div>
             </form>
-            <div class="actions section-actions" style="margin-top:14px;">
-              <button class="warn" data-action="reset-storage">Reiniciar datos locales</button>
-            </div>
+            <div class="actions section-actions" style="margin-top:14px;"><button class="warn" data-action="reset-storage">Reiniciar datos locales</button></div>
           </div>
         </details>
       </div>
-
     </div>`;
   }
 
-  function renderAboutView(){
+  function renderAboutView(ctx){
     return `<div class="cards">
       <div class="panel">
-        <div class="panel-h"><div><h2>Estado de la app</h2></div></div>
+        <div class="panel-h"><div><h2>Capacidades de la app</h2></div></div>
         <div class="panel-b">
           <div class="card">
             <div class="meta">
-              <span class="chip good">Supabase</span>
-              <span class="chip good">PDF</span>
-              <span class="chip good">CSV/JSON</span>
-              <span class="chip good">Google Drive</span>
-              <span class="chip good">Registro de compras</span>
+              <span class="chip">Sincronización</span>
+              <span class="chip">PDF</span>
+              <span class="chip">CSV/JSON</span>
+              <span class="chip">Google Drive</span>
+              <span class="chip">Registro de compras</span>
             </div>
           </div>
           <p style="margin:14px 0 0;color:var(--muted);font-size:.88rem;line-height:1.55;">Los productos descuentan stock al facturarse y las compras lo incrementan. Los albaranes no afectan al stock. El backup JSON sirve como copia de seguridad completa.</p>
-          <p style="margin:10px 0 0;color:var(--muted-2);font-size:.78rem;">Versión: 2026-06-02d</p>
+          <p style="margin:10px 0 0;color:var(--muted-2);font-size:.78rem;">Versión: ${ctx.esc(ctx.appVersion || "sin dato")}${ctx.appCommit ? ` · ${ctx.esc(ctx.appCommit)}` : ""}</p>
         </div>
       </div>
     </div>`;
   }
 
   function renderClientsView(ctx){
-    const clients = ctx.state.clients.filter(p =>
-      [p.name,p.phone,p.email,p.address].some(v =>
-        String(v || "").toLowerCase().includes(ctx.ui.search.clients.toLowerCase())
-      )
-    );
+    const clients = ctx.state.clients.filter(p => [p.name,p.phone,p.email,p.address].some(v => String(v || "").toLowerCase().includes(ctx.ui.search.clients.toLowerCase())));
     return `<div class="panel">
-      <div class="panel-h">
-        <div><h2>Clientes</h2></div>
-        <div class="actions"><button class="primary" data-action="new-client">Nuevo</button></div>
-      </div>
+      <div class="panel-h"><div><h2>Clientes</h2></div><div class="actions"><button class="primary" data-action="new-client">Nuevo cliente</button></div></div>
       <div class="panel-b">
-        <div class="toolbar">
-          <div class="search-row">
-            <input placeholder="Buscar por nombre, teléfono, email..." value="${ctx.esc(ctx.ui.search.clients)}" data-search="clients">
-          </div>
-        </div>
-        <div class="cards">
-          ${clients.length
-            ? clients.map(client => global.AppUICardClient.renderClientCard(client, ctx)).join("")
-            : '<div class="empty"><p>No hay clientes que coincidan.</p></div>'
-          }
-        </div>
+        <div class="toolbar"><div class="search-row"><input placeholder="Buscar por nombre, teléfono o email" aria-label="Buscar clientes" value="${ctx.esc(ctx.ui.search.clients)}" data-search="clients"></div></div>
+        <div class="cards">${clients.length ? clients.map(client => global.AppUICardClient.renderClientCard(client, ctx)).join("") : '<div class="empty"><p>No hay clientes que coincidan.</p></div>'}</div>
       </div>
     </div>`;
   }
