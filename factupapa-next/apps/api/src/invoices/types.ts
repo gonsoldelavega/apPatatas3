@@ -56,6 +56,7 @@ export interface Invoice {
 export interface InvoiceCreate {
   contactId: string;
   series: string;
+  number?: number | null;
   issueDate: string;
   dueDate?: string | null | undefined;
   notes?: string | null | undefined;
