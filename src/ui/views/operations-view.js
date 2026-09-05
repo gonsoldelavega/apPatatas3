@@ -1,15 +1,5 @@
 (function(global){
 
-  const EXPENSE_CATEGORIES = [
-    ["gasolina","Gasolina"],
-    ["agua","Agua"],
-    ["luz","Luz"],
-    ["bolsas","Bolsas"],
-    ["gestoria","Gestoría"],
-    ["autonomo","Autónomo"],
-    ["mantenimiento","Mantenimiento"]
-  ];
-
   function purchaseSupplierLabel(item, ctx){
     return ctx.getSupplier(item.supplierId)?.name || item.supplierName || item.supplier || "Proveedor";
   }
@@ -25,21 +15,26 @@
 
   function renderPurchaseCard(item, ctx){
     const hasAttachment = !!item.attachment?.dataUrl;
-    const base = Number.isFinite(Number(item.baseAmount)) ? ctx.n(item.baseAmount) : ctx.n(item.quantity) * ctx.n(item.unitCost);
+    const base  = Number.isFinite(Number(item.baseAmount))  ? ctx.n(item.baseAmount)  : ctx.n(item.quantity) * ctx.n(item.unitCost);
     const taxAmount = Number.isFinite(Number(item.ivaAmount)) ? ctx.n(item.ivaAmount) : base * (ctx.n(item.iva) / 100);
     const total = Number.isFinite(Number(item.totalAmount)) ? ctx.n(item.totalAmount)
-      : Number.isFinite(Number(item.amount)) ? ctx.n(item.amount)
-      : ctx.purchaseTotal(item);
-    const title = purchaseSupplierLabel(item, ctx);
+                : Number.isFinite(Number(item.amount))      ? ctx.n(item.amount)
+                : ctx.purchaseTotal(item);
+    const title    = purchaseSupplierLabel(item, ctx);
     const subtitle = purchaseSubtitle(item, ctx);
-    const lineCount = Array.isArray(item.lines) ? item.lines.length : 0;
     return `<article class="card card-tight">
       <div class="list-row-top">
-        <div><h3 class="list-row-title">${ctx.esc(title)}</h3><p class="list-row-sub">${ctx.esc(subtitle)} · ${ctx.date(item.date)}</p></div>
+        <div>
+          <h3 class="list-row-title">${ctx.esc(title)}</h3>
+          <p class="list-row-sub">${ctx.esc(subtitle)} · ${ctx.date(item.date)}</p>
+        </div>
         <div class="price">${ctx.money(total)}</div>
       </div>
       <div class="inline-summary">
-        ${lineCount ? `<span class="chip">${lineCount} ${lineCount === 1 ? "línea" : "líneas"}</span>` : item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>` : `<span class="chip">Compra manual</span>`}
+        ${Array.isArray(item.lines) && item.lines.length
+          ? `<span class="chip">${item.lines.length} línea(s)</span>`
+          : item.productId ? `<span class="chip">Cantidad: ${ctx.n(item.quantity)}</span>`
+          : `<span class="chip">Compra manual</span>`}
         <span class="chip">Base: ${ctx.money(base)}</span>
         <span class="chip">IVA: ${ctx.money(taxAmount)}</span>
         ${hasAttachment ? `<span class="chip good">Adjunto</span>` : ""}
@@ -55,7 +50,10 @@
   function renderExpenseCard(item, ctx){
     return `<article class="card card-tight">
       <div class="list-row-top">
-        <div><h3 class="list-row-title">${ctx.esc(item.concept || item.category || "Gasto")}</h3><p class="list-row-sub">${ctx.esc(item.category || "Sin categoría")} · ${ctx.date(item.date)}</p></div>
+        <div>
+          <h3 class="list-row-title">${ctx.esc(item.concept || item.category || "Gasto")}</h3>
+          <p class="list-row-sub">${ctx.esc(item.category || "Sin categoría")} · ${ctx.date(item.date)}</p>
+        </div>
         <div class="price">${ctx.money(ctx.expenseTotal(item))}</div>
       </div>
       <div class="inline-summary">
@@ -84,25 +82,34 @@
 
     return `<div class="cards">
       <div class="panel" id="operations-purchases">
-        <div class="panel-h"><div><h2>Compras</h2><div class="sub">Mercancía y facturas de proveedores</div></div><div class="actions"><button class="primary" data-action="new-purchase">Nueva compra</button></div></div>
+        <div class="panel-h">
+          <div><h2>Compras</h2></div>
+          <div class="actions"><button class="primary" data-action="new-purchase">Nueva</button></div>
+        </div>
         <div class="panel-b">
-          <div class="search-shell"><div class="search-row"><select data-search="purchasesSupplier" aria-label="Filtrar compras por proveedor"><option value="">Todos los proveedores</option>${ctx.state.suppliers.map(s => `<option value="${s.id}" ${ctx.ui.search.purchasesSupplier === s.id ? "selected" : ""}>${ctx.esc(s.name)}</option>`).join("")}</select></div></div>
+          <div class="search-shell"><div class="search-row"><select data-search="purchasesSupplier"><option value="">Todos los proveedores</option>${ctx.state.suppliers.map(s => `<option value="${s.id}" ${ctx.ui.search.purchasesSupplier === s.id ? "selected" : ""}>${ctx.esc(s.name)}</option>`).join("")}</select></div></div>
           <div class="entity-stack">${purchases.length ? purchases.map(item => renderPurchaseCard(item, ctx)).join("") : '<div class="empty"><p>No hay compras registradas.</p></div>'}</div>
         </div>
       </div>
 
       <div class="panel" id="operations-expenses">
-        <div class="panel-h"><div><h2>Gastos</h2><div class="sub">Gastos generales no asociados a mercancía</div></div><div class="actions"><button class="primary" data-action="new-expense">Nuevo gasto</button></div></div>
+        <div class="panel-h">
+          <div><h2>Gastos</h2></div>
+          <div class="actions"><button class="primary" data-action="new-expense">Nuevo</button></div>
+        </div>
         <div class="panel-b">
-          <div class="search-shell"><div class="search-row"><select data-search="expensesCategory" aria-label="Filtrar gastos por categoría"><option value="">Todas las categorías</option>${EXPENSE_CATEGORIES.map(([id,label]) => `<option value="${id}" ${ctx.ui.search.expensesCategory === id ? "selected" : ""}>${label}</option>`).join("")}</select></div></div>
+          <div class="search-shell"><div class="search-row"><select data-search="expensesCategory"><option value="">Todas las categorías</option>${["gasolina","agua","luz","bolsas","gestoria","autonomo","mantenimiento"].map(c => `<option value="${c}" ${ctx.ui.search.expensesCategory === c ? "selected" : ""}>${c}</option>`).join("")}</select></div></div>
           <div class="entity-stack">${expenses.length ? expenses.map(item => renderExpenseCard(item, ctx)).join("") : '<div class="empty"><p>No hay gastos registrados.</p></div>'}</div>
         </div>
       </div>
 
       <div class="panel">
-        <div class="panel-h"><div><h2>Documentos</h2><div class="sub">Archivo manual de tickets, justificantes y documentos</div></div><div class="actions"><button class="primary" data-action="new-document">Nuevo documento</button></div></div>
+        <div class="panel-h">
+          <div><h2>Documentos</h2></div>
+          <div class="actions"><button class="primary" data-action="new-document">Nuevo</button></div>
+        </div>
         <div class="panel-b">
-          <div class="search-shell"><div class="search-row"><input placeholder="Buscar documento..." aria-label="Buscar documentos" value="${ctx.esc(ctx.ui.search.documents)}" data-search="documents"><select data-search="documentsType" aria-label="Filtrar documentos por tipo"><option value="">Todos los tipos</option>${[{id:"ticket",name:"Ticket"},{id:"supplierInvoice",name:"Factura proveedor"},{id:"deliveryProof",name:"Albarán proveedor"},{id:"receipt",name:"Justificante"},{id:"other",name:"Otro"}].map(t => `<option value="${t.id}" ${ctx.ui.search.documentsType === t.id ? "selected" : ""}>${t.name}</option>`).join("")}</select></div></div>
+          <div class="search-shell"><div class="search-row"><input placeholder="Buscar documento..." value="${ctx.esc(ctx.ui.search.documents)}" data-search="documents"><select data-search="documentsType"><option value="">Todos los tipos</option>${[{id:"ticket",name:"Ticket"},{id:"supplierInvoice",name:"Factura proveedor"},{id:"deliveryProof",name:"Albarán proveedor"},{id:"receipt",name:"Justificante"},{id:"other",name:"Otro"}].map(t => `<option value="${t.id}" ${ctx.ui.search.documentsType === t.id ? "selected" : ""}>${t.name}</option>`).join("")}</select></div></div>
           <div class="entity-stack">${documents.length ? documents.map(item => global.AppUICardDocument.renderDocumentCard(item, ctx)).join("") : '<div class="empty"><p>No hay documentos registrados todavía.</p></div>'}</div>
         </div>
       </div>

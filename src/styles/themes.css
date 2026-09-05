@@ -3,8 +3,6 @@
 @import './invoice-guided.css';
 @import './billing-compact.css';
 @import './dark.css?v=20260713b';
-@import './navigation.css';
-@import './quality-sweep.css';
 
 .panel,
 .card,
