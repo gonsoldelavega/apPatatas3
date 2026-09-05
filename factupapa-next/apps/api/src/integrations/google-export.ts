@@ -126,7 +126,7 @@ export class GoogleInvoiceExporter {
     const claimed = await this.pool.query<{ id: string; companyId: string; invoiceId: string }>(`select id,company_id "companyId",invoice_id "invoiceId" from public.claim_sales_invoice_export_events($1)`, [limit]);
     const events = claimed.rows;
     for (const event of events) {
-      try { await this.exportOne(event.companyId, event.invoiceId); await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='completed',completed_at=now(),last_error=null,updated_at=now() where id=$1`, [event.id])); }
+      try { const driveId = await this.exportOne(event.companyId, event.invoiceId); await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='completed',drive_file_id=$2,completed_at=now(),last_error=null,updated_at=now() where id=$1`, [event.id, driveId])); }
       catch (error) { const message = error instanceof Error ? error.message.slice(0, 500) : "export_failed"; await withTenantTransaction(this.pool, { companyId: event.companyId, userId: event.companyId }, (client) => client.query(`update sales_invoice_export_events set status='failed',last_error=$2,next_attempt_at=${retryAtSql()},updated_at=now() where id=$1`, [event.id, message])); }
     }
     const purchases = await this.pool.query<{ id: string; companyId: string; purchaseInvoiceId: string }>(`select id,company_id "companyId",purchase_invoice_id "purchaseInvoiceId" from public.claim_purchase_invoice_export_events($1)`, [limit]);
@@ -193,10 +193,10 @@ export class GoogleInvoiceExporter {
     }
   }
 
-  private async exportOne(companyId: string, invoiceId: string): Promise<void> {
+  private async exportOne(companyId: string, invoiceId: string): Promise<string | null> {
     const identity = { companyId, userId: companyId };
     const invoice = await withTenantTransaction(this.pool, identity, (client) => this.invoices.get(client, invoiceId));
-    if (!invoice || invoice.status !== "issued") return;
+    if (!invoice || invoice.status !== "issued") return null;
     const google = await this.gmail.googleAccess(identity);
     if (!google.scopes.includes(GOOGLE_DRIVE_SCOPE) || !google.scopes.includes(GOOGLE_SHEETS_SCOPE)) throw new HttpError("gmail_reauthorization_required", 409);
     const company = await this.pool.query<{ name: string; taxId: string | null; address: Record<string,string> }>(`select name,tax_id "taxId",address from companies where id=$1`, [companyId]);
@@ -213,6 +213,7 @@ export class GoogleInvoiceExporter {
     if (!driveId) throw new Error("drive_file_id_missing");
     await moveDriveFile(google.token, driveId, salesFolder);
     await this.upsertSheets(google.token, invoice, label, driveId);
+    return driveId;
   }
 
   private async upsertSheets(token: string, invoice: Awaited<ReturnType<InvoiceRepository["get"]>>, label: string, driveId: string | null) {
