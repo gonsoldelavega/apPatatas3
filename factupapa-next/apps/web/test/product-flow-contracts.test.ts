@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = (relative: string) =>
-  readFileSync(new URL(`../src/${relative}`, import.meta.url), "utf8");
+  readFileSync(resolve(process.cwd(), "src", relative), "utf8");
 
 describe("FactuPapa Next purchase architecture", () => {
   it("keeps the manual purchase form free from camera and OCR classification", () => {
