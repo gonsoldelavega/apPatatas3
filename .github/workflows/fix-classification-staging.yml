@@ -1,11 +1,7 @@
 name: One-shot purchase and ledger reorganization
 
 on:
-  push:
-    branches:
-      - codex/factupapa-next-quality-sweep
-    paths:
-      - .github/workflows/fix-classification-staging.yml
+  workflow_dispatch:
 
 permissions:
   contents: write

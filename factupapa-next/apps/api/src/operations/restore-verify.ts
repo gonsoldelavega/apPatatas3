@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { run } from "./process.js";
@@ -20,6 +20,8 @@ export async function verifyRestore() {
   const manifestPath = `${dump}.manifest.json`;
   const checksumFile = await readFile(`${dump}.sha256`, "utf8");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as { checksum?: { algorithm?: string; value?: string }; size?: number; latestMigration?: string };
+  const migrationsDirectory = path.resolve(process.cwd(), "../../packages/database");
+  const expectedLatestMigration = (await readdir(migrationsDirectory)).filter((name) => /^\d{4}_.+\.sql$/.test(name)).sort().at(-1) ?? "unknown";
   const fileSize = (await stat(dump)).size;
   const hash = createHash("sha256");
   await new Promise<void>((resolve, reject) => { const input = createReadStream(dump); input.on("data", (chunk) => hash.update(chunk)); input.once("end", resolve); input.once("error", reject); });
@@ -37,7 +39,7 @@ export async function verifyRestore() {
     await run("docker", ["compose", "run", "--rm", "-e", `RESTORE_DATABASE_NAME=${database}`, "migrate", "sh", "-c", "export DATABASE_URL=\"${DATABASE_URL%/*}/$RESTORE_DATABASE_NAME\"; exec npm run migrate:prod"], { cwd: infrastructure });
     const checks = await compose("exec", "-T", "postgres", "sh", "-c", `PGPASSWORD=\"$POSTGRES_PASSWORD\" psql --no-psqlrc -v ON_ERROR_STOP=1 -At -U \"$POSTGRES_USER\" -d ${database} -c \"select json_build_object('migration',(select max(filename) from schema_migrations),'companies',(select count(*) from companies),'contacts',(select count(*) from contacts),'products',(select count(*) from products),'deliveryNotes',(select count(*) from delivery_notes),'invoices',(select count(*) from invoices),'auditEvents',(select count(*) from audit_events),'forcedRls',(select bool_and(relforcerowsecurity) from pg_class where relname in ('contacts','products','delivery_notes','invoices','import_mappings')),'apiBypassRls',(select rolbypassrls from pg_roles where rolname='factupapa_api'))\"`);
     outcome = JSON.parse(checks.trim()) as Record<string, unknown>;
-    if (outcome.migration !== manifest.latestMigration || outcome.forcedRls !== true || outcome.apiBypassRls !== false) throw new Error("restore_schema_verification_failed");
+    if (outcome.migration !== expectedLatestMigration || outcome.forcedRls !== true || outcome.apiBypassRls !== false) throw new Error("restore_schema_verification_failed");
     const withoutContext = await compose("exec", "-T", "postgres", "sh", "-c", `PGPASSWORD=\"$POSTGRES_PASSWORD\" psql --no-psqlrc -At -U \"$POSTGRES_USER\" -d ${database} -c \"set role factupapa_api; select count(*) from contacts\"`);
     const rlsCount = Number(withoutContext.trim().split(/\s+/).at(-1));
     if (rlsCount !== 0) throw new Error("restore_rls_verification_failed");
