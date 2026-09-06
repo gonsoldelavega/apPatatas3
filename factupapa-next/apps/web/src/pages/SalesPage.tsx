@@ -18,7 +18,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { Field } from "../ui/Field";
 import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
-import { formatDocumentNumber, formatMoney } from "../utils/format";
+import { formatDocumentNumber, formatMoney, todayLocal } from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
 import { useToast } from "../ui/ToastProvider";
 
@@ -101,7 +101,7 @@ export function SalesPage() {
       const amount = Math.max(0, Number(invoice.balanceDue ?? invoice.total)).toFixed(2);
       const input = {
         amount,
-        paidAt: new Date().toISOString(),
+        paidAt: `${todayLocal()}T12:00:00`,
         method: null,
         reference: null,
         notes: null,
@@ -117,10 +117,10 @@ export function SalesPage() {
         queryClient.invalidateQueries({ queryKey: ["finance-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
       ]);
-      toast.show("Factura marcada como cobrada.");
+      toast.show("Factura marcada como pagada.");
     },
     onError: () => {
-      toast.show("No se pudo registrar el cobro. Inténtalo de nuevo.");
+      toast.show("No se pudo marcar la factura como pagada. Inténtalo de nuevo.");
     },
   });
 
@@ -356,17 +356,19 @@ export function SalesPage() {
                     {canCollect && (
                       <button
                         type="button"
-                        aria-label="Cobrar factura"
-                        title="Cobrar"
+                        className="invoice-card-actions__pay"
+                        aria-label="Marcar factura como pagada"
+                        title="Marcar pagada"
                         disabled={actionBusy || collectBusy}
                         onClick={() => {
                           const amount = invoice.balanceDue ?? invoice.total;
-                          if (window.confirm(`¿Marcar ${formatDocumentNumber(invoice.series, invoice.number)} como cobrada por ${formatMoney(amount)} hoy?`)) {
+                          if (window.confirm(`¿Marcar ${formatDocumentNumber(invoice.series, invoice.number)} como pagada por ${formatMoney(amount)}? Se registrará el cobro de hoy.`)) {
                             quickCollect.mutate(invoice);
                           }
                         }}
                       >
                         <Banknote aria-hidden="true" />
+                        <span>Marcar pagada</span>
                       </button>
                     )}
                   </>
@@ -387,7 +389,7 @@ export function SalesPage() {
       )}
       {quickCollect.isError && (
         <p className="action-feedback action-feedback--error" role="alert">
-          No se pudo registrar el cobro. Inténtalo de nuevo.
+          No se pudo marcar la factura como pagada. Inténtalo de nuevo.
         </p>
       )}
 
