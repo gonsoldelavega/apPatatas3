@@ -23,6 +23,8 @@ import "./financial-blue.css";
 import "./reference-redesign.css";
 // Consolidated visual system: the final, semantic product layer.
 import "./visual-system.css";
+// Narrow fixes requested from real iPhone usage; must stay after the product layer.
+import "./mobile-usability-fixes.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
