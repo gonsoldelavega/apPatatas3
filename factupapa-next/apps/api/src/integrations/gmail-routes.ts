@@ -69,9 +69,11 @@ export function createGmailRoutes(
     }
     if (request.method === "POST" && url.pathname === "/integrations/gmail/sync") {
       if (!service) throw new HttpError("not_found", 404);
-      const identity = await auth.authenticate(bearerToken(request));
-      json(response, 200, await service.syncInbox(identity, finance));
-      return true;
+      // Purchase ingestion from Gmail is owned by the external Drive/Sheets
+      // organizer. The API must never OCR/classify arbitrary inbox attachments
+      // or create confirmed purchases from them automatically.
+      await auth.authenticate(bearerToken(request));
+      throw new HttpError("gmail_purchase_sync_external_organizer", 409);
     }
     if (request.method === "POST" && url.pathname === "/integrations/gmail/sync/dry-run") {
       if (!service) throw new HttpError("not_found", 404);
