@@ -6,7 +6,18 @@ This file applies to everything under `factupapa-next/` and supplements the repo
 
 `factupapa-next/` is the current React/Vite + API/PostgreSQL rewrite. It is isolated from the legacy/root PWA. Do not modify, deploy, or use the legacy app as evidence for a Factupapa Next task.
 
-The continuity/source branch for current Next work is `codex/factupapa-claude-fixes` unless a newer explicitly documented continuation branch supersedes it.
+## Canonical continuation branch
+
+Canonical continuation branch for FactuPapa Next: `codex/factupapa-next-quality-sweep`.
+
+Branch policy:
+
+- `codex/factupapa-claude-fixes` is a historical/donor branch and must not receive new development;
+- `codex/factupapa-claude-fixes` may be inspected or used only to recover/port valid changes into the canonical continuation branch;
+- all new FactuPapa Next work must be performed on `codex/factupapa-next-quality-sweep`;
+- do not create a new continuation branch unless a later, explicit, documented instruction supersedes this policy;
+- do not use `main`, any `claude/*` branch, legacy branches, or auxiliary branches as the FactuPapa Next working branch;
+- `automation/*` branches are control/orchestration branches and are not application-development branches.
 
 ## Quality execution
 
