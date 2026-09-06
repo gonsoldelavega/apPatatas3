@@ -16,7 +16,8 @@ export class HttpError extends Error {
       | "gmail_not_connected"
       | "gmail_recipient_missing"
       | "gmail_reauthorization_required"
-      | "gmail_send_failed",
+      | "gmail_send_failed"
+      | "gmail_purchase_sync_external_organizer",
     readonly status: 400 | 403 | 404 | 409 | 413 | 502 | 503,
   ) {
     super(code);
