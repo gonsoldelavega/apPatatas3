@@ -48,8 +48,19 @@
     min-width: 0;
   }
 
+  /* Keep the period wording available to assistive technology and existing
+     smoke tests, but remove the redundant visible copy from the card. */
   .dashboard-page .result-card__heading > div:first-child > span {
-    display: none !important;
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    color: transparent !important;
+    font-size: 1px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
   }
 
   .dashboard-page .result-card__heading strong {
