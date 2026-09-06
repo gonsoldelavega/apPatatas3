@@ -211,8 +211,6 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
   await captureReference("facturas");
 
   await navigation.getByRole("link", { name: "Gastos" }).click();
-  // Expenses preserves its filter state in the query string (period=all by
-  // default), so assert the route while allowing those navigation params.
   await expect(page).toHaveURL(/\/gastos(?:\?.*)?$/);
   await expect(page.getByRole("heading", { name: "Compras y gastos", exact: true })).toBeVisible();
   await expect(navigation).toHaveCSS("--active-nav-index", "2");
@@ -253,7 +251,7 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
   await assertNoHorizontalOverflow(page);
 });
 
-test("compras y gastos se adapta al móvil y permite archivo o cámara", async ({
+test("compras y gastos se adapta al móvil y permite archivar un documento opcional", async ({
   page,
 }, testInfo) => {
   await login(page);
@@ -271,21 +269,25 @@ test("compras y gastos se adapta al móvil y permite archivo o cámara", async (
   });
 
   await page.goto("/gastos/nuevo");
-  await expect(page.getByText("Elegir archivo", { exact: true })).toBeVisible();
-  await expect(page.getByText("Hacer foto", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Nueva compra", exact: true }),
+  ).toBeVisible();
+  await page.getByText("Más datos y documento · opcional", { exact: true }).click();
+  await expect(page.getByText("Documento original", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Se archiva tal cual. Factupapa no lo interpreta ni crea datos desde el archivo.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Adjuntar PDF o imagen", { exact: true })).toBeVisible();
   const fileInput = page.locator(
     ".purchase-capture-option--file input[type=file]",
   );
-  const cameraInput = page.locator(
-    ".purchase-capture-option--camera input[type=file]",
-  );
   await expect(fileInput).not.toHaveAttribute("capture");
   await expect(fileInput).toHaveAttribute("accept", /application\/pdf/);
-  await expect(cameraInput).toHaveAttribute("capture", "environment");
-  await expect(cameraInput).toHaveAttribute("accept", "image/*");
+  await expect(fileInput).toHaveAttribute("accept", /image\/jpeg/);
+  await expect(page.locator('input[type=file][capture]')).toHaveCount(0);
 
   const submitAction = page.locator(".purchase-form-page > .sticky-submit");
-  if ((page.viewportSize()?.width ?? 0) < 960) {
+  if (testInfo.project.name.startsWith("mobile-")) {
     await expect(submitAction).toHaveCSS("position", "sticky");
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
@@ -381,7 +383,6 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
   expect(invoice.lines.map((line) => line.productId)).toEqual(productIds);
   expect(invoice.lines.map((line) => Number(line.quantity))).toEqual(expected.map((line) => Number(line.quantity)));
   expect(invoice.lines.map((line) => Number(line.unitPrice))).toEqual(expected.map((line) => Number(line.unitPrice)));
-  // El IVA se verifica con los importes persistidos; taxRate es un snapshot decimal del backend.
   expect(invoice.lines.reduce((sum, line) => sum + Number(line.lineSubtotal), 0)).toBeCloseTo(49.25, 2);
   expect(invoice.lines.reduce((sum, line) => sum + Number(line.lineTax), 0)).toBeCloseTo(1.97, 2);
   expect(Number(invoice.subtotal)).toBeCloseTo(49.25, 2);
@@ -394,14 +395,14 @@ test("una compra válida se guarda, confirma y cancela", async ({ page }, testIn
 
   const createPurchase = async (suffix: string) => {
     await page.goto("/gastos/nuevo");
-    await page.getByLabel("Proveedor obligatorio").selectOption({ index: 1 });
+    await page.getByLabel("Proveedor", { exact: true }).selectOption({ index: 1 });
     await page
-      .getByLabel("Número de factura del proveedor")
+      .getByLabel("Nº factura proveedor (opcional)")
       .fill(`E2E-${testInfo.project.name}-${testInfo.retry}-${suffix}`);
     await page.getByLabel("Descripción").fill(`Compra ficticia ${suffix}`);
     await page.getByLabel("Cantidad").fill("1");
-    await page.getByLabel("Coste unidad sin IVA").fill("2,50");
-    await page.getByRole("button", { name: "Guardar para revisión" }).click();
+    await page.getByLabel("Coste sin IVA").fill("2,50");
+    await page.getByRole("button", { name: "Guardar compra" }).click();
     await expect(page).toHaveURL(/\/gastos\/[0-9a-f-]+$/);
   };
 

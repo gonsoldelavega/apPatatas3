@@ -168,11 +168,9 @@ server.listen(config.port, config.host, () => {
   });
 });
 
-const gmailInboxTimer = gmail
-  ? setInterval(() => void gmail.syncDueInboxes(finance), 15 * 60_000)
-  : undefined;
-gmailInboxTimer?.unref();
-if (gmail) setTimeout(() => void gmail.syncDueInboxes(finance), 30_000).unref();
+// Purchase ingestion from Gmail is intentionally owned by the external
+// Drive/Sheets organizer. Do not schedule GmailIntegrationService.syncDueInboxes
+// here: that path performs OCR/classification and can create confirmed purchases.
 const googleExportTimer = googleExporter
   ? setInterval(() => void googleExporter.processDue(100), 60_000)
   : undefined;
@@ -180,7 +178,6 @@ googleExportTimer?.unref();
 if (googleExporter) setTimeout(() => void googleExporter.processDue(100), 45_000).unref();
 
 async function shutdown(signal: string) {
-  if (gmailInboxTimer) clearInterval(gmailInboxTimer);
   if (googleExportTimer) clearInterval(googleExportTimer);
   log("info", {
     event: "service.stopping",

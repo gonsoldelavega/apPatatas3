@@ -1,0 +1,169 @@
+/* Final mobile usability overrides for dashboard month navigation and invoice quick-pay. */
+
+.invoice-card-actions__pay {
+  width: auto !important;
+  min-width: 118px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px !important;
+  color: #174d8e;
+  background: #e4effd;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.invoice-card-actions__pay svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.invoice-card-actions__pay span {
+  display: inline-block;
+  line-height: 1;
+}
+
+.invoice-card-actions__pay:disabled {
+  opacity: 0.55;
+}
+
+@media (max-width: 759px) {
+  .dashboard-page .result-card {
+    gap: 14px;
+    padding: 16px 16px 14px;
+  }
+
+  .dashboard-page .result-card__heading {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 12px !important;
+  }
+
+  .dashboard-page .result-card__heading > div:first-child {
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  /* Keep the period wording available to assistive technology and existing
+     smoke tests, but remove the redundant visible copy from the card. */
+  .dashboard-page .result-card__heading > div:first-child > span {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    color: transparent !important;
+    font-size: 1px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .dashboard-page .result-card__heading strong {
+    margin: 0 !important;
+    font-size: clamp(2.45rem, 12vw, 3.1rem);
+    line-height: 0.95;
+  }
+
+  .dashboard-page .result-card__heading > .dashboard-month-nav {
+    grid-row: 1;
+    width: max-content;
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: 36px 132px 36px;
+    align-items: center;
+    justify-content: start;
+    justify-self: start;
+    gap: 6px;
+  }
+
+  .dashboard-page .dashboard-month-nav > button {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    height: 36px;
+  }
+
+  .dashboard-page .dashboard-month-nav > button svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket {
+    width: 132px;
+    min-width: 132px;
+    min-height: 38px;
+    height: 38px;
+    padding: 0 9px;
+    font-size: 0.72rem;
+    font-weight: 760;
+    letter-spacing: 0;
+  }
+
+  .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket > span[aria-hidden="true"] {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    margin: 0;
+    color: inherit;
+    font-size: inherit;
+    line-height: 1;
+    letter-spacing: 0;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap !important;
+  }
+
+  .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket input {
+    min-height: 38px;
+  }
+
+  .dashboard-page .result-card__metrics {
+    margin-top: 2px;
+  }
+
+  .sales-list .invoice-card-actions__pay {
+    min-width: 114px !important;
+    height: 44px;
+    padding-inline: 9px !important;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .dashboard-page .result-card__heading > .dashboard-month-nav {
+    grid-template-columns: 34px 124px 34px;
+    gap: 5px;
+  }
+
+  .dashboard-page .dashboard-month-nav > button {
+    width: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    height: 34px;
+  }
+
+  .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket {
+    width: 124px;
+    min-width: 124px;
+    min-height: 36px;
+    height: 36px;
+    font-size: 0.69rem;
+  }
+
+  .sales-list .invoice-card-actions {
+    gap: 5px;
+    padding-inline: 7px;
+  }
+
+  .sales-list .invoice-card-actions__pay {
+    min-width: 108px !important;
+    padding-inline: 7px !important;
+    font-size: 0.67rem;
+  }
+}

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = (relative: string) =>
-  readFileSync(new URL(`../src/${relative}`, import.meta.url), "utf8");
+  readFileSync(resolve(process.cwd(), "src", relative), "utf8");
 
 describe("FactuPapa Next purchase architecture", () => {
   it("keeps the manual purchase form free from camera and OCR classification", () => {
@@ -46,5 +47,16 @@ describe("FactuPapa Next invoice numbering", () => {
     expect(sales).toContain('label="Número de factura"');
     expect(sales).toContain("invoiceNumberEdited");
     expect(sales).toContain("Sugerido por la secuencia actual");
+  });
+});
+
+describe("FactuPapa Next dashboard balance layout", () => {
+  it("keeps the mobile month selector above the amount and its label on one line", () => {
+    const styles = source("visual-system.css");
+    expect(styles).toContain(".result-card__heading > .dashboard-month-nav");
+    expect(styles).toContain("grid-row: 1;");
+    expect(styles).toContain('span[aria-hidden="true"]');
+    expect(styles).toContain("white-space: nowrap;");
+    expect(styles).not.toContain(".result-card__heading > div { grid-row: 2; }");
   });
 });

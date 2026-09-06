@@ -215,6 +215,16 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   font-weight: 800;
   letter-spacing: 0;
 }
+.dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket > span[aria-hidden="true"] {
+  display: block;
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
 .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket input { min-height: 46px; }
 
 .stock-card__adjust {
@@ -245,22 +255,29 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
     grid-template-columns: minmax(0, 1fr);
     gap: 11px;
   }
-  .dashboard-page .result-card__heading > div { grid-row: 2; }
-  .dashboard-month-nav {
+  .dashboard-page .result-card__heading > div:first-child {
+    grid-row: 2;
+    min-width: 0;
+  }
+  .dashboard-page .result-card__heading > .dashboard-month-nav {
     grid-row: 1;
-    justify-self: end;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: 40px minmax(156px, 164px) 40px;
+    justify-content: end;
+    justify-self: stretch;
+    gap: 5px;
   }
   .dashboard-month-nav > button {
-    width: 29px;
-    min-width: 29px;
-    min-height: 29px;
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
   }
   .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket {
-    min-width: 138px;
-    min-height: 43px;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
     padding-inline: 10px;
     font-size: 0.82rem;
   }
-  .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket input { min-height: 43px; }
+  .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket input { min-height: 44px; }
 }

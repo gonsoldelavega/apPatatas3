@@ -7,6 +7,7 @@ export class HttpError extends Error {
       | "forbidden"
       | "not_found"
       | "conflict"
+      | "invoice_number_conflict"
       | "invoice_total_below_paid"
       | "payload_too_large"
       | "purchase_registry_not_configured"
@@ -15,7 +16,8 @@ export class HttpError extends Error {
       | "gmail_not_connected"
       | "gmail_recipient_missing"
       | "gmail_reauthorization_required"
-      | "gmail_send_failed",
+      | "gmail_send_failed"
+      | "gmail_purchase_sync_external_organizer",
     readonly status: 400 | 403 | 404 | 409 | 413 | 502 | 503,
   ) {
     super(code);

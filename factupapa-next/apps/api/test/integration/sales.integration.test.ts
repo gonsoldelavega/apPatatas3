@@ -36,6 +36,29 @@ async function createIssuedNote(series: string) {
   return (await delivery.issue(identity, note!.id))!;
 }
 
+test("numbered drafts persist, reserve their sequence and retain their number at issuance", async () => {
+  const input = { contactId: customerId, series: "RESERVED", issueDate: "2026-09-05" };
+  const draft = await invoices.create(identity, { ...input, number: 142 });
+  assert.equal(draft.number, 142);
+  assert.equal(draft.status, "draft");
+  assert.equal((await invoices.get(identity, draft.id)).number, 142);
+  assert.equal((await invoices.numberPreview(identity, input)).number, 143);
+  await assert.rejects(() => invoices.create(identity, { ...input, number: 142 }),
+    (error: unknown) => error instanceof HttpError && error.code === "invoice_number_conflict");
+  await invoices.update(identity, draft.id, { number: 150 });
+  assert.equal((await invoices.numberPreview(identity, input)).number, 151);
+  await invoices.update(identity, draft.id, { number: 149 });
+  assert.equal((await invoices.numberPreview(identity, input)).number, 151);
+  await invoices.line(identity, draft.id, undefined, { productId, quantity: "1" });
+  const issued = await invoices.issue(identity, draft.id);
+  assert.equal(issued!.number, 149);
+  await assert.rejects(() => invoices.update(identity, draft.id, { number: 152 }),
+    (error: unknown) => error instanceof HttpError && error.status === 409);
+  const automatic = await invoices.create(identity, input);
+  await invoices.line(identity, automatic.id, undefined, { productId, quantity: "1" });
+  assert.equal((await invoices.issue(identity, automatic.id))!.number, 151);
+});
+
 async function createIssuedInvoice(noteIds: string[], series: string) {
   const invoice = await invoices.fromDeliveryNotes(identity, {
     deliveryNoteIds: noteIds,
