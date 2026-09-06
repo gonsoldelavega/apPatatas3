@@ -3,7 +3,7 @@ name: One-shot purchase and ledger reorganization
 on:
   push:
     branches:
-      - codex/factupapa-claude-fixes
+      - codex/factupapa-next-quality-sweep
     paths:
       - .github/workflows/fix-classification-staging.yml
 
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
-          ref: codex/factupapa-claude-fixes
+          ref: codex/factupapa-next-quality-sweep
           fetch-depth: 0
       - name: Apply finance reorganization
         run: python3 factupapa-next/scripts/reorganize-finance.py
@@ -45,4 +45,4 @@ jobs:
             factupapa-next/apps/web/src/pages/PurchaseDetailPage.tsx \
             factupapa-next/apps/web/src/pages/ExpensesPage.tsx
           git commit -m '[deploy-staging] Add auditable purchase deletion and reorganize finance views'
-          git push origin HEAD:codex/factupapa-claude-fixes
+          git push origin HEAD:codex/factupapa-next-quality-sweep

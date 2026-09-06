@@ -2,7 +2,7 @@ name: FactuPapa Next Integration
 
 on:
   push:
-    branches: [design/factupapa-full-prototype, codex/factupapa-claude-fixes]
+    branches: [codex/factupapa-next-quality-sweep]
     paths:
       - 'factupapa-next/**'
       - '.github/workflows/factupapa-next-integration.yml'

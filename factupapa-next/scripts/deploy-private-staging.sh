@@ -15,7 +15,7 @@ public_origin="https://${public_host}"
 source "${repository}/factupapa-next/scripts/deploy-runtime-ports.sh"
 
 case "${branch}" in
-  design/factupapa-full-prototype|codex/factupapa-claude-fixes) ;;
+  codex/factupapa-next-quality-sweep) ;;
   *) echo "Rama no autorizada para el staging privado: ${branch}" >&2; exit 1 ;;
 esac
 

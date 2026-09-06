@@ -4,7 +4,7 @@ Nueva generación de FactuPapa, desarrollada de forma aislada para no afectar a 
 
 ## Estado actual
 
-- Rama activa de continuidad: `codex/factupapa-claude-fixes`.
+- Rama activa de continuidad: `codex/factupapa-next-quality-sweep`.
 - Producción: fuera de alcance e intocable.
 - Staging: entorno privado con datos exclusivamente ficticios.
 - Objetivo: candidata beta móvil para uso interno de Nando.

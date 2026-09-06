@@ -45,12 +45,42 @@ test("una factura se puede marcar como pagada directamente desde el listado", as
   await expect(markPaid).toBeVisible();
   await expect(markPaid).toContainText("Marcar pagada");
 
+  const paymentRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/invoices\/[^/]+\/payments$/.test(request.url())) {
+      paymentRequests.push(request.postData() ?? "");
+    }
+  });
   page.once("dialog", (dialog) => void dialog.accept());
   await markPaid.click();
 
   await expect(page.getByText("Factura marcada como pagada.", { exact: true })).toBeVisible();
+  await expect.poll(() => paymentRequests.length).toBe(1);
+  expect(paymentRequests[0]).toContain('"settleBalance":true');
   await expect(invoiceCard.getByText("Pagada", { exact: true })).toBeVisible();
   await expect(
     invoiceCard.getByRole("button", { name: "Marcar factura como pagada" }),
   ).toHaveCount(0);
+  await page.reload();
+  const persistedCard = page.locator(".invoice-list-card").filter({ hasText: invoiceNumber! }).first();
+  await expect(persistedCard.getByText("Pagada", { exact: true })).toBeVisible();
+  await expect(persistedCard.getByRole("button", { name: "Marcar factura como pagada" })).toHaveCount(0);
+});
+
+test("el selector de mes no tapa el resultado en móviles", async ({ page }) => {
+  test.skip(test.info().project.name === "desktop", "La regresión cubre anchos móviles reales.");
+  await login(page);
+  const card = page.locator(".result-card");
+  const value = page.getByTestId("dashboard-result-value");
+  const picker = page.locator(".dashboard-month-nav");
+  await expect(card).toBeVisible();
+  const boxes = await Promise.all([card.boundingBox(), value.boundingBox(), picker.boundingBox()]);
+  const [cardBox, valueBox, pickerBox] = boxes;
+  expect(cardBox && valueBox && pickerBox).toBeTruthy();
+  expect(valueBox!.y).toBeGreaterThanOrEqual(cardBox!.y);
+  expect(valueBox!.y).toBeGreaterThan(pickerBox!.y + pickerBox!.height - 1);
+  expect(valueBox!.x + valueBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+  expect(await page.locator(".result-card").getByText(/septiembre 2026/i).count()).toBeLessThanOrEqual(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });

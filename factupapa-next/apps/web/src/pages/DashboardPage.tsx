@@ -258,12 +258,7 @@ export function DashboardPage() {
       ) : (
         <section className="result-card" aria-busy={summary.isLoading}>
           <div className="result-card__heading">
-            <div>
-              <span>Resultado de {monthLabel(selectedMonth)}</span>
-              <strong className={result >= 0 ? "is-positive" : "is-negative"}>
-                {data ? formatMoney(data.finance.balance) : "—"}
-              </strong>
-            </div>
+            <span className="result-card__label">Resultado</span>
             <div className="dashboard-month-nav" aria-label="Cambiar mes del resumen">
               <button
                 type="button"
@@ -292,6 +287,12 @@ export function DashboardPage() {
                 <ChevronRight aria-hidden="true" />
               </button>
             </div>
+            <strong
+              className={`result-card__value ${result >= 0 ? "is-positive" : "is-negative"}`}
+              data-testid="dashboard-result-value"
+            >
+              {data ? formatMoney(data.finance.balance) : "—"}
+            </strong>
           </div>
           <div className="result-card__metrics">
             <div><span>Facturado</span><b>{data ? formatMoney(data.finance.sales) : "—"}</b></div>

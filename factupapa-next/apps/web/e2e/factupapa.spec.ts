@@ -28,7 +28,7 @@ async function login(page: Page) {
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Entrar en FactuPapa" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText(/^Resultado de /)).toBeVisible();
+  await expect(page.getByText("Resultado", { exact: true })).toBeVisible();
 }
 
 async function assertNoHorizontalOverflow(page: Page) {
@@ -76,7 +76,7 @@ test("login, restauración de sesión, dashboard y logout", async ({ page }, tes
     if (message.type() === "error") errors.push(message.text());
   });
   await page.reload();
-  await expect(page.getByText(/^Resultado de /)).toBeVisible();
+  await expect(page.getByText("Resultado", { exact: true })).toBeVisible();
   await page.screenshot({
     path: `test-artifacts/${testInfo.project.name}-inicio.png`,
     fullPage: true,
@@ -242,7 +242,7 @@ test("la navegación inferior conserva foco, estado y transición de sección", 
 
   await navigation.getByRole("link", { name: "Inicio" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText(/^Resultado de /)).toBeVisible();
+  await expect(page.getByText("Resultado", { exact: true })).toBeVisible();
   await expect(navigation).toHaveCSS("--active-nav-index", "0");
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __viewTransitionCount?: number })

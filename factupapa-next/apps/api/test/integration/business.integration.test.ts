@@ -652,9 +652,17 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
       roundedInvoice=(await roundedLine.json()) as Entity;
       assert.equal(roundedInvoice.total,"1305.0960");
       assert.equal((await request("POST",`/invoices/${roundedInvoice.id}/issue`,{},tokenA)).status,200);
-      assert.equal((await request("POST",`/invoices/${roundedInvoice.id}/payments`,{
-        amount:"1305.09",paidAt:"2026-07-22T12:00:00Z",method:"transfer"
-      },tokenA)).status,201);
+      const settled = await request("POST",`/invoices/${roundedInvoice.id}/payments`,{
+        settleBalance:true,paidAt:"2026-07-22T12:00:00Z",method:"transfer"
+      },tokenA);
+      assert.equal(settled.status,201);
+      const duplicateSettlement = await request("POST",`/invoices/${roundedInvoice.id}/payments`,{
+        settleBalance:true,paidAt:"2026-07-22T12:00:00Z",method:"transfer"
+      },tokenA);
+      assert.equal(duplicateSettlement.status,409);
+      const paymentsAfterSettlement = await request("GET",`/invoices/${roundedInvoice.id}/payments`,undefined,tokenA);
+      assert.equal(paymentsAfterSettlement.status,200);
+      assert.equal((await paymentsAfterSettlement.json() as Entity[]).length,1);
       const roundedDetail=await request("GET",`/invoices/${roundedInvoice.id}`,undefined,tokenA);
       const roundedPaid=(await roundedDetail.json()) as Entity;
       assert.equal(roundedPaid.paymentStatus,"paid");

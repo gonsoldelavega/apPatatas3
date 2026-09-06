@@ -176,7 +176,22 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
 
 /* Visible month navigation inside the financial balance card. */
+.dashboard-page .result-card__heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label month" "value value";
+  align-items: start;
+  gap: 8px 12px;
+}
+.dashboard-page .result-card__label { grid-area: label; min-width: 0; }
+.dashboard-page .result-card__value {
+  grid-area: value;
+  min-width: 0;
+  display: block;
+  overflow-wrap: anywhere;
+}
 .dashboard-month-nav {
+  grid-area: month;
   position: relative;
   z-index: 2;
   display: inline-flex;
@@ -201,8 +216,8 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .dashboard-month-nav > button svg { width: 17px; height: 17px; }
 .dashboard-month-nav > button:active { background: rgb(76 145 238 / 42%); }
 .dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket {
-  min-width: 156px;
-  min-height: 46px;
+  min-width: 132px;
+  min-height: 40px;
   justify-content: center;
   padding-inline: 15px;
   border: 1px solid rgb(255 255 255 / 34%);
@@ -225,7 +240,7 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   text-transform: none;
   white-space: nowrap;
 }
-.dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket input { min-height: 46px; }
+.dashboard-page .dashboard-month-nav .dashboard-month-picker--ticket input { min-height: 40px; }
 
 .stock-card__adjust {
   width: 100%;
@@ -255,11 +270,16 @@ main, .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
     grid-template-columns: minmax(0, 1fr);
     gap: 11px;
   }
-  .dashboard-page .result-card__heading > div:first-child {
-    grid-row: 2;
+  .dashboard-page .result-card__heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label month" "value value";
+  }
+  .dashboard-page .result-card__heading > .result-card__label {
+    grid-area: label;
     min-width: 0;
   }
   .dashboard-page .result-card__heading > .dashboard-month-nav {
+    grid-area: month;
     grid-row: 1;
     display: grid;
     grid-template-columns: 40px minmax(156px, 164px) 40px;

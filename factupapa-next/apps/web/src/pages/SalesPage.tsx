@@ -98,9 +98,8 @@ export function SalesPage() {
   });
   const quickCollect = useMutation({
     mutationFn: async (invoice: Invoice) => {
-      const amount = Math.max(0, Number(invoice.balanceDue ?? invoice.total)).toFixed(2);
       const input = {
-        amount,
+        settleBalance: true,
         paidAt: `${todayLocal()}T12:00:00`,
         method: null,
         reference: null,
@@ -119,7 +118,18 @@ export function SalesPage() {
       ]);
       toast.show("Factura marcada como pagada.");
     },
-    onError: () => {
+    onError: async (error, invoice) => {
+      // A retry or another tab may have won the row lock first. Re-read before showing an error.
+      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      const refreshed = await queryClient.fetchQuery({
+        queryKey: ["invoice", invoice.id],
+        queryFn: () => invoicesApi.get(invoice.id),
+      }).catch(() => null);
+      if (refreshed?.paymentStatus === "paid" || Number(refreshed?.balanceDue ?? 1) <= 0) {
+        toast.show("Factura marcada como pagada.");
+        return;
+      }
+      void error;
       toast.show("No se pudo marcar la factura como pagada. Inténtalo de nuevo.");
     },
   });

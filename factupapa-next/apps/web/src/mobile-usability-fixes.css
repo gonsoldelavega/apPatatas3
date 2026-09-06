@@ -38,39 +38,31 @@
 
   .dashboard-page .result-card__heading {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas: "label month" "value value";
     align-items: start;
-    gap: 12px !important;
+    gap: 10px 8px !important;
   }
 
-  .dashboard-page .result-card__heading > div:first-child {
-    grid-row: 2;
+  .dashboard-page .result-card__heading > .result-card__label {
+    grid-area: label;
     min-width: 0;
   }
 
-  /* Keep the period wording available to assistive technology and existing
-     smoke tests, but remove the redundant visible copy from the card. */
-  .dashboard-page .result-card__heading > div:first-child > span {
-    position: absolute !important;
-    width: 1px !important;
-    height: 1px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    color: transparent !important;
-    font-size: 1px !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
+  .dashboard-page .result-card__heading > .result-card__label {
+    display: block;
+    min-width: 0;
+    color: inherit;
   }
 
-  .dashboard-page .result-card__heading strong {
+  .dashboard-page .result-card__heading .result-card__value {
     margin: 0 !important;
     font-size: clamp(2.45rem, 12vw, 3.1rem);
     line-height: 0.95;
   }
 
   .dashboard-page .result-card__heading > .dashboard-month-nav {
-    grid-row: 1;
+    grid-area: month;
     width: max-content;
     max-width: 100%;
     display: grid;

@@ -5,7 +5,9 @@ import { withTenantTransaction } from "../database/client.js";
 import { HttpError } from "../http/errors.js";
 
 export interface PaymentInput {
-  amount: string;
+  /** Explicit amount for manual payments. Quick collection may settle the server-calculated outstanding balance instead. */
+  amount?: string;
+  settleBalance?: boolean;
   paidAt: string;
   method?: string | null;
   reference?: string | null;
@@ -42,12 +44,17 @@ export class AccountsService {
          from invoices i where id=$1 for update`, [invoiceId])).rows[0];
       if (!invoice) throw new HttpError("not_found", 404);
       if (invoice.status !== "issued") throw new HttpError("conflict", 409);
-      if (Number(input.amount) > Number(invoice.total) - Number(invoice.paid) + 0.005)
+      const outstanding = Number(invoice.total) - Number(invoice.paid);
+      if (outstanding <= 0.005) throw new HttpError("conflict", 409);
+      const amount = input.settleBalance
+        ? Math.max(0, outstanding).toFixed(2)
+        : input.amount;
+      if (!amount || Number(amount) > outstanding + 0.005)
         throw new HttpError("conflict", 409);
       const payment = (await c.query(
         `insert into payments(company_id,invoice_id,contact_id,direction,amount,paid_at,method,reference,notes,created_by_user_id)
          values($1,$2,$3,'incoming',$4,$5,$6,$7,$8,$9) returning ${paymentProjection}`,
-        [i.companyId,invoiceId,invoice.contactId,input.amount,input.paidAt,input.method ?? null,
+        [i.companyId,invoiceId,invoice.contactId,amount,input.paidAt,input.method ?? null,
           input.reference ?? null,input.notes ?? null,i.userId])).rows[0];
       await recordAudit(c,{ companyId:i.companyId,actorUserId:i.userId,entityType:"payment",
         entityId:payment.id,action:"payment.received",after:payment });
@@ -63,6 +70,7 @@ export class AccountsService {
          from purchase_invoices p where id=$1 for update`, [purchaseId])).rows[0];
       if (!purchase) throw new HttpError("not_found", 404);
       if (purchase.status !== "confirmed") throw new HttpError("conflict", 409);
+      if (!input.amount) throw new HttpError("invalid_request", 400);
       if (Number(input.amount) > Number(purchase.total) - Number(purchase.paid) + 0.005)
         throw new HttpError("conflict", 409);
       const payment = (await c.query(

@@ -532,7 +532,7 @@ export const accountsApi = {
   purchasePayments: (purchaseId: string) =>
     apiClient.request<Payment[]>(`/purchases/${purchaseId}/payments`),
   addInvoicePayment: (invoiceId: string, input: {
-    amount: string; paidAt: string; method: string | null; reference: string | null; notes: string | null;
+    amount?: string; settleBalance?: boolean; paidAt: string; method: string | null; reference: string | null; notes: string | null;
   }) => apiClient.request<Payment>(`/invoices/${invoiceId}/payments`, {
     method: "POST", body: JSON.stringify(input),
   }),

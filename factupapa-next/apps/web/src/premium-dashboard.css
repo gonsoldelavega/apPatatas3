@@ -98,7 +98,7 @@
   gap: 16px;
 }
 
-.result-card__heading > div > span {
+.result-card__label {
   display: block;
   margin-bottom: 9px;
   color: rgb(255 255 255 / 58%);
@@ -108,7 +108,7 @@
   text-transform: uppercase;
 }
 
-.result-card__heading strong {
+.result-card__value {
   display: block;
   font-family: var(--font-display);
   font-size: clamp(2.4rem, 12vw, 4.6rem);

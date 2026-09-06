@@ -7,14 +7,19 @@ import type { RouteHandler } from "../http/router.js";
 import { AccountsService, type PaymentInput } from "./service.js";
 
 function payment(body: Record<string, unknown>): PaymentInput {
-  assertAllowedKeys(body,["amount","paidAt","method","reference","notes"]);
+  assertAllowedKeys(body,["amount","settleBalance","paidAt","method","reference","notes"]);
+  const settleBalance = body.settleBalance === true;
+  if (body.settleBalance !== undefined && typeof body.settleBalance !== "boolean") {
+    throw new HttpError("invalid_request",400);
+  }
   const paidAt = typeof body.paidAt === "string" && !Number.isNaN(Date.parse(body.paidAt))
     ? new Date(body.paidAt).toISOString() : null;
   if (!paidAt) throw new HttpError("invalid_request",400);
-  const amount=decimalString(body.amount,12,2);
-  if(Number(amount)<=0) throw new HttpError("invalid_request",400);
+  const amount = settleBalance ? undefined : decimalString(body.amount,12,2);
+  if (!settleBalance && (!amount || Number(amount)<=0)) throw new HttpError("invalid_request",400);
   return {
-    amount,
+    ...(amount === undefined ? {} : { amount }),
+    settleBalance,
     paidAt,
     method: optionalText(body.method,50) ?? null,
     reference: optionalText(body.reference,200) ?? null,
