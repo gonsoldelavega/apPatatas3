@@ -31,6 +31,8 @@ import type {
   CustomerAccount,
   ProductionRun,
   ActiveSession,
+  TaxProfile,
+  TaxForecast,
 } from "./types";
 
 function queryString(
@@ -543,4 +545,13 @@ export const accountsApi = {
   }),
   deletePayment: (id: string) =>
     apiClient.request<void>(`/payments/${id}`, { method: "DELETE" }),
+};
+
+
+export const taxApi = {
+  profile: () => apiClient.request<TaxProfile>("/tax/profile"),
+  updateProfile: (input: TaxProfile) => apiClient.request<TaxProfile>("/tax/profile", { method: "PUT", body: JSON.stringify(input) }),
+  forecast: (year: number, quarter: number) => apiClient.request<TaxForecast>(`/tax/forecast?year=${year}&quarter=${quarter}`),
+  settlements: () => apiClient.request<Array<{ id: string; taxModel: "303"|"130"; year: number; quarter: number; estimatedAmount: string; filedAmount: string|null; status: string }>>("/tax/settlements"),
+  saveSettlement: (input: Record<string, unknown>) => apiClient.request("/tax/settlements", { method: "POST", body: JSON.stringify(input) }),
 };

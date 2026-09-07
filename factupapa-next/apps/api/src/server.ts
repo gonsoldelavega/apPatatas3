@@ -24,6 +24,8 @@ import { SalesPreferencesService } from "./sales-preferences/service.js";
 import { createSalesPreferencesRoutes } from "./sales-preferences/routes.js";
 import { FinanceService } from "./finance/service.js";
 import { createFinanceRoutes } from "./finance/routes.js";
+import { TaxService } from "./tax/service.js";
+import { createTaxRoutes } from "./tax/routes.js";
 import { AccountsService } from "./accounts/service.js";
 import { createAccountsRoutes } from "./accounts/routes.js";
 import { GmailIntegrationService } from "./integrations/gmail.js";
@@ -98,6 +100,7 @@ const finance = new FinanceService(
     : undefined,
 );
 const accounts = new AccountsService(database.pool);
+const tax = new TaxService(database.pool);
 const googleExporter = gmail
   ? new GoogleInvoiceExporter(database.pool, gmail, {
       spreadsheetId: config.googleMasterSpreadsheetId,
@@ -148,6 +151,7 @@ const server = createApp({
     ...(googleExporter ? [createGoogleExportRoutes(auth, googleExporter)] : []),
     createAccountsRoutes(auth, accounts),
     createFinanceRoutes(auth, finance),
+    createTaxRoutes(auth, tax),
     createSalesPreferencesRoutes(auth, salesPreferences),
     createInvoiceRoutes(auth, invoices),
     createDeliveryNoteRoutes(auth, deliveryNotes),

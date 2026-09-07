@@ -10,6 +10,7 @@ import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
 import { formatMoney, formatQuantity } from "../utils/format";
 import { currentPeriod, periodLabel, periodRange, shiftYearMonth } from "../utils/period";
+import { expensePeriodTotal, recurringMonthsApplied, recurringTotal as calculateRecurringTotal } from "../utils/expense-summary";
 
 const cats: Record<string, string> = {
   mercancia: "Mercancía",
@@ -23,38 +24,13 @@ const cats: Record<string, string> = {
 };
 
 const decimal = (value: string) => value.replace(",", ".");
-const monthContains = (
-  monthStart: string,
-  monthEnd: string,
-  startsOn: string,
-  endsOn: string | null,
-) => startsOn <= monthEnd && (!endsOn || endsOn >= monthStart);
 const chargeLabel = (day: number) => `Día ${day}`;
-
-function monthsOf(from: string, to: string) {
-  const list: Array<{ start: string; end: string }> = [];
-  let cursor = from.slice(0, 7);
-  const last = to.slice(0, 7);
-  while (cursor <= last && list.length < 12) {
-    const year = Number(cursor.slice(0, 4));
-    const monthNumber = Number(cursor.slice(5));
-    list.push({
-      start: `${cursor}-01`,
-      end: new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10),
-    });
-    cursor =
-      monthNumber === 12
-        ? `${year + 1}-01`
-        : `${year}-${String(monthNumber + 1).padStart(2, "0")}`;
-  }
-  return list;
-}
 
 export function ExpensesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPeriod = {
     ...currentPeriod(
-      (searchParams.get("period") as "all" | "month" | "quarter" | "year") || "all",
+      (searchParams.get("period") as "all" | "month" | "quarter" | "year") || "month",
     ),
     month: searchParams.get("month") || currentPeriod("month").month,
     quarter: searchParams.get("quarter") || "1",
@@ -168,23 +144,14 @@ export function ExpensesPage() {
     },
   });
 
-  const periodMonths = purchaseRange ? monthsOf(purchaseRange.from, purchaseRange.to) : [];
   const recurringInMonth =
     recurring.data
       ?.map((item) => ({
         ...item,
-        appliedMonths:
-          period.kind === "all"
-            ? Number(item.isActive)
-            : periodMonths.filter((month) =>
-                monthContains(month.start, month.end, item.startsOn, item.endsOn),
-              ).length,
+        appliedMonths: period.kind === "all" ? Number(item.isActive) : recurringMonthsApplied(item, recurringRange),
       }))
       .filter((item) => item.appliedMonths > 0) ?? [];
-  const recurringTotal = recurringInMonth.reduce(
-    (total, item) => total + Number(item.amount) * item.appliedMonths,
-    0,
-  );
+  const recurringTotal = calculateRecurringTotal(recurring.data ?? [], period.kind, recurringRange);
   const filteredPurchases =
     purchases.data?.filter(
       (item) =>
@@ -260,19 +227,23 @@ export function ExpensesPage() {
       </section>
 
       <section className="expense-overview" aria-label="Resumen de gastos del periodo">
-        <div>
-          <span>Total del periodo</span>
-          <strong>
-            {formatMoney(
-              String(purchaseTotal + (period.kind === "all" ? 0 : recurringTotal)),
-            )}
-          </strong>
-        </div>
+        {period.kind === "all" ? (
+          <div className="expense-overview__all">
+            <span>Histórico de compras</span>
+            <strong>{formatMoney(String(purchaseTotal))}</strong>
+            <small>Los gastos fijos se muestran aparte para no inventar un acumulado.</small>
+          </div>
+        ) : (
+          <div>
+            <span>Total del periodo</span>
+            <strong>{formatMoney(String(expensePeriodTotal(purchaseTotal, recurringTotal, period.kind)))}</strong>
+          </div>
+        )}
         <dl>
           <div><dt>Compras</dt><dd>{formatMoney(String(purchaseTotal))}</dd></div>
           <div>
-            <dt>{period.kind === "all" ? "Fijos / mes" : "Fijos"}</dt>
-            <dd>{formatMoney(String(recurringTotal))}</dd>
+            <dt>{period.kind === "all" ? "Fijos actuales / mes" : "Fijos aplicables"}</dt>
+            <dd>{formatMoney(String(period.kind === "all" ? (recurring.data ?? []).filter((item) => item.isActive).reduce((sum, item) => sum + Number(item.amount), 0) : recurringTotal))}</dd>
           </div>
         </dl>
       </section>

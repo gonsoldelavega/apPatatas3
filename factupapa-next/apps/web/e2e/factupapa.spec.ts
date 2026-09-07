@@ -523,3 +523,18 @@ test("la API mantiene autenticación y el usuario de prueba operativo", async ({
   const body = (await response.json()) as { accessToken?: string };
   expect(body.accessToken).toBeTruthy();
 });
+
+test("gestoría mobile muestra previsión trimestral sin overflow", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "Otros" }).click();
+  await expect(page.getByRole("heading", { name: "Gestoría" })).toHaveCount(0);
+  await page.getByRole("link", { name: /Gestoría/ }).click();
+  await expect(page).toHaveURL(/\/gestoria$/);
+  await expect(page.getByRole("heading", { name: "Gestoría", exact: true })).toBeVisible();
+  await expect(page.getByText("Estimación de FactuPapa", { exact: false })).toBeVisible();
+  await expect(page.getByText(/Previsión del trimestre/i)).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  const hero = await page.locator(".tax-hero").boundingBox();
+  const amount = await page.locator(".tax-hero__amount").boundingBox();
+  expect(hero && amount && amount.x >= hero.x && amount.x + amount.width <= hero.x + hero.width).toBeTruthy();
+});

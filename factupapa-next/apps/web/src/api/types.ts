@@ -419,3 +419,12 @@ export interface ProductionRun {
   packageQuantity: string | null;
   notes: string | null;
 }
+
+export type TaxRegime = "direct" | "objective" | "not_applicable";
+export interface TaxProfile { incomeTaxRegime: TaxRegime; irpfRate: string; annualMinoration: string; }
+export interface TaxForecast {
+  year: number; quarter: number; from: string; to: string; label: string; estimateLabel: string; incomplete: boolean;
+  vat: { salesBase: number; salesTax: number; purchaseBase: number; deductibleTax: number; balance: number };
+  irpf: { applicable: boolean; regime: TaxRegime; accumulatedIncome: number; accumulatedExpenses: number; net: number; rate: number; previousPayments: number; withholdings: number; result: number };
+  reserve: number; quality: { salesCount: number; purchaseCount: number; warnings: string[] };
+}

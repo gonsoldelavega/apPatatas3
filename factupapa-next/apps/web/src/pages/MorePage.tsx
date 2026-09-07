@@ -8,6 +8,7 @@ import {
   Settings2,
   ShieldCheck,
   Smartphone,
+  BriefcaseBusiness,
   Upload,
   UsersRound,
 } from "lucide-react";
@@ -84,6 +85,12 @@ export function MorePage() {
           Gestión del negocio
         </h2>
         <div className="more-card-grid">
+          <Link className="info-card info-card--action" to="/gestoria">
+            <span className="info-card__icon info-card__icon--billing"><BriefcaseBusiness /></span>
+            <div className="info-card__body"><h2>Gestoría</h2><p>Previsión de impuestos y trimestres.</p></div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
+
           <Link className="info-card info-card--action" to="/catalogo/contactos">
             <span className="info-card__icon info-card__icon--contacts">
               <UsersRound />

@@ -98,6 +98,7 @@ const StockPage = lazy(() =>
     default: module.StockPage,
   })),
 );
+const GestoriaPage = lazy(() => import("./pages/GestoriaPage").then((module) => ({ default: module.GestoriaPage })));
 const AccountSecurityPage = lazy(() =>
   import("./pages/AccountSecurityPage").then((module) => ({
     default: module.AccountSecurityPage,
@@ -131,6 +132,7 @@ export function App() {
             <Route path="productos/:id/editar" element={<ProductFormPage />} />
             <Route path="importar" element={<ImportsPage />} />
             <Route path="mas" element={<MorePage />} />
+            <Route path="gestoria" element={<GestoriaPage />} />
             <Route path="exportar" element={<ExportPage />} />
             <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
             <Route path="ajustes/seguridad" element={<AccountSecurityPage />} />

@@ -1,0 +1,2 @@
+export function vatForecast(salesTax:number,purchaseTax:number){return {repercutido:salesTax,deducible:purchaseTax,saldo:salesTax-purchaseTax};}
+export function irpf130Forecast(input:{income:number;expenses:number;rate:number;previousPayments:number;withholdings:number;minoration:number;applicable:boolean}){if(!input.applicable)return {net:Math.max(0,input.income-input.expenses),result:0};const net=Math.max(0,input.income-input.expenses);return {net,result:Math.max(0,net*input.rate/100-input.previousPayments-input.withholdings-input.minoration)};}
