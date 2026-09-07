@@ -27,15 +27,24 @@ esac
 upsert_private_environment_value() {
   local key="$1"
   local value="$2"
-  local temporary_file
+  local temporary_file quoted_value
 
   case "${value}" in
     *$'\n'*|*$'\r'*) echo "Valor privado no válido para ${key}" >&2; exit 1 ;;
   esac
 
+  # .env is sourced by this script as shell syntax.  Quote every value so
+  # URLs (notably the public Google registry URL, which contains `&`) and
+  # secrets with shell metacharacters survive the source operation intact.
+  quoted_value="${value//\\/\\\\}"
+  quoted_value="${quoted_value//\"/\\\"}"
+  quoted_value="${quoted_value//\$/\\$}"
+  quoted_value="${quoted_value//\`/\\\`}"
+  quoted_value="\"${quoted_value}\""
+
   temporary_file="$(mktemp "$(dirname "${environment_file}")/.env.deploy.XXXXXX")"
   chmod 600 "${temporary_file}"
-  awk -v key="${key}" -v value="${value}" '
+  awk -v key="${key}" -v value="${quoted_value}" '
     index($0, key "=") == 1 {
       if (!updated) print key "=" value
       updated = 1
