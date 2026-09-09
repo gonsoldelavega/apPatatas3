@@ -57,10 +57,7 @@ jobs:
           RT="$(printf '%s' "$CLASP_REFRESH_TOKEN" | tr -d '\r\n')"
           CID="$(printf '%s' "$CLASP_CLIENT_ID" | tr -d '\r\n')"
           CS="$(printf '%s' "$CLASP_CLIENT_SECRET" | tr -d '\r\n')"
-          jq -n \
-            --arg rt "$RT" \
-            --arg cid "$CID" \
-            --arg cs "$CS" \
+          jq -n --arg rt "$RT" --arg cid "$CID" --arg cs "$CS" \
             '{tokens:{default:{type:"authorized_user",client_id:$cid,client_secret:$cs,refresh_token:$rt}}}' \
             > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
@@ -101,7 +98,6 @@ jobs:
           REMOTE_JSON="$(mktemp)"
           REMOTE_CODE="$(mktemp)"
           REMOTE_MANIFEST="$(mktemp)"
-
           curl -fsS https://oauth2.googleapis.com/token \
             --data-urlencode "client_id=$CLASP_CLIENT_ID" \
             --data-urlencode "client_secret=$CLASP_CLIENT_SECRET" \
@@ -109,9 +105,7 @@ jobs:
             --data-urlencode "grant_type=refresh_token" > "$TOKEN_JSON"
           ACCESS_TOKEN="$(jq -r '.access_token // empty' "$TOKEN_JSON")"
           test -n "$ACCESS_TOKEN" || { echo "No se pudo obtener access token de Google"; exit 1; }
-
-          curl -fsS \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
+          curl -fsS -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://script.googleapis.com/v1/projects/$SCRIPT_ID/content" > "$REMOTE_JSON"
           jq -rj '.files[] | select(.name == "Code") | .source' "$REMOTE_JSON" > "$REMOTE_CODE"
           jq -rj '.files[] | select(.name == "appsscript") | .source' "$REMOTE_JSON" > "$REMOTE_MANIFEST"
@@ -141,8 +135,7 @@ jobs:
 
           VERSION_JSON="$(mktemp)"
           HTTP="$(curl -sS -o "$VERSION_JSON" -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
             -d "$(jq -nc --arg d "FactuPapa purchase pipeline $GITHUB_SHA" '{description:$d}')" \
             "https://script.googleapis.com/v1/projects/$SCRIPT_ID/versions")"
           if [ "$HTTP" != "200" ]; then
@@ -158,20 +151,25 @@ jobs:
             "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$DEPLOYMENTS"
           DEPLOYMENT_ID="$(jq -r '.deployments[]? | select(any(.entryPoints[]?; .entryPointType == "WEB_APP")) | .deploymentId' "$DEPLOYMENTS" | head -n1)"
 
-          CONFIG="$(jq -nc --arg sid "$SCRIPT_ID" --argjson ver "$VERSION" --arg d "FactuPapa purchase pipeline $GITHUB_SHA" \
-            '{scriptId:$sid,versionNumber:$ver,manifestFileName:"appsscript",description:$d}')"
           UPDATED="$(mktemp)"
+          DESCRIPTION="FactuPapa purchase pipeline $GITHUB_SHA"
           if [ -n "$DEPLOYMENT_ID" ]; then
+            # Google projects.deployments.update exige UpdateDeploymentRequest,
+            # es decir, deploymentConfig envuelto en el cuerpo.
+            BODY="$(jq -nc --arg sid "$SCRIPT_ID" --argjson ver "$VERSION" --arg d "$DESCRIPTION" \
+              '{deploymentConfig:{scriptId:$sid,versionNumber:$ver,manifestFileName:"appsscript",description:$d}}')"
             HTTP="$(curl -sS -o "$UPDATED" -w '%{http_code}' -X PUT \
-              -H "Authorization: Bearer $ACCESS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "$CONFIG" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+              -d "$BODY" \
               "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments/$DEPLOYMENT_ID")"
           else
+            # Google projects.deployments.create recibe DeploymentConfig directo;
+            # scriptId ya viaja en el path.
+            BODY="$(jq -nc --argjson ver "$VERSION" --arg d "$DESCRIPTION" \
+              '{versionNumber:$ver,manifestFileName:"appsscript",description:$d}')"
             HTTP="$(curl -sS -o "$UPDATED" -w '%{http_code}' -X POST \
-              -H "Authorization: Bearer $ACCESS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "$CONFIG" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+              -d "$BODY" \
               "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments")"
             DEPLOYMENT_ID="$(jq -r '.deploymentId // empty' "$UPDATED")"
           fi
@@ -181,13 +179,11 @@ jobs:
             exit 1
           fi
 
-          # Reconsulta para obtener el entryPoint definitivo aunque update no lo devuelva.
           DEPLOYMENTS2="$(mktemp)"
           curl -fsS -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$DEPLOYMENTS2"
           WEB_URL="$(jq -r --arg id "$DEPLOYMENT_ID" '.deployments[]? | select(.deploymentId == $id) | .entryPoints[]? | select(.entryPointType == "WEB_APP") | .webApp.url' "$DEPLOYMENTS2" | head -n1)"
-          test -n "$WEB_URL" || { echo "El deployment actualizado no expone WEB_APP"; exit 1; }
-
+          test -n "$WEB_URL" || { echo "El deployment actualizado no expone WEB_APP"; jq '.deployments[]? | {deploymentId,entryPoints}' "$DEPLOYMENTS2"; exit 1; }
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
@@ -207,20 +203,18 @@ jobs:
           jq -e '.ok == true and (.rows | type == "array")' "$RESPONSE2" >/dev/null
           echo "REGISTRY_WEBAPP=PASS"
           jq '{ok,count,source,scheduler}' "$RESPONSE2"
-
           SCHED_OK="$(jq -r '.scheduler.ok // false' "$RESPONSE2")"
           TRIGGERS="$(jq -r '.scheduler.triggerCount // 0' "$RESPONSE2")"
-          VERSION="$(jq -r '.scheduler.scheduleVersion // ""' "$RESPONSE2")"
+          SCHEDULE_VERSION="$(jq -r '.scheduler.scheduleVersion // ""' "$RESPONSE2")"
           AUTH_REQUIRED="$(jq -r '.scheduler.authorizationRequired // false' "$RESPONSE2")"
           echo "scheduler_ok=$SCHED_OK" >> "$GITHUB_OUTPUT"
           echo "trigger_count=$TRIGGERS" >> "$GITHUB_OUTPUT"
-          echo "schedule_version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "schedule_version=$SCHEDULE_VERSION" >> "$GITHUB_OUTPUT"
           echo "authorization_required=$AUTH_REQUIRED" >> "$GITHUB_OUTPUT"
-
-          if [ "$SCHED_OK" = "true" ] && [ "$TRIGGERS" = "4" ] && [ "$VERSION" = "v4" ]; then
+          if [ "$SCHED_OK" = "true" ] && [ "$TRIGGERS" = "4" ] && [ "$SCHEDULE_VERSION" = "v4" ]; then
             echo "PURCHASE_SCHEDULER=PASS"
           else
-            echo "::warning::PURCHASE_SCHEDULER=NEEDS_AUTH_OR_REPAIR triggers=$TRIGGERS version=$VERSION authRequired=$AUTH_REQUIRED"
+            echo "::warning::PURCHASE_SCHEDULER=NEEDS_AUTH_OR_REPAIR triggers=$TRIGGERS version=$SCHEDULE_VERSION authRequired=$AUTH_REQUIRED"
           fi
 
       - name: Resultado
