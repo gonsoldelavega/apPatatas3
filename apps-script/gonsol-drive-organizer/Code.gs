@@ -326,15 +326,18 @@ const GONSOL_SUPPLIERS = [
 ];
 
 function processPurchaseInvoicesDaily() {
-  // El primer ciclo tras un cambio de version corrige tambien el calendario
-  // de triggers sin depender de una intervencion manual.
-  ensurePurchaseInvoiceSchedule_();
-  // Primero trae las facturas nuevas que hayan llegado por email (GAYCA);
-  // despues se procesan junto con las escaneadas, por el mismo flujo.
+  // La ingesta de Gmail debe ejecutarse aunque la reparacion del calendario
+  // necesite una nueva autorizacion. Un fallo de ScriptApp nunca debe bloquear
+  // la recogida de facturas ya autorizada.
   try {
     importInvoicesFromGmail_();
   } catch (error) {
     console.error('Gmail import fallo (se continua con la bandeja): ' + error);
+  }
+  try {
+    ensurePurchaseInvoiceSchedule_();
+  } catch (error) {
+    console.error('Reparacion del calendario de triggers fallo (se continua): ' + error);
   }
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
   const reviewFolder = getOrCreateChildFolder_(inputFolder, GONSOL_CONFIG.reviewFolderName);
@@ -447,16 +450,59 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
   };
 }
 
+const GONSOL_TRIGGER_SCHEDULE_VERSION = 'v4';
+const GONSOL_REQUIRED_SCOPES = [
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://mail.google.com/',
+  'https://www.googleapis.com/auth/script.scriptapp'
+];
+
 function setupDailyPurchaseInvoiceTrigger() {
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
   installPurchaseInvoiceTriggers_();
+  PropertiesService.getScriptProperties()
+    .setProperty('purchaseInvoiceTriggerScheduleVersion', GONSOL_TRIGGER_SCHEDULE_VERSION);
+}
+
+function bootstrapPurchasePipeline() {
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
+  setupDailyPurchaseInvoiceTrigger();
+  const gmail = importInvoicesFromGmail_();
+  const processing = processPurchaseInvoicesDaily();
+  return {
+    ok: true,
+    triggerCount: ScriptApp.getProjectTriggers().filter(function(trigger) {
+      return trigger.getHandlerFunction() === 'processPurchaseInvoicesDaily';
+    }).length,
+    gmail: gmail,
+    processed: processing.length
+  };
+}
+
+function purchasePipelineHealth() {
+  const auth = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
+  const triggers = ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction() === 'processPurchaseInvoicesDaily';
+  });
+  return {
+    ok: true,
+    authorizationStatus: String(auth.getAuthorizationStatus()),
+    authorizedScopes: auth.getAuthorizedScopes ? auth.getAuthorizedScopes() : [],
+    triggerCount: triggers.length,
+    scheduleVersion: PropertiesService.getScriptProperties()
+      .getProperty('purchaseInvoiceTriggerScheduleVersion') || '',
+    processedLabel: GONSOL_GMAIL_IMPORT.processedLabel
+  };
 }
 
 function ensurePurchaseInvoiceSchedule_() {
   const versionKey = 'purchaseInvoiceTriggerScheduleVersion';
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty(versionKey) === 'v3') return;
+  if (props.getProperty(versionKey) === GONSOL_TRIGGER_SCHEDULE_VERSION) return;
   installPurchaseInvoiceTriggers_();
-  props.setProperty(versionKey, 'v3');
+  props.setProperty(versionKey, GONSOL_TRIGGER_SCHEDULE_VERSION);
 }
 
 function installPurchaseInvoiceTriggers_() {
