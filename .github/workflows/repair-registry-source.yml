@@ -1,0 +1,151 @@
+name: Repair FactuPapa registry source
+
+on:
+  push:
+    branches: [codex/factupapa-next-quality-sweep]
+    paths: ['.github/workflows/repair-registry-source.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 15
+    env:
+      DOCKER_HOST: unix:///run/user/1001/docker.sock
+      REGISTRY_WEBAPP_URL: https://script.google.com/macros/s/AKfycbybLuoP1Od2arloHOTU-n-zK15g3uCpFV3xx57AJLPXFWhtLO5gBYDNpxoajR52uie5Hg/exec
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: codex/factupapa-next-quality-sweep
+          fetch-depth: 1
+
+      - name: Persist correct typed registry source in deploy script
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('factupapa-next/scripts/deploy-private-staging.sh')
+          s = p.read_text()
+          old = 'upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"'
+          new = 'upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://script.google.com/macros/s/AKfycbybLuoP1Od2arloHOTU-n-zK15g3uCpFV3xx57AJLPXFWhtLO5gBYDNpxoajR52uie5Hg/exec"'
+          if s.count(old) != 1:
+              raise SystemExit('No se encontró exactamente la fuente gviz esperada')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- factupapa-next/scripts/deploy-private-staging.sh
+
+      - name: Commit persistent fix
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "gonsoldelavega"
+          git config user.email "gonsoldelavega@gmail.com"
+          git add factupapa-next/scripts/deploy-private-staging.sh
+          if ! git diff --cached --quiet; then
+            git commit -m "[deploy-staging] Use typed Apps Script purchase registry"
+            git push origin HEAD:codex/factupapa-next-quality-sweep
+          fi
+
+      - name: Repair live protected staging env and recreate only API
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(id -u)" = "1001"
+          test -S "${DOCKER_HOST#unix://}"
+          docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
+
+          ENV_FILE="${HOME}/staging/repo/factupapa-next/infrastructure/.env"
+          INFRA="${HOME}/staging/repo/factupapa-next/infrastructure"
+          OVERRIDE="${HOME}/staging/docker-compose.staging.yml"
+          test -f "$ENV_FILE"
+          test -f "$OVERRIDE"
+          cp "$ENV_FILE" "${ENV_FILE}.registry-source-backup"
+          chmod 600 "${ENV_FILE}.registry-source-backup"
+
+          REGISTRY_WEBAPP_URL="$REGISTRY_WEBAPP_URL" ENV_FILE="$ENV_FILE" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          p = Path(os.environ['ENV_FILE'])
+          value = os.environ['REGISTRY_WEBAPP_URL']
+          lines = p.read_text().splitlines()
+          out = []
+          seen = False
+          for line in lines:
+              if line.startswith('PURCHASE_REGISTRY_WEBAPP_URL='):
+                  out.append(f'PURCHASE_REGISTRY_WEBAPP_URL="{value}"')
+                  seen = True
+              else:
+                  out.append(line)
+          if not seen:
+              out.append(f'PURCHASE_REGISTRY_WEBAPP_URL="{value}"')
+          p.write_text('\n'.join(out) + '\n')
+          PY
+          chmod 600 "$ENV_FILE"
+
+          export COMPOSE_PROJECT_NAME=factupapa_staging
+          export COMPOSE_FILE="${INFRA}/docker-compose.yml:${OVERRIDE}"
+          set -a
+          # shellcheck disable=SC1090
+          source "$ENV_FILE"
+          set +a
+          cd "$INFRA"
+          docker compose --profile public up -d --no-deps --force-recreate api
+
+          api="$(docker compose --profile public ps -q api)"
+          test -n "$api"
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$api")"
+            [ "$status" = healthy ] && break
+            [ "$status" = unhealthy ] && { docker logs --tail=80 "$api"; exit 1; }
+            sleep 2
+          done
+          test "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$api")" = healthy
+          docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api" | grep -F "PURCHASE_REGISTRY_WEBAPP_URL=${REGISTRY_WEBAPP_URL}" >/dev/null
+          echo 'LIVE_REGISTRY_SOURCE=PASS'
+
+      - name: Run registry sync now and require invoice 2171 in PostgreSQL
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          systemctl --user restart factupapa-registry-sync.service
+          journalctl --user -u factupapa-registry-sync.service -n 12 --no-pager
+
+          api="$(docker ps -q --filter 'label=com.docker.compose.project=factupapa_staging' --filter 'label=com.docker.compose.service=api' | head -n1)"
+          test -n "$api"
+          docker exec -i "$api" node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const { Pool } = pg;
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          try {
+            const result = await pool.query(`
+              select supplier_invoice_number as "invoiceNumber",issue_date::text as "issueDate",status,total::text,
+                     source_registry_key is not null as "fromRegistry",
+                     exists(select 1 from payments p where p.purchase_invoice_id=i.id) as paid
+              from purchase_invoices i
+              where regexp_replace(coalesce(supplier_invoice_number,''),'[^0-9]','','g') like '%2171%'
+                and deleted_at is null
+              order by created_at desc
+              limit 5
+            `);
+            console.log(JSON.stringify({ invoice2171: result.rows }));
+            if (!result.rows.some(r => r.issueDate === '2026-09-03' && r.status === 'confirmed' && r.fromRegistry === true && r.paid === true)) {
+              process.exit(3);
+            }
+          } finally { await pool.end(); }
+          NODE
+          echo 'INVOICE_2171_POSTGRES=PASS'
+
+      - name: Verify public app health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error https://factupapa-next.46-62-226-95.sslip.io/healthz >/dev/null
+          curl --fail --silent --show-error https://factupapa-next.46-62-226-95.sslip.io/api/health >/dev/null
+          echo 'WEB_HEALTH=200'
+          echo 'API_HEALTH=200'
