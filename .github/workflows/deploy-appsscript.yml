@@ -1,18 +1,22 @@
 name: Deploy Apps Script
 
-# Despliega automaticamente el agente (apps-script/gonsol-drive-organizer)
-# a tu proyecto de Google Apps Script cada vez que cambia su codigo en main.
+# Despliega automaticamente el agente compartido de compras
+# (apps-script/gonsol-drive-organizer) desde la rama canonica de FactuPapa Next.
+# El organizador es quien lee Gmail/Drive, marca correos procesados y alimenta
+# el Registro Maestro que FactuPapa Next sincroniza de forma supervisada.
 #
-# Requiere dos secretos del repositorio (Settings -> Secrets and variables -> Actions):
-#   - CLASPRC_JSON : contenido completo de tu ~/.clasprc.json (resultado de "clasp login")
-#   - SCRIPT_ID    : el Script ID del proyecto (Apps Script -> Project Settings -> IDs)
+# Requiere cuatro secretos del repositorio (Settings -> Secrets and variables -> Actions):
+#   - CLASP_REFRESH_TOKEN
+#   - CLASP_CLIENT_ID
+#   - CLASP_CLIENT_SECRET
+#   - SCRIPT_ID
 #
 # Ver apps-script/gonsol-drive-organizer/AUTO_DEPLOY.md para los pasos (una sola vez).
 
 on:
   push:
     branches:
-      - main
+      - codex/factupapa-next-quality-sweep
     paths:
       - "apps-script/gonsol-drive-organizer/**"
       - ".github/workflows/deploy-appsscript.yml"
@@ -25,9 +29,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact triggering SHA
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Setup Node
