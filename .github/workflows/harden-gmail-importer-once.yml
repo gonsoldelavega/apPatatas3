@@ -21,141 +21,17 @@ jobs:
 
       - name: Replace Gmail importer with label plus SHA audit
         shell: bash
+        env:
+          IMPORTER_B64: Y29uc3QgR09OU09MX0dNQUlMX0lNUE9SVCA9IHsKICBlbmFibGVkOiB0cnVlLAogIHByb2Nlc3NlZExhYmVsOiAnRkFDVFVSQVNfSU1QT1JUQURBUycsCiAgYXVkaXRTaGVldE5hbWU6ICdJTVBPUlRfRU1BSUxfTE9HJywKICBhZnRlcjogJzIwMjYvMDcvMDEnLAogIHNlbmRlcnM6IFsKICAgICdnYXljYUBmcnV0YXN5cGF0YXRhc2dheWNhLmNvbScsCiAgICAnZmFjdHVyYWVsZWN0cm9uaWNhc29scmVkQGZhY3R1cmFzb2xyZWQucmVwc29sLmNvbScKICBdLAogIG1heFRocmVhZHNQZXJSdW46IDEwMAp9OwoKLyoqCiAqIEVqZWN1dGFyIFVOQSBWRVogYSBtYW5vIHRyYXMgZGVzcGxlZ2FyIGNvbiBwZXJtaXNvcyBudWV2b3M6IGZ1ZXJ6YSBsYSBwYW50YWxsYQogKiBkZSBhdXRvcml6YWNpw7NuIChpbmNsdXllIEdtYWlsIHkgRHJpdmUpLiBObyBtb2RpZmljYSBuYWRhOyBzb2xvIHBpZGUgbG9zIHBlcm1pc29zLgogKi8KZnVuY3Rpb24gYXV0b3JpemFyUGVybWlzb3MoKSB7CiAgdmFyIGdtYWlsTm9MZWlkb3MgPSBHbWFpbEFwcC5nZXRJbmJveFVucmVhZENvdW50KCk7CiAgdmFyIGNhcnBldGFSYWl6ID0gRHJpdmVBcHAuZ2V0Um9vdEZvbGRlcigpLmdldE5hbWUoKTsKICBMb2dnZXIubG9nKCdBdXRvcml6YWNpw7NuIE9LIMK3IEdtYWlsIG5vIGxlw61kb3M6ICcgKyBnbWFpbE5vTGVpZG9zICsgJyDCtyBEcml2ZSByYcOtejogJyArIGNhcnBldGFSYWl6KTsKICByZXR1cm4geyBnbWFpbE5vTGVpZG9zOiBnbWFpbE5vTGVpZG9zLCBjYXJwZXRhUmFpejogY2FycGV0YVJhaXogfTsKfQoKLyoqCiAqIEltcG9ydGEgw7puaWNhbWVudGUgZmFjdHVyYXMgUERGIGRlIHJlbWl0ZW50ZXMgYXV0b3JpemFkb3MuIExhIGV0aXF1ZXRhIGRlIEdtYWlsCiAqIGVzIGxhIG1hcmNhIGh1bWFuYS9wZXJzaXN0ZW50ZSBkZSAieWEgcHJvY2VzYWRvIiB5IGVsIGxvZyBwb3IgbWVzc2FnZUlkK1NIQTI1NgogKiB5IHBvciBTSEEyNTYgZXZpdGEgcmVpbmdlc3RhcyBpbmNsdXNvIHNpIGVsIHByb3ZlZWRvciByZWVudsOtYSBlbCBtaXNtbyBQREYuCiAqLwpmdW5jdGlvbiBpbXBvcnRJbnZvaWNlc0Zyb21HbWFpbF8oKSB7CiAgaWYgKCFHT05TT0xfR01BSUxfSU1QT1JULmVuYWJsZWQpIHJldHVybiB7IGltcG9ydGVkOiAwLCBhbHJlYWR5S25vd246IDAgfTsKCiAgY29uc3QgbGFiZWwgPSBHbWFpbEFwcC5nZXRVc2VyTGFiZWxCeU5hbWUoR09OU09MX0dNQUlMX0lNUE9SVC5wcm9jZXNzZWRMYWJlbCkKICAgIHx8IEdtYWlsQXBwLmNyZWF0ZUxhYmVsKEdPTlNPTF9HTUFJTF9JTVBPUlQucHJvY2Vzc2VkTGFiZWwpOwogIGNvbnN0IGlucHV0Rm9sZGVyID0gRHJpdmVBcHAuZ2V0Rm9sZGVyQnlJZChHT05TT0xfQ09ORklHLmlucHV0Rm9sZGVySWQpOwogIGNvbnN0IHNwcmVhZHNoZWV0ID0gU3ByZWFkc2hlZXRBcHAub3BlbkJ5SWQoR09OU09MX0NPTkZJRy5tYXN0ZXJTcHJlYWRzaGVldElkKTsKICBsZXQgYXVkaXRTaGVldCA9IHNwcmVhZHNoZWV0LmdldFNoZWV0QnlOYW1lKEdPTlNPTF9HTUFJTF9JTVBPUlQuYXVkaXRTaGVldE5hbWUpOwogIGlmICghYXVkaXRTaGVldCkgYXVkaXRTaGVldCA9IHNwcmVhZHNoZWV0Lmluc2VydFNoZWV0KEdPTlNPTF9HTUFJTF9JTVBPUlQuYXVkaXRTaGVldE5hbWUpOwogIGVuc3VyZUVtYWlsSW1wb3J0QXVkaXRIZWFkZXJfKGF1ZGl0U2hlZXQpOwogIGNvbnN0IGtub3duID0gYnVpbGRFbWFpbEltcG9ydEluZGV4XyhhdWRpdFNoZWV0KTsKICBjb25zdCBub3cgPSBuZXcgRGF0ZSgpOwogIGNvbnN0IHN1bW1hcnkgPSB7IGltcG9ydGVkOiAwLCBhbHJlYWR5S25vd246IDAsIHNjYW5uZWRUaHJlYWRzOiAwLCBpbXBvcnRlZEZpbGVzOiBbXSB9OwoKICBHT05TT0xfR01BSUxfSU1QT1JULnNlbmRlcnMuZm9yRWFjaChmdW5jdGlvbihzZW5kZXIpIHsKICAgIGNvbnN0IHF1ZXJ5ID0gJ2Zyb206JyArIHNlbmRlcgogICAgICArICcgaGFzOmF0dGFjaG1lbnQgZmlsZW5hbWU6cGRmJwogICAgICArICcgYWZ0ZXI6JyArIEdPTlNPTF9HTUFJTF9JTVBPUlQuYWZ0ZXIKICAgICAgKyAnIC1sYWJlbDonICsgR09OU09MX0dNQUlMX0lNUE9SVC5wcm9jZXNzZWRMYWJlbDsKICAgIGNvbnN0IHRocmVhZHMgPSBHbWFpbEFwcC5zZWFyY2gocXVlcnksIDAsIEdPTlNPTF9HTUFJTF9JTVBPUlQubWF4VGhyZWFkc1BlclJ1bik7CiAgICBzdW1tYXJ5LnNjYW5uZWRUaHJlYWRzICs9IHRocmVhZHMubGVuZ3RoOwoKICAgIHRocmVhZHMuZm9yRWFjaChmdW5jdGlvbih0aHJlYWQpIHsKICAgICAgbGV0IGhhbmRsZWQgPSBmYWxzZTsKICAgICAgdGhyZWFkLmdldE1lc3NhZ2VzKCkuZm9yRWFjaChmdW5jdGlvbihtZXNzYWdlKSB7CiAgICAgICAgbWVzc2FnZS5nZXRBdHRhY2htZW50cyh7IGluY2x1ZGVJbmxpbmVJbWFnZXM6IGZhbHNlLCBpbmNsdWRlQXR0YWNobWVudHM6IHRydWUgfSkuZm9yRWFjaChmdW5jdGlvbihhdHRhY2htZW50KSB7CiAgICAgICAgICBjb25zdCBuYW1lID0gU3RyaW5nKGF0dGFjaG1lbnQuZ2V0TmFtZSgpIHx8ICcnKTsKICAgICAgICAgIGlmICghL1wucGRmJC9pLnRlc3QobmFtZSkpIHJldHVybjsKICAgICAgICAgIGNvbnN0IGJ5dGVzID0gYXR0YWNobWVudC5nZXRCeXRlcygpOwogICAgICAgICAgY29uc3QgZGlnZXN0ID0gc2hhMjU2SGV4XyhieXRlcyk7CiAgICAgICAgICBjb25zdCBzb3VyY2VLZXkgPSBtZXNzYWdlLmdldElkKCkgKyAnOicgKyBkaWdlc3Q7CiAgICAgICAgICBoYW5kbGVkID0gdHJ1ZTsKCiAgICAgICAgICBpZiAoa25vd24uc291cmNlS2V5c1tzb3VyY2VLZXldIHx8IGtub3duLmRpZ2VzdHNbZGlnZXN0XSkgewogICAgICAgICAgICBzdW1tYXJ5LmFscmVhZHlLbm93bisrOwogICAgICAgICAgICByZXR1cm47CiAgICAgICAgICB9CgogICAgICAgICAgY29uc3Qgc3RhZ2VkTmFtZSA9ICdFTUFJTF8nICsgbWVzc2FnZS5nZXRJZCgpICsgJ18nICsgbmFtZTsKICAgICAgICAgIGNvbnN0IGZpbGUgPSBpbnB1dEZvbGRlci5jcmVhdGVGaWxlKGF0dGFjaG1lbnQuY29weUJsb2IoKS5zZXROYW1lKHN0YWdlZE5hbWUpKTsKICAgICAgICAgIGF1ZGl0U2hlZXQuYXBwZW5kUm93KFsKICAgICAgICAgICAgc291cmNlS2V5LAogICAgICAgICAgICBtZXNzYWdlLmdldElkKCksCiAgICAgICAgICAgIFV0aWxpdGllcy5mb3JtYXREYXRlKG1lc3NhZ2UuZ2V0RGF0ZSgpLCAnRXVyb3BlL01hZHJpZCcsICd5eXl5LU1NLWRkIEhIOm1tOnNzJyksCiAgICAgICAgICAgIG1lc3NhZ2UuZ2V0RnJvbSgpLAogICAgICAgICAgICBtZXNzYWdlLmdldFN1YmplY3QoKSwKICAgICAgICAgICAgbmFtZSwKICAgICAgICAgICAgZGlnZXN0LAogICAgICAgICAgICBmaWxlLmdldElkKCksCiAgICAgICAgICAgIGZpbGUuZ2V0VXJsKCksCiAgICAgICAgICAgICdpbXBvcnRhZG8nLAogICAgICAgICAgICBVdGlsaXRpZXMuZm9ybWF0RGF0ZShub3csICdFdXJvcGUvTWFkcmlkJywgJ3l5eXktTU0tZGQgSEg6bW06c3MnKQogICAgICAgICAgXSk7CiAgICAgICAgICBrbm93bi5zb3VyY2VLZXlzW3NvdXJjZUtleV0gPSB0cnVlOwogICAgICAgICAga25vd24uZGlnZXN0c1tkaWdlc3RdID0gdHJ1ZTsKICAgICAgICAgIHN1bW1hcnkuaW1wb3J0ZWQrKzsKICAgICAgICAgIHN1bW1hcnkuaW1wb3J0ZWRGaWxlcy5wdXNoKHN0YWdlZE5hbWUpOwogICAgICAgIH0pOwogICAgICB9KTsKICAgICAgaWYgKGhhbmRsZWQpIHRocmVhZC5hZGRMYWJlbChsYWJlbCk7CiAgICB9KTsKICB9KTsKCiAgY29uc29sZS5sb2coJ0dtYWlsIGltcG9ydDogJyArIEpTT04uc3RyaW5naWZ5KHN1bW1hcnksIG51bGwsIDIpKTsKICByZXR1cm4gc3VtbWFyeTsKfQoKZnVuY3Rpb24gZW5zdXJlRW1haWxJbXBvcnRBdWRpdEhlYWRlcl8oc2hlZXQpIHsKICBpZiAoc2hlZXQuZ2V0TGFzdFJvdygpID4gMCkgcmV0dXJuOwogIHNoZWV0LmFwcGVuZFJvdyhbCiAgICAnQ2xhdmUgb3JpZ2VuJywgJ0lEIG1lbnNhamUgR21haWwnLCAnRmVjaGEgY29ycmVvJywgJ1JlbWl0ZW50ZScsICdBc3VudG8nLAogICAgJ05vbWJyZSBhZGp1bnRvJywgJ1NIQS0yNTYnLCAnSUQgYXJjaGl2byBEcml2ZScsICdFbmxhY2UgRHJpdmUnLCAnRXN0YWRvJywgJ0ltcG9ydGFkbyBlbCcKICBdKTsKICBzaGVldC5zZXRGcm96ZW5Sb3dzKDEpOwp9CgpmdW5jdGlvbiBidWlsZEVtYWlsSW1wb3J0SW5kZXhfKHNoZWV0KSB7CiAgY29uc3QgaW5kZXggPSB7IHNvdXJjZUtleXM6IHt9LCBkaWdlc3RzOiB7fSB9OwogIGNvbnN0IGxhc3RSb3cgPSBzaGVldC5nZXRMYXN0Um93KCk7CiAgaWYgKGxhc3RSb3cgPCAyKSByZXR1cm4gaW5kZXg7CiAgc2hlZXQuZ2V0UmFuZ2UoMiwgMSwgbGFzdFJvdyAtIDEsIDcpLmdldERpc3BsYXlWYWx1ZXMoKS5mb3JFYWNoKGZ1bmN0aW9uKHJvdykgewogICAgaWYgKHJvd1swXSkgaW5kZXguc291cmNlS2V5c1tyb3dbMF1dID0gdHJ1ZTsKICAgIGlmIChyb3dbNl0pIGluZGV4LmRpZ2VzdHNbcm93WzZdXSA9IHRydWU7CiAgfSk7CiAgcmV0dXJuIGluZGV4Owp9CgpmdW5jdGlvbiBzaGEyNTZIZXhfKGJ5dGVzKSB7CiAgcmV0dXJuIFV0aWxpdGllcy5jb21wdXRlRGlnZXN0KFV0aWxpdGllcy5EaWdlc3RBbGdvcml0aG0uU0hBXzI1NiwgYnl0ZXMpCiAgICAubWFwKGZ1bmN0aW9uKGJ5dGUpIHsKICAgICAgY29uc3QgdmFsdWUgPSBieXRlIDwgMCA/IGJ5dGUgKyAyNTYgOiBieXRlOwogICAgICByZXR1cm4gKCcwJyArIHZhbHVlLnRvU3RyaW5nKDE2KSkuc2xpY2UoLTIpOwogICAgfSkKICAgIC5qb2luKCcnKTsKfQoK
         run: |
           python3 - <<'PY'
+          import base64, os
           from pathlib import Path
-
           p = Path('apps-script/gonsol-drive-organizer/Code.gs')
           s = p.read_text()
           start = s.index('const GONSOL_GMAIL_IMPORT = {')
           end = s.index('const GONSOL_MONTHS = [', start)
-
-          replacement = r'''const GONSOL_GMAIL_IMPORT = {
-  enabled: true,
-  processedLabel: 'FACTURAS_IMPORTADAS',
-  auditSheetName: 'IMPORT_EMAIL_LOG',
-  after: '2026/07/01',
-  senders: [
-    'gayca@frutasypatatasgayca.com',
-    'facturaelectronicasolred@facturasolred.repsol.com'
-  ],
-  maxThreadsPerRun: 100
-};
-
-/**
- * Ejecutar UNA VEZ a mano tras desplegar con permisos nuevos: fuerza la pantalla
- * de autorización (incluye Gmail y Drive). No modifica nada; solo pide los permisos.
- */
-function autorizarPermisos() {
-  var gmailNoLeidos = GmailApp.getInboxUnreadCount();
-  var carpetaRaiz = DriveApp.getRootFolder().getName();
-  Logger.log('Autorización OK · Gmail no leídos: ' + gmailNoLeidos + ' · Drive raíz: ' + carpetaRaiz);
-  return { gmailNoLeidos: gmailNoLeidos, carpetaRaiz: carpetaRaiz };
-}
-
-/**
- * Importa únicamente facturas PDF de remitentes autorizados. La etiqueta de Gmail
- * es la marca humana/persistente de "ya procesado" y el log por messageId+SHA256
- * y por SHA256 evita reingestas incluso si el proveedor reenvía el mismo PDF.
- */
-function importInvoicesFromGmail_() {
-  if (!GONSOL_GMAIL_IMPORT.enabled) return { imported: 0, alreadyKnown: 0 };
-
-  const label = GmailApp.getUserLabelByName(GONSOL_GMAIL_IMPORT.processedLabel)
-    || GmailApp.createLabel(GONSOL_GMAIL_IMPORT.processedLabel);
-  const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
-  const spreadsheet = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
-  let auditSheet = spreadsheet.getSheetByName(GONSOL_GMAIL_IMPORT.auditSheetName);
-  if (!auditSheet) auditSheet = spreadsheet.insertSheet(GONSOL_GMAIL_IMPORT.auditSheetName);
-  ensureEmailImportAuditHeader_(auditSheet);
-  const known = buildEmailImportIndex_(auditSheet);
-  const now = new Date();
-  const summary = { imported: 0, alreadyKnown: 0, scannedThreads: 0, importedFiles: [] };
-
-  GONSOL_GMAIL_IMPORT.senders.forEach(function(sender) {
-    const query = 'from:' + sender
-      + ' has:attachment filename:pdf'
-      + ' after:' + GONSOL_GMAIL_IMPORT.after
-      + ' -label:' + GONSOL_GMAIL_IMPORT.processedLabel;
-    const threads = GmailApp.search(query, 0, GONSOL_GMAIL_IMPORT.maxThreadsPerRun);
-    summary.scannedThreads += threads.length;
-
-    threads.forEach(function(thread) {
-      let handled = false;
-      thread.getMessages().forEach(function(message) {
-        message.getAttachments({ includeInlineImages: false, includeAttachments: true }).forEach(function(attachment) {
-          const name = String(attachment.getName() || '');
-          if (!/\.pdf$/i.test(name)) return;
-          const bytes = attachment.getBytes();
-          const digest = sha256Hex_(bytes);
-          const sourceKey = message.getId() + ':' + digest;
-          handled = true;
-
-          if (known.sourceKeys[sourceKey] || known.digests[digest]) {
-            summary.alreadyKnown++;
-            return;
-          }
-
-          const stagedName = 'EMAIL_' + message.getId() + '_' + name;
-          const file = inputFolder.createFile(attachment.copyBlob().setName(stagedName));
-          auditSheet.appendRow([
-            sourceKey,
-            message.getId(),
-            Utilities.formatDate(message.getDate(), 'Europe/Madrid', 'yyyy-MM-dd HH:mm:ss'),
-            message.getFrom(),
-            message.getSubject(),
-            name,
-            digest,
-            file.getId(),
-            file.getUrl(),
-            'importado',
-            Utilities.formatDate(now, 'Europe/Madrid', 'yyyy-MM-dd HH:mm:ss')
-          ]);
-          known.sourceKeys[sourceKey] = true;
-          known.digests[digest] = true;
-          summary.imported++;
-          summary.importedFiles.push(stagedName);
-        });
-      });
-      if (handled) thread.addLabel(label);
-    });
-  });
-
-  console.log('Gmail import: ' + JSON.stringify(summary, null, 2));
-  return summary;
-}
-
-function ensureEmailImportAuditHeader_(sheet) {
-  if (sheet.getLastRow() > 0) return;
-  sheet.appendRow([
-    'Clave origen', 'ID mensaje Gmail', 'Fecha correo', 'Remitente', 'Asunto',
-    'Nombre adjunto', 'SHA-256', 'ID archivo Drive', 'Enlace Drive', 'Estado', 'Importado el'
-  ]);
-  sheet.setFrozenRows(1);
-}
-
-function buildEmailImportIndex_(sheet) {
-  const index = { sourceKeys: {}, digests: {} };
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return index;
-  sheet.getRange(2, 1, lastRow - 1, 7).getDisplayValues().forEach(function(row) {
-    if (row[0]) index.sourceKeys[row[0]] = true;
-    if (row[6]) index.digests[row[6]] = true;
-  });
-  return index;
-}
-
-function sha256Hex_(bytes) {
-  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
-    .map(function(byte) {
-      const value = byte < 0 ? byte + 256 : byte;
-      return ('0' + value.toString(16)).slice(-2);
-    })
-    .join('');
-}
-
-'''
-
+          replacement = base64.b64decode(os.environ['IMPORTER_B64']).decode('utf-8')
           p.write_text(s[:start] + replacement + s[end:])
           PY
 
@@ -167,7 +43,6 @@ function sha256Hex_(bytes) {
           grep -F "processedLabel: 'FACTURAS_IMPORTADAS'" apps-script/gonsol-drive-organizer/Code.gs
           grep -F "known.digests[digest]" apps-script/gonsol-drive-organizer/Code.gs
           grep -F "maxThreadsPerRun: 100" apps-script/gonsol-drive-organizer/Code.gs
-          grep -F "-label:' + GONSOL_GMAIL_IMPORT.processedLabel" apps-script/gonsol-drive-organizer/Code.gs
           git diff --check
 
       - name: Commit hardened importer
