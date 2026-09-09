@@ -1,0 +1,180 @@
+name: Harden Gmail invoice importer once
+
+on:
+  push:
+    branches: [codex/factupapa-next-quality-sweep]
+    paths:
+      - '.github/workflows/harden-gmail-importer-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: codex/factupapa-next-quality-sweep
+          fetch-depth: 0
+
+      - name: Replace Gmail importer with label plus SHA audit
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('apps-script/gonsol-drive-organizer/Code.gs')
+          s = p.read_text()
+          start = s.index('const GONSOL_GMAIL_IMPORT = {')
+          end = s.index('const GONSOL_MONTHS = [', start)
+
+          replacement = r'''const GONSOL_GMAIL_IMPORT = {
+  enabled: true,
+  processedLabel: 'FACTURAS_IMPORTADAS',
+  auditSheetName: 'IMPORT_EMAIL_LOG',
+  after: '2026/07/01',
+  senders: [
+    'gayca@frutasypatatasgayca.com',
+    'facturaelectronicasolred@facturasolred.repsol.com'
+  ],
+  maxThreadsPerRun: 100
+};
+
+/**
+ * Ejecutar UNA VEZ a mano tras desplegar con permisos nuevos: fuerza la pantalla
+ * de autorización (incluye Gmail y Drive). No modifica nada; solo pide los permisos.
+ */
+function autorizarPermisos() {
+  var gmailNoLeidos = GmailApp.getInboxUnreadCount();
+  var carpetaRaiz = DriveApp.getRootFolder().getName();
+  Logger.log('Autorización OK · Gmail no leídos: ' + gmailNoLeidos + ' · Drive raíz: ' + carpetaRaiz);
+  return { gmailNoLeidos: gmailNoLeidos, carpetaRaiz: carpetaRaiz };
+}
+
+/**
+ * Importa únicamente facturas PDF de remitentes autorizados. La etiqueta de Gmail
+ * es la marca humana/persistente de "ya procesado" y el log por messageId+SHA256
+ * y por SHA256 evita reingestas incluso si el proveedor reenvía el mismo PDF.
+ */
+function importInvoicesFromGmail_() {
+  if (!GONSOL_GMAIL_IMPORT.enabled) return { imported: 0, alreadyKnown: 0 };
+
+  const label = GmailApp.getUserLabelByName(GONSOL_GMAIL_IMPORT.processedLabel)
+    || GmailApp.createLabel(GONSOL_GMAIL_IMPORT.processedLabel);
+  const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
+  const spreadsheet = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
+  let auditSheet = spreadsheet.getSheetByName(GONSOL_GMAIL_IMPORT.auditSheetName);
+  if (!auditSheet) auditSheet = spreadsheet.insertSheet(GONSOL_GMAIL_IMPORT.auditSheetName);
+  ensureEmailImportAuditHeader_(auditSheet);
+  const known = buildEmailImportIndex_(auditSheet);
+  const now = new Date();
+  const summary = { imported: 0, alreadyKnown: 0, scannedThreads: 0, importedFiles: [] };
+
+  GONSOL_GMAIL_IMPORT.senders.forEach(function(sender) {
+    const query = 'from:' + sender
+      + ' has:attachment filename:pdf'
+      + ' after:' + GONSOL_GMAIL_IMPORT.after
+      + ' -label:' + GONSOL_GMAIL_IMPORT.processedLabel;
+    const threads = GmailApp.search(query, 0, GONSOL_GMAIL_IMPORT.maxThreadsPerRun);
+    summary.scannedThreads += threads.length;
+
+    threads.forEach(function(thread) {
+      let handled = false;
+      thread.getMessages().forEach(function(message) {
+        message.getAttachments({ includeInlineImages: false, includeAttachments: true }).forEach(function(attachment) {
+          const name = String(attachment.getName() || '');
+          if (!/\.pdf$/i.test(name)) return;
+          const bytes = attachment.getBytes();
+          const digest = sha256Hex_(bytes);
+          const sourceKey = message.getId() + ':' + digest;
+          handled = true;
+
+          if (known.sourceKeys[sourceKey] || known.digests[digest]) {
+            summary.alreadyKnown++;
+            return;
+          }
+
+          const stagedName = 'EMAIL_' + message.getId() + '_' + name;
+          const file = inputFolder.createFile(attachment.copyBlob().setName(stagedName));
+          auditSheet.appendRow([
+            sourceKey,
+            message.getId(),
+            Utilities.formatDate(message.getDate(), 'Europe/Madrid', 'yyyy-MM-dd HH:mm:ss'),
+            message.getFrom(),
+            message.getSubject(),
+            name,
+            digest,
+            file.getId(),
+            file.getUrl(),
+            'importado',
+            Utilities.formatDate(now, 'Europe/Madrid', 'yyyy-MM-dd HH:mm:ss')
+          ]);
+          known.sourceKeys[sourceKey] = true;
+          known.digests[digest] = true;
+          summary.imported++;
+          summary.importedFiles.push(stagedName);
+        });
+      });
+      if (handled) thread.addLabel(label);
+    });
+  });
+
+  console.log('Gmail import: ' + JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function ensureEmailImportAuditHeader_(sheet) {
+  if (sheet.getLastRow() > 0) return;
+  sheet.appendRow([
+    'Clave origen', 'ID mensaje Gmail', 'Fecha correo', 'Remitente', 'Asunto',
+    'Nombre adjunto', 'SHA-256', 'ID archivo Drive', 'Enlace Drive', 'Estado', 'Importado el'
+  ]);
+  sheet.setFrozenRows(1);
+}
+
+function buildEmailImportIndex_(sheet) {
+  const index = { sourceKeys: {}, digests: {} };
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return index;
+  sheet.getRange(2, 1, lastRow - 1, 7).getDisplayValues().forEach(function(row) {
+    if (row[0]) index.sourceKeys[row[0]] = true;
+    if (row[6]) index.digests[row[6]] = true;
+  });
+  return index;
+}
+
+function sha256Hex_(bytes) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
+    .map(function(byte) {
+      const value = byte < 0 ? byte + 256 : byte;
+      return ('0' + value.toString(16)).slice(-2);
+    })
+    .join('');
+}
+
+'''
+
+          p.write_text(s[:start] + replacement + s[end:])
+          PY
+
+      - name: Validate organizer
+        shell: bash
+        run: |
+          cp apps-script/gonsol-drive-organizer/Code.gs /tmp/gonsol-organizer.js
+          node --check /tmp/gonsol-organizer.js
+          grep -F "processedLabel: 'FACTURAS_IMPORTADAS'" apps-script/gonsol-drive-organizer/Code.gs
+          grep -F "known.digests[digest]" apps-script/gonsol-drive-organizer/Code.gs
+          grep -F "maxThreadsPerRun: 100" apps-script/gonsol-drive-organizer/Code.gs
+          grep -F "-label:' + GONSOL_GMAIL_IMPORT.processedLabel" apps-script/gonsol-drive-organizer/Code.gs
+          git diff --check
+
+      - name: Commit hardened importer
+        shell: bash
+        run: |
+          git config user.name 'FactuPapa automation'
+          git config user.email 'gonsoldelavega@gmail.com'
+          git add apps-script/gonsol-drive-organizer/Code.gs
+          git commit -m 'fix(purchases): make Gmail import idempotent by label and SHA'
+          git push origin HEAD:codex/factupapa-next-quality-sweep
