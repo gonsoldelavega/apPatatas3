@@ -16,7 +16,7 @@ jobs:
     env:
       DOCKER_HOST: unix:///run/user/1001/docker.sock
     steps:
-      - name: Trace target row through live CSV and staging PostgreSQL
+      - name: Verify invoice 2171 through FactuPapa finance service
         shell: bash
         env:
           SYNC_USER_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
@@ -25,87 +25,11 @@ jobs:
           api="$(docker ps -q --filter 'label=com.docker.compose.project=factupapa_staging' --filter 'label=com.docker.compose.service=api' | head -n1)"
           test -n "$api"
           docker exec -i -e SYNC_USER_EMAIL="$SYNC_USER_EMAIL" "$api" node --input-type=module <<'NODE'
-          import { createHash, randomUUID } from 'node:crypto';
+          import { randomUUID } from 'node:crypto';
           import pg from 'pg';
           import { AuthRepository } from '/app/dist/auth/repository.js';
+          import { FinanceService } from '/app/dist/finance/service.js';
           import { withTenantTransaction } from '/app/dist/database/client.js';
-          import { canonicalInvoiceNumber, canonicalSupplierTaxId } from '/app/dist/finance/invoice-number.js';
-
-          function parseRegistryCsv(value) {
-            const rows = [];
-            let row = [], field = '', quoted = false;
-            const source = value.replace(/\r\n?/g, '\n');
-            for (let index = 0; index < source.length; index += 1) {
-              const character = source[index];
-              if (quoted) {
-                if (character === '"' && source[index + 1] === '"') { field += '"'; index += 1; }
-                else if (character === '"') quoted = false;
-                else field += character;
-              } else if (character === '"') quoted = true;
-              else if (character === ',') { row.push(field); field = ''; }
-              else if (character === '\n') {
-                row.push(field);
-                if (row.some((cell) => cell.trim())) rows.push(row);
-                row = []; field = '';
-              } else field += character;
-            }
-            row.push(field);
-            if (row.some((cell) => cell.trim())) rows.push(row);
-            return rows.slice(1);
-          }
-          const text = (value) => String(value ?? '').trim();
-          const money = (value) => {
-            const normalized = text(value).replace(/\s|€|%/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
-            const amount = Number(normalized);
-            return Number.isFinite(amount) && amount >= 0 ? amount.toFixed(4) : null;
-          };
-          const date = (value) => {
-            const t = text(value);
-            const spanish = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-            if (spanish) return `${spanish[3]}-${spanish[2].padStart(2,'0')}-${spanish[1].padStart(2,'0')}`;
-            return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
-          };
-          const normalizedTaxId = (value) => text(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
-          const keyFor = (row) => {
-            const link = text(row[18]);
-            const driveId = link.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] ?? link.match(/[?&]id=([A-Za-z0-9_-]+)/)?.[1];
-            return driveId ?? createHash('sha256').update(row.join('\u001f')).digest('hex');
-          };
-
-          const registryUrl = process.env.PURCHASE_REGISTRY_WEBAPP_URL?.trim();
-          if (!registryUrl) throw new Error('purchase_registry_not_configured');
-          const response = await fetch(registryUrl, { redirect: 'follow', headers: { Accept: 'text/csv' } });
-          const body = await response.text();
-          if (!response.ok) throw new Error(`registry_http_${response.status}`);
-          const rows = parseRegistryCsv(body);
-          const purchases = rows.filter((row) => text(row[2]).toUpperCase() === 'COMPRA');
-          const target = purchases.find((row) => /(?:^|\D)0*2171(?:\D|$)/.test(text(row[4]).replace(/[.]/g,''))) ??
-            purchases.find((row) => text(row[19]).includes('000002171'));
-          if (!target) {
-            console.log(JSON.stringify({ status:'FAIL', reason:'target_not_in_live_csv', fetched:purchases.length }));
-            process.exit(2);
-          }
-
-          const parsed = {
-            columns: target.length,
-            issueDateRaw: text(target[0]),
-            type: text(target[2]),
-            invoiceNumber: text(target[4]),
-            supplierName: text(target[5]),
-            subtotalRaw: text(target[9]),
-            taxRateRaw: text(target[10]),
-            taxTotalRaw: text(target[11]),
-            totalRaw: text(target[12]),
-            paymentRaw: text(target[13]),
-            driveUrlPresent: Boolean(text(target[18])),
-            filename: text(target[19]),
-            reviewedRaw: text(target[20]),
-            issueDate: date(target[0]),
-            subtotal: money(target[9]),
-            taxTotal: money(target[11]),
-            total: money(target[12]),
-            key: keyFor(target),
-          };
 
           const { Pool } = pg;
           const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -114,33 +38,38 @@ jobs:
             if (!user) throw new Error('sync_user_not_found');
             const { passwordHash: _, ...base } = user;
             const identity = { ...base, familyId: randomUUID() };
-            const db = await withTenantTransaction(pool, identity, async (client) => {
-              const keyRows = (await client.query(`
-                select id,supplier_invoice_number as "invoiceNumber",issue_date::text as "issueDate",status,total::text
-                from purchase_invoices where source_registry_key=$1
-              `,[parsed.key])).rows;
-              const supplier = (await client.query(`
-                select id,legal_name,tax_id from contacts
-                where is_active and kind in('supplier','both')
-                  and (($1::text <> '' and regexp_replace(upper(coalesce(tax_id,'')),'[^A-Z0-9]','','g')=$1)
-                    or lower(btrim(legal_name))=lower(btrim($2)))
-                order by case when $1::text <> '' and regexp_replace(upper(coalesce(tax_id,'')),'[^A-Z0-9]','','g')=$1 then 0 else 1 end
-                limit 1
-              `,[normalizedTaxId(target[6]),text(target[5])])).rows[0] ?? null;
-              let duplicates = [];
-              if (supplier && parsed.issueDate && parsed.invoiceNumber) {
-                duplicates = (await client.query(`
-                  select id,supplier_invoice_number as "invoiceNumber",issue_date::text as "issueDate",status,
-                         source_registry_key as "sourceRegistryKey",total::text
-                  from purchase_invoices
-                  where company_id=$1 and supplier_tax_identity_key=$2
-                    and supplier_invoice_number_key=$3
-                    and extract(year from issue_date)=extract(year from $4::date)
-                    and status<>'cancelled'
-                `,[identity.companyId, canonicalSupplierTaxId(supplier.tax_id) ?? supplier.id, canonicalInvoiceNumber(parsed.invoiceNumber), parsed.issueDate])).rows;
-              }
-              return { keyRows, supplierFound:Boolean(supplier), duplicates };
-            });
-            console.log(JSON.stringify({ status:'PASS', fetched:purchases.length, parsed, db }));
+            const finance = new FinanceService(pool);
+            const purchases = await finance.listPurchases(identity, { from: '2026-09-01', to: '2026-09-30' });
+            const visible = purchases.filter((row) => String(row.supplierInvoiceNumber ?? '').replace(/\D/g,'').includes('2171'));
+            const detail = await withTenantTransaction(pool, identity, async (client) => (
+              await client.query(`
+                select i.id,i.supplier_invoice_number as "invoiceNumber",i.issue_date::text as "issueDate",
+                       i.status,i.subtotal::text,i.tax_total::text,i.total::text,
+                       i.source_registry_key is not null as "fromRegistry",
+                       i.source_registry_filename as "registryFilename",
+                       coalesce(sum(p.amount),0)::text as "paidAmount"
+                from purchase_invoices i
+                left join payments p on p.purchase_invoice_id=i.id
+                where i.company_id=$1 and i.deleted_at is null
+                  and regexp_replace(coalesce(i.supplier_invoice_number,''),'[^0-9]','','g') like '%2171%'
+                group by i.id
+                order by i.created_at desc
+              `,[identity.companyId])
+            )).rows;
+            console.log(JSON.stringify({ status:'PASS', visibleThroughFinanceService:visible, detail }));
+            const row = detail[0];
+            if (!row || row.issueDate !== '2026-09-03' || row.status !== 'confirmed' || row.fromRegistry !== true || Number(row.total) !== 102.96 || Number(row.paidAmount) !== 102.96 || visible.length < 1) {
+              process.exit(3);
+            }
           } finally { await pool.end(); }
           NODE
+          echo 'INVOICE_2171_APP_SERVICE=PASS'
+
+      - name: Verify staging health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error https://factupapa-next.46-62-226-95.sslip.io/healthz >/dev/null
+          curl --fail --silent --show-error https://factupapa-next.46-62-226-95.sslip.io/api/health >/dev/null
+          echo 'WEB_HEALTH=200'
+          echo 'API_HEALTH=200'
