@@ -1,16 +1,9 @@
 name: Deploy Apps Script
 
-# Despliega automaticamente el agente compartido de compras
-# (apps-script/gonsol-drive-organizer) desde la rama canonica de FactuPapa Next.
-# El organizador es quien lee Gmail/Drive, marca correos procesados y alimenta
-# el Registro Maestro que FactuPapa Next sincroniza de forma supervisada.
-# Cualquier cambio del organizador o de este workflow publica el SHA exacto.
-#
-# Requiere cuatro secretos del repositorio (Settings -> Secrets and variables -> Actions):
-#   - CLASP_REFRESH_TOKEN
-#   - CLASP_CLIENT_ID
-#   - CLASP_CLIENT_SECRET
-#   - SCRIPT_ID
+# Publica el organizador de compras de la rama canónica, verifica la fuente remota,
+# actualiza el deployment versionado y trata de arrancar el pipeline completo.
+# El job falla ante falsos positivos de clasp; un bloqueo de autorización de usuario
+# se informa de forma explícita como BOOTSTRAP_REMOTE=NEEDS_USER_AUTH.
 
 on:
   push:
@@ -131,13 +124,120 @@ jobs:
           test -s "$REMOTE_CODE" || { echo "Apps Script remoto no contiene Code.gs"; exit 1; }
           test -s "$REMOTE_MANIFEST" || { echo "Apps Script remoto no contiene appsscript.json"; exit 1; }
 
-          cmp -s Code.gs "$REMOTE_CODE" || {
-            echo "Code.gs remoto no coincide con el SHA desplegado"
-            exit 1
-          }
-          cmp -s appsscript.json "$REMOTE_MANIFEST" || {
-            echo "appsscript.json remoto no coincide con el SHA desplegado"
-            exit 1
-          }
+          cmp -s Code.gs "$REMOTE_CODE" || { echo "Code.gs remoto no coincide con el SHA desplegado"; exit 1; }
+          cmp -s appsscript.json "$REMOTE_MANIFEST" || { echo "appsscript.json remoto no coincide con el SHA desplegado"; exit 1; }
+          echo "Apps Script verificado: fuente remota coincide exactamente con $GITHUB_SHA"
 
-          echo "Apps Script verificado: Code.gs y appsscript.json coinciden exactamente con $GITHUB_SHA"
+      - name: Versionar y actualizar deployment activo
+        id: deployment
+        env:
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN_JSON="$(mktemp)"
+          curl -fsS https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLASP_CLIENT_ID" \
+            --data-urlencode "client_secret=$CLASP_CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$CLASP_REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" > "$TOKEN_JSON"
+          ACCESS_TOKEN="$(jq -r '.access_token // empty' "$TOKEN_JSON")"
+          test -n "$ACCESS_TOKEN" || { echo "No se pudo obtener access token"; exit 1; }
+
+          VERSION_JSON="$(mktemp)"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -nc --arg d "FactuPapa purchase pipeline $GITHUB_SHA" '{description:$d}')" \
+            "https://script.googleapis.com/v1/projects/$SCRIPT_ID/versions" > "$VERSION_JSON"
+          VERSION="$(jq -r '.versionNumber // empty' "$VERSION_JSON")"
+          test -n "$VERSION" || { echo "No se pudo crear version de Apps Script"; cat "$VERSION_JSON"; exit 1; }
+
+          DEPLOYMENTS="$(mktemp)"
+          curl -fsS \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$DEPLOYMENTS"
+
+          DEPLOYMENT_ID="$(jq -r '.deployments[]? | select(any(.entryPoints[]?; .entryPointType == "WEB_APP")) | .deploymentId' "$DEPLOYMENTS" | head -n1)"
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            DEPLOYMENT_ID="$(jq -r '.deployments[]?.deploymentId' "$DEPLOYMENTS" | head -n1)"
+          fi
+
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            UPDATED="$(mktemp)"
+            curl -fsS -X PUT \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg sid "$SCRIPT_ID" --argjson ver "$VERSION" --arg d "FactuPapa purchase pipeline $GITHUB_SHA" '{deploymentConfig:{scriptId:$sid,versionNumber:$ver,manifestFileName:"appsscript",description:$d}}')" \
+              "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments/$DEPLOYMENT_ID" > "$UPDATED"
+          else
+            UPDATED="$(mktemp)"
+            curl -fsS -X POST \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg sid "$SCRIPT_ID" --argjson ver "$VERSION" --arg d "FactuPapa purchase pipeline $GITHUB_SHA" '{deploymentConfig:{scriptId:$sid,versionNumber:$ver,manifestFileName:"appsscript",description:$d}}')" \
+              "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$UPDATED"
+            DEPLOYMENT_ID="$(jq -r '.deploymentId // empty' "$UPDATED")"
+          fi
+
+          test -n "$DEPLOYMENT_ID" || { echo "No se pudo resolver deployment activo"; exit 1; }
+          WEB_URL="$(jq -r '.entryPoints[]? | select(.entryPointType == "WEB_APP") | .webApp.url' "$UPDATED" | head -n1)"
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
+          echo "Apps Script version $VERSION publicada en deployment $DEPLOYMENT_ID"
+
+      - name: Smoke test del Registro Maestro web
+        if: ${{ steps.deployment.outputs.web_url != '' }}
+        env:
+          WEB_URL: ${{ steps.deployment.outputs.web_url }}
+        run: |
+          set -euo pipefail
+          RESPONSE="$(mktemp)"
+          curl -fsSL "$WEB_URL" > "$RESPONSE"
+          jq -e '.ok == true and (.rows | type == "array")' "$RESPONSE" >/dev/null
+          echo "REGISTRY_WEBAPP=PASS"
+
+      - name: Intentar bootstrap remoto del pipeline
+        id: bootstrap
+        env:
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN_JSON="$(mktemp)"
+          RUN_JSON="$(mktemp)"
+          curl -fsS https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLASP_CLIENT_ID" \
+            --data-urlencode "client_secret=$CLASP_CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$CLASP_REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" > "$TOKEN_JSON"
+          ACCESS_TOKEN="$(jq -r '.access_token // empty' "$TOKEN_JSON")"
+          test -n "$ACCESS_TOKEN" || { echo "bootstrap=needs_auth" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          HTTP="$(curl -sS -o "$RUN_JSON" -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"function":"bootstrapPurchasePipeline","devMode":true}' \
+            "https://script.googleapis.com/v1/scripts/$SCRIPT_ID:run" || true)"
+
+          if [ "$HTTP" = "200" ] && jq -e '.done == true and .response.result.ok == true and .response.result.triggerCount == 4' "$RUN_JSON" >/dev/null 2>&1; then
+            echo "BOOTSTRAP_REMOTE=PASS"
+            echo "bootstrap=pass" >> "$GITHUB_OUTPUT"
+            jq '{done, result:.response.result}' "$RUN_JSON"
+          else
+            echo "::warning::BOOTSTRAP_REMOTE=NEEDS_USER_AUTH_OR_API_EXECUTABLE_SETUP (HTTP $HTTP)"
+            jq '{error, done, operationError:.error, scriptError:.response.error}' "$RUN_JSON" 2>/dev/null || cat "$RUN_JSON"
+            echo "bootstrap=needs_auth" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resultado
+        run: |
+          echo "SOURCE_DEPLOY=PASS"
+          echo "VERSION=${{ steps.deployment.outputs.version }}"
+          echo "DEPLOYMENT=${{ steps.deployment.outputs.deployment_id }}"
+          echo "BOOTSTRAP_REMOTE=${{ steps.bootstrap.outputs.bootstrap }}"
