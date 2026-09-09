@@ -1,0 +1,67 @@
+name: Probe purchase pipeline
+
+on:
+  push:
+    branches:
+      - codex/factupapa-next-quality-sweep
+    paths:
+      - ".github/workflows/probe-purchase-pipeline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe live Apps Script webapp
+        env:
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN_JSON="$(mktemp)"
+          curl -fsS --max-time 20 https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLASP_CLIENT_ID" \
+            --data-urlencode "client_secret=$CLASP_CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$CLASP_REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" > "$TOKEN_JSON"
+          ACCESS_TOKEN="$(jq -r '.access_token // empty' "$TOKEN_JSON")"
+          test -n "$ACCESS_TOKEN" || { echo "TOKEN=FAIL"; exit 1; }
+
+          DEPLOYMENTS="$(mktemp)"
+          curl -fsS --max-time 20 -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$DEPLOYMENTS"
+          jq '[.deployments[]? | {version:(.deploymentConfig.versionNumber // "HEAD"), description:(.deploymentConfig.description // ""), hasWebApp:any(.entryPoints[]?; .entryPointType == "WEB_APP")}]' "$DEPLOYMENTS"
+          WEB_URL="$(jq -r '.deployments[]? | select(.deploymentConfig.versionNumber != null) | .entryPoints[]? | select(.entryPointType == "WEB_APP") | .webApp.url' "$DEPLOYMENTS" | head -n1)"
+          test -n "$WEB_URL" || { echo "WEBAPP=NOT_FOUND"; exit 1; }
+
+          BODY="$(mktemp)"
+          HEADERS="$(mktemp)"
+          set +e
+          HTTP="$(curl -sS -L --max-time 30 -D "$HEADERS" -o "$BODY" -w '%{http_code}' "$WEB_URL")"
+          CURL_RC=$?
+          set -e
+          echo "CURL_RC=$CURL_RC HTTP=$HTTP"
+          grep -iE '^(content-type|location):' "$HEADERS" | tail -10 || true
+          if [ "$CURL_RC" -ne 0 ]; then
+            echo "WEBAPP_PROBE=TIMEOUT_OR_NETWORK"
+            exit 0
+          fi
+          if jq -e '.ok == true' "$BODY" >/dev/null 2>&1; then
+            echo "WEBAPP_PROBE=JSON_OK"
+            jq '{ok,count,source,scheduler}' "$BODY"
+          else
+            echo "WEBAPP_PROBE=NON_JSON_OR_AUTH_PAGE"
+            python3 - "$BODY" <<'PY'
+          import re,sys
+          text=open(sys.argv[1],errors='ignore').read(3000)
+          text=re.sub(r'<script.*?</script>',' ',text,flags=re.S|re.I)
+          text=re.sub(r'<style.*?</style>',' ',text,flags=re.S|re.I)
+          text=re.sub(r'<[^>]+>',' ',text)
+          text=re.sub(r'\s+',' ',text).strip()
+          print(text[:800])
+          PY
+          fi
