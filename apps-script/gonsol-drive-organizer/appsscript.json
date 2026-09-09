@@ -21,8 +21,5 @@
   "webapp": {
     "executeAs": "USER_DEPLOYING",
     "access": "ANYONE_ANONYMOUS"
-  },
-  "executionApi": {
-    "access": "MYSELF"
   }
 }

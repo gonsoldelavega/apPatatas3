@@ -49,6 +49,10 @@ function doGet(e) {
     if (REGISTRY_WEBAPP_TOKEN && String(params.key || '') !== REGISTRY_WEBAPP_TOKEN) {
       return jsonOutput_({ ok: false, error: 'unauthorized' });
     }
+    // La lectura del Registro Maestro sirve también como punto de auto-reparación
+    // del calendario. El fallo de autorización se informa, pero NUNCA rompe
+    // la lectura del registro.
+    var scheduler = ensurePurchaseInvoiceScheduleFromWeb_();
     var ss = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
     var sheet = ss.getSheetByName(GONSOL_CONFIG.registrySheetName);
     if (!sheet) {
@@ -73,10 +77,38 @@ function doGet(e) {
       rows: rows,
       count: rows.length,
       source: 'apps-script-webapp',
+      scheduler: scheduler,
       generatedAt: new Date().toISOString()
     });
   } catch (err) {
     return jsonOutput_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+function ensurePurchaseInvoiceScheduleFromWeb_() {
+  try {
+    ensurePurchaseInvoiceSchedule_();
+    var triggers = ScriptApp.getProjectTriggers().filter(function(trigger) {
+      return trigger.getHandlerFunction() === 'processPurchaseInvoicesDaily';
+    });
+    return {
+      ok: triggers.length === 4,
+      triggerCount: triggers.length,
+      scheduleVersion: PropertiesService.getScriptProperties()
+        .getProperty('purchaseInvoiceTriggerScheduleVersion') || ''
+    };
+  } catch (error) {
+    var authRequired = true;
+    try {
+      var authInfo = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
+      authRequired = String(authInfo.getAuthorizationStatus()) !== 'NOT_REQUIRED';
+    } catch (_) {}
+    console.error('Auto-reparacion de triggers pendiente: ' + error);
+    return {
+      ok: false,
+      authorizationRequired: authRequired,
+      error: String(error && error.message ? error.message : error)
+    };
   }
 }
 
