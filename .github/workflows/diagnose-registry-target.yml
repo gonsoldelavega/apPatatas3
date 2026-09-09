@@ -1,0 +1,61 @@
+name: Diagnose registry invoice visibility
+
+on:
+  push:
+    branches: [codex/factupapa-next-quality-sweep]
+    paths: ['.github/workflows/diagnose-registry-target.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 5
+    env:
+      DOCKER_HOST: unix:///run/user/1001/docker.sock
+    steps:
+      - name: Inspect target invoice in staging PostgreSQL
+        shell: bash
+        env:
+          SYNC_USER_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
+        run: |
+          set -Eeuo pipefail
+          api="$(docker ps -q --filter 'label=com.docker.compose.project=factupapa_staging' --filter 'label=com.docker.compose.service=api' | head -n1)"
+          test -n "$api"
+          docker exec -i -e SYNC_USER_EMAIL="$SYNC_USER_EMAIL" "$api" node --input-type=module <<'NODE'
+          import { randomUUID } from 'node:crypto';
+          import pg from 'pg';
+          import { AuthRepository } from '/app/dist/auth/repository.js';
+          import { withTenantTransaction } from '/app/dist/database/client.js';
+          const { Pool } = pg;
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          try {
+            const user = await new AuthRepository(pool).findUserByEmail(process.env.SYNC_USER_EMAIL.trim().toLowerCase());
+            if (!user) throw new Error('sync_user_not_found');
+            const { passwordHash: _, ...base } = user;
+            const identity = { ...base, familyId: randomUUID() };
+            const rows = await withTenantTransaction(pool, identity, async (client) => (
+              await client.query(`
+                select
+                  id,
+                  supplier_invoice_number as "invoiceNumber",
+                  issue_date::text as "issueDate",
+                  status,
+                  source_registry_key is not null as "fromRegistry",
+                  source_registry_filename as "registryFilename",
+                  total::text as total
+                from purchase_invoices
+                where company_id=$1 and deleted_at is null
+                  and (
+                    regexp_replace(coalesce(supplier_invoice_number,''),'[^0-9]','','g') like '%2171%'
+                    or issue_date between date '2026-09-01' and date '2026-09-09'
+                  )
+                order by issue_date desc, created_at desc
+                limit 30
+              `, [identity.companyId])
+            )).rows;
+            console.log(JSON.stringify({ status: 'PASS', rows }));
+          } finally { await pool.end(); }
+          NODE
