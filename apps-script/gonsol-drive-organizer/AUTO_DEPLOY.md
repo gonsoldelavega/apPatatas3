@@ -1,78 +1,53 @@
 # Auto-despliegue del agente a Google Apps Script
 
-Con esto, **cada vez que se mejore el agente** (`Code.gs`), GitHub lo sube solo a tu
-proyecto de Apps Script. No tendras que volver a copiar y pegar nada.
+El agente de compras se publica automaticamente desde la rama canonica
+`codex/factupapa-next-quality-sweep` mediante `.github/workflows/deploy-appsscript.yml`.
 
-El despliegue lo hace el workflow `.github/workflows/deploy-appsscript.yml` usando
-[`clasp`](https://github.com/google/clasp) (la herramienta oficial de Google).
+El workflow usa `@google/clasp@3.3.0`, autentica con una credencial OAuth de tipo
+`authorized_user` y, despues del push, consulta la Apps Script API para comprobar que
+`Code.gs` y `appsscript.json` remotos coinciden exactamente con los archivos del SHA
+que disparo el despliegue. Si `clasp` informa un error o la fuente remota no coincide,
+el job falla; no se acepta un falso positivo de despliegue.
 
----
+## Secretos necesarios en GitHub
 
-## Lo que hay que hacer UNA sola vez
+En `Settings -> Secrets and variables -> Actions` deben existir estos cuatro secretos:
 
-Son 3 cosas. Solo la nº 2 necesita un ordenador con Node una vez; el resto es navegador.
-
-### 1. Activar la API de Apps Script (1 clic)
-
-Entra en: <https://script.google.com/home/usersettings>
-y pon **"Google Apps Script API"** en **ON**.
-
-### 2. Obtener la credencial de `clasp` (`CLASPRC_JSON`)
-
-En un ordenador con Node instalado, abre una terminal y ejecuta:
-
-```bash
-npm install -g @google/clasp@2.4.2
-clasp login
-```
-
-Se abrira el navegador para iniciar sesion con **tu cuenta de Google** (la misma del
-agente). Al terminar, se crea un archivo con la credencial:
-
-- Windows: `%USERPROFILE%\.clasprc.json`
-- Mac / Linux: `~/.clasprc.json`
-
-Abre ese archivo y copia **todo su contenido**.
-
-> ¿Sin ordenador con Node? Se puede obtener la misma credencial solo con el navegador
-> (OAuth Playground). Pidemelo y te paso los pasos exactos.
-
-### 3. Conseguir el Script ID (`SCRIPT_ID`)
-
-Abre el proyecto en Apps Script -> icono de engranaje (**Configuracion del proyecto**)
--> seccion **IDs** -> copia el **ID de secuencia de comandos / Script ID**.
-
-(Tambien aparece en la URL del editor: `script.google.com/.../projects/SCRIPT_ID/edit`.)
-
----
-
-## Guardar los dos secretos en GitHub
-
-En el repositorio:
-
-**Settings → Secrets and variables → Actions → New repository secret**
-
-Crea estos dos (todo desde el navegador, sin tocar codigo):
-
-| Nombre | Valor |
+| Secreto | Contenido |
 | --- | --- |
-| `CLASPRC_JSON` | el contenido del archivo `.clasprc.json` del paso 2 |
-| `SCRIPT_ID` | el Script ID del paso 3 |
+| `CLASP_REFRESH_TOKEN` | Refresh token OAuth de la cuenta que administra el Apps Script |
+| `CLASP_CLIENT_ID` | Client ID OAuth usado para generar ese refresh token |
+| `CLASP_CLIENT_SECRET` | Client secret correspondiente |
+| `SCRIPT_ID` | ID del proyecto de Google Apps Script |
 
----
+No se usa `CLASPRC_JSON`.
 
-## Listo
+## Disparador
 
-A partir de ahi:
+El despliegue se ejecuta al hacer push a `codex/factupapa-next-quality-sweep` cuando
+cambia alguno de estos paths:
 
-- Cada cambio en `apps-script/gonsol-drive-organizer/**` que llegue a `main` se
-  despliega solo a tu Apps Script.
-- Tambien puedes lanzarlo a mano desde GitHub: pestaña **Actions** ->
-  **Deploy Apps Script** -> **Run workflow**.
+- `apps-script/gonsol-drive-organizer/**`
+- `.github/workflows/deploy-appsscript.yml`
 
-El disparador diario de las 7:00 ya estaba configurado en tu proyecto, asi que seguira
-ejecutando el codigo actualizado sin mas pasos.
+Tambien puede lanzarse manualmente con `workflow_dispatch` desde GitHub Actions.
 
-> Nota: la credencial de `clasp` caduca con el tiempo si no se usa. Como el workflow la
-> usa cada vez que hay cambios, se mantiene viva. Si algun dia el despliegue falla por
-> credencial caducada, basta con repetir el paso 2 y actualizar el secreto `CLASPRC_JSON`.
+## Autorizacion de los servicios del propio script
+
+`clasp` publica el codigo, pero los permisos de ejecucion del Apps Script pertenecen a
+la cuenta de Google que ejecuta sus funciones/triggers. Si se anade un scope nuevo al
+`appsscript.json` (por ejemplo Gmail), Google puede exigir una autorizacion interactiva
+una vez. En ese caso, abrir el proyecto en Apps Script y ejecutar `autorizarPermisos`;
+la funcion solo toca Gmail/Drive para forzar la pantalla de consentimiento y no altera
+datos.
+
+## Verificacion del despliegue
+
+Un despliegue valido debe completar estas etapas del workflow:
+
+1. `Push a Apps Script`
+2. `Verificar fuente remota exacta`
+
+La segunda etapa obtiene un access token con los secretos OAuth, lee
+`projects/{SCRIPT_ID}/content` desde la Apps Script API y compara byte a byte el
+`Code.gs` y el `appsscript.json` remotos con el checkout del SHA desplegado.
