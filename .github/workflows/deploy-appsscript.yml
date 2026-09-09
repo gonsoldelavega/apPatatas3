@@ -5,15 +5,12 @@ name: Deploy Apps Script
 # El organizador es quien lee Gmail/Drive, marca correos procesados y alimenta
 # el Registro Maestro que FactuPapa Next sincroniza de forma supervisada.
 # Cualquier cambio del organizador o de este workflow publica el SHA exacto.
-# La publicación incluye el importador idempotente por etiqueta Gmail + SHA-256.
 #
 # Requiere cuatro secretos del repositorio (Settings -> Secrets and variables -> Actions):
 #   - CLASP_REFRESH_TOKEN
 #   - CLASP_CLIENT_ID
 #   - CLASP_CLIENT_SECRET
 #   - SCRIPT_ID
-#
-# Ver apps-script/gonsol-drive-organizer/AUTO_DEPLOY.md para los pasos (una sola vez).
 
 on:
   push:
@@ -40,10 +37,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install clasp
-        run: npm install -g @google/clasp@2.4.2
+        run: npm install -g @google/clasp@3.3.0
 
       - name: Comprobar secretos
         env:
@@ -52,31 +49,95 @@ jobs:
           CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: |
-          if [ -z "$CLASP_REFRESH_TOKEN" ]; then echo "Falta el secreto CLASP_REFRESH_TOKEN"; exit 1; fi
-          if [ -z "$CLASP_CLIENT_ID" ]; then echo "Falta el secreto CLASP_CLIENT_ID"; exit 1; fi
-          if [ -z "$CLASP_CLIENT_SECRET" ]; then echo "Falta el secreto CLASP_CLIENT_SECRET"; exit 1; fi
-          if [ -z "$SCRIPT_ID" ]; then echo "Falta el secreto SCRIPT_ID"; exit 1; fi
+          set -euo pipefail
+          test -n "$CLASP_REFRESH_TOKEN" || { echo "Falta el secreto CLASP_REFRESH_TOKEN"; exit 1; }
+          test -n "$CLASP_CLIENT_ID" || { echo "Falta el secreto CLASP_CLIENT_ID"; exit 1; }
+          test -n "$CLASP_CLIENT_SECRET" || { echo "Falta el secreto CLASP_CLIENT_SECRET"; exit 1; }
+          test -n "$SCRIPT_ID" || { echo "Falta el secreto SCRIPT_ID"; exit 1; }
 
-      - name: Escribir credenciales de clasp
-        working-directory: apps-script/gonsol-drive-organizer
+      - name: Escribir credenciales de clasp 3
         env:
           CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
           CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
           CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
         run: |
-          RT="$(printf '%s' "$CLASP_REFRESH_TOKEN" | tr -d '[:space:]')"
-          CID="$(printf '%s' "$CLASP_CLIENT_ID" | tr -d '[:space:]')"
-          CS="$(printf '%s' "$CLASP_CLIENT_SECRET" | tr -d '[:space:]')"
-          CREDS='{token:{access_token:"",refresh_token:$rt,scope:"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments",token_type:"Bearer",expiry_date:1},oauth2ClientSettings:{clientId:$cid,clientSecret:$cs,redirectUri:"https://developers.google.com/oauthplayground"},isLocalCreds:true}'
-          jq -n --arg rt "$RT" --arg cid "$CID" --arg cs "$CS" "$CREDS" > .clasprc.json
-          jq -n --arg rt "$RT" --arg cid "$CID" --arg cs "$CS" "$CREDS" > "$HOME/.clasprc.json"
+          set -euo pipefail
+          RT="$(printf '%s' "$CLASP_REFRESH_TOKEN" | tr -d '\r\n')"
+          CID="$(printf '%s' "$CLASP_CLIENT_ID" | tr -d '\r\n')"
+          CS="$(printf '%s' "$CLASP_CLIENT_SECRET" | tr -d '\r\n')"
+          jq -n \
+            --arg rt "$RT" \
+            --arg cid "$CID" \
+            --arg cs "$CS" \
+            '{tokens:{default:{type:"authorized_user",client_id:$cid,client_secret:$cs,refresh_token:$rt}}}' \
+            > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
 
-      - name: Configurar .clasp.json
+      - name: Configurar proyecto Apps Script
         working-directory: apps-script/gonsol-drive-organizer
         env:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
-        run: printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+        run: |
+          set -euo pipefail
+          printf '{"scriptId":"%s","rootDir":"."}\n' "$SCRIPT_ID" > .clasp.json
 
       - name: Push a Apps Script
         working-directory: apps-script/gonsol-drive-organizer
-        run: clasp push --force
+        run: |
+          set -euo pipefail
+          clasp --version
+          LOG_FILE="$(mktemp)"
+          if ! clasp push --force 2>&1 | tee "$LOG_FILE"; then
+            echo "clasp push devolvio error"
+            exit 1
+          fi
+          if grep -Eiq 'Push failed|No access, refresh token|Error:' "$LOG_FILE"; then
+            echo "clasp informo un fallo aunque el proceso devolviera codigo 0"
+            exit 1
+          fi
+
+      - name: Verificar fuente remota exacta
+        working-directory: apps-script/gonsol-drive-organizer
+        env:
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN_JSON="$(mktemp)"
+          REMOTE_JSON="$(mktemp)"
+          REMOTE_CODE="$(mktemp)"
+          REMOTE_MANIFEST="$(mktemp)"
+
+          curl -fsS https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLASP_CLIENT_ID" \
+            --data-urlencode "client_secret=$CLASP_CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$CLASP_REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" \
+            > "$TOKEN_JSON"
+
+          ACCESS_TOKEN="$(jq -r '.access_token // empty' "$TOKEN_JSON")"
+          test -n "$ACCESS_TOKEN" || { echo "No se pudo obtener access token de Google"; exit 1; }
+
+          curl -fsS \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://script.googleapis.com/v1/projects/$SCRIPT_ID/content" \
+            > "$REMOTE_JSON"
+
+          jq -rj '.files[] | select(.name == "Code") | .source' "$REMOTE_JSON" > "$REMOTE_CODE"
+          jq -rj '.files[] | select(.name == "appsscript") | .source' "$REMOTE_JSON" > "$REMOTE_MANIFEST"
+
+          test -s "$REMOTE_CODE" || { echo "Apps Script remoto no contiene Code.gs"; exit 1; }
+          test -s "$REMOTE_MANIFEST" || { echo "Apps Script remoto no contiene appsscript.json"; exit 1; }
+
+          cmp -s Code.gs "$REMOTE_CODE" || {
+            echo "Code.gs remoto no coincide con el SHA desplegado"
+            exit 1
+          }
+          cmp -s appsscript.json "$REMOTE_MANIFEST" || {
+            echo "appsscript.json remoto no coincide con el SHA desplegado"
+            exit 1
+          }
+
+          echo "Apps Script verificado: Code.gs y appsscript.json coinciden exactamente con $GITHUB_SHA"
