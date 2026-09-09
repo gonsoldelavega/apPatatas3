@@ -29,7 +29,6 @@ jobs:
           import pg from 'pg';
           import { AuthRepository } from '/app/dist/auth/repository.js';
           import { FinanceService } from '/app/dist/finance/service.js';
-          import { withTenantTransaction } from '/app/dist/database/client.js';
 
           const { Pool } = pg;
           const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -41,24 +40,9 @@ jobs:
             const finance = new FinanceService(pool);
             const purchases = await finance.listPurchases(identity, { from: '2026-09-01', to: '2026-09-30' });
             const visible = purchases.filter((row) => String(row.supplierInvoiceNumber ?? '').replace(/\D/g,'').includes('2171'));
-            const detail = await withTenantTransaction(pool, identity, async (client) => (
-              await client.query(`
-                select i.id,i.supplier_invoice_number as "invoiceNumber",i.issue_date::text as "issueDate",
-                       i.status,i.subtotal::text,i.tax_total::text,i.total::text,
-                       i.source_registry_key is not null as "fromRegistry",
-                       i.source_registry_filename as "registryFilename",
-                       coalesce(sum(p.amount),0)::text as "paidAmount"
-                from purchase_invoices i
-                left join payments p on p.purchase_invoice_id=i.id
-                where i.company_id=$1 and i.deleted_at is null
-                  and regexp_replace(coalesce(i.supplier_invoice_number,''),'[^0-9]','','g') like '%2171%'
-                group by i.id
-                order by i.created_at desc
-              `,[identity.companyId])
-            )).rows;
-            console.log(JSON.stringify({ status:'PASS', visibleThroughFinanceService:visible, detail }));
-            const row = detail[0];
-            if (!row || row.issueDate !== '2026-09-03' || row.status !== 'confirmed' || row.fromRegistry !== true || Number(row.total) !== 102.96 || Number(row.paidAmount) !== 102.96 || visible.length < 1) {
+            console.log(JSON.stringify({ status:'PASS', visibleThroughFinanceService:visible }));
+            const row = visible[0];
+            if (!row || row.issueDate !== '2026-09-03' || row.status !== 'confirmed' || Number(row.total) !== 102.96 || Number(row.paidTotal) !== 102.96 || Number(row.balanceDue) !== 0 || row.paymentStatus !== 'paid' || !row.sourceRegistryUrl || !row.sourceRegistryFilename) {
               process.exit(3);
             }
           } finally { await pool.end(); }
