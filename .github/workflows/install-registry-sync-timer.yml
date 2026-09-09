@@ -1,0 +1,160 @@
+name: Install FactuPapa registry sync timer
+
+on:
+  push:
+    branches: [codex/factupapa-next-quality-sweep]
+    paths:
+      - '.github/workflows/install-registry-sync-timer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 10
+    env:
+      DOCKER_HOST: unix:///run/user/1001/docker.sock
+    steps:
+      - name: Checkout exact triggering SHA
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install persistent Registry Maestro sync
+        shell: bash
+        env:
+          SYNC_USER_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
+        run: |
+          set -Eeuo pipefail
+          test "$(id -u)" = "1001"
+          test -S "${DOCKER_HOST#unix://}"
+          docker info --format '{{json .SecurityOptions}}' | grep -q 'name=rootless'
+          test -n "${SYNC_USER_EMAIL}" || { echo 'FACTUPAPA_STAGING_EMAIL no está configurado'; exit 1; }
+          printf '%s' "${SYNC_USER_EMAIL}" | grep -Eq '^[A-Za-z0-9._%+@-]+$' || { echo 'Email de sincronización no válido'; exit 1; }
+
+          mkdir -p "${HOME}/.local/bin" "${HOME}/.config/factupapa" "${HOME}/.config/systemd/user"
+          chmod 700 "${HOME}/.config/factupapa"
+          printf 'SYNC_USER_EMAIL=%s\n' "${SYNC_USER_EMAIL}" > "${HOME}/.config/factupapa/registry-sync.env"
+          chmod 600 "${HOME}/.config/factupapa/registry-sync.env"
+
+          cat > "${HOME}/.local/bin/factupapa-registry-sync" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          export DOCKER_HOST="unix:///run/user/1001/docker.sock"
+
+          api_container="$(docker ps -q \
+            --filter 'label=com.docker.compose.project=factupapa_staging' \
+            --filter 'label=com.docker.compose.service=api' | head -n1)"
+          test -n "${api_container}" || { echo 'REGISTRY_SYNC=FAIL reason=api_container_missing'; exit 1; }
+
+          status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${api_container}")"
+          test "${status}" = "healthy" || { echo "REGISTRY_SYNC=FAIL reason=api_not_healthy status=${status}"; exit 1; }
+
+          docker exec -i -e SYNC_USER_EMAIL="${SYNC_USER_EMAIL:?SYNC_USER_EMAIL is required}" "${api_container}" \
+            node --input-type=module <<'NODE'
+          import { randomUUID } from 'node:crypto';
+          import pg from 'pg';
+          import { AuthRepository } from '/app/dist/auth/repository.js';
+          import { FinanceService } from '/app/dist/finance/service.js';
+          import { withTenantTransaction } from '/app/dist/database/client.js';
+
+          const { Pool } = pg;
+          const registryUrl = process.env.PURCHASE_REGISTRY_WEBAPP_URL?.trim();
+          if (!registryUrl) throw new Error('purchase_registry_not_configured');
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          try {
+            const email = process.env.SYNC_USER_EMAIL?.trim().toLowerCase();
+            if (!email) throw new Error('sync_user_email_missing');
+            const user = await new AuthRepository(pool).findUserByEmail(email);
+            if (!user) throw new Error('sync_user_not_found');
+            const { passwordHash: _passwordHash, ...base } = user;
+            const identity = { ...base, familyId: randomUUID() };
+            const finance = new FinanceService(
+              pool,
+              undefined,
+              undefined,
+              {
+                url: registryUrl,
+                ...(process.env.PURCHASE_REGISTRY_WEBAPP_TOKEN?.trim()
+                  ? { token: process.env.PURCHASE_REGISTRY_WEBAPP_TOKEN.trim() }
+                  : {}),
+              },
+            );
+
+            const stats = async () => withTenantTransaction(pool, identity, async (client) => {
+              const result = await client.query(`
+                select
+                  count(*) filter (where source_registry_key is not null)::int as "registryCount",
+                  count(*) filter (
+                    where source_registry_key is not null
+                      and regexp_replace(coalesce(supplier_invoice_number,''),'[^0-9]','','g') like '%2171%'
+                  )::int as "invoice2171"
+                from purchase_invoices
+                where company_id=$1 and deleted_at is null
+              `, [identity.companyId]);
+              return result.rows[0];
+            });
+
+            const before = await stats();
+            const sync = await finance.syncPurchaseRegistry(identity);
+            const after = await stats();
+            console.log(JSON.stringify({
+              status: 'PASS',
+              registryHost: new URL(registryUrl).hostname,
+              before,
+              sync,
+              after,
+            }));
+          } finally {
+            await pool.end();
+          }
+          NODE
+          SCRIPT
+          chmod 700 "${HOME}/.local/bin/factupapa-registry-sync"
+
+          cat > "${HOME}/.config/systemd/user/factupapa-registry-sync.service" <<'UNIT'
+          [Unit]
+          Description=FactuPapa Next Registry Maestro to PostgreSQL sync
+          After=network-online.target
+
+          [Service]
+          Type=oneshot
+          Environment=DOCKER_HOST=unix:///run/user/1001/docker.sock
+          EnvironmentFile=%h/.config/factupapa/registry-sync.env
+          ExecStart=%h/.local/bin/factupapa-registry-sync
+          TimeoutStartSec=120
+          UNIT
+
+          cat > "${HOME}/.config/systemd/user/factupapa-registry-sync.timer" <<'UNIT'
+          [Unit]
+          Description=Run FactuPapa Registry Maestro sync every 15 minutes
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=15min
+          RandomizedDelaySec=30s
+          Persistent=true
+          Unit=factupapa-registry-sync.service
+
+          [Install]
+          WantedBy=timers.target
+          UNIT
+
+          systemctl --user daemon-reload
+          systemctl --user enable --now factupapa-registry-sync.timer
+          systemctl --user restart factupapa-registry-sync.service
+          systemctl --user is-active factupapa-registry-sync.timer
+          systemctl --user is-enabled factupapa-registry-sync.timer
+          systemctl --user status factupapa-registry-sync.service --no-pager || true
+          journalctl --user -u factupapa-registry-sync.service -n 30 --no-pager
+
+      - name: Verify live staging health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error https://factupapa-next.46-62-226-95.sslip.io/healthz >/dev/null
+          curl --fail --silent --show-error https://factupapa-next.46-62-226-95.sslip.io/api/health >/dev/null
+          echo 'STAGING_HEALTH=PASS'
