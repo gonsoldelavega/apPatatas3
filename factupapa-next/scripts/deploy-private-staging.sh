@@ -156,7 +156,7 @@ upsert_private_environment_value "AUTH_COOKIE_SECURE" "true"
 upsert_private_environment_value "AUTH_COOKIE_PATH" "/api/auth"
 upsert_private_environment_value "WEB_API_BASE_URL" "/api"
 upsert_private_environment_value "APP_VERSION" "${expected_sha}"
-upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://docs.google.com/spreadsheets/d/1wbpVv9TpJGz7KkM-k2BusqHnEzUikOaadRWbdkMDbDU/gviz/tq?tqx=out:csv&sheet=REGISTRO"
+upsert_private_environment_value "PURCHASE_REGISTRY_WEBAPP_URL" "https://script.google.com/macros/s/AKfycbybLuoP1Od2arloHOTU-n-zK15g3uCpFV3xx57AJLPXFWhtLO5gBYDNpxoajR52uie5Hg/exec"
 unset FACTUPAPA_OWN_TAX_IDS FACTUPAPA_ANTHROPIC_API_KEY FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET
 
 # Compose defaults are made explicit in the protected runtime envelope so all
