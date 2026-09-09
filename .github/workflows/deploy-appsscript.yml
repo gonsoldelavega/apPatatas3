@@ -5,6 +5,7 @@ name: Deploy Apps Script
 # El organizador es quien lee Gmail/Drive, marca correos procesados y alimenta
 # el Registro Maestro que FactuPapa Next sincroniza de forma supervisada.
 # Cualquier cambio del organizador o de este workflow publica el SHA exacto.
+# La publicación incluye el importador idempotente por etiqueta Gmail + SHA-256.
 #
 # Requiere cuatro secretos del repositorio (Settings -> Secrets and variables -> Actions):
 #   - CLASP_REFRESH_TOKEN
