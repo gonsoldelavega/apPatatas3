@@ -149,13 +149,13 @@ jobs:
           DEPLOYMENTS="$(mktemp)"
           curl -fsS -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$DEPLOYMENTS"
-          DEPLOYMENT_ID="$(jq -r '.deployments[]? | select(any(.entryPoints[]?; .entryPointType == "WEB_APP")) | .deploymentId' "$DEPLOYMENTS" | head -n1)"
+          # El HEAD deployment no tiene versionNumber y Google lo expone como read-only.
+          # Solo un deployment versionado es candidato a actualización.
+          DEPLOYMENT_ID="$(jq -r '.deployments[]? | select(.deploymentConfig.versionNumber != null) | select(any(.entryPoints[]?; .entryPointType == "WEB_APP")) | .deploymentId' "$DEPLOYMENTS" | head -n1)"
 
           UPDATED="$(mktemp)"
           DESCRIPTION="FactuPapa purchase pipeline $GITHUB_SHA"
           if [ -n "$DEPLOYMENT_ID" ]; then
-            # Google projects.deployments.update exige UpdateDeploymentRequest,
-            # es decir, deploymentConfig envuelto en el cuerpo.
             BODY="$(jq -nc --arg sid "$SCRIPT_ID" --argjson ver "$VERSION" --arg d "$DESCRIPTION" \
               '{deploymentConfig:{scriptId:$sid,versionNumber:$ver,manifestFileName:"appsscript",description:$d}}')"
             HTTP="$(curl -sS -o "$UPDATED" -w '%{http_code}' -X PUT \
@@ -163,8 +163,6 @@ jobs:
               -d "$BODY" \
               "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments/$DEPLOYMENT_ID")"
           else
-            # Google projects.deployments.create recibe DeploymentConfig directo;
-            # scriptId ya viaja en el path.
             BODY="$(jq -nc --argjson ver "$VERSION" --arg d "$DESCRIPTION" \
               '{versionNumber:$ver,manifestFileName:"appsscript",description:$d}')"
             HTTP="$(curl -sS -o "$UPDATED" -w '%{http_code}' -X POST \
@@ -176,6 +174,8 @@ jobs:
           if [ "$HTTP" != "200" ]; then
             echo "No se pudo publicar WEB_APP (HTTP $HTTP)"
             jq '{error}' "$UPDATED" || cat "$UPDATED"
+            echo "Deployments disponibles:"
+            jq '.deployments[]? | {deploymentId, deploymentConfig, entryPointTypes:[.entryPoints[]?.entryPointType]}' "$DEPLOYMENTS"
             exit 1
           fi
 
@@ -183,7 +183,7 @@ jobs:
           curl -fsS -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://script.googleapis.com/v1/projects/$SCRIPT_ID/deployments" > "$DEPLOYMENTS2"
           WEB_URL="$(jq -r --arg id "$DEPLOYMENT_ID" '.deployments[]? | select(.deploymentId == $id) | .entryPoints[]? | select(.entryPointType == "WEB_APP") | .webApp.url' "$DEPLOYMENTS2" | head -n1)"
-          test -n "$WEB_URL" || { echo "El deployment actualizado no expone WEB_APP"; jq '.deployments[]? | {deploymentId,entryPoints}' "$DEPLOYMENTS2"; exit 1; }
+          test -n "$WEB_URL" || { echo "El deployment actualizado no expone WEB_APP"; jq '.deployments[]? | {deploymentId,deploymentConfig,entryPoints}' "$DEPLOYMENTS2"; exit 1; }
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
