@@ -36,8 +36,8 @@ jobs:
             if (!user) throw new Error('sync_user_not_found');
             const { passwordHash: _, ...base } = user;
             const identity = { ...base, familyId: randomUUID() };
-            const rows = await withTenantTransaction(pool, identity, async (client) => (
-              await client.query(`
+            const rows = await withTenantTransaction(pool, identity, async (client) => {
+              const result = await client.query(`
                 select
                   id,
                   supplier_invoice_number as "invoiceNumber",
@@ -54,8 +54,9 @@ jobs:
                   )
                 order by issue_date desc, created_at desc
                 limit 30
-              `, [identity.companyId])
-            )).rows;
+              `, [identity.companyId]);
+              return result.rows;
+            });
             console.log(JSON.stringify({ status: 'PASS', rows }));
           } finally { await pool.end(); }
           NODE
