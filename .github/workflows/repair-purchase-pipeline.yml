@@ -20,7 +20,7 @@ jobs:
           ref: codex/factupapa-next-quality-sweep
           fetch-depth: 1
 
-      - name: Patch pipeline safely
+      - name: Add safe web bootstrap and remove unsupported API executable
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -30,117 +30,82 @@ jobs:
           code_path = Path('apps-script/gonsol-drive-organizer/Code.gs')
           s = code_path.read_text()
 
-          old = """function processPurchaseInvoicesDaily() {
-            // El primer ciclo tras un cambio de version corrige tambien el calendario
-            // de triggers sin depender de una intervencion manual.
-            ensurePurchaseInvoiceSchedule_();
-            // Primero trae las facturas nuevas que hayan llegado por email (GAYCA);
-            // despues se procesan junto con las escaneadas, por el mismo flujo.
-            try {
-              importInvoicesFromGmail_();
-            } catch (error) {
-              console.error('Gmail import fallo (se continua con la bandeja): ' + error);
-            }
+          if 'function ensurePurchaseInvoiceScheduleFromWeb_()' not in s:
+              needle = """    if (REGISTRY_WEBAPP_TOKEN && String(params.key || '') !== REGISTRY_WEBAPP_TOKEN) {
+                return jsonOutput_({ ok: false, error: 'unauthorized' });
+              }
+              var ss = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
           """
-          new = """function processPurchaseInvoicesDaily() {
-            // La ingesta de Gmail debe ejecutarse aunque la reparacion del calendario
-            // necesite una nueva autorizacion. Un fallo de ScriptApp nunca debe bloquear
-            // la recogida de facturas ya autorizada.
-            try {
-              importInvoicesFromGmail_();
-            } catch (error) {
-              console.error('Gmail import fallo (se continua con la bandeja): ' + error);
-            }
+              repl = """    if (REGISTRY_WEBAPP_TOKEN && String(params.key || '') !== REGISTRY_WEBAPP_TOKEN) {
+                return jsonOutput_({ ok: false, error: 'unauthorized' });
+              }
+              // La lectura del Registro Maestro sirve también como punto de auto-reparación
+              // del calendario. El fallo de autorización se informa, pero NUNCA rompe
+              // la lectura del registro.
+              var scheduler = ensurePurchaseInvoiceScheduleFromWeb_();
+              var ss = SpreadsheetApp.openById(GONSOL_CONFIG.masterSpreadsheetId);
+          """
+              if s.count(needle) != 1:
+                  raise SystemExit('No se encontro el punto de insercion doGet esperado')
+              s = s.replace(needle, repl, 1)
+
+              needle = """      count: rows.length,
+                source: 'apps-script-webapp',
+                generatedAt: new Date().toISOString()
+          """
+              repl = """      count: rows.length,
+                source: 'apps-script-webapp',
+                scheduler: scheduler,
+                generatedAt: new Date().toISOString()
+          """
+              if s.count(needle) != 1:
+                  raise SystemExit('No se encontro el payload doGet esperado')
+              s = s.replace(needle, repl, 1)
+
+              marker = """function jsonOutput_(payload) {
+          """
+              helper = """function ensurePurchaseInvoiceScheduleFromWeb_() {
             try {
               ensurePurchaseInvoiceSchedule_();
-            } catch (error) {
-              console.error('Reparacion del calendario de triggers fallo (se continua): ' + error);
-            }
-          """
-          if s.count(old) != 1:
-              raise SystemExit('No se encontro exactamente el bloque processPurchaseInvoicesDaily esperado')
-          s = s.replace(old, new, 1)
-
-          old = """function setupDailyPurchaseInvoiceTrigger() {
-            installPurchaseInvoiceTriggers_();
-          }
-
-          function ensurePurchaseInvoiceSchedule_() {
-            const versionKey = 'purchaseInvoiceTriggerScheduleVersion';
-            const props = PropertiesService.getScriptProperties();
-            if (props.getProperty(versionKey) === 'v3') return;
-            installPurchaseInvoiceTriggers_();
-            props.setProperty(versionKey, 'v3');
-          }
-          """
-          new = """const GONSOL_TRIGGER_SCHEDULE_VERSION = 'v4';
-          const GONSOL_REQUIRED_SCOPES = [
-            'https://www.googleapis.com/auth/drive',
-            'https://www.googleapis.com/auth/documents',
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://mail.google.com/',
-            'https://www.googleapis.com/auth/script.scriptapp'
-          ];
-
-          function setupDailyPurchaseInvoiceTrigger() {
-            ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
-            installPurchaseInvoiceTriggers_();
-            PropertiesService.getScriptProperties()
-              .setProperty('purchaseInvoiceTriggerScheduleVersion', GONSOL_TRIGGER_SCHEDULE_VERSION);
-          }
-
-          function bootstrapPurchasePipeline() {
-            ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
-            setupDailyPurchaseInvoiceTrigger();
-            const gmail = importInvoicesFromGmail_();
-            const processing = processPurchaseInvoicesDaily();
-            return {
-              ok: true,
-              triggerCount: ScriptApp.getProjectTriggers().filter(function(trigger) {
+              var triggers = ScriptApp.getProjectTriggers().filter(function(trigger) {
                 return trigger.getHandlerFunction() === 'processPurchaseInvoicesDaily';
-              }).length,
-              gmail: gmail,
-              processed: processing.length
-            };
+              });
+              return {
+                ok: triggers.length === 4,
+                triggerCount: triggers.length,
+                scheduleVersion: PropertiesService.getScriptProperties()
+                  .getProperty('purchaseInvoiceTriggerScheduleVersion') || ''
+              };
+            } catch (error) {
+              var authRequired = true;
+              try {
+                var authInfo = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
+                authRequired = String(authInfo.getAuthorizationStatus()) !== 'NOT_REQUIRED';
+              } catch (_) {}
+              console.error('Auto-reparacion de triggers pendiente: ' + error);
+              return {
+                ok: false,
+                authorizationRequired: authRequired,
+                error: String(error && error.message ? error.message : error)
+              };
+            }
           }
 
-          function purchasePipelineHealth() {
-            const auth = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, GONSOL_REQUIRED_SCOPES);
-            const triggers = ScriptApp.getProjectTriggers().filter(function(trigger) {
-              return trigger.getHandlerFunction() === 'processPurchaseInvoicesDaily';
-            });
-            return {
-              ok: true,
-              authorizationStatus: String(auth.getAuthorizationStatus()),
-              authorizedScopes: auth.getAuthorizedScopes ? auth.getAuthorizedScopes() : [],
-              triggerCount: triggers.length,
-              scheduleVersion: PropertiesService.getScriptProperties()
-                .getProperty('purchaseInvoiceTriggerScheduleVersion') || '',
-              processedLabel: GONSOL_GMAIL_IMPORT.processedLabel
-            };
-          }
-
-          function ensurePurchaseInvoiceSchedule_() {
-            const versionKey = 'purchaseInvoiceTriggerScheduleVersion';
-            const props = PropertiesService.getScriptProperties();
-            if (props.getProperty(versionKey) === GONSOL_TRIGGER_SCHEDULE_VERSION) return;
-            installPurchaseInvoiceTriggers_();
-            props.setProperty(versionKey, GONSOL_TRIGGER_SCHEDULE_VERSION);
-          }
           """
-          if s.count(old) != 1:
-              raise SystemExit('No se encontro exactamente el bloque de triggers esperado')
-          s = s.replace(old, new, 1)
+              if s.count(marker) != 1:
+                  raise SystemExit('No se encontro jsonOutput_ para insertar helper')
+              s = s.replace(marker, helper + marker, 1)
+
           code_path.write_text(s)
 
           manifest_path = Path('apps-script/gonsol-drive-organizer/appsscript.json')
           manifest = json.loads(manifest_path.read_text())
-          scopes = list(manifest.get('oauthScopes', []))
+          manifest.pop('executionApi', None)
           trigger_scope = 'https://www.googleapis.com/auth/script.scriptapp'
+          scopes = list(manifest.get('oauthScopes', []))
           if trigger_scope not in scopes:
               scopes.append(trigger_scope)
           manifest['oauthScopes'] = scopes
-          manifest['executionApi'] = {'access': 'MYSELF'}
           manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
           PY
 
@@ -154,5 +119,5 @@ jobs:
           git config user.email "gonsoldelavega@gmail.com"
           git add apps-script/gonsol-drive-organizer/Code.gs apps-script/gonsol-drive-organizer/appsscript.json
           git diff --cached --quiet && { echo "No changes needed"; exit 0; }
-          git commit -m "fix: unblock Gmail purchase pipeline and trigger auth"
+          git commit -m "fix: self-heal purchase schedule from registry webapp"
           git push origin HEAD:codex/factupapa-next-quality-sweep
