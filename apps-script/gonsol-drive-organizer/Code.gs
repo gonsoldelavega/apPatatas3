@@ -189,9 +189,12 @@ const GONSOL_SUPPLIERS = [
         || /GAYCA/.test(upperFileName);
     },
     invoiceNumber: function(text, upper) {
-      // Ej: FV006-00000996. El prefijo FV evita capturar el vendedor ("6 - VENTA ALMACEN").
-      var match = upper.match(/FV\s*\d{2,4}\s*[-\/]?\s*\d{4,}/);
-      return match ? match[0].replace(/\s+/g, '') : '';
+      // Formato actual impreso por GAYCA: 006/0002.171.
+      var current = upper.match(/\b006\s*\/\s*0002\s*[.]\s*\d{3,4}\b/);
+      if (current) return current[0].replace(/\s+/g, '');
+      // Formato historico: FV006-00000996.
+      var legacy = upper.match(/FV\s*\d{2,4}\s*[-\/]?\s*\d{4,}/);
+      return legacy ? legacy[0].replace(/\s+/g, '') : '';
     }
   },
   {
@@ -251,6 +254,9 @@ const GONSOL_SUPPLIERS = [
 ];
 
 function processPurchaseInvoicesDaily() {
+  // El primer ciclo tras un cambio de version corrige tambien el calendario
+  // de triggers sin depender de una intervencion manual.
+  ensurePurchaseInvoiceSchedule_();
   // Primero trae las facturas nuevas que hayan llegado por email (GAYCA);
   // despues se procesan junto con las escaneadas, por el mismo flujo.
   try {
@@ -370,13 +376,29 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
 }
 
 function setupDailyPurchaseInvoiceTrigger() {
+  installPurchaseInvoiceTriggers_();
+}
+
+function ensurePurchaseInvoiceSchedule_() {
+  const versionKey = 'purchaseInvoiceTriggerScheduleVersion';
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(versionKey) === 'v3') return;
+  installPurchaseInvoiceTriggers_();
+  props.setProperty(versionKey, 'v3');
+}
+
+function installPurchaseInvoiceTriggers_() {
   deleteTriggersForFunction_('processPurchaseInvoicesDaily');
-  ScriptApp
-    .newTrigger('processPurchaseInvoicesDaily')
-    .timeBased()
-    .everyDays(1)
-    .atHour(7)
-    .create();
+  [8, 12, 16, 20].forEach(function(hour) {
+    ScriptApp
+      .newTrigger('processPurchaseInvoicesDaily')
+      .timeBased()
+      .atHour(hour)
+      .nearMinute(0)
+      .everyDays(1)
+      .inTimezone('Europe/Madrid')
+      .create();
+  });
 }
 
 function testPurchaseInvoiceOcrOnly() {
@@ -547,9 +569,10 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
   if (!invoiceNumber) missing.push('numero');
   if (!total) missing.push('total');
 
-  // Para proveedores conocidos basta con fecha + total para registrar:
-  // el numero puede faltar (se marca en observaciones) y aun asi entra en la hoja.
-  const requiresReview = supplierKnown ? (!date || !total) : (missing.length > 0);
+  // Una factura sin numero, fecha, proveedor o total no entra en el registro
+  // definitivo aunque el remitente sea conocido. Se deriva a revision para evitar
+  // compras ambiguas y duplicados imposibles de reconciliar en FactuPapa Next.
+  const requiresReview = missing.length > 0;
 
   const confidence = calculateConfidence_(missing, nif, tax.base, category, supplierKnown);
 
