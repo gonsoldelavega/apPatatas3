@@ -1,5 +1,7 @@
-import { lazy, Suspense } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { financeApi } from "./api/services";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { AppShell } from "./layout/AppShell";
 import { LoadingScreen } from "./ui/LoadingScreen";
@@ -98,12 +100,43 @@ const StockPage = lazy(() =>
     default: module.StockPage,
   })),
 );
-const GestoriaPage = lazy(() => import("./pages/GestoriaPage").then((module) => ({ default: module.GestoriaPage })));
+const GestoriaPage = lazy(() =>
+  import("./pages/GestoriaPage").then((module) => ({ default: module.GestoriaPage })),
+);
 const AccountSecurityPage = lazy(() =>
   import("./pages/AccountSecurityPage").then((module) => ({
     default: module.AccountSecurityPage,
   })),
 );
+
+function RegistrySyncedAppShell() {
+  const queryClient = useQueryClient();
+  const syncStarted = useRef(false);
+  const registryStatus = useQuery({
+    queryKey: ["purchase-registry-status"],
+    queryFn: financeApi.purchaseRegistryStatus,
+    staleTime: 60_000,
+  });
+  const registrySync = useMutation({
+    mutationFn: financeApi.syncPurchaseRegistry,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
+        queryClient.invalidateQueries({ queryKey: ["finance-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+      ]);
+    },
+  });
+
+  useEffect(() => {
+    if (syncStarted.current || registryStatus.data?.configured !== true) return;
+    syncStarted.current = true;
+    registrySync.mutate();
+  }, [registryStatus.data?.configured, registrySync.mutate]);
+
+  return <AppShell />;
+}
 
 export function App() {
   return (
@@ -111,7 +144,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
-          <Route element={<AppShell />}>
+          <Route element={<RegistrySyncedAppShell />}>
             <Route index element={<DashboardPage />} />
             <Route path="ventas" element={<SalesPage />} />
             <Route path="ventas/nuevo/:kind" element={<SalesFormRoute />} />
