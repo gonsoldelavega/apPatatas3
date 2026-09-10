@@ -29,30 +29,30 @@ jobs:
 
           page = Path('factupapa-next/apps/web/src/pages/SalesFormPage.tsx')
           text = page.read_text()
-          anchor = '''                </SelectField>
-                {invoice && ('''
-          replacement = '''                </SelectField>
-                {index === lines.length - 1 && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="draft-line-add"
-                    icon={<Plus />}
-                    onClick={() => setLines((current) => [...current, createDraftLine()])}
-                  >
-                    Añadir otro producto
-                  </Button>
-                )}
-                {invoice && ('''
+          anchor = '                </SelectField>\n                {invoice && ('
+          replacement = (
+              '                </SelectField>\n'
+              '                {index === lines.length - 1 && (\n'
+              '                  <Button\n'
+              '                    type="button"\n'
+              '                    variant="secondary"\n'
+              '                    className="draft-line-add"\n'
+              '                    icon={<Plus />}\n'
+              '                    onClick={() => setLines((current) => [...current, createDraftLine()])}\n'
+              '                  >\n'
+              '                    Añadir otro producto\n'
+              '                  </Button>\n'
+              '                )}\n'
+              '                {invoice && ('
+          )
           if text.count(anchor) != 1:
               raise SystemExit(f'Unexpected selector anchor count: {text.count(anchor)}')
           text = text.replace(anchor, replacement, 1)
 
-          old_bottom = '''          <button type="button" className="compact-action" onClick={() => setLines((current) => [...current, createDraftLine()])}><Plus /> Añadir producto</button>\n'''
+          old_bottom = '          <button type="button" className="compact-action" onClick={() => setLines((current) => [...current, createDraftLine()])}><Plus /> Añadir producto</button>\n'
           if text.count(old_bottom) != 1:
               raise SystemExit(f'Unexpected old add button count: {text.count(old_bottom)}')
-          text = text.replace(old_bottom, '', 1)
-          page.write_text(text)
+          page.write_text(text.replace(old_bottom, '', 1))
 
           e2e = Path('factupapa-next/apps/web/e2e/factupapa.spec.ts')
           tests = e2e.read_text()
