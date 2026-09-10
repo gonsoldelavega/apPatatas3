@@ -343,7 +343,7 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
     await page.getByLabel(/Cantidad/).nth(index - 1).fill(expected[index - 1]!.quantity);
     await page.getByLabel(/Precio sin IVA/).nth(index - 1).fill(expected[index - 1]!.unitPrice);
     if (index < 3) {
-      await page.getByRole("button", { name: "Añadir producto" }).click();
+      await page.getByRole("button", { name: "Añadir otro producto" }).click();
       await expect(page.getByLabel(`Producto ${index + 1}`)).toBeVisible();
     }
   }
