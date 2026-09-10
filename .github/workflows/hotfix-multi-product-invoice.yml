@@ -1,0 +1,77 @@
+name: Hotfix multi-product invoice control
+
+on:
+  push:
+    branches: [codex/factupapa-next-quality-sweep]
+    paths: ['.github/workflows/hotfix-multi-product-invoice.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: [self-hosted, linux, x64, factupapa-next]
+    timeout-minutes: 5
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: codex/factupapa-next-quality-sweep
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Expose add-another-product control directly under the last product selector
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page = Path('factupapa-next/apps/web/src/pages/SalesFormPage.tsx')
+          text = page.read_text()
+          anchor = '''                </SelectField>
+                {invoice && ('''
+          replacement = '''                </SelectField>
+                {index === lines.length - 1 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="draft-line-add"
+                    icon={<Plus />}
+                    onClick={() => setLines((current) => [...current, createDraftLine()])}
+                  >
+                    Añadir otro producto
+                  </Button>
+                )}
+                {invoice && ('''
+          if text.count(anchor) != 1:
+              raise SystemExit(f'Unexpected selector anchor count: {text.count(anchor)}')
+          text = text.replace(anchor, replacement, 1)
+
+          old_bottom = '''          <button type="button" className="compact-action" onClick={() => setLines((current) => [...current, createDraftLine()])}><Plus /> Añadir producto</button>\n'''
+          if text.count(old_bottom) != 1:
+              raise SystemExit(f'Unexpected old add button count: {text.count(old_bottom)}')
+          text = text.replace(old_bottom, '', 1)
+          page.write_text(text)
+
+          e2e = Path('factupapa-next/apps/web/e2e/factupapa.spec.ts')
+          tests = e2e.read_text()
+          old = 'getByRole("button", { name: "Añadir producto" })'
+          new = 'getByRole("button", { name: "Añadir otro producto" })'
+          if tests.count(old) != 1:
+              raise SystemExit(f'Unexpected E2E add button count: {tests.count(old)}')
+          e2e.write_text(tests.replace(old, new, 1))
+          PY
+
+          git diff --check
+          grep -n "Añadir otro producto" factupapa-next/apps/web/src/pages/SalesFormPage.tsx factupapa-next/apps/web/e2e/factupapa.spec.ts
+
+      - name: Commit and deploy staging
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "gonsoldelavega"
+          git config user.email "gonsoldelavega@gmail.com"
+          git add factupapa-next/apps/web/src/pages/SalesFormPage.tsx factupapa-next/apps/web/e2e/factupapa.spec.ts
+          git commit -m "[deploy-staging] Make multi-product invoice action visible"
+          git push origin HEAD:codex/factupapa-next-quality-sweep
