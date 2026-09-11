@@ -386,6 +386,53 @@ export function SalesDetailPage() {
             </span>
           </div>
         ))}
+        {editable && (
+          <section className="invoice-inline-add" aria-labelledby="invoice-add-line-title">
+            <div className="invoice-inline-add__heading">
+              <div>
+                <p className="eyebrow">Líneas</p>
+                <h3 id="invoice-add-line-title">Añadir otro producto</h3>
+              </div>
+              <Plus aria-hidden="true" />
+            </div>
+            <div className="invoice-inline-add__fields">
+              <SelectField label="Producto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
+                <option value="">Selecciona</option>
+                {products.data?.items.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
+              </SelectField>
+              <Field label="Cantidad" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
+              {invoice && (
+                <Field
+                  label="Fecha de entrega"
+                  type="date"
+                  value={newDeliveryDate}
+                  onChange={(e) => setNewDeliveryDate(e.target.value)}
+                />
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              icon={<Plus />}
+              busy={editLine.isPending}
+              disabled={!newProductId || Number(newQuantity.replace(",", ".")) <= 0}
+              onClick={() => editLine.mutate({
+                action: "add",
+                productId: newProductId,
+                quantity: newQuantity.replace(",", "."),
+                deliveryDate: newDeliveryDate,
+              })}
+            >
+              Añadir línea
+            </Button>
+            {editLine.isError && (
+              <p className="action-feedback action-feedback--error" role="alert">
+                {editLine.error instanceof ApiError && editLine.error.code === "invoice_total_below_paid"
+                  ? "El nuevo total no puede quedar por debajo del importe ya cobrado."
+                  : "No se pudo guardar la línea. Revisa cantidad, precio y fecha de entrega."}
+              </p>
+            )}
+          </section>
+        )}
         <div className="sales-totals">
           <div>
             <span>Base imponible</span>
@@ -543,43 +590,6 @@ export function SalesDetailPage() {
               </Button>
             </section>
           )}
-          <section className="form-card draft-line-add">
-            <h2>Añadir producto</h2>
-            <SelectField label="Producto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-              <option value="">Selecciona</option>
-              {products.data?.items.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
-            </SelectField>
-            <Field label="Cantidad" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
-            {invoice && (
-              <Field
-                label="Fecha de entrega"
-                type="date"
-                value={newDeliveryDate}
-                onChange={(e) => setNewDeliveryDate(e.target.value)}
-              />
-            )}
-            <Button
-              variant="secondary"
-              icon={<Plus />}
-              busy={editLine.isPending}
-              disabled={!newProductId || Number(newQuantity.replace(",", ".")) <= 0}
-              onClick={() => editLine.mutate({
-                action: "add",
-                productId: newProductId,
-                quantity: newQuantity.replace(",", "."),
-                deliveryDate: newDeliveryDate,
-              })}
-            >
-              Añadir línea
-            </Button>
-            {editLine.isError && (
-              <p className="action-feedback action-feedback--error" role="alert">
-                {editLine.error instanceof ApiError && editLine.error.code === "invoice_total_below_paid"
-                  ? "El nuevo total no puede quedar por debajo del importe ya cobrado."
-                  : "No se pudo guardar la línea. Revisa cantidad, precio y fecha de entrega."}
-              </p>
-            )}
-          </section>
           {item.status === "draft" && <Button
             icon={<FileCheck2 />}
             busy={action.isPending}

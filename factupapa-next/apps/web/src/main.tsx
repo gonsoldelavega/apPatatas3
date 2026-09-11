@@ -25,6 +25,7 @@ import "./reference-redesign.css";
 import "./visual-system.css";
 // Narrow fixes requested from real iPhone usage; must stay after the product layer.
 import "./mobile-usability-fixes.css";
+import "./voice-assistant.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

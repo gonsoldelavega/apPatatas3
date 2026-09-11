@@ -265,9 +265,14 @@ export const invoicesApi = {
   list: (params: Record<string, string | number | boolean | undefined> = {}) =>
     apiClient.request<Page<Invoice>>(`/invoices${queryString(params)}`),
   get: (id: string) => apiClient.request<Invoice>(`/invoices/${id}`),
+  numberPreview: (series: string, issueDate: string) =>
+    apiClient.request<{ series: string; number: number }>(
+      `/invoices/number-preview${queryString({ series, issueDate })}`,
+    ),
   create: (input: {
     contactId: string;
     series: string;
+    number?: number;
     issueDate: string;
     notes?: string | null;
     dueDate?: string | null;

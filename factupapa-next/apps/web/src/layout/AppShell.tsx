@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { Outlet, useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
+import { VoiceAssistant } from "../voice/VoiceAssistant";
 
 export function AppShell() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -45,6 +46,7 @@ export function AppShell() {
           <Outlet />
         </div>
       </main>
+      <VoiceAssistant />
     </div>
   );
 }
