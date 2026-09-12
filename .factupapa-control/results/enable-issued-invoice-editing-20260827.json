@@ -1,8 +1,8 @@
 {
-  "runId": "58a15c6c-3d2d-4034-a470-aeaec8e48132",
+  "runId": "b6fb6df0-b903-4ea7-90a5-80bff3ad893f",
   "taskId": "enable-issued-invoice-editing-20260827",
-  "startedAt": "2026-09-12T20:19:11.407Z",
-  "finishedAt": "2026-09-12T20:19:11.414Z",
+  "startedAt": "2026-09-12T20:22:11.386Z",
+  "finishedAt": "2026-09-12T20:22:11.392Z",
   "status": "idle",
   "reason": "task_disabled",
   "taskHash": "af60a985501aef166148ff6e507996353e28ef19e4341ff98997f5313a814a3f"
