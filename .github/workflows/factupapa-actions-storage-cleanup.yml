@@ -1,0 +1,56 @@
+name: One-time Actions storage cleanup
+
+on:
+  push:
+    branches:
+      - automation/factupapa-staging-tasks
+    paths:
+      - .github/workflows/factupapa-actions-storage-cleanup.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  delete-old-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Keep the newest 10 and delete artifacts older than 3 days
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          cutoff="$(date -u -d '3 days ago' +%s)"
+          artifacts_file="${RUNNER_TEMP}/factupapa-artifacts.tsv"
+
+          gh api --paginate             "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100"             --jq '.artifacts[] | [.id, .created_at, .name] | @tsv'             > "${artifacts_file}"
+
+          total="$(wc -l < "${artifacts_file}")"
+          deleted=0
+          kept_recent=0
+          kept_latest=0
+          index=0
+
+          while IFS=$'\t' read -r artifact_id created_at artifact_name; do
+            index=$((index + 1))
+            if [ "${index}" -le 10 ]; then
+              kept_latest=$((kept_latest + 1))
+              continue
+            fi
+
+            created_epoch="$(date -u -d "${created_at}" +%s)"
+            if [ "${created_epoch}" -ge "${cutoff}" ]; then
+              kept_recent=$((kept_recent + 1))
+              continue
+            fi
+
+            gh api --method DELETE               "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+            deleted=$((deleted + 1))
+          done < "${artifacts_file}"
+
+          echo "total_artifacts=${total}"
+          echo "deleted_artifacts=${deleted}"
+          echo "kept_latest=${kept_latest}"
+          echo "kept_recent=${kept_recent}"
