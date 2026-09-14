@@ -79,7 +79,7 @@ jobs:
             ${{ runner.temp }}/factupapa-operational-artifacts/object-backup.manifest.json
             ${{ runner.temp }}/factupapa-operational-artifacts/restore-*.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
       - name: Enforce final cleanup
         if: always()
