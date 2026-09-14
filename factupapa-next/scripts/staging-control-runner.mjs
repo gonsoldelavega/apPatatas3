@@ -83,11 +83,12 @@ async function main() {
     if (!existsSync(taskPath)) throw taskError("task_file_missing");
     rawTask = JSON.parse(await readFile(taskPath, "utf8"));
     task = validateTask(rawTask);
+    // The persistent timer polls this branch every two minutes. A disabled task
+    // is already terminal, so rewriting its result with a new UUID/timestamp
+    // would create an endless [control-result] commit loop.
+    if (!task.enabled) return;
     const taskHash = createHash("sha256").update(JSON.stringify(task)).digest("hex");
-    if (!task.enabled) {
-      result = { status: "idle", reason: "task_disabled", taskHash };
-    } else {
-      const policy = [
+    const policy = [
         "You are the FactuPapa private staging operations agent.",
         "This is an isolated rootless staging host only.",
         "Never access production, main, n8n, FactuPapa antigua, or credentials.",
@@ -99,16 +100,15 @@ async function main() {
         "Task:",
         task.instructions,
       ].join("\n");
-      const execution = await run("codex", ["exec", "--ephemeral", "--sandbox", "danger-full-access", policy], 45 * 60 * 1000);
-      result = {
-        status: execution.code === 0 && !execution.timedOut ? "completed" : "failed",
-        exitCode: execution.code,
-        timedOut: execution.timedOut,
-        message: sanitize(execution.stdout || execution.stderr),
-        diagnostics: execution.code === 0 ? undefined : sanitize(execution.stderr, 3_000),
-        taskHash,
-      };
-    }
+    const execution = await run("codex", ["exec", "--ephemeral", "--sandbox", "danger-full-access", policy], 45 * 60 * 1000);
+    result = {
+      status: execution.code === 0 && !execution.timedOut ? "completed" : "failed",
+      exitCode: execution.code,
+      timedOut: execution.timedOut,
+      message: sanitize(execution.stdout || execution.stderr),
+      diagnostics: execution.code === 0 ? undefined : sanitize(execution.stderr, 3_000),
+      taskHash,
+    };
   } catch (error) {
     result = { status: "rejected", reason: error instanceof Error ? error.message : "control_plane_error" };
   }
