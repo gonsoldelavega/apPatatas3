@@ -5,7 +5,8 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches-ignore:
+      - automation/factupapa-staging-tasks
 
 permissions:
   contents: read
