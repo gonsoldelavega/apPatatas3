@@ -36,7 +36,7 @@ cleanup() {
   trap - EXIT
   set +e
   phase "cleanup final"
-  compose down -v --remove-orphans
+  compose down -v --remove-orphans --rmi local
   rm -f "${infra}/.env" "${infra}/docker-compose.integration.yml"
   if [ "${PRESERVE_AUDIT_ARTIFACTS:-0}" != "1" ]; then
     rm -rf "${web}/test-artifacts" "${web}/test-results" "${web}/playwright-report" "${artifacts}"
@@ -278,7 +278,7 @@ done
 for clean in "${artifacts}"/*-sanitized.log; do cat "${clean}"; done
 
 phase "ausencia final de recursos"
-compose down -v --remove-orphans
+compose down -v --remove-orphans --rmi local
 test -z "$(docker ps -aq --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
 test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"
 test -z "$(docker network ls -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")"

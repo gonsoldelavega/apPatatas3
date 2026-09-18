@@ -164,7 +164,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          docker compose down -v --remove-orphans
+          docker compose down -v --remove-orphans --rmi local
           rm -f .env docker-compose.integration.yml
           rm -rf ../apps/web/test-artifacts ../apps/web/test-results ../apps/web/playwright-report
           rm -rf "${RUNNER_TEMP}/factupapa-operational-artifacts"
