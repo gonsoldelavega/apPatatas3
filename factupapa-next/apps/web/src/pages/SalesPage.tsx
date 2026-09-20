@@ -45,6 +45,7 @@ const invoiceFilename = (invoice: Invoice) =>
 async function runInvoiceQuickAction(
   invoice: Invoice,
   action: InvoiceQuickAction,
+  printTarget?: Window | null,
 ): Promise<void> {
   const blob = await invoicesApi.downloadPdf(invoice.id);
   if (action === "whatsapp") {
@@ -67,13 +68,9 @@ async function runInvoiceQuickAction(
   }
 
   const url = URL.createObjectURL(blob);
-  const frame = document.createElement("iframe");
-  frame.hidden = true;
-  frame.src = url;
-  frame.onload = () => frame.contentWindow?.print();
-  document.body.append(frame);
+  if (printTarget) printTarget.location.href = url;
+  else window.open(url, "_blank", "noopener,noreferrer");
   window.setTimeout(() => {
-    frame.remove();
     URL.revokeObjectURL(url);
   }, 60_000);
 }
@@ -91,10 +88,13 @@ export function SalesPage() {
     mutationFn: ({
       invoice,
       action,
+      printTarget,
     }: {
       invoice: Invoice;
       action: InvoiceQuickAction;
-    }) => runInvoiceQuickAction(invoice, action),
+      printTarget?: Window | null;
+    }) => runInvoiceQuickAction(invoice, action, printTarget),
+    onError: (_error, variables) => variables.printTarget?.close(),
   });
   const quickCollect = useMutation({
     mutationFn: async (invoice: Invoice) => {
@@ -349,7 +349,11 @@ export function SalesPage() {
                       aria-label="Imprimir factura"
                       title="Imprimir"
                       disabled={actionBusy}
-                      onClick={() => quickAction.mutate({ invoice, action: "print" })}
+                      onClick={() => quickAction.mutate({
+                        invoice,
+                        action: "print",
+                        printTarget: window.open("", "_blank"),
+                      })}
                     >
                       <Printer aria-hidden="true" />
                     </button>

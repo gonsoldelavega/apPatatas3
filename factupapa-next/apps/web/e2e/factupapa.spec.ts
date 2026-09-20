@@ -343,7 +343,7 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
     await page.getByLabel(/Cantidad/).nth(index - 1).fill(expected[index - 1]!.quantity);
     await page.getByLabel(/Precio sin IVA/).nth(index - 1).fill(expected[index - 1]!.unitPrice);
     if (index < 3) {
-      await page.getByRole("button", { name: "Añadir producto" }).click();
+      await page.getByRole("button", { name: "Añadir otro producto" }).click();
       await expect(page.getByLabel(`Producto ${index + 1}`)).toBeVisible();
     }
   }
@@ -388,6 +388,25 @@ test("una factura admite tres líneas y las envía juntas", async ({ page }) => 
   expect(Number(invoice.subtotal)).toBeCloseTo(49.25, 2);
   expect(Number(invoice.taxTotal)).toBeCloseTo(1.97, 2);
   expect(Number(invoice.total)).toBeCloseTo(51.22, 2);
+});
+
+test("añadir otro producto aparece después de todos los campos de la línea", async ({ page }) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/ventas/nuevo/factura");
+  await page.getByRole("combobox", { name: "Cliente", exact: true }).selectOption({ index: 1 });
+  await page.getByLabel("Producto 1").selectOption({ index: 1 });
+
+  const price = page.getByLabel(/Precio sin IVA/).first();
+  const addProduct = page.getByRole("button", { name: "Añadir otro producto" });
+  await expect(price).toBeVisible();
+  await expect(addProduct).toBeVisible();
+
+  const priceBox = await price.boundingBox();
+  const addProductBox = await addProduct.boundingBox();
+  expect(priceBox).not.toBeNull();
+  expect(addProductBox).not.toBeNull();
+  expect(addProductBox!.y).toBeGreaterThan(priceBox!.y + priceBox!.height);
 });
 
 test("una compra válida se guarda, confirma y cancela", async ({ page }, testInfo) => {

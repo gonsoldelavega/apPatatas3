@@ -432,7 +432,13 @@ export function SalesFormPage() {
               </div>
             );
           })}
-          <button type="button" className="compact-action" onClick={() => setLines((current) => [...current, createDraftLine()])}><Plus /> Añadir producto</button>
+          <button
+            type="button"
+            className="compact-action sales-line-add-action"
+            onClick={() => setLines((current) => [...current, createDraftLine()])}
+          >
+            <Plus /> Añadir otro producto
+          </button>
         </section>
 
         {save.isError && <div className="form-alert" role="alert">{saveError}</div>}
