@@ -400,17 +400,6 @@ export function SalesFormPage() {
                   <option value="">Selecciona</option>
                   {products.data?.items.map((x) => <option value={x.id} key={x.id}>{x.name}</option>)}
                 </SelectField>
-                {index === lines.length - 1 && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="draft-line-add"
-                    icon={<Plus />}
-                    onClick={() => setLines((current) => [...current, createDraftLine()])}
-                  >
-                    Añadir otro producto
-                  </Button>
-                )}
                 {invoice && (
                   <Field
                     label={`Fecha de entrega${invoiceMode === "fortnightly" ? " (obligatoria)" : " (opcional)"}`}
@@ -440,6 +429,17 @@ export function SalesFormPage() {
                 />
                 {packaging && <p className="field-help">Equivale a {packaging}</p>}
                 {lines.length > 1 && <button type="button" className="compact-action" onClick={() => setLines((current) => current.filter((_, n) => n !== index))}><X /> Quitar</button>}
+                {index === lines.length - 1 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="draft-line-add"
+                    icon={<Plus />}
+                    onClick={() => setLines((current) => [...current, createDraftLine()])}
+                  >
+                    Añadir otro producto
+                  </Button>
+                )}
               </div>
             );
           })}

@@ -214,19 +214,17 @@ export function SalesDetailPage() {
       },
     }),
     printPdf = useMutation({
-      mutationFn: () => invoicesApi.downloadPdf(id),
-      onSuccess: (b) => {
-        const u = URL.createObjectURL(b),
-          f = document.createElement("iframe");
-        f.hidden = true;
-        f.src = u;
-        f.onload = () => f.contentWindow?.print();
-        document.body.append(f);
-        setTimeout(() => {
-          f.remove();
-          URL.revokeObjectURL(u);
-        }, 60000);
+      mutationFn: async (target: Window | null) => ({
+        blob: await invoicesApi.downloadPdf(id),
+        target,
+      }),
+      onSuccess: ({ blob, target }) => {
+        const url = URL.createObjectURL(blob);
+        if (target) target.location.href = url;
+        else window.open(url, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       },
+      onError: (_error, target) => target?.close(),
     });
   const sendEmail = useMutation({
     mutationFn: () => gmailApi.sendInvoice(id),
@@ -643,7 +641,7 @@ export function SalesDetailPage() {
               icon={<Printer />}
               busy={printPdf.isPending}
               disabled={item.status !== "issued"}
-              onClick={() => printPdf.mutate()}
+              onClick={() => printPdf.mutate(window.open("", "_blank"))}
             >
               Imprimir
             </Button>
