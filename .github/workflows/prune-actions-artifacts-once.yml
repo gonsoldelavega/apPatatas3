@@ -1,0 +1,39 @@
+name: One-time prune regenerable Actions artifacts
+
+on:
+  push:
+    branches: [automation/factupapa-staging-tasks]
+    paths: ['.github/workflows/prune-actions-artifacts-once.yml']
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Delete own repository artifacts older than 24 hours
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REPOSITORY" = 'gonsoldelavega/apPatatas3'
+          inventory="${RUNNER_TEMP}/actions-artifacts.tsv"
+          cutoff="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" --jq '.artifacts[] | [.id, .size_in_bytes, .created_at, .name] | @tsv' > "$inventory"
+          seen=0; seen_bytes=0; deleted=0; deleted_bytes=0
+          while IFS=$'\t' read -r id bytes created name; do
+            [ -n "$id" ] || continue
+            seen=$((seen + 1)); seen_bytes=$((seen_bytes + bytes))
+            if [[ "$created" < "$cutoff" ]]; then
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}"
+              deleted=$((deleted + 1)); deleted_bytes=$((deleted_bytes + bytes))
+              echo "deleted id=$id bytes=$bytes created=$created name=$name"
+            fi
+          done < "$inventory"
+          echo "before_count=$seen before_bytes=$seen_bytes deleted_count=$deleted deleted_bytes=$deleted_bytes"
+          remaining="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" --jq '.artifacts[].id' | wc -l)"
+          echo "after_count=$remaining"
