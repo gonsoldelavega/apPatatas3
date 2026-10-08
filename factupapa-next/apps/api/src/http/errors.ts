@@ -9,6 +9,8 @@ export class HttpError extends Error {
       | "conflict"
       | "invoice_number_conflict"
       | "invoice_total_below_paid"
+      | "delivery_note_requires_line"
+      | "delivery_note_invoiced"
       | "payload_too_large"
       | "purchase_registry_not_configured"
       | "purchase_registry_unavailable"

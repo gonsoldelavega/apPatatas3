@@ -51,11 +51,29 @@ export class DeliveryNoteRepository {
       notes: "notes",
     } as const;
     const entries = Object.entries(input) as [keyof DeliveryPatch, unknown][];
+    if (!entries.length) return this.get(client, id);
     await client.query(
       `update delivery_notes set ${entries.map(([k], i) => `${map[k]}=$${i + 2}`).join(",")} where id=$1`,
       [id, ...entries.map(([, v]) => v)],
     );
     return this.get(client, id);
+  }
+  async delete(client: PoolClient, id: string) {
+    await client.query(`delete from delivery_notes where id=$1`, [id]);
+  }
+  async hasInvoiceLink(client: PoolClient, id: string) {
+    const r = await client.query(
+      `select 1 from invoice_delivery_notes where delivery_note_id=$1 limit 1`,
+      [id],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+  async last(client: PoolClient, contactId: string) {
+    const r = await client.query<{ id: string } & QueryResultRow>(
+      `select id from delivery_notes where contact_id=$1 and status in ('issued','invoiced') order by issue_date desc, issued_at desc, id desc limit 1`,
+      [contactId],
+    );
+    return r.rows[0] ? this.get(client, r.rows[0].id) : null;
   }
   async list(client: PoolClient, url: URL) {
     const values: unknown[] = [];

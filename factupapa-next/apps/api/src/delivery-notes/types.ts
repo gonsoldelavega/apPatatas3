@@ -51,3 +51,17 @@ export interface DeliveryLineInput {
   taxRate?: string;
   position?: number;
 }
+export interface DeliveryPdfData {
+  note: DeliveryNote;
+  issuer: {
+    name: string;
+    taxId: string | null;
+    address: Record<string, string>;
+  };
+  customer: {
+    name: string;
+    tradeName: string | null;
+    taxId: string | null;
+    address: Record<string, string>;
+  };
+}

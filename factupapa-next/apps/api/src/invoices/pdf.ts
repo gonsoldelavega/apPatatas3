@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import type { Invoice } from "./types.js";
-const decimal = (value: string, minimum = 0, maximum = 2) => {
+export const decimal = (value: string, minimum = 0, maximum = 2) => {
   const number = Number(value);
   if (!Number.isFinite(number)) return value;
   return number.toLocaleString("es-ES", {
@@ -9,16 +9,16 @@ const decimal = (value: string, minimum = 0, maximum = 2) => {
     useGrouping: false,
   });
 };
-const money = (value: string) => `${decimal(value, 2, 2)} EUR`;
-const date = (v: string) => v.split("-").reverse().join("/");
-const documentNumber = (series: string, number: number | null) => {
+export const money = (value: string) => `${decimal(value, 2, 2)} EUR`;
+export const date = (v: string) => v.split("-").reverse().join("/");
+export const documentNumber = (series: string, number: number | null) => {
   const annual = series.match(/^(.+)_([0-9]{4})$/u);
   return annual ? `${annual[1]}-${number}/${annual[2]}` : `${series}-${number}`;
 };
-const address = (value: Record<string, string>) =>
+export const address = (value: Record<string, string>) =>
   Object.values(value).filter(Boolean).join(", ");
 
-const drawBrand = (doc: PDFKit.PDFDocument) => {
+export const drawBrand = (doc: PDFKit.PDFDocument) => {
   const navy = "#111A33";
   const gold = "#D4A719";
   const sage = "#71816A";

@@ -2,11 +2,16 @@ import type { AuthApplication } from "../auth/service.js";
 import { bearerToken, readJson, requireUuid } from "../http/request.js";
 import { json, noContent } from "../http/response.js";
 import type { RouteHandler } from "../http/router.js";
+import { assertPdfSize } from "../invoices/routes.js";
+import { createDeliveryNotePdf } from "./pdf.js";
 import { DeliveryNoteService } from "./service.js";
 import {
   validateDeliveryCreate,
+  validateDeliveryFromLast,
   validateDeliveryLine,
+  validateDeliveryNumberPreview,
   validateDeliveryPatch,
+  validateDeliveryPdfOptions,
 } from "./validation.js";
 export function createDeliveryNoteRoutes(
   auth: AuthApplication,
@@ -30,6 +35,46 @@ export function createDeliveryNoteRoutes(
         );
         return true;
       }
+    }
+    if (url.pathname === "/delivery-notes/number-preview" && request.method === "GET") {
+      const identity = await auth.authenticate(bearerToken(request));
+      json(
+        response,
+        200,
+        await service.numberPreview(
+          identity,
+          validateDeliveryNumberPreview(url.searchParams.get("series")),
+        ),
+      );
+      return true;
+    }
+    if (url.pathname === "/delivery-notes/from-last" && request.method === "POST") {
+      const identity = await auth.authenticate(bearerToken(request));
+      json(
+        response,
+        201,
+        await service.createFromLast(
+          identity,
+          validateDeliveryFromLast(await readJson(request)),
+        ),
+      );
+      return true;
+    }
+    const pdf = url.pathname.match(/^\/delivery-notes\/([^/]+)\/pdf$/);
+    if (pdf && request.method === "GET") {
+      const identity = await auth.authenticate(bearerToken(request));
+      const options = validateDeliveryPdfOptions(url.searchParams);
+      const data = await service.pdfData(identity, requireUuid(pdf[1]));
+      const buffer = await createDeliveryNotePdf(data, options);
+      assertPdfSize(buffer);
+      response.writeHead(200, {
+        "content-type": "application/pdf",
+        "content-disposition": `inline; filename="albaran-${data.note.series}-${data.note.number}.pdf"`,
+        "content-length": String(buffer.length),
+        "cache-control": "private, no-store",
+      });
+      response.end(buffer);
+      return true;
     }
     const action = url.pathname.match(
       /^\/delivery-notes\/([^/]+)\/(issue|cancel)$/,
@@ -89,6 +134,11 @@ export function createDeliveryNoteRoutes(
     const id = requireUuid(match[1]);
     if (request.method === "GET") {
       json(response, 200, await service.get(identity, id));
+      return true;
+    }
+    if (request.method === "DELETE") {
+      await service.delete(identity, id);
+      noContent(response);
       return true;
     }
     if (request.method === "PATCH") {

@@ -340,30 +340,31 @@ test("albarán aplica precio específico, snapshot, numeración, bloqueo y aisla
   const issued = await delivery.issue(identity, draft!.id);
   assert.equal(issued?.number, 1);
   assert.equal(issued?.lines[0]?.description, "Producto Ficticio");
+  // Un albarán emitido se puede corregir (fecha y notas), pero no cambia de cliente ni de serie.
+  const corrected = await delivery.update(identity, draft!.id, { notes: "Corregido" });
+  assert.equal(corrected?.notes, "Corregido");
+  assert.equal(corrected?.number, 1);
   await assert.rejects(
-    () => delivery.update(identity, draft!.id, { notes: "No permitido" }),
+    () => delivery.update(identity, draft!.id, { series: "OTRA" }),
     (error: unknown) => error instanceof HttpError && error.status === 409,
   );
   await assert.rejects(
-    () =>
-      withTenantTransaction(api.pool, identity, (client) =>
-        client.query(
-          "update delivery_notes set notes='Mutación SQL no permitida' where id=$1",
-          [draft!.id],
-        ),
-      ),
-    (error: unknown) => (error as { code?: string }).code === "55000",
+    () => delivery.update(identity, draft!.id, { contactId: otherCustomerId }),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
   );
-  await assert.rejects(
-    () =>
-      withTenantTransaction(api.pool, identity, (client) =>
-        client.query(
-          "update delivery_note_lines set quantity=99 where delivery_note_id=$1",
-          [draft!.id],
+  // A nivel SQL el número, la serie y el estado siguen siendo inmutables.
+  for (const sql of [
+    "update delivery_notes set number=99 where id=$1",
+    "update delivery_notes set series='X' where id=$1",
+    "update delivery_notes set status='draft', number=null, issued_at=null where id=$1",
+  ])
+    await assert.rejects(
+      () =>
+        withTenantTransaction(api.pool, identity, (client) =>
+          client.query(sql, [draft!.id]),
         ),
-      ),
-    (error: unknown) => (error as { code?: string }).code === "55000",
-  );
+      (error: unknown) => (error as { code?: string }).code === "55000",
+    );
   const targetDraft = await delivery.create(identity, {
     contactId: customerId,
     series: "MOVE-DN",
@@ -1099,4 +1100,273 @@ test("cancelación, snapshots fiscales y rollback rechazan cruces inválidos", a
   assert.equal(immutable.issuerLegalName, "Sales Test A");
   const cancelled = await invoices.cancel(identity, emitted.id);
   assert.equal(cancelled?.status, "cancelled");
+});
+
+async function freshCustomer(name: string) {
+  return withTenantTransaction(api.pool, identity, async (client) => {
+    const c = await client.query<{ id: string }>(
+      `insert into contacts(company_id,kind,legal_name,tax_id,address)values($1,'customer',$2,$3,'{}')returning id`,
+      [identity.companyId, name, `TEST-${name}`],
+    );
+    return c.rows[0]!.id;
+  });
+}
+
+test("albarán emitido se corrige: líneas, precio editable, totales, auditoría y mínimo una línea", async () => {
+  const note = await delivery.create(identity, {
+    contactId: customerId,
+    series: "EDIT-DN",
+    issueDate: "2026-07-15",
+  });
+  await delivery.addLine(identity, note!.id, { productId, quantity: "2" });
+  const issued = await delivery.issue(identity, note!.id);
+  assert.equal(issued?.number, 1);
+  const lineId = issued!.lines[0]!.id;
+
+  // Cantidad y precio se pueden cambiar en un albarán emitido.
+  const edited = await delivery.updateLine(identity, note!.id, lineId, {
+    productId,
+    quantity: "3",
+    unitPrice: "8.5",
+  });
+  assert.equal(edited?.status, "issued");
+  assert.equal(edited?.number, 1);
+  assert.equal(edited?.lines[0]?.quantity, "3.0000");
+  assert.equal(edited?.lines[0]?.unitPrice, "8.5000");
+  assert.equal(edited?.subtotal, "25.5000");
+
+  // Se pueden añadir y quitar líneas.
+  const two = await delivery.addLine(identity, note!.id, {
+    description: "Línea libre",
+    quantity: "1",
+    unit: "unit",
+    unitPrice: "2",
+    taxRate: "4",
+  });
+  assert.equal(two?.lines.length, 2);
+  await delivery.deleteLine(identity, note!.id, two!.lines[1]!.id);
+  assert.equal((await delivery.get(identity, note!.id)).lines.length, 1);
+
+  // Nunca se queda sin líneas.
+  await assert.rejects(
+    () => delivery.deleteLine(identity, note!.id, lineId),
+    (error: unknown) =>
+      error instanceof HttpError &&
+      error.status === 409 &&
+      error.code === "delivery_note_requires_line",
+  );
+
+  // Fecha y notas también se corrigen y todo queda auditado.
+  const dated = await delivery.update(identity, note!.id, {
+    issueDate: "2026-07-16",
+    notes: "Entrega corregida",
+  });
+  assert.equal(dated?.issueDate, "2026-07-16");
+  const audit = await admin.pool.query<{ action: string }>(
+    "select action from audit_events where entity_id=$1 order by created_at",
+    [note!.id],
+  );
+  const actions = audit.rows.map((row) => row.action);
+  assert.ok(actions.includes("delivery_note.line_updated"));
+  assert.ok(actions.includes("delivery_note.line_deleted"));
+  assert.ok(actions.includes("delivery_note.edited"));
+
+  // Un albarán anulado vuelve a ser inmutable.
+  await delivery.cancel(identity, note!.id);
+  await assert.rejects(
+    () => delivery.update(identity, note!.id, { notes: "No" }),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
+  await assert.rejects(
+    () => delivery.updateLine(identity, note!.id, lineId, { quantity: "9" }),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query(
+          "update delivery_note_lines set quantity=99 where delivery_note_id=$1",
+          [note!.id],
+        ),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+});
+
+test("borrar albarán: borrador y emitido sí, facturado no; el número no se reutiliza", async () => {
+  const draft = await delivery.create(identity, {
+    contactId: customerId,
+    series: "DEL-DN",
+    issueDate: "2026-07-15",
+  });
+  await delivery.addLine(identity, draft!.id, { productId, quantity: "1" });
+  await delivery.delete(identity, draft!.id);
+  await assert.rejects(
+    () => delivery.get(identity, draft!.id),
+    (error: unknown) => error instanceof HttpError && error.status === 404,
+  );
+
+  const first = await createIssuedNote("DEL-DN");
+  assert.equal(first.number, 1);
+  await delivery.delete(identity, first.id);
+  await assert.rejects(
+    () => delivery.get(identity, first.id),
+    (error: unknown) => error instanceof HttpError && error.status === 404,
+  );
+  const lines = await admin.pool.query(
+    "select 1 from delivery_note_lines where delivery_note_id=$1",
+    [first.id],
+  );
+  assert.equal(lines.rowCount, 0);
+  const auditDeleted = await admin.pool.query(
+    "select 1 from audit_events where entity_id=$1 and action='delivery_note.deleted'",
+    [first.id],
+  );
+  assert.equal(auditDeleted.rowCount, 1);
+  const second = await createIssuedNote("DEL-DN");
+  assert.equal(second.number, 2);
+
+  // Anulado y sin facturar también se puede borrar.
+  const cancelled = await delivery.cancel(identity, second.id);
+  assert.equal(cancelled?.status, "cancelled");
+  await delivery.delete(identity, second.id);
+
+  // Facturado: no se puede borrar, ni siquiera tras liberar el vínculo.
+  const billed = await createIssuedNote("DEL-DN");
+  await assert.rejects(
+    () => delivery.delete(other, billed.id),
+    (error: unknown) => error instanceof HttpError && error.status === 404,
+  );
+  const invoice = await invoices.fromDeliveryNotes(identity, {
+    deliveryNoteIds: [billed.id],
+    series: "DEL-INV",
+    issueDate: "2026-07-15",
+  });
+  await assert.rejects(
+    () => delivery.delete(identity, billed.id),
+    (error: unknown) =>
+      error instanceof HttpError && error.code === "delivery_note_invoiced",
+  );
+  await invoices.issue(identity, invoice!.id);
+  await invoices.cancel(identity, invoice!.id);
+  assert.equal((await delivery.get(identity, billed.id)).status, "issued");
+  await assert.rejects(
+    () => delivery.delete(identity, billed.id),
+    (error: unknown) =>
+      error instanceof HttpError && error.code === "delivery_note_invoiced",
+  );
+  // El borrado directo por SQL de un albarán con vínculos tampoco es posible.
+  await assert.rejects(
+    () =>
+      withTenantTransaction(api.pool, identity, (client) =>
+        client.query("delete from delivery_notes where id=$1", [billed.id]),
+      ),
+    (error: unknown) => (error as { code?: string }).code === "55000",
+  );
+});
+
+test("repetir último pedido copia las líneas con los precios actuales del cliente", async () => {
+  const buyer = await freshCustomer("Cliente Repetidor");
+  await assert.rejects(
+    () =>
+      delivery.createFromLast(identity, {
+        contactId: buyer,
+        series: "LAST-DN",
+        issueDate: "2026-08-01",
+      }),
+    (error: unknown) => error instanceof HttpError && error.status === 404,
+  );
+  const base = await delivery.create(identity, {
+    contactId: buyer,
+    series: "LAST-DN",
+    issueDate: "2026-07-20",
+  });
+  await delivery.addLine(identity, base!.id, { productId, quantity: "5" });
+  await delivery.addLine(identity, base!.id, {
+    description: "Línea libre",
+    quantity: "2",
+    unit: "unit",
+    unitPrice: "3",
+    taxRate: "10",
+  });
+  await delivery.issue(identity, base!.id);
+  // Un precio nuevo para el cliente se aplica al repetir, no el antiguo.
+  await withTenantTransaction(api.pool, identity, (client) =>
+    client.query(
+      `insert into contact_product_prices(company_id,contact_id,product_id,price,valid_from)values($1,$2,$3,7.25,current_date)`,
+      [identity.companyId, buyer, productId],
+    ),
+  );
+  const repeated = await delivery.createFromLast(identity, {
+    contactId: buyer,
+    series: "LAST-DN",
+    issueDate: "2026-08-01",
+  });
+  assert.equal(repeated?.status, "draft");
+  assert.equal(repeated?.number, null);
+  assert.equal(repeated?.lines.length, 2);
+  assert.equal(repeated?.lines[0]?.quantity, "5.0000");
+  assert.equal(repeated?.lines[0]?.unitPrice, "7.2500");
+  assert.equal(repeated?.lines[1]?.description, "Línea libre");
+  assert.equal(repeated?.lines[1]?.unitPrice, "3.0000");
+  // El precio sigue siendo editable en el nuevo albarán.
+  const lineId = repeated!.lines[0]!.id;
+  const priced = await delivery.updateLine(identity, repeated!.id, lineId, {
+    productId,
+    quantity: "5",
+    unitPrice: "6.9",
+  });
+  assert.equal(priced?.lines[0]?.unitPrice, "6.9000");
+  // Otro cliente no hereda pedidos ajenos.
+  const stranger = await freshCustomer("Cliente Nuevo");
+  await assert.rejects(
+    () =>
+      delivery.createFromLast(identity, {
+        contactId: stranger,
+        series: "LAST-DN",
+        issueDate: "2026-08-01",
+      }),
+    (error: unknown) => error instanceof HttpError && error.status === 404,
+  );
+});
+
+test("número sugerido de albarán refleja la secuencia anual sin consumirla", async () => {
+  assert.deepEqual(await delivery.numberPreview(identity, "ALB_2026"), {
+    series: "ALB_2026",
+    number: 1,
+  });
+  assert.deepEqual(await delivery.numberPreview(identity, "ALB_2026"), {
+    series: "ALB_2026",
+    number: 1,
+  });
+  await createIssuedNote("ALB_2026");
+  assert.equal((await delivery.numberPreview(identity, "ALB_2026")).number, 2);
+  assert.equal((await delivery.numberPreview(other, "ALB_2026")).number, 1);
+});
+
+test("PDF de albarán solo para emitidos y facturados", async () => {
+  const draft = await delivery.create(identity, {
+    contactId: customerId,
+    series: "PDF-DN",
+    issueDate: "2026-07-15",
+  });
+  await delivery.addLine(identity, draft!.id, { productId, quantity: "1" });
+  await assert.rejects(
+    () => delivery.pdfData(identity, draft!.id),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
+  const issued = await delivery.issue(identity, draft!.id);
+  const data = await delivery.pdfData(identity, issued!.id);
+  assert.equal(data.customer.name, "Cliente Ficticio");
+  assert.equal(data.note.number, 1);
+  assert.ok(data.issuer.name.length > 0);
+  await assert.rejects(
+    () => delivery.pdfData(other, issued!.id),
+    (error: unknown) => error instanceof HttpError && error.status === 404,
+  );
+  await delivery.cancel(identity, issued!.id);
+  await assert.rejects(
+    () => delivery.pdfData(identity, issued!.id),
+    (error: unknown) => error instanceof HttpError && error.status === 409,
+  );
 });

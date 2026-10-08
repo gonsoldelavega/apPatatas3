@@ -57,6 +57,32 @@ export function validateDeliveryPatch(
       : { notes: optionalText(body.notes, 4000) }),
   };
 }
+export function validateDeliveryNumberPreview(value: string | null): string {
+  if (!value) throw new HttpError("invalid_request", 400);
+  return series(value);
+}
+export interface DeliveryPdfOptions {
+  prices: boolean;
+  copies: number;
+}
+export function validateDeliveryPdfOptions(
+  params: URLSearchParams,
+): DeliveryPdfOptions {
+  const prices = params.get("prices");
+  if (prices !== null && !["1", "0", "true", "false"].includes(prices))
+    throw new HttpError("invalid_request", 400);
+  const rawCopies = params.get("copies");
+  const copies = rawCopies === null ? 1 : Number(rawCopies);
+  if (!Number.isInteger(copies) || copies < 1 || copies > 3)
+    throw new HttpError("invalid_request", 400);
+  return { prices: prices !== "0" && prices !== "false", copies };
+}
+export function validateDeliveryFromLast(
+  body: Record<string, unknown>,
+): DeliveryCreate {
+  assertAllowedKeys(body, ["contactId", "series", "issueDate", "notes"]);
+  return validateDeliveryCreate(body);
+}
 export function validateDeliveryLine(
   body: Record<string, unknown>,
 ): DeliveryLineInput {
