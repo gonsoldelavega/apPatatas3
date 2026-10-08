@@ -9,6 +9,7 @@ import {
   Package,
   Plus,
   ReceiptText,
+  ScrollText,
   TrendingUp,
   WalletCards,
 } from "lucide-react";
@@ -78,6 +79,7 @@ interface DashboardSummary {
   pendingImports: number;
   failedImports: number;
   pendingNotes: number;
+  pendingNotesTotal: string;
   issuedInvoices: number;
   finance: FinanceSummary;
   monthly: MonthlyFinanceSummary[];
@@ -95,6 +97,7 @@ const previewSummary: DashboardSummary = {
   pendingImports: 1,
   failedImports: 0,
   pendingNotes: 3,
+  pendingNotesTotal: "215.40",
   issuedInvoices: 14,
   finance: {
     sales: "3420.00",
@@ -227,6 +230,9 @@ export function DashboardPage() {
         ).length,
         failedImports: imports.items.filter((item) => item.status === "failed").length,
         pendingNotes: notes.total,
+        pendingNotesTotal: String(
+          notes.items.reduce((sum, note) => sum + Number(note.total), 0),
+        ),
         issuedInvoices: invoices.items.filter((invoice) => invoice.status === "issued").length,
         finance,
         monthly,
@@ -308,6 +314,11 @@ export function DashboardPage() {
             <span><strong>Nueva factura</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
+          <Link className="dashboard-action dashboard-action--primary" to="/ventas/nuevo/albaran">
+            <ScrollText aria-hidden="true" />
+            <span><strong>Nuevo albarán</strong></span>
+            <ArrowRight aria-hidden="true" />
+          </Link>
           <Link className="dashboard-action dashboard-action--purchase" to="/gastos/nuevo">
             <ReceiptText aria-hidden="true" />
             <span><strong>Registrar compra</strong></span>
@@ -333,7 +344,7 @@ export function DashboardPage() {
           {Boolean(data?.pendingNotes) && (
             <Link to="/ventas" className="attention-row">
               <FileText aria-hidden="true" />
-              <span><strong>{data?.pendingNotes} albaranes sin facturar</strong></span>
+              <span><strong>{data?.pendingNotes} {data?.pendingNotes === 1 ? "albarán" : "albaranes"} sin facturar · {formatMoney(data?.pendingNotesTotal ?? "0")}</strong></span>
               <ArrowRight aria-hidden="true" />
             </Link>
           )}

@@ -238,9 +238,31 @@ export const deliveryNotesApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  addLine: (id: string, input: { productId: string; quantity: string }) =>
+  update: (
+    id: string,
+    input: { issueDate?: string; notes?: string | null },
+  ) =>
+    apiClient.request<DeliveryNote>(`/delivery-notes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  delete: (id: string) =>
+    apiClient.request<void>(`/delivery-notes/${id}`, { method: "DELETE" }),
+  addLine: (
+    id: string,
+    input: { productId: string; quantity: string; unitPrice?: string },
+  ) =>
     apiClient.request<DeliveryNote>(`/delivery-notes/${id}/lines`, {
       method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateLine: (
+    id: string,
+    lineId: string,
+    input: { quantity: string; unitPrice?: string },
+  ) =>
+    apiClient.request<DeliveryNote>(`/delivery-notes/${id}/lines/${lineId}`, {
+      method: "PATCH",
       body: JSON.stringify(input),
     }),
   deleteLine: (id: string, lineId: string) =>
@@ -257,6 +279,27 @@ export const deliveryNotesApi = {
       method: "POST",
       body: "{}",
     }),
+  numberPreview: (series: string) =>
+    apiClient.request<{ series: string; number: number }>(
+      `/delivery-notes/number-preview${queryString({ series })}`,
+    ),
+  fromLast: (input: {
+    contactId: string;
+    series: string;
+    issueDate: string;
+    notes?: string | null;
+  }) =>
+    apiClient.request<DeliveryNote>("/delivery-notes/from-last", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  downloadPdf: (id: string, options: { prices?: boolean; copies?: number } = {}) =>
+    apiClient.download(
+      `/delivery-notes/${id}/pdf${queryString({
+        prices: options.prices === false ? "0" : "1",
+        copies: options.copies ?? 1,
+      })}`,
+    ),
 };
 
 export const invoicesApi = {

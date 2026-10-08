@@ -3,6 +3,7 @@ import { apiClient } from "../src/api/client";
 import {
   contactsApi,
   authApi,
+  deliveryNotesApi,
   financeApi,
   importsApi,
   invoicesApi,
@@ -121,5 +122,32 @@ describe("contratos operativos", () => {
       "/auth/sessions/revoke-others",
       { method: "POST", body: "{}" },
     );
+  });
+});
+
+describe("contratos de albaranes", () => {
+  it("edita, borra y corrige líneas de un albarán con precio editable", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
+    await deliveryNotesApi.update("n1", { issueDate: "2026-10-08", notes: "Cámara trasera" });
+    await deliveryNotesApi.updateLine("n1", "l1", { quantity: "12", unitPrice: "1.2" });
+    await deliveryNotesApi.addLine("n1", { productId: "p1", quantity: "5", unitPrice: "1.1" });
+    await deliveryNotesApi.delete("n1");
+    expect(request).toHaveBeenNthCalledWith(1, "/delivery-notes/n1", { method: "PATCH", body: JSON.stringify({ issueDate: "2026-10-08", notes: "Cámara trasera" }) });
+    expect(request).toHaveBeenNthCalledWith(2, "/delivery-notes/n1/lines/l1", { method: "PATCH", body: JSON.stringify({ quantity: "12", unitPrice: "1.2" }) });
+    expect(request.mock.calls[2]?.[1]).toMatchObject({ method: "POST", body: expect.stringContaining('"unitPrice":"1.1"') });
+    expect(request).toHaveBeenNthCalledWith(4, "/delivery-notes/n1", { method: "DELETE" });
+  });
+
+  it("pide número sugerido, repetir último y PDF con o sin precios", async () => {
+    const request = vi.spyOn(apiClient, "request").mockResolvedValue({});
+    const download = vi.spyOn(apiClient, "download").mockResolvedValue(new Blob());
+    await deliveryNotesApi.numberPreview("ALB_2026");
+    await deliveryNotesApi.fromLast({ contactId: "c1", series: "ALB_2026", issueDate: "2026-10-08" });
+    await deliveryNotesApi.downloadPdf("n1");
+    await deliveryNotesApi.downloadPdf("n1", { prices: false, copies: 2 });
+    expect(request).toHaveBeenNthCalledWith(1, "/delivery-notes/number-preview?series=ALB_2026");
+    expect(request.mock.calls[1]?.[0]).toBe("/delivery-notes/from-last");
+    expect(download).toHaveBeenNthCalledWith(1, "/delivery-notes/n1/pdf?prices=1&copies=1");
+    expect(download).toHaveBeenNthCalledWith(2, "/delivery-notes/n1/pdf?prices=0&copies=2");
   });
 });

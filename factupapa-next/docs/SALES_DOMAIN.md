@@ -15,3 +15,13 @@ El PDF A4 se genera al vuelo desde el snapshot, solo para factura emitida y con 
 La interfaz no muestra ceros técnicos: cantidades eliminan decimales finales, precios unitarios conservan al menos dos decimales y los totales monetarios muestran exactamente dos. Esto es solo presentación; PostgreSQL, snapshots y cálculos mantienen su precisión `numeric`.
 
 El ensayo de recuperación incluye numeración, snapshots, vínculos albarán-factura, auditoría, inmutabilidad y regeneración del PDF. Una factura cancelada libera transaccionalmente sus vínculos activos y devuelve los albaranes a `issued`; los números emitidos nunca se reutilizan.
+
+## Albaranes: impresión, corrección y borrado (migración 0034)
+
+- **PDF imprimible** (`GET /delivery-notes/:id/pdf?prices=1|0&copies=1..3`): A4 con emisor, cliente, notas de entrega, líneas y cuadros de firma «Recibí conforme». Con `prices=0` sale solo la mercancía. Solo para albaranes `issued`/`invoiced`. El pie aclara que no es una factura.
+- **Precios**: se aplica el precio pactado del cliente (`contact_product_prices`) y se puede editar al crear o corregir la línea (`unitPrice`). El servidor recalcula siempre los importes.
+- **Corrección**: un albarán `issued` aún no facturado admite cambiar fecha, notas y líneas (cantidad, precio, añadir, quitar; mínimo una línea). Número, serie, cliente y estado no cambian. Auditoría `delivery_note.edited`.
+- **Borrado** (`DELETE /delivery-notes/:id`): permitido en `draft`, `issued` y `cancelled` si nunca estuvo vinculado a una factura (409 `delivery_note_invoiced` en caso contrario). El número emitido no se reutiliza. Auditoría `delivery_note.deleted`.
+- **Numeración**: serie anual `ALB_AAAA` (se muestra «ALB-n/AAAA»). `GET /delivery-notes/number-preview?series=` sugiere el siguiente sin consumirlo.
+- **Repetir último pedido**: `POST /delivery-notes/from-last` copia las líneas del último albarán emitido del cliente aplicando el precio vigente.
+

@@ -72,7 +72,12 @@ export function SalesDetailPage() {
     [editQuantity, setEditQuantity] = useState(""),
     [editUnitPrice, setEditUnitPrice] = useState(""),
     [editDeliveryDate, setEditDeliveryDate] = useState(""),
-    [actionMessage, setActionMessage] = useState<string | null>(null);
+    [actionMessage, setActionMessage] = useState<string | null>(null),
+    [newUnitPrice, setNewUnitPrice] = useState(""),
+    [printWithPrices, setPrintWithPrices] = useState(true),
+    [printCopies, setPrintCopies] = useState(1),
+    [noteIssueDate, setNoteIssueDate] = useState(todayLocal()),
+    [noteNotes, setNoteNotes] = useState("");
   const [showPayment, setShowPayment] = useState(false),
     [paymentAmount, setPaymentAmount] = useState(""),
     [paymentDate, setPaymentDate] = useState(todayLocal()),
@@ -123,8 +128,20 @@ export function SalesDetailPage() {
     setDraftPaymentTerms(current.paymentTerms ?? "");
     setDraftGeneralInfo(current.generalInformation ?? "");
   }, [documentQuery.data, invoice]);
+  useEffect(() => {
+    if (invoice || !documentQuery.data) return;
+    setNoteIssueDate(documentQuery.data.issueDate);
+    setNoteNotes(documentQuery.data.notes ?? "");
+  }, [documentQuery.data, invoice]);
+  const fetchPdf = () =>
+    invoice
+      ? invoicesApi.downloadPdf(id)
+      : deliveryNotesApi.downloadPdf(id, {
+          prices: printWithPrices,
+          copies: printCopies,
+        });
   const editLine = useMutation({
-    mutationFn: async (input: { action: "add"; productId: string; quantity: string; deliveryDate?: string } | { action: "delete"; lineId: string } | { action: "update"; line: NonNullable<Invoice["lines"]>[number]; quantity: string; unitPrice: string; deliveryDate: string }) => {
+    mutationFn: async (input: { action: "add"; productId: string; quantity: string; unitPrice?: string; deliveryDate?: string } | { action: "delete"; lineId: string } | { action: "update"; line: NonNullable<Invoice["lines"]>[number]; quantity: string; unitPrice: string; deliveryDate: string }) => {
       if (input.action === "add" && invoice)
         await invoicesApi.addLine(id, {
           productId: input.productId,
@@ -132,8 +149,17 @@ export function SalesDetailPage() {
           deliveryDate: input.deliveryDate || null,
         });
       else if (input.action === "add")
-        await deliveryNotesApi.addLine(id, { productId: input.productId, quantity: input.quantity });
+        await deliveryNotesApi.addLine(id, {
+          productId: input.productId,
+          quantity: input.quantity,
+          ...(input.unitPrice ? { unitPrice: input.unitPrice.replace(",", ".") } : {}),
+        });
       else if (input.action === "delete") await api.deleteLine(id, input.lineId);
+      else if (!invoice)
+        await deliveryNotesApi.updateLine(id, input.line.id, {
+          quantity: input.quantity.replace(",", "."),
+          unitPrice: input.unitPrice.replace(",", "."),
+        });
       else {
         const selectedProduct = products.data?.items.find((product) => product.id === editProductId);
         await invoicesApi.updateLine(id, input.line.id, {
@@ -152,6 +178,7 @@ export function SalesDetailPage() {
       setNewProductId("");
       setNewQuantity("1");
       setNewDeliveryDate(todayLocal());
+      setNewUnitPrice("");
       setEditingLineId(null);
       setEditProductId("");
       await queryClient.invalidateQueries({ queryKey: [type, id] });
@@ -176,7 +203,7 @@ export function SalesDetailPage() {
   });
   const pdf = useMutation({
     mutationFn: async (target: Window | null) => ({
-      blob: await invoicesApi.downloadPdf(id),
+      blob: await fetchPdf(),
       target,
     }),
     onSuccess: ({ blob, target }) => {
@@ -188,12 +215,13 @@ export function SalesDetailPage() {
     onError: (_error, target) => target?.close(),
   });
   const shareWhatsApp = useMutation({
-      mutationFn: () => invoicesApi.downloadPdf(id),
+      mutationFn: () => fetchPdf(),
       onSuccess: async (b) => {
-        const current = documentQuery.data as Invoice | undefined,
+        const current = documentQuery.data,
+          kind = invoice ? "Factura" : "Albarán",
           subject = current?.number
-            ? `Factura ${formatDocumentNumber(current.series, current.number)}`
-            : "Factura",
+            ? `${kind} ${formatDocumentNumber(current.series, current.number)}`
+            : kind,
           filename = `${subject.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`,
           f = new File([b], filename, { type: "application/pdf" });
         if (navigator.canShare?.({ files: [f] })) {
@@ -215,7 +243,7 @@ export function SalesDetailPage() {
     }),
     printPdf = useMutation({
       mutationFn: async (target: Window | null) => ({
-        blob: await invoicesApi.downloadPdf(id),
+        blob: await fetchPdf(),
         target,
       }),
       onSuccess: ({ blob, target }) => {
@@ -226,6 +254,49 @@ export function SalesDetailPage() {
       },
       onError: (_error, target) => target?.close(),
     });
+  const refreshLists = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: [type, id] }),
+      queryClient.invalidateQueries({ queryKey: ["delivery-notes"] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+    ]);
+  const updateNote = useMutation({
+    mutationFn: () =>
+      deliveryNotesApi.update(id, {
+        issueDate: noteIssueDate,
+        notes: noteNotes.trim() || null,
+      }),
+    onSuccess: async () => {
+      await refreshLists();
+      setActionMessage("Albarán actualizado.");
+    },
+  });
+  const deleteNote = useMutation({
+    mutationFn: () => deliveryNotesApi.delete(id),
+    onSuccess: async () => {
+      await refreshLists();
+      navigate("/ventas");
+    },
+  });
+  const issueAndPrint = useMutation({
+    mutationFn: async (target: Window | null) => {
+      try {
+        await deliveryNotesApi.issue(id);
+        const blob = await fetchPdf();
+        return { blob, target };
+      } catch (error) {
+        target?.close();
+        throw error;
+      }
+    },
+    onSuccess: async ({ blob, target }) => {
+      const url = URL.createObjectURL(blob);
+      if (target) target.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      await refreshLists();
+    },
+  });
   const sendEmail = useMutation({
     mutationFn: () => gmailApi.sendInvoice(id),
     onMutate: () => setActionMessage(null),
@@ -267,7 +338,8 @@ export function SalesDetailPage() {
     );
   const item = documentQuery.data;
   const invoiceItem = invoice ? (item as Invoice) : null;
-  const editable = item.status === "draft" || (invoice && item.status === "issued");
+  const editable = item.status === "draft" || item.status === "issued";
+  const canPrintNote = !invoice && (item.status === "issued" || item.status === "invoiced");
   return (
     <div className="page detail-page sales-detail">
       <header className="detail-header">
@@ -342,6 +414,13 @@ export function SalesDetailPage() {
               {line.deliveryDate && (
                 <small>Entrega: {line.deliveryDate.split("-").reverse().join("/")}</small>
               )}
+              {!invoice && editingLineId === line.id && (
+                <div className="form-grid invoice-line-editor">
+                  <Field label="Cantidad" inputMode="decimal" value={editQuantity} onChange={(e) => setEditQuantity(e.target.value)} />
+                  <Field label="Precio unitario (€)" inputMode="decimal" value={editUnitPrice} onChange={(e) => setEditUnitPrice(e.target.value)} />
+                  <Button variant="secondary" busy={editLine.isPending} disabled={Number(editQuantity.replace(",", ".")) <= 0 || Number(editUnitPrice.replace(",", ".")) < 0 || !editUnitPrice} onClick={() => editLine.mutate({ action: "update", line, quantity: editQuantity, unitPrice: editUnitPrice, deliveryDate: "" })}>Guardar línea</Button>
+                </div>
+              )}
                 {invoice && editingLineId === line.id && (
                 <div className="form-grid invoice-line-editor">
                   <SelectField label="Producto" value={editProductId} onChange={(e) => {
@@ -365,13 +444,13 @@ export function SalesDetailPage() {
               <strong>{formatMoney(line.lineTotal)}</strong>
               {editable && (
                 <>
-                {invoice && <button type="button" aria-label={`Editar ${line.description}`} onClick={() => {
+                <button type="button" aria-label={`Editar ${line.description}`} onClick={() => {
                   setEditingLineId(line.id);
                   setEditProductId(line.productId ?? "");
                   setEditQuantity(line.quantity);
                   setEditUnitPrice(line.unitPrice);
                   setEditDeliveryDate(line.deliveryDate ?? "");
-                }}><Pencil /></button>}
+                }}><Pencil /></button>
                 <button
                   type="button"
                   aria-label={`Eliminar ${line.description}`}
@@ -541,6 +620,38 @@ export function SalesDetailPage() {
               </Button>
             </section>
           )}
+          {!invoice && (
+            <section className="form-card" id="note-edit">
+              <h2>Datos del albarán</h2>
+              <Field
+                label="Fecha"
+                type="date"
+                value={noteIssueDate}
+                onChange={(e) => setNoteIssueDate(e.target.value)}
+              />
+              <label className="field">
+                <span>Notas de entrega (salen impresas)</span>
+                <textarea
+                  rows={2}
+                  value={noteNotes}
+                  onChange={(e) => setNoteNotes(e.target.value)}
+                />
+              </label>
+              <Button
+                variant="secondary"
+                busy={updateNote.isPending}
+                disabled={!noteIssueDate}
+                onClick={() => updateNote.mutate()}
+              >
+                Guardar datos
+              </Button>
+              {updateNote.isError && (
+                <p className="action-feedback action-feedback--error" role="alert">
+                  No se pudo guardar. Revisa la fecha.
+                </p>
+              )}
+            </section>
+          )}
           <section className="form-card draft-line-add">
             <h2>Añadir producto</h2>
             <SelectField label="Producto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
@@ -548,6 +659,14 @@ export function SalesDetailPage() {
               {products.data?.items.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
             </SelectField>
             <Field label="Cantidad" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
+            {!invoice && (
+              <Field
+                label="Precio unitario (vacío = precio del cliente)"
+                inputMode="decimal"
+                value={newUnitPrice}
+                onChange={(e) => setNewUnitPrice(e.target.value)}
+              />
+            )}
             {invoice && (
               <Field
                 label="Fecha de entrega"
@@ -565,6 +684,7 @@ export function SalesDetailPage() {
                 action: "add",
                 productId: newProductId,
                 quantity: newQuantity.replace(",", "."),
+                unitPrice: newUnitPrice,
                 deliveryDate: newDeliveryDate,
               })}
             >
@@ -574,7 +694,9 @@ export function SalesDetailPage() {
               <p className="action-feedback action-feedback--error" role="alert">
                 {editLine.error instanceof ApiError && editLine.error.code === "invoice_total_below_paid"
                   ? "El nuevo total no puede quedar por debajo del importe ya cobrado."
-                  : "No se pudo guardar la línea. Revisa cantidad, precio y fecha de entrega."}
+                  : editLine.error instanceof ApiError && editLine.error.code === "delivery_note_requires_line"
+                    ? "Un albarán emitido debe tener al menos una línea. Para quitarlo del todo, bórralo."
+                    : "No se pudo guardar la línea. Revisa cantidad, precio y fecha de entrega."}
               </p>
             )}
           </section>
@@ -591,7 +713,107 @@ export function SalesDetailPage() {
           >
             Emitir {invoice ? "factura" : "albarán"}
           </Button>}
+          {item.status === "draft" && !invoice && (
+            <Button
+              icon={<Printer />}
+              busy={issueAndPrint.isPending}
+              disabled={!item.lines?.length || editLine.isPending}
+              onClick={() => issueAndPrint.mutate(window.open("", "_blank"))}
+            >
+              Emitir e imprimir
+            </Button>
+          )}
         </>
+      )}
+      {!invoice && (
+        <section className="detail-card invoice-action-card" aria-labelledby="note-actions-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Imprimir</p>
+              <h2 id="note-actions-title">Albarán para entregar</h2>
+            </div>
+          </div>
+          <div className="print-options">
+            <div role="group" aria-label="Contenido del albarán" className="segmented">
+              <button
+                type="button"
+                aria-pressed={printWithPrices}
+                className={printWithPrices ? "active" : ""}
+                onClick={() => setPrintWithPrices(true)}
+              >
+                Con precios
+              </button>
+              <button
+                type="button"
+                aria-pressed={!printWithPrices}
+                className={!printWithPrices ? "active" : ""}
+                onClick={() => setPrintWithPrices(false)}
+              >
+                Sin precios
+              </button>
+            </div>
+            <div className="stepper" role="group" aria-label="Copias">
+              <button
+                type="button"
+                aria-label="Menos copias"
+                disabled={printCopies <= 1}
+                onClick={() => setPrintCopies((n) => Math.max(1, n - 1))}
+              >
+                −
+              </button>
+              <span>{printCopies} {printCopies === 1 ? "copia" : "copias"}</span>
+              <button
+                type="button"
+                aria-label="Más copias"
+                disabled={printCopies >= 3}
+                onClick={() => setPrintCopies((n) => Math.min(3, n + 1))}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <div className="document-actions document-actions--invoice">
+            <Button
+              icon={<Printer />}
+              busy={printPdf.isPending}
+              disabled={!canPrintNote}
+              onClick={() => printPdf.mutate(window.open("", "_blank"))}
+            >
+              Imprimir albarán
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Eye />}
+              busy={pdf.isPending}
+              disabled={!canPrintNote}
+              onClick={() => pdf.mutate(window.open("", "_blank"))}
+            >
+              Ver PDF
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<MessageCircle />}
+              busy={shareWhatsApp.isPending}
+              disabled={!canPrintNote}
+              onClick={() => shareWhatsApp.mutate()}
+            >
+              WhatsApp
+            </Button>
+          </div>
+          {item.status === "draft" && (
+            <p className="form-hint">Emite el albarán para poder imprimirlo o enviarlo.</p>
+          )}
+          {item.status === "cancelled" && (
+            <p className="form-hint">Un albarán cancelado no se imprime.</p>
+          )}
+          {item.status === "issued" && (
+            <p className="form-hint">Mientras no esté facturado puedes corregir cantidades y precios; el PDF siempre sale con los datos actuales.</p>
+          )}
+          {actionMessage && <p className="action-feedback" role="status">{actionMessage}</p>}
+          {(pdf.isError || printPdf.isError || shareWhatsApp.isError) && (
+            <p className="action-feedback action-feedback--error" role="alert">No se pudo preparar el PDF. Inténtalo de nuevo.</p>
+          )}
+        </section>
       )}
       {invoice && (
         <section className="detail-card invoice-action-card" aria-labelledby="invoice-actions-title">
@@ -672,6 +894,32 @@ export function SalesDetailPage() {
             <p className="action-feedback action-feedback--error" role="alert">No se pudo preparar el PDF. Inténtalo de nuevo.</p>
           )}
         </section>
+      )}
+      {!invoice && item.status !== "invoiced" && (
+        <>
+          <Button
+            variant="danger"
+            icon={<Trash2 />}
+            busy={deleteNote.isPending}
+            onClick={() =>
+              window.confirm(
+                "¿Borrar este albarán? Esta acción no se puede deshacer y su número no se reutiliza.",
+              ) && deleteNote.mutate()
+            }
+          >
+            Borrar albarán
+          </Button>
+          {deleteNote.isError && (
+            <p className="action-feedback action-feedback--error" role="alert">
+              {deleteNote.error instanceof ApiError && deleteNote.error.code === "delivery_note_invoiced"
+                ? "Este albarán ya está facturado y no se puede borrar."
+                : "No se pudo borrar el albarán."}
+            </p>
+          )}
+        </>
+      )}
+      {!invoice && item.status === "invoiced" && (
+        <p className="form-hint">Albarán facturado: ya no se puede editar ni borrar.</p>
       )}
       {item.status === "issued" && (
         <>

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Save, X } from "lucide-react";
+import { ArrowLeft, Plus, Printer, Repeat, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { Invoice } from "../api/types";
@@ -18,6 +18,7 @@ import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import {
   annualInvoiceSeries,
+  formatDocumentNumber,
   formatMoney,
   formatQuantity,
   todayLocal,
@@ -60,7 +61,7 @@ export function SalesFormPage() {
     [searchParams] = useSearchParams(),
     [contactId, setContactId] = useState(() => searchParams.get("contactId") ?? ""),
     [lines, setLines] = useState<DraftSalesLine[]>(() => [createDraftLine()]),
-    [series, setSeries] = useState("A"),
+    [deliveryNotes, setDeliveryNotes] = useState(""),
     [invoiceNumber, setInvoiceNumber] = useState(""),
     [invoiceNumberEdited, setInvoiceNumberEdited] = useState(false),
     [issueDate, setIssueDate] = useState(todayLocal()),
@@ -71,6 +72,8 @@ export function SalesFormPage() {
     [includePaymentTerms, setIncludePaymentTerms] = useState(false),
     [terms, setTerms] = useState(""),
     [info, setInfo] = useState("");
+  const deliverySeries = `ALB_${issueDate.slice(0, 4)}`;
+  const [repeatMessage, setRepeatMessage] = useState<string | null>(null);
 
   const prefs = useQuery({
       queryKey: ["sales-preferences"],
@@ -99,6 +102,11 @@ export function SalesFormPage() {
           `/invoices/number-preview?series=${encodeURIComponent(invoiceSeries)}&issueDate=${encodeURIComponent(issueDate)}`,
         ),
       enabled: invoice && Boolean(prefs.data) && Boolean(issueDate),
+    }),
+    deliveryNumberPreview = useQuery({
+      queryKey: ["delivery-number-preview", deliverySeries],
+      queryFn: () => deliveryNotesApi.numberPreview(deliverySeries),
+      enabled: !invoice && issueDate.length >= 4,
     });
 
   const draftKey = `factupapa:sales-draft:${user?.company.id ?? "unknown"}:${user?.id ?? "unknown"}:${invoice ? "invoice" : "delivery"}`;
@@ -220,8 +228,37 @@ export function SalesFormPage() {
   const parsedInvoiceNumber = Number(invoiceNumber);
   const invoiceNumberInvalid = invoice && (!Number.isInteger(parsedInvoiceNumber) || parsedInvoiceNumber < 1);
 
-  const save = useMutation({
+  const repeatLast = useMutation({
     mutationFn: async () => {
+      const page = await deliveryNotesApi.list({ contactId, pageSize: 10 });
+      const last = page.items.find((note) => note.status === "issued" || note.status === "invoiced");
+      return last ? deliveryNotesApi.get(last.id) : null;
+    },
+    onSuccess: (note) => {
+      if (!note?.lines?.length) {
+        setRepeatMessage("Este cliente aún no tiene albaranes anteriores.");
+        return;
+      }
+      setLines(
+        note.lines.map((line) => {
+          const priced = effectivePrices.data?.items.find((product) => product.id === line.productId);
+          return {
+            ...createDraftLine(),
+            productId: line.productId ?? "",
+            quantity: formatQuantity(line.quantity),
+            unitPrice: formatQuantity(priced?.effectivePrice ?? line.unitPrice),
+          };
+        }),
+      );
+      setRepeatMessage(
+        `Cargado el pedido de ${formatDocumentNumber(note.series, note.number)}. Cambia las cantidades si hoy piden otra cosa.`,
+      );
+    },
+    onError: () => setRepeatMessage("No se pudo cargar el último pedido."),
+  });
+
+  const save = useMutation({
+    mutationFn: async (options: { emitAndPrint?: boolean; target?: Window | null } = {}) => {
       const lineDeliveryDates = invoice ? lines.map((line) => line.deliveryDate).filter(Boolean) : [];
       const d = invoice
         ? await apiClient.request<Invoice>("/invoices", {
@@ -240,7 +277,12 @@ export function SalesFormPage() {
               applyContactDefaults: false,
             }),
           })
-        : await deliveryNotesApi.create({ contactId, series, issueDate });
+        : await deliveryNotesApi.create({
+            contactId,
+            series: deliverySeries,
+            issueDate,
+            notes: deliveryNotes.trim() || null,
+          });
       let result = d;
       for (const line of lines) {
         const product = products.data?.items.find((item) => item.id === line.productId);
@@ -256,7 +298,27 @@ export function SalesFormPage() {
               ...(line.entryMode === "packages" ? { packageQuantity: line.packageQuantity.replace(",", ".") } : {}),
               deliveryDate: line.deliveryDate || null,
             })
-          : await deliveryNotesApi.addLine(d.id, { productId: line.productId, quantity });
+          : await deliveryNotesApi.addLine(d.id, {
+              productId: line.productId,
+              quantity,
+              unitPrice: line.unitPrice.replace(",", "."),
+            });
+      }
+      if (!invoice && options.emitAndPrint) {
+        try {
+          result = await deliveryNotesApi.issue(d.id);
+          const blob = await deliveryNotesApi.downloadPdf(d.id, { prices: true, copies: 1 });
+          const url = URL.createObjectURL(blob);
+          if (options.target) options.target.location.href = url;
+          else window.open(url, "_blank", "noopener,noreferrer");
+          window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        } catch (error) {
+          options.target?.close();
+          // El borrador ya existe: se abre para terminar de emitirlo desde el detalle.
+          localStorage.removeItem(draftKey);
+          nav(`/ventas/albaranes/${d.id}`);
+          throw error;
+        }
       }
       return result;
     },
@@ -302,7 +364,7 @@ export function SalesFormPage() {
         <Link className="icon-button" to="/ventas" aria-label="Volver a facturas"><ArrowLeft /></Link>
         <h1>{invoice ? "Nueva factura" : "Nuevo albarán"}</h1>
       </header>
-      <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+      <form onSubmit={(e) => { e.preventDefault(); save.mutate({}); }}>
         <section className="form-card">
           <SelectField label="Cliente" value={contactId} onChange={(e) => setContactId(e.target.value)}>
             <option value="">Selecciona</option>
@@ -332,7 +394,15 @@ export function SalesFormPage() {
               </div>
             </div>
           ) : (
-            <Field label="Serie" value={series} onChange={(e) => setSeries(e.target.value)} />
+            <div className="automatic-number">
+              <span>Número sugerido</span>
+              <strong>
+                {deliveryNumberPreview.data
+                  ? `ALB-${deliveryNumberPreview.data.number}/${issueDate.slice(0, 4)}`
+                  : `ALB-…/${issueDate.slice(0, 4)}`}
+              </strong>
+              <small>Numeración correlativa automática; se asigna al emitir.</small>
+            </div>
           )}
           <Field label="Fecha de emisión" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
         </section>
@@ -363,6 +433,24 @@ export function SalesFormPage() {
               )}
               <label className="field"><span>Información adicional (opcional)</span><textarea rows={3} value={info} onChange={(e) => setInfo(e.target.value)} /></label>
             </details>
+          </section>
+        )}
+
+        {!invoice && (
+          <section className="form-card">
+            <button
+              type="button"
+              className="compact-action"
+              disabled={!contactId || repeatLast.isPending}
+              onClick={() => repeatLast.mutate()}
+            >
+              <Repeat /> Repetir último pedido
+            </button>
+            {repeatMessage && <p className="field-help" role="status">{repeatMessage}</p>}
+            <label className="field">
+              <span>Notas de entrega (salen impresas)</span>
+              <textarea rows={2} value={deliveryNotes} onChange={(e) => setDeliveryNotes(e.target.value)} />
+            </label>
           </section>
         )}
 
@@ -443,9 +531,20 @@ export function SalesFormPage() {
 
         {save.isError && <div className="form-alert" role="alert">{saveError}</div>}
         <div className="sticky-submit invoice-sticky-submit">
-          {invoice && <span className="invoice-sticky-total"><small>Total estimado</small><strong>{formatMoney(String(estimatedTotal))}</strong></span>}
-          <Button type="submit" icon={<Save />} busy={save.isPending} disabled={!contactId || !issueDate || invalidLine || invoiceNumberInvalid || (invoice && !invoiceNumber)}>
-            {invoice ? "Revisar factura" : "Crear albarán"}
+          <span className="invoice-sticky-total"><small>Total estimado</small><strong>{formatMoney(String(estimatedTotal))}</strong></span>
+          {!invoice && (
+            <Button
+              type="button"
+              icon={<Printer />}
+              busy={save.isPending}
+              disabled={!contactId || !issueDate || invalidLine}
+              onClick={() => save.mutate({ emitAndPrint: true, target: window.open("", "_blank") })}
+            >
+              Emitir e imprimir
+            </Button>
+          )}
+          <Button variant={invoice ? undefined : "secondary"} icon={<Save />} busy={save.isPending} disabled={!contactId || !issueDate || invalidLine || invoiceNumberInvalid || (invoice && !invoiceNumber)}>
+            {invoice ? "Revisar factura" : "Guardar borrador"}
           </Button>
         </div>
       </form>

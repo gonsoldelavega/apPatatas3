@@ -10,15 +10,26 @@ import {
   ScrollText,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { accountsApi, contactsApi, deliveryNotesApi, invoicesApi } from "../api/services";
-import type { Invoice } from "../api/types";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  accountsApi,
+  contactsApi,
+  deliveryNotesApi,
+  invoicesApi,
+  salesPreferencesApi,
+} from "../api/services";
+import type { DeliveryNote, Invoice } from "../api/types";
 import { retryAfterSessionRenewal } from "../api/retry-renewed-write";
 import { EmptyState } from "../ui/EmptyState";
 import { Field } from "../ui/Field";
 import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
-import { formatDocumentNumber, formatMoney, todayLocal } from "../utils/format";
+import {
+  annualInvoiceSeries,
+  formatDocumentNumber,
+  formatMoney,
+  todayLocal,
+} from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
 import { useToast } from "../ui/ToastProvider";
 
@@ -75,6 +86,35 @@ async function runInvoiceQuickAction(
   }, 60_000);
 }
 
+async function runNoteQuickAction(
+  note: DeliveryNote,
+  action: InvoiceQuickAction,
+  printTarget?: Window | null,
+): Promise<void> {
+  const blob = await deliveryNotesApi.downloadPdf(note.id, { prices: true, copies: 1 });
+  const title = `Albarán ${formatDocumentNumber(note.series, note.number)}`;
+  const filename = `${title.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+  if (action === "whatsapp") {
+    const file = new File([blob], filename, { type: "application/pdf" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title, text: title, files: [file] });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const download = document.createElement("a");
+    download.href = url;
+    download.download = filename;
+    download.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    window.location.href = `https://wa.me/?text=${encodeURIComponent(`${title}. He descargado el PDF para adjuntarlo.`)}`;
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  if (printTarget) printTarget.location.href = url;
+  else window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export function SalesPage() {
   const [tab, setTab] = useState<SalesTab>("invoice");
   const [period, setPeriod] = useState(currentPeriod("all"));
@@ -83,7 +123,25 @@ export function SalesPage() {
   const [paymentStatus, setPaymentStatus] = useState("");
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const toast = useToast();
+  const [selected, setSelected] = useState<string[]>([]);
+  const noteQuickAction = useMutation({
+    mutationFn: ({
+      note,
+      action,
+      printTarget,
+    }: {
+      note: DeliveryNote;
+      action: InvoiceQuickAction;
+      printTarget?: Window | null;
+    }) => runNoteQuickAction(note, action, printTarget),
+    onError: (_error, variables) => variables.printTarget?.close(),
+  });
+  const preferences = useQuery({
+    queryKey: ["sales-preferences"],
+    queryFn: salesPreferencesApi.get,
+  });
   const quickAction = useMutation({
     mutationFn: ({
       invoice,
@@ -146,6 +204,45 @@ export function SalesPage() {
     queryFn: () => invoicesApi.list(filters),
   });
 
+  const contactName = (contactId: string) => {
+    const contact = contacts.data?.items.find((candidate) => candidate.id === contactId);
+    return contact ? contact.tradeName || contact.legalName : "";
+  };
+  const monthOf = (note: DeliveryNote) => note.issueDate.slice(0, 7);
+  const selectedNotes = (notes.data?.items ?? []).filter((note) =>
+    selected.includes(note.id),
+  );
+  const selectionClient = selectedNotes[0]?.contactId;
+  const selectionMonth = selectedNotes[0] ? monthOf(selectedNotes[0]) : undefined;
+  const selectionTotal = selectedNotes.reduce((sum, note) => sum + Number(note.total), 0);
+  const toggleNote = (note: DeliveryNote) =>
+    setSelected((current) =>
+      current.includes(note.id)
+        ? current.filter((value) => value !== note.id)
+        : [...current, note.id],
+    );
+  const invoiceSelected = useMutation({
+    mutationFn: () =>
+      invoicesApi.fromDeliveryNotes({
+        deliveryNoteIds: selected,
+        series: annualInvoiceSeries(
+          preferences.data?.numberingMode === "live"
+            ? preferences.data.invoicePrefix
+            : "TEST",
+        ),
+        issueDate: todayLocal(),
+      }),
+    onSuccess: async (created) => {
+      setSelected([]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["delivery-notes"] }),
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+      ]);
+      navigate(`/ventas/facturas/${created.id}`);
+    },
+    onError: () => toast.show("No se pudo crear la factura. Revisa que sean del mismo cliente."),
+  });
+
   const activeQuery = tab === "delivery" ? notes : invoices;
   const items = activeQuery.data?.items;
   const visibleTotal = (items ?? []).reduce(
@@ -171,7 +268,7 @@ export function SalesPage() {
           role="tab"
           aria-selected={tab === "invoice"}
           className={tab === "invoice" ? "active" : ""}
-          onClick={() => setTab("invoice")}
+          onClick={() => { setTab("invoice"); setSelected([]); }}
         >
           Facturas
         </button>
@@ -182,13 +279,13 @@ export function SalesPage() {
           className={tab === "delivery" ? "active" : ""}
           onClick={() => setTab("delivery")}
         >
-          Albaranes pendientes
+          Albaranes
         </button>
       </div>
 
       <section className="sales-summary-card sales-summary-card--compact" aria-label="Resumen visible">
         <div className="sales-summary-card__amount">
-          <span>{tab === "invoice" ? "Importe visible" : "Total pendiente"}</span>
+          <span>Importe visible</span>
           <strong>{formatMoney(String(visibleTotal))}</strong>
           <small>
             {items?.length ?? 0} {tab === "invoice" ? "facturas" : "albaranes"} visibles
@@ -217,6 +314,26 @@ export function SalesPage() {
         </div>
       )}
 
+      {tab === "delivery" && (
+        <div className="sales-quick-filters" aria-label="Filtros rápidos de albaranes">
+          {[
+            ["", "Todos"],
+            ["issued", "Pendientes de facturar"],
+            ["invoiced", "Facturados"],
+          ].map(([value, label]) => (
+            <button
+              type="button"
+              key={value || "all"}
+              className={status === value ? "active" : ""}
+              aria-pressed={status === value}
+              onClick={() => setStatus(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <section className="sales-filter-shell" aria-label="Filtros de facturas">
         <Field
           label="Buscar"
@@ -236,6 +353,7 @@ export function SalesPage() {
               <option value="">Todos</option>
               <option value="draft">Borrador</option>
               <option value="issued">Emitido</option>
+              <option value="invoiced">Facturado</option>
               <option value="cancelled">Cancelado</option>
             </SelectField>
             {tab === "invoice" && (
@@ -284,10 +402,10 @@ export function SalesPage() {
 
       {!activeQuery.isLoading && !activeQuery.isError && !items?.length && (
         <EmptyState
-          title={tab === "delivery" ? "No hay albaranes pendientes" : "No hay facturas"}
+          title={tab === "delivery" ? "No hay albaranes" : "No hay facturas"}
           description={
             tab === "delivery"
-              ? "Los albaranes pendientes aparecerán aquí solo cuando existan."
+              ? "Crea un albarán para entregar la mercancía; después podrás imprimirlo y facturarlo."
               : "Crea una factura directa para empezar a registrar tus ventas y cobros."
           }
         />
@@ -314,6 +432,11 @@ export function SalesPage() {
                 {invoice && (
                   <small className="entity-card__customer">{invoice.contactLegalName}</small>
                 )}
+                {!invoice && contactName((item as DeliveryNote).contactId) && (
+                  <small className="entity-card__customer">
+                    {contactName((item as DeliveryNote).contactId)}
+                  </small>
+                )}
                 <small className="entity-card__date">{item.issueDate}</small>
                 <span className={`status ${invoice?.status === "issued" ? `payment-status payment-status--${invoice.paymentStatus}` : `status--${item.status}`}`}>
                   {statusLabel ?? item.status}
@@ -323,7 +446,66 @@ export function SalesPage() {
             </Link>
           );
 
-          if (!invoice) return <div key={item.id}>{card}</div>;
+          if (!invoice) {
+            const note = item as DeliveryNote;
+            const printable = note.status === "issued" || note.status === "invoiced";
+            const selectable = note.status === "issued";
+            const blocked =
+              selectable &&
+              !!selectionClient &&
+              !selected.includes(note.id) &&
+              (note.contactId !== selectionClient || monthOf(note) !== selectionMonth);
+            const noteBusy =
+              noteQuickAction.isPending && noteQuickAction.variables?.note.id === note.id;
+            return (
+              <article className="invoice-list-card" key={note.id}>
+                {card}
+                <div className="invoice-card-actions" aria-label={`Acciones de ${formatDocumentNumber(note.series, note.number)}`}>
+                  {selectable && (
+                    <label className="note-select" title={blocked ? "Sólo del mismo cliente y mes" : "Seleccionar para facturar"}>
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(note.id)}
+                        disabled={blocked}
+                        onChange={() => toggleNote(note)}
+                        aria-label={`Seleccionar ${formatDocumentNumber(note.series, note.number)} para facturar`}
+                      />
+                      <span>Facturar</span>
+                    </label>
+                  )}
+                  {printable && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Enviar albarán por WhatsApp"
+                        title="WhatsApp"
+                        disabled={noteBusy}
+                        onClick={() => noteQuickAction.mutate({ note, action: "whatsapp" })}
+                      >
+                        <MessageCircle aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Imprimir albarán"
+                        title="Imprimir"
+                        disabled={noteBusy}
+                        onClick={() => noteQuickAction.mutate({
+                          note,
+                          action: "print",
+                          printTarget: window.open("", "_blank"),
+                        })}
+                      >
+                        <Printer aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                  <Link to={detailUrl} aria-label="Ver todas las opciones del albarán" title="Más opciones">
+                    <Ellipsis aria-hidden="true" />
+                  </Link>
+                </div>
+              </article>
+            );
+          }
 
           const actionBusy =
             quickAction.isPending && quickAction.variables?.invoice.id === invoice.id;
@@ -391,10 +573,32 @@ export function SalesPage() {
           No se pudo preparar el PDF. Inténtalo de nuevo.
         </p>
       )}
+      {noteQuickAction.isError && (
+        <p className="action-feedback action-feedback--error" role="alert">
+          No se pudo preparar el PDF del albarán. Inténtalo de nuevo.
+        </p>
+      )}
       {quickCollect.isError && (
         <p className="action-feedback action-feedback--error" role="alert">
           No se pudo marcar la factura como pagada. Inténtalo de nuevo.
         </p>
+      )}
+
+      {tab === "delivery" && selectedNotes.length > 0 && (
+        <div className="note-invoice-bar" role="region" aria-label="Facturar albaranes seleccionados">
+          <span>
+            <strong>{selectedNotes.length}</strong> {selectedNotes.length === 1 ? "albarán" : "albaranes"} ·{" "}
+            {contactName(selectionClient ?? "")} · {formatMoney(String(selectionTotal))}
+          </span>
+          <button
+            type="button"
+            className="primary-action"
+            disabled={invoiceSelected.isPending}
+            onClick={() => invoiceSelected.mutate()}
+          >
+            Crear factura
+          </button>
+        </div>
       )}
 
       {tab === "delivery" && (
