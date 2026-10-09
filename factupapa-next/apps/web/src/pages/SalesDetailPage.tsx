@@ -441,7 +441,7 @@ export function SalesDetailPage() {
               )}
             </span>
             <span className="sales-line__amount">
-              <strong>{formatMoney(line.lineTotal)}</strong>
+              <strong>{formatMoney(invoice ? line.lineTotal : line.lineSubtotal)}</strong>
               {editable && (
                 <>
                 <button type="button" aria-label={`Editar ${line.description}`} onClick={() => {
@@ -464,17 +464,21 @@ export function SalesDetailPage() {
           </div>
         ))}
         <div className="sales-totals">
-          <div>
-            <span>Base imponible</span>
-            <strong>{formatMoney(item.subtotal)}</strong>
-          </div>
-          <div>
-            <span>IVA</span>
-            <strong>{formatMoney(item.taxTotal)}</strong>
-          </div>
+          {invoice && (
+            <>
+              <div>
+                <span>Base imponible</span>
+                <strong>{formatMoney(item.subtotal)}</strong>
+              </div>
+              <div>
+                <span>IVA</span>
+                <strong>{formatMoney(item.taxTotal)}</strong>
+              </div>
+            </>
+          )}
           <div className="sales-total">
-            <span>Total</span>
-            <strong>{formatMoney(item.total)}</strong>
+            <span>{invoice ? "Total" : "Total (sin IVA)"}</span>
+            <strong>{formatMoney(invoice ? item.total : item.subtotal)}</strong>
           </div>
         </div>
       </section>

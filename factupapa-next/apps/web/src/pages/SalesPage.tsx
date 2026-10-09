@@ -214,7 +214,7 @@ export function SalesPage() {
   );
   const selectionClient = selectedNotes[0]?.contactId;
   const selectionMonth = selectedNotes[0] ? monthOf(selectedNotes[0]) : undefined;
-  const selectionTotal = selectedNotes.reduce((sum, note) => sum + Number(note.total), 0);
+  const selectionTotal = selectedNotes.reduce((sum, note) => sum + Number(note.subtotal), 0);
   const toggleNote = (note: DeliveryNote) =>
     setSelected((current) =>
       current.includes(note.id)
@@ -246,7 +246,8 @@ export function SalesPage() {
   const activeQuery = tab === "delivery" ? notes : invoices;
   const items = activeQuery.data?.items;
   const visibleTotal = (items ?? []).reduce(
-    (total, item) => total + Number(item.total),
+    (total, item) =>
+      total + Number(tab === "delivery" ? (item as DeliveryNote).subtotal : item.total),
     0,
   );
 
@@ -427,7 +428,9 @@ export function SalesPage() {
               <span className="entity-card__body">
                 <span className="entity-card__headline">
                   <strong>{formatDocumentNumber(item.series, item.number)}</strong>
-                  <strong className="entity-card__amount">{formatMoney(item.total)}</strong>
+                  <strong className="entity-card__amount">
+                    {formatMoney(tab === "delivery" ? (item as DeliveryNote).subtotal : item.total)}
+                  </strong>
                 </span>
                 {invoice && (
                   <small className="entity-card__customer">{invoice.contactLegalName}</small>

@@ -231,7 +231,7 @@ export function DashboardPage() {
         failedImports: imports.items.filter((item) => item.status === "failed").length,
         pendingNotes: notes.total,
         pendingNotesTotal: String(
-          notes.items.reduce((sum, note) => sum + Number(note.total), 0),
+          notes.items.reduce((sum, note) => sum + Number(note.subtotal), 0),
         ),
         issuedInvoices: invoices.items.filter((invoice) => invoice.status === "issued").length,
         finance,

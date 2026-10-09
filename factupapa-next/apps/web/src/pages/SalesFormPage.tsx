@@ -351,7 +351,8 @@ export function SalesFormPage() {
     const price = Number(line.unitPrice.replace(",", "."));
     const taxRate = Number(product?.taxRate ?? prefs.data?.defaultTaxRate ?? "0");
     if (!Number.isFinite(quantity) || !Number.isFinite(price) || !Number.isFinite(taxRate)) return sum;
-    return sum + quantity * price * (1 + taxRate / 100);
+    // Los albaranes se valoran sin IVA; el IVA solo aparece en la factura.
+    return sum + quantity * price * (invoice ? 1 + taxRate / 100 : 1);
   }, 0);
 
   const saveError = save.error instanceof ApiError && save.error.code === "invoice_number_conflict"
@@ -531,7 +532,7 @@ export function SalesFormPage() {
 
         {save.isError && <div className="form-alert" role="alert">{saveError}</div>}
         <div className="sticky-submit invoice-sticky-submit">
-          <span className="invoice-sticky-total"><small>Total estimado</small><strong>{formatMoney(String(estimatedTotal))}</strong></span>
+          <span className="invoice-sticky-total"><small>{invoice ? "Total estimado" : "Total sin IVA"}</small><strong>{formatMoney(String(estimatedTotal))}</strong></span>
           {!invoice && (
             <Button
               type="button"

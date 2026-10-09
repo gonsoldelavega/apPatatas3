@@ -53,7 +53,7 @@ export async function createDeliveryNotePdf(
 
     // Columnas de la tabla según se impriman precios o no.
     const cols = options.prices
-      ? { qty: 56, qtyW: 66, desc: 126, descW: 214 }
+      ? { qty: 56, qtyW: 66, desc: 126, descW: 270 }
       : { qty: 56, qtyW: 96, desc: 160, descW: 380 };
 
     const header = (label: string) => {
@@ -88,9 +88,8 @@ export async function createDeliveryNotePdf(
       doc.text("CANT.", cols.qty, y + 8).text("DESCRIPCIÓN", cols.desc, y + 8);
       if (options.prices)
         doc
-          .text("PRECIO", 344, y + 8, { width: 67, align: "right" })
-          .text("IVA", 418, y + 8, { width: 34, align: "right" })
-          .text("IMPORTE", 458, y + 8, { width: 89, align: "right" });
+          .text("PRECIO", 410, y + 8, { width: 62, align: "right" })
+          .text("IMPORTE", 478, y + 8, { width: 69, align: "right" });
       return y + 34;
     };
 
@@ -165,13 +164,9 @@ export async function createDeliveryNotePdf(
         if (options.prices)
           doc
             .fontSize(9)
-            .text(money(line.unitPrice), 344, y, { width: 67, align: "right" })
-            .text(`${decimal(line.taxRate, 0, 2)} %`, 418, y, {
-              width: 34,
-              align: "right",
-            })
+            .text(money(line.unitPrice), 410, y, { width: 62, align: "right" })
             .font("Helvetica-Bold")
-            .text(money(line.lineTotal), 458, y, { width: 89, align: "right" })
+            .text(money(line.lineSubtotal), 478, y, { width: 69, align: "right" })
             .font("Helvetica");
         y += Math.max(26, descriptionHeight + 4);
         doc
@@ -183,33 +178,27 @@ export async function createDeliveryNotePdf(
       }
 
       // Totales (solo con precios) y bloque de firma deben caber en la misma página.
-      const totalsHeight = options.prices ? 96 : 0;
+      const totalsHeight = options.prices ? 56 : 0;
       if (y + 20 + totalsHeight + 100 > 740) {
         doc.addPage();
         header(copyLabel(copy));
         y = 122;
       }
       if (options.prices) {
+        // Los albaranes no llevan IVA: el IVA se detalla en la factura.
         y += 14;
         doc
-          .fillColor("#111111")
-          .font("Helvetica")
-          .fontSize(10)
-          .text("Base imponible", 360, y, { width: 100 })
-          .text(money(note.subtotal), 460, y, { width: 87, align: "right" })
-          .text("Impuestos", 360, y + 20, { width: 100 })
-          .text(money(note.taxTotal), 460, y + 20, { width: 87, align: "right" });
-        doc
-          .rect(350, y + 44, 197, 36)
+          .rect(350, y, 197, 36)
           .lineWidth(1.2)
           .strokeColor("#111111")
           .stroke();
         doc
+          .fillColor("#111111")
           .font("Helvetica-Bold")
           .fontSize(13)
-          .text("TOTAL", 362, y + 56)
-          .text(money(note.total), 440, y + 56, { width: 95, align: "right" });
-        y += 96;
+          .text("TOTAL", 362, y + 12)
+          .text(money(note.subtotal), 440, y + 12, { width: 95, align: "right" });
+        y += 56;
       }
 
       // Recibí conforme: nombre, firma y fecha, fijo al pie de la página.
@@ -240,7 +229,7 @@ export async function createDeliveryNotePdf(
           .font("Helvetica")
           .fontSize(8)
           .text(
-            "Albarán de entrega: no es una factura. Se incluirá en la próxima factura del cliente.",
+            "Albarán de entrega: no es una factura. Importes sin IVA; el IVA se detalla en la factura.",
             48,
             770,
             { align: "left", width: 400, lineBreak: false },
