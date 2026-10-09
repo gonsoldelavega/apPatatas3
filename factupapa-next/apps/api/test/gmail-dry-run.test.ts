@@ -162,8 +162,9 @@ test("Gmail dry-run reutiliza el pipeline y no persiste compras, imports ni curs
 });
 
 test("lookback histórico sólo amplía dry-run y nunca la sincronización normal", async () => {
+  // El cursor es relativo a hoy: con una fecha fija el test se rompía al pasar 30 días.
   const sqlLog: string[] = [];
-  const service = new GmailIntegrationService(fakePool(sqlLog, "2026-08-29T00:00:00.000Z"), {
+  const service = new GmailIntegrationService(fakePool(sqlLog, new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()), {
     clientId: "client", clientSecret: "secret", redirectUri: "https://example.test/callback",
     frontendUrl: "https://example.test", encryptionSecret: "a-secret-long-enough-for-tests",
   });
