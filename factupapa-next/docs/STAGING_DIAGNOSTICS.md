@@ -9,3 +9,4 @@ estado del commit (pestaña de checks / `commits/<sha>/statuses`) tres contextos
 
 Los textos se sanean (solo alfanuméricos y signos básicos) y no incluyen secretos.
 - `FactuPapa staging deploy last lines`: últimas líneas del log.
+- Si hay logs de la API, se publican sus 2 últimas líneas de error como `api log N`.
