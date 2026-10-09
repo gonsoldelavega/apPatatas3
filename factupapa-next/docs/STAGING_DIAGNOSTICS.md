@@ -8,3 +8,4 @@ estado del commit (pestaña de checks / `commits/<sha>/statuses`) tres contextos
 - `FactuPapa staging deploy disk`: uso de disco del runner.
 
 Los textos se sanean (solo alfanuméricos y signos básicos) y no incluyen secretos.
+- `FactuPapa staging deploy last lines`: últimas líneas del log.
