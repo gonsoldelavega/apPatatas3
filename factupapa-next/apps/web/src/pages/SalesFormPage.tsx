@@ -531,9 +531,19 @@ export function SalesFormPage() {
         </section>
 
         {save.isError && <div className="form-alert" role="alert">{saveError}</div>}
-        <div className="sticky-submit invoice-sticky-submit">
-          <span className="invoice-sticky-total"><small>{invoice ? "Total estimado" : "Total sin IVA"}</small><strong>{formatMoney(String(estimatedTotal))}</strong></span>
-          {!invoice && (
+        {invoice ? (
+          <div className="sticky-submit invoice-sticky-submit">
+            <span className="invoice-sticky-total"><small>Total estimado</small><strong>{formatMoney(String(estimatedTotal))}</strong></span>
+            <Button type="submit" icon={<Save />} busy={save.isPending} disabled={!contactId || !issueDate || invalidLine || invoiceNumberInvalid || !invoiceNumber}>
+              Revisar factura
+            </Button>
+          </div>
+        ) : (
+          <section className="form-card delivery-submit" aria-label="Guardar albarán">
+            <div className="delivery-submit__total">
+              <span>Total sin IVA</span>
+              <strong>{formatMoney(String(estimatedTotal))}</strong>
+            </div>
             <Button
               type="button"
               icon={<Printer />}
@@ -543,11 +553,11 @@ export function SalesFormPage() {
             >
               Emitir e imprimir
             </Button>
-          )}
-          <Button variant={invoice ? undefined : "secondary"} icon={<Save />} busy={save.isPending} disabled={!contactId || !issueDate || invalidLine || invoiceNumberInvalid || (invoice && !invoiceNumber)}>
-            {invoice ? "Revisar factura" : "Guardar borrador"}
-          </Button>
-        </div>
+            <Button type="submit" variant="secondary" icon={<Save />} busy={save.isPending} disabled={!contactId || !issueDate || invalidLine}>
+              Guardar borrador
+            </Button>
+          </section>
+        )}
       </form>
     </div>
   );

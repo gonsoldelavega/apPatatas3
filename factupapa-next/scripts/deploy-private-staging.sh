@@ -187,6 +187,13 @@ docker compose --profile public config --quiet
 # Only the migration image needs a cache-busting rebuild: its embedded SQL
 # manifest is validated against the live database.  Keep API/web layers
 # cached to avoid exhausting the small staging runner disk.
+# Espacio en disco: cada despliegue deja imágenes sin etiqueta y caché de build.
+# Solo se borran imágenes colgantes (sin etiqueta ni contenedor) y caché de build
+# sin uso. Nunca se tocan contenedores, redes ni volúmenes (datos de staging).
+echo "Liberando espacio: imágenes colgantes y caché de construcción sin uso"
+docker image prune -f >/dev/null || true
+docker builder prune -f >/dev/null || true
+df -h "${HOME}" | tail -n 1
 docker compose build --no-cache migrate
 docker compose build
 cd - >/dev/null

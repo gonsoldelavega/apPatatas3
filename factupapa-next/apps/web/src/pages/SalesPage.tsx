@@ -8,6 +8,7 @@ import {
   Plus,
   Printer,
   ScrollText,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -126,6 +127,7 @@ export function SalesPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [selected, setSelected] = useState<string[]>([]);
+  const [newOpen, setNewOpen] = useState(false);
   const noteQuickAction = useMutation({
     mutationFn: ({
       note,
@@ -257,10 +259,15 @@ export function SalesPage() {
         <div>
           <h1>Facturas</h1>
         </div>
-        <Link className="compact-action" to="/ventas/nuevo/factura">
+        <button
+          type="button"
+          className="compact-action"
+          aria-haspopup="dialog"
+          onClick={() => setNewOpen(true)}
+        >
           <Plus aria-hidden="true" />
-          Nueva factura
-        </Link>
+          Nuevo
+        </button>
       </header>
 
       <div className="segmented" role="tablist" aria-label="Tipo de documento">
@@ -604,11 +611,40 @@ export function SalesPage() {
         </div>
       )}
 
-      {tab === "delivery" && (
-        <div className="sales-toolbar">
-          <Link className="secondary-action" to="/ventas/nuevo/albaran">
-            Crear albarán
-          </Link>
+      {newOpen && (
+        <div
+          className="sheet-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setNewOpen(false);
+          }}
+        >
+          <section className="action-sheet" role="dialog" aria-modal="true" aria-labelledby="sales-new-title">
+            <header>
+              <div>
+                <p className="eyebrow">Ventas</p>
+                <h2 id="sales-new-title">¿Qué quieres crear?</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setNewOpen(false)} aria-label="Cerrar">
+                <X />
+              </button>
+            </header>
+            <button
+              type="button"
+              className="action-sheet__primary"
+              onClick={() => { setNewOpen(false); navigate("/ventas/nuevo/factura"); }}
+            >
+              <FileText />
+              <span><strong>Factura</strong><small>Venta directa con número de factura</small></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setNewOpen(false); navigate("/ventas/nuevo/albaran"); }}
+            >
+              <ScrollText />
+              <span><strong>Albarán</strong><small>Entrega para imprimir y facturar después</small></span>
+            </button>
+          </section>
         </div>
       )}
     </div>
