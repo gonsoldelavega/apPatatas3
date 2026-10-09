@@ -221,14 +221,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           deploy_log="${RUNNER_TEMP}/factupapa-deploy-console.log"
-          reason="$(grep -E 'deploy_failed|^[A-Za-zÁÉÍÓÚáéíóúñ].*(no |No |Falta|Hay |Otro|Error|error)' "${deploy_log}" 2>/dev/null | tail -n 2 | tr '\n' ' ' | sed 's/[^[:alnum:] _.,:=+-]/ /g' | tr -s ' ' | cut -c1-135)"
-          curl --fail --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer ${GH_TOKEN}" \
-            --header 'Accept: application/vnd.github+json' \
-            --header 'X-GitHub-Api-Version: 2022-11-28' \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            --data "$(printf '{"state":"failure","context":"FactuPapa staging deploy","description":"%s"}' "${reason:-sin detalle}")" >/dev/null
+          clean() { tr '\n' ' ' | sed 's/[^[:alnum:] _.,:=+-]/ /g' | tr -s ' '; }
+          detail="$(grep -E '"status":"failed"|Error:|error:|No space|no space|denied|refused|unhealthy' "${deploy_log}" 2>/dev/null | tail -n 3 | clean | cut -c1-135)"
+          where="$(grep -E 'deploy_failed' "${deploy_log}" 2>/dev/null | tail -n 1 | clean | cut -c1-60)"
+          post() {
+            curl --fail --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header 'Accept: application/vnd.github+json' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+              --data "$(printf '{"state":"failure","context":"%s","description":"%s"}' "$1" "$2")" >/dev/null
+          }
+          post "FactuPapa staging deploy where" "${where:-sin detalle}"
+          post "FactuPapa staging deploy error" "${detail:-sin detalle}"
+          df -h "${HOME}" 2>/dev/null | tail -n 1 | clean | cut -c1-135 | { read -r disk || true; post "FactuPapa staging deploy disk" "${disk:-n/d}"; }
 
       - name: Import private legacy backup
         if: >-
