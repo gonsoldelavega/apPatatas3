@@ -236,9 +236,9 @@ jobs:
           }
           post "FactuPapa staging deploy where" "${where:-sin detalle}" || true
           n=0
-          grep 'api_log:' "${deploy_log}" 2>/dev/null | grep -Ei 'error|fatal|fail|migrat|exception|cannot|missing|invalid|refused' | tail -n 6 | while IFS= read -r line; do
+          grep 'api_log:' "${deploy_log}" 2>/dev/null | grep -Ei 'error|fatal|fail|migrat|exception|cannot|missing|invalid|refused' | tail -n 2 | while IFS= read -r line; do
             n=$((n + 1))
-            post "FactuPapa staging deploy api log ${n}" "$(printf '%s' "${line}" | clean | cut -c1-135)" || true
+            post "FactuPapa staging deploy api log ${n}" "$(printf '%s' "${line}" | clean | tail -c 135)" || true
           done || true
           post "FactuPapa staging deploy error" "${detail:-sin detalle}" || true
           post "FactuPapa staging deploy last lines" "${lastlines:-sin detalle}" || true
