@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+# Diagnóstico: deja en el log la línea y el comando (sin expandir variables) que
+# hizo fallar el despliegue, para que el workflow pueda resumirlo en el estado.
+trap 'echo "deploy_failed line=${LINENO} cmd=${BASH_COMMAND}" >&2' ERR
 
 staging_root="${HOME}/staging"
 repository="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"

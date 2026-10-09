@@ -196,6 +196,7 @@ jobs:
             --data "$(printf '{\"state\":\"failure\",\"context\":\"%s\",\"description\":\"La auditoría o el despliegue de staging ha fallado\"}' "${failure_context}")" >/dev/null
 
       - name: Deploy exact audited SHA to private staging
+        id: deploy_staging
         if: >-
           success() &&
           (
@@ -208,7 +209,26 @@ jobs:
           FACTUPAPA_ANTHROPIC_API_KEY: ${{ secrets.FACTUPAPA_ANTHROPIC_API_KEY }}
           FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.FACTUPAPA_GOOGLE_OAUTH_CLIENT_ID }}
           FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.FACTUPAPA_GOOGLE_OAUTH_CLIENT_SECRET }}
-        run: factupapa-next/scripts/deploy-private-staging.sh
+        run: |
+          set -o pipefail
+          deploy_log="${RUNNER_TEMP}/factupapa-deploy-console.log"
+          factupapa-next/scripts/deploy-private-staging.sh 2>&1 | tee "${deploy_log}"
+
+      - name: Report staging deploy failure reason
+        if: failure() && steps.deploy_staging.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deploy_log="${RUNNER_TEMP}/factupapa-deploy-console.log"
+          reason="$(grep -E 'deploy_failed|^[A-Za-zÁÉÍÓÚáéíóúñ].*(no |No |Falta|Hay |Otro|Error|error)' "${deploy_log}" 2>/dev/null | tail -n 2 | tr '\n' ' ' | sed 's/[^[:alnum:] _.,:=+-]/ /g' | tr -s ' ' | cut -c1-135)"
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data "$(printf '{"state":"failure","context":"FactuPapa staging deploy","description":"%s"}' "${reason:-sin detalle}")" >/dev/null
 
       - name: Import private legacy backup
         if: >-
