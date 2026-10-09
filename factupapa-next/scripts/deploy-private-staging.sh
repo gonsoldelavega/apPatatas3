@@ -219,6 +219,9 @@ if ! docker compose --profile public up -d; then
   echo "El despliegue no pudo completar sus servicios; mostrando diagnóstico seguro" >&2
   docker compose --profile public logs --no-color --tail=100 provision-api-role >&2 || true
   docker compose --profile public logs --no-color --tail=80 api migrate 2>&1 | sed 's/^/api_log: /' >&2 || true
+  docker compose --profile public exec -T api node -e "fetch('http://127.0.0.1:4100/ready').then(r=>r.text()).then(t=>console.log('ready_body '+t))" 2>&1 | sed 's/^/ready_diag: /' >&2 || true
+  docker compose --profile public exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql --no-psqlrc -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select count(*)||chr(32)||max(filename) from schema_migrations"' 2>&1 | sed 's/^/ready_diag: migrations /' >&2 || true
+  docker compose --profile public exec -T api sh -c 'ls /app/migrations | tail -n 2' 2>&1 | sed 's/^/ready_diag: image /' >&2 || true
   # Compose ya ha creado las nuevas unidades. Arrancarlas sin volver a evaluar
   # dependencias mantiene disponible el acceso mientras se conserva el fallo.
   for service in api web caddy; do

@@ -240,6 +240,11 @@ jobs:
             n=$((n + 1))
             post "FactuPapa staging deploy api log ${n}" "$(printf '%s' "${line}" | clean | tail -c 135)" || true
           done || true
+          n=0
+          grep 'ready_diag:' "${deploy_log}" 2>/dev/null | tail -n 4 | while IFS= read -r line; do
+            n=$((n + 1))
+            post "FactuPapa staging deploy ready diag ${n}" "$(printf '%s' "${line}" | clean | tail -c 135)" || true
+          done || true
           post "FactuPapa staging deploy error" "${detail:-sin detalle}" || true
           post "FactuPapa staging deploy last lines" "${lastlines:-sin detalle}" || true
           df -h "${HOME}" 2>/dev/null | tail -n 1 | clean | cut -c1-135 | { read -r disk || true; post "FactuPapa staging deploy disk" "${disk:-n/d}" || true; }
