@@ -27,7 +27,8 @@
       const expenses = ctx.state.expenses.filter(x=>(x.date||"").slice(0,7)===month).reduce((s,x)=>s+ctx.expenseTotal(x),0);
       const purchases= ctx.state.purchases.filter(x=>(x.date||"").slice(0,7)===month).reduce((s,x)=>s+ctx.purchaseTotal(x),0);
       const balance  = revenue - expenses - purchases;
-      return { month, revenue, expenses, purchases, balance };
+      const deliveries = (ctx.state.deliveryNotes||[]).filter(x=>(x.date||"").slice(0,7)===month).reduce((s,x)=>s+ctx.invoiceTotals({ lines:x.lines||[], amountPaid:0 }).total,0);
+      return { month, revenue, expenses, purchases, balance, deliveries };
     });
 
     /* ── Estadísticas por cliente ── */
@@ -87,7 +88,7 @@
                 font-weight:700;
                 text-align:right;
                 color:${row.balance>=0?"var(--olive)":"var(--danger)"};
-              ">${ctx.money(row.balance)}</span>
+              ">${ctx.money(row.balance)}${row.deliveries > 0 ? `<small style="display:block;font-weight:600;font-size:.72rem;color:var(--muted);">(albaranes: ${ctx.money(row.deliveries)})</small>` : ""}</span>
             </div>
           `).join("")}
         </div>

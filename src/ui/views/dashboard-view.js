@@ -30,6 +30,13 @@
       .filter(x => ctx.monthKey(x.date) === month)
       .reduce((sum, item) => sum + ctx.purchaseTotal(item), 0);
     const monthBalance = monthRevenue - monthExpenses - monthPurchases;
+    // Informativo: ventas con albaran (sin factura). NO entra en el balance de facturas.
+    const monthDeliveries = (ctx.state.deliveryNotes || [])
+      .filter(x => ctx.monthKey(x.date) === month)
+      .reduce((sum, note) => sum + ctx.invoiceTotals({ lines:note.lines || [], amountPaid:0 }).total, 0);
+    const deliveriesHint = monthDeliveries > 0
+      ? ` <small class="deliveries-hint" style="font-size:.5em;font-weight:600;opacity:.8;white-space:nowrap;">(albaranes: ${ctx.money(monthDeliveries)})</small>`
+      : "";
 
     const alertsHtml = (typeof AppAlertsPanel !== "undefined")
       ? AppAlertsPanel.renderAlertsPanel(ctx.state, {
@@ -67,7 +74,7 @@
               </select>
             </div>
           </div>
-          <h2>${ctx.money(monthBalance)}</h2>
+          <h2>${ctx.money(monthBalance)}${deliveriesHint}</h2>
           <p>BALANCE DE ${ctx.esc(String(ctx.formatMonthLabel(month) || month).toUpperCase())}</p>
           <button class="primary primary-xl" data-action="new-invoice">CREAR FACTURA</button>
           <div class="hero-inline-stats">
@@ -104,7 +111,7 @@
             </div>
             <div class="mini-stat accent-stat">
               <span>BALANCE</span>
-              <strong>${ctx.money(monthBalance)}</strong>
+              <strong>${ctx.money(monthBalance)}${deliveriesHint}</strong>
             </div>
           </div>
         </article>
