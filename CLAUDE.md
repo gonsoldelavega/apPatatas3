@@ -1,5 +1,7 @@
 # CLAUDE.md — Guía para Claude en este proyecto
 
+> **Factupapa Next = esta rama (`codex/factupapa-claude-fixes`), carpeta `factupapa-next/`.** La PWA de la raíz es legacy y está congelada. Lee `factupapa-next/AGENTS.md` ("Where Factupapa Next lives") antes de editar.
+
 ## Autorizaciones permanentes (el dueño las ha concedido)
 
 - Claude **puede fusionar Pull Requests y desplegar a producción sin pedir confirmación** cada vez.

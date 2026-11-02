@@ -2,6 +2,14 @@
 
 This file applies to everything under `factupapa-next/` and supplements the repository root `AGENTS.md`.
 
+## Where Factupapa Next lives (do not get this wrong again)
+
+- Repo `gonsoldelavega/apPatatas3`, branch **`codex/factupapa-claude-fixes`**, folder **`factupapa-next/`**. Nothing else is the source of truth for Next.
+- Staging: `https://factupapa-next.46-62-226-95.sslip.io` (private VPS). Deploy = commit on this branch whose message contains `[deploy-staging]`. Proof of deploy: `GET /api/health` -> `version` equals the pushed SHA. `GET /api/ready` reporting `postgresql: incomplete` was observed on 2026-11-02 and is unexplained.
+- Any request that just says "Factupapa" means Next. The root PWA (`index.html`, `src/`, `sw.js`, Vercel `ap-patatas3`) is legacy and frozen by the owner's order.
+- Before the first edit: `git branch --show-current` must be `codex/factupapa-claude-fixes` and changed files must be under `factupapa-next/`. If a session starts on `main` or `claude/*`, start from `origin/codex/factupapa-claude-fixes` instead.
+- Open divergence: branch `codex/factupapa-next-quality-sweep` (to 2026-09-21) contains Next work missing here (tax forecast/Gestoria page, expense summary, voice assistant, registry sync, multi-product invoice fixes) and its own `0034_tax_forecasts.sql` / `0035_*` migrations, while this branch has `0034_delivery_note_editing_and_deletion.sql`. Do not merge or renumber migrations without the owner's decision.
+
 ## Product identity
 
 `factupapa-next/` is the current React/Vite + API/PostgreSQL rewrite. It is isolated from the legacy/root PWA. Do not modify, deploy, or use the legacy app as evidence for a Factupapa Next task.
