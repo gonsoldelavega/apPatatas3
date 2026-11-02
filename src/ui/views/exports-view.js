@@ -71,7 +71,7 @@
           ${monthlyRows.map(row => `
             <div style="
               display:grid;
-              grid-template-columns:80px 1fr 1fr 1fr 90px;
+              grid-template-columns:80px 1fr 1fr 1fr 120px;
               gap:8px;
               align-items:center;
               padding:12px 14px;
@@ -88,7 +88,7 @@
                 font-weight:700;
                 text-align:right;
                 color:${row.balance>=0?"var(--olive)":"var(--danger)"};
-              ">${ctx.money(row.balance)}${row.deliveries > 0 ? `<small style="display:block;font-weight:600;font-size:.72rem;color:var(--muted);">(albaranes: ${ctx.money(row.deliveries)})</small>` : ""}</span>
+              ">${ctx.money(row.balance)}<small style="display:block;font-weight:600;font-size:.72rem;color:var(--muted);">Con albaranes: ${ctx.money(row.balance + row.deliveries)}</small></span>
             </div>
           `).join("")}
         </div>

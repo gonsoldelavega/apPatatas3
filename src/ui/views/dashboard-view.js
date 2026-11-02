@@ -30,13 +30,11 @@
       .filter(x => ctx.monthKey(x.date) === month)
       .reduce((sum, item) => sum + ctx.purchaseTotal(item), 0);
     const monthBalance = monthRevenue - monthExpenses - monthPurchases;
-    // Informativo: ventas con albaran (sin factura). NO entra en el balance de facturas.
+    // Albaranes: NO entran en el balance oficial (facturas - gastos - compras); se muestra aparte "con albaranes".
     const monthDeliveries = (ctx.state.deliveryNotes || [])
       .filter(x => ctx.monthKey(x.date) === month)
       .reduce((sum, note) => sum + ctx.invoiceTotals({ lines:note.lines || [], amountPaid:0 }).total, 0);
-    const deliveriesHint = monthDeliveries > 0
-      ? ` <small class="deliveries-hint" style="font-size:.5em;font-weight:600;opacity:.8;white-space:nowrap;">(albaranes: ${ctx.money(monthDeliveries)})</small>`
-      : "";
+    const monthBalanceWithDeliveries = monthBalance + monthDeliveries;
 
     const alertsHtml = (typeof AppAlertsPanel !== "undefined")
       ? AppAlertsPanel.renderAlertsPanel(ctx.state, {
@@ -74,8 +72,9 @@
               </select>
             </div>
           </div>
-          <h2>${ctx.money(monthBalance)}${deliveriesHint}</h2>
+          <h2>${ctx.money(monthBalance)}</h2>
           <p>BALANCE DE ${ctx.esc(String(ctx.formatMonthLabel(month) || month).toUpperCase())}</p>
+          <p class="balance-with-deliveries" style="margin-top:-6px;font-weight:700;">CON ALBARANES: ${ctx.money(monthBalanceWithDeliveries)}</p>
           <button class="primary primary-xl" data-action="new-invoice">CREAR FACTURA</button>
           <div class="hero-inline-stats">
             <div class="hero-inline-stat">
@@ -111,7 +110,15 @@
             </div>
             <div class="mini-stat accent-stat">
               <span>BALANCE</span>
-              <strong>${ctx.money(monthBalance)}${deliveriesHint}</strong>
+              <strong>${ctx.money(monthBalance)}</strong>
+            </div>
+            <div class="mini-stat">
+              <span>ALBARANES</span>
+              <strong>${ctx.money(monthDeliveries)}</strong>
+            </div>
+            <div class="mini-stat accent-stat">
+              <span>BALANCE CON ALBARANES</span>
+              <strong>${ctx.money(monthBalanceWithDeliveries)}</strong>
             </div>
           </div>
         </article>
