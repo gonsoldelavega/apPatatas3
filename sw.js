@@ -1,4 +1,4 @@
-const CACHE_VERSION = "2026-11-02-balance-con-albaranes";
+const CACHE_VERSION = "2026-11-02a-balance-con-albaranes";
 const CACHE = `factupapa-${CACHE_VERSION}`;
 const APP_SHELL = [
   "./",
