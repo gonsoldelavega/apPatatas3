@@ -15,6 +15,14 @@ Lee y aplica primero `AGENTS.md`.
 
 Este archivo añade contexto específico de Factupapa y del entorno de Claude. **No crea nuevas puertas de aprobación.** Si una frase de este archivo pudiera interpretarse como una confirmación adicional, prevalece `AGENTS.md`.
 
+## ¿Qué Factupapa es? (leer antes de tocar nada)
+
+La app que el dueño usa es **Factupapa Next**: rama `codex/factupapa-claude-fixes`, carpeta `factupapa-next/`, servida en `https://factupapa-next.46-62-226-95.sslip.io` (VPS). La PWA de la raíz (`index.html`, `src/`, `sw.js`, Vercel `ap-patatas3`) es **legacy y está congelada: no se toca**. Una petición que diga solo "Factupapa" se refiere a Next. Detalle y reglas en la sección "Which Factupapa?" de `AGENTS.md`.
+
+Si esta sesión empieza en `main` o en una rama `claude/*`, no trabajes ahí: parte de `origin/codex/factupapa-claude-fixes`.
+
+Las secciones siguientes describen sobre todo el contexto de datos/compras (Sheets, Apps Script), que es común.
+
 ## Qué es este proyecto
 
 Factupapa es una PWA mobile-first de facturación y gestión para un negocio pequeño de patatas/hortalizas.

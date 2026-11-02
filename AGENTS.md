@@ -9,6 +9,30 @@ This file is the canonical repository policy for coding agents working on Factup
 - `CLAUDE.md`, `.claude/commands/*`, and `.agents/skills/*` may provide environment or workflow detail, but they must not create approval gates that conflict with this file.
 - When instructions appear to conflict, prefer the interpretation that preserves explicit safety requirements while still completing the user's requested outcome end-to-end.
 
+## Which Factupapa? (READ BEFORE EDITING ANYTHING)
+
+This repository holds **two different apps**. Editing the wrong one has already caused wasted work and reverts (Sept 5 and Oct 26 / Nov 2, 2026).
+
+| | **Factupapa Next** (the real, current app) | **Legacy PWA** (frozen) |
+|---|---|---|
+| Repo | `gonsoldelavega/apPatatas3` | same repo |
+| Branch | **`codex/factupapa-claude-fixes`** | `main` |
+| Folder | **`factupapa-next/`** (React/Vite web + API + PostgreSQL) | repo root: `index.html`, `src/`, `sw.js` |
+| Runs on | private VPS: `https://factupapa-next.46-62-226-95.sslip.io` | Vercel project `ap-patatas3` (`ap-patatas3.vercel.app`) |
+| Deploy | commit on that branch with `[deploy-staging]` in the message | push to `main` |
+| Proof of deploy | `GET /api/health` returns `version` = the commit SHA | Vercel deployment `READY` |
+
+Rules:
+
+1. **Any request that just says "Factupapa" (balance, albaranes, facturas, dashboard, compras...) means Factupapa Next**, not the legacy PWA, unless the owner names the legacy app explicitly.
+2. **The legacy PWA is frozen.** The owner said: never modify it again. Do not edit root `index.html`, `src/`, `sw.js` or bump its cache tokens. Docs/agent instructions are the only exception.
+3. Before the first edit of any app task, verify: `git branch --show-current` is `codex/factupapa-claude-fixes` and every file you change is under `factupapa-next/`. If the session starts on `main` or a `claude/*` branch, fetch `origin/codex/factupapa-claude-fixes` and work from it (a separate `git worktree` is fine). Push to that branch; do not leave Next work on `main` or `claude/*`.
+4. Do not use the legacy Vercel deployment as evidence about Next, nor the other way round. Never say "deployed" for Next without `/api/health` showing the new SHA.
+5. Next has its own scoped policy: `factupapa-next/AGENTS.md` (on the Next branch).
+6. VPS working copies (owner's notes, paths truncated): canonical copy under `/home/factupapa/workspace/apPatatas3-c...`, staging copy under `/home/factupapa/staging/repo/factupapa-...`. Agents do not SSH into the VPS; all work goes through the repository.
+
+Known open risk (as of 2026-11-02): the branch `codex/factupapa-next-quality-sweep` (to 2026-09-21) has Next work that is **not** in `codex/factupapa-claude-fixes` (tax forecast/Gestoría page, expense summary, voice assistant, purchase-registry sync, multi-product invoice fixes). Both branches define a different migration `0034_*.sql`. Do not merge them blindly; ask the owner first because migrations touch the database.
+
 ## Autonomy and approvals
 
 ### Requests that authorize changes
