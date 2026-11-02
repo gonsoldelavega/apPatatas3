@@ -1432,6 +1432,7 @@ export class FinanceService {
           await c.query(
             `with period_sales as(select coalesce(sum(total),0)total from invoices where status='issued' and issue_date between $1 and $2),
              period_purchases as(select coalesce(sum(total),0)total from purchase_invoices where status='confirmed' and deleted_at is null and issue_date between $1 and $2),
+             period_notes as(select coalesce(sum(subtotal),0)total from delivery_notes where status='issued' and issue_date between $1 and $2),
              months as(select generate_series(date_trunc('month',$1::date::timestamp),date_trunc('month',$2::date::timestamp),interval'1 month')::date as month_start),
              period_recurring as(select coalesce(sum(r.amount),0)total from recurring_expenses r join months m on r.starts_on<=m.month_start+interval'1 month - 1 day' and(r.ends_on is null or r.ends_on>=m.month_start)),
              receivables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total,
@@ -1445,10 +1446,12 @@ export class FinanceService {
                count(*) filter(where current_quantity<=0)::int critical from stock_rows)
              select period_sales.total::text sales,period_purchases.total::text purchases,period_recurring.total::text recurring,
                (period_sales.total-period_purchases.total-period_recurring.total)::text balance,
+               period_notes.total::text "deliveryNotes",
+               (period_sales.total+period_notes.total-period_purchases.total-period_recurring.total)::text "balanceWithDeliveryNotes",
                stock_totals.kg::text "stockKg",stock_totals.potential::text "potentialRevenue",
                stock_totals.critical "criticalStockProducts",
                receivables.total::text receivables,receivables.overdue::text "overdueReceivables",payables.total::text payables
-             from period_sales,period_purchases,period_recurring,stock_totals,receivables,payables`,
+             from period_sales,period_purchases,period_recurring,period_notes,stock_totals,receivables,payables`,
             [r.from, r.to],
           )
         ).rows[0],

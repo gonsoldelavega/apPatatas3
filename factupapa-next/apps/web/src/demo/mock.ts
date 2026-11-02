@@ -124,7 +124,7 @@ function route(path: string, method: string, params: URLSearchParams, body: stri
   if (invoiceMatch) return json(invoices.find((item) => item.id === invoiceMatch[1]) ?? invoices[0]);
   if (path === "/finance/summary") {
     const last = monthly.at(-1)!;
-    return json({ sales: last.sales, purchases: last.purchases, recurring: last.recurring, balance: last.balance, stockKg: "1260", potentialRevenue: "2016.00", receivables: "545.00", overdueReceivables: "320.00", payables: "425.00" });
+    return json({ sales: last.sales, purchases: last.purchases, recurring: last.recurring, balance: last.balance, deliveryNotes: "215.40", balanceWithDeliveryNotes: String(Number(last.balance) + 215.4), stockKg: "1260", potentialRevenue: "2016.00", receivables: "545.00", overdueReceivables: "320.00", payables: "425.00" });
   }
   if (path === "/finance/monthly") return json(monthly);
   if (path === "/purchases" && method === "GET") return json([...purchases, ...createdPurchases.values()].filter((item) => inRange(item.issueDate, params)));

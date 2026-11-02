@@ -241,6 +241,10 @@ export interface FinanceSummary {
   purchases: string;
   recurring: string;
   balance: string;
+  /** Albaranes emitidos y aún sin facturar del periodo (sin IVA). */
+  deliveryNotes: string;
+  /** Facturas + albaranes sin facturar − compras − gastos recurrentes. */
+  balanceWithDeliveryNotes: string;
   stockKg: string;
   potentialRevenue: string;
   criticalStockProducts: number;

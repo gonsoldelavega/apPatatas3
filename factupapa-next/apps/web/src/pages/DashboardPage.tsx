@@ -104,6 +104,8 @@ const previewSummary: DashboardSummary = {
     purchases: "1540.30",
     recurring: "310.00",
     balance: "1569.70",
+    deliveryNotes: "215.40",
+    balanceWithDeliveryNotes: "1785.10",
     stockKg: "1260",
     potentialRevenue: "2016.00",
     criticalStockProducts: 2,
@@ -269,6 +271,9 @@ export function DashboardPage() {
               <strong className={result >= 0 ? "is-positive" : "is-negative"}>
                 {data ? formatMoney(data.finance.balance) : "—"}
               </strong>
+              <small className="result-card__with-notes">
+                Con albaranes: {data ? formatMoney(data.finance.balanceWithDeliveryNotes) : "—"}
+              </small>
             </div>
             <div className="dashboard-month-nav" aria-label="Cambiar mes del resumen">
               <button
