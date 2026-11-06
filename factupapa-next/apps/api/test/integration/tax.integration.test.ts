@@ -10,6 +10,7 @@ import { AuthService } from "../../src/auth/service.js";
 import { createDocumentLookup } from "../../src/authz/guard.js";
 import { createDatabaseProbe, withTenantTransaction, type Database } from "../../src/database/client.js";
 import { DeliveryNoteService } from "../../src/delivery-notes/service.js";
+import { FinanceService } from "../../src/finance/service.js";
 import { InvoiceService } from "../../src/invoices/service.js";
 import { createTaxRoutes } from "../../src/tax/routes.js";
 import { TaxService } from "../../src/tax/service.js";
@@ -89,6 +90,34 @@ before(async () => {
     await invoices.issue(owner, inv!.id);
   }
 
+  // Compras registradas: una confirmada (IVA 4 %), otra confirmada y luego borrada (no cuenta).
+  const supplierId = await withTenantTransaction(api.pool, owner, async (client) =>
+    (await client.query<{ id: string }>(
+      `insert into contacts(company_id,kind,legal_name,tax_id,address) values($1,'supplier','Proveedor','TEST-TAX-S','{}') returning id`,
+      [owner.companyId],
+    )).rows[0]!.id,
+  );
+  const finance = new FinanceService(api.pool);
+  type PurchaseInput = Parameters<FinanceService["createPurchase"]>[1];
+  const purchase = (issueDate: string, quantity: string, number: string) =>
+    ({
+      supplierId,
+      supplierInvoiceNumber: number,
+      issueDate,
+      category: "mercancia",
+      status: "draft",
+      lines: [{ description: "Patata", quantity, unit: "kg", unitCost: "0.6", taxRate: "4" }],
+    }) as unknown as PurchaseInput;
+  const confirmed = (await finance.createPurchase(owner, purchase("2026-11-05", "100", "COMPRA-1"))) as { id: string };
+  await finance.transitionPurchase(owner, confirmed.id, "confirmed");
+  const removed = (await finance.createPurchase(owner, purchase("2026-11-06", "500", "COMPRA-BORRADA"))) as { id: string };
+  await finance.transitionPurchase(owner, removed.id, "confirmed");
+  await finance.deletePurchase(owner, removed.id);
+  // Albarán emitido y SIN facturar (venta sin factura): no debe entrar en la previsión.
+  const looseNote = await delivery.create(owner, { contactId: customerId, series: "A", issueDate: "2026-11-25" });
+  await delivery.addLine(owner, looseNote!.id, { productId, quantity: "1000" });
+  await delivery.issue(owner, looseNote!.id);
+
   server = createApp({
     database: api,
     auth,
@@ -111,25 +140,36 @@ after(async () => {
   await admin.pool.end();
 });
 
-test("la previsión del 4T suma IVA repercutido de las facturas emitidas del trimestre y avisa de lo que falta", async () => {
+test("la previsión del 4T incluye cada factura registrada (ventas y compras) y deja fuera los albaranes", async () => {
   const response = await call("GET", "/tax/forecast?year=2026&quarter=4", ownerToken);
   assert.equal(response.status, 200);
   const forecast = (await response.json()) as {
     label: string;
     incomplete: boolean;
-    vat: { salesBase: number; salesTax: number; deductibleTax: number; balance: number };
+    vat: { salesBase: number; salesTax: number; purchaseBase: number; deductibleTax: number; balance: number };
+    irpf: { accumulatedIncome: number; accumulatedExpenses: number; net: number; result: number };
     quality: { salesCount: number; purchaseCount: number; warnings: string[] };
     reserve: number;
   };
+  const round = (value: number) => Math.round(value * 100) / 100;
   assert.equal(forecast.label, "4T 2026");
+  // Ventas: 2 facturas emitidas (100 kg y 50 kg a 1 €). El albarán suelto de 1000 kg NO cuenta.
   assert.equal(forecast.quality.salesCount, 2);
   assert.equal(forecast.vat.salesBase, 150);
-  assert.equal(Math.round(forecast.vat.salesTax * 100) / 100, 6);
-  assert.equal(forecast.vat.deductibleTax, 0);
-  assert.equal(forecast.vat.balance, forecast.vat.salesTax - forecast.vat.deductibleTax);
-  assert.equal(forecast.incomplete, true, "sin compras confirmadas la estimación es incompleta");
-  assert.ok(forecast.quality.warnings.some((warning) => /compras/i.test(warning)));
-  assert.ok(forecast.reserve > 0);
+  assert.equal(round(forecast.vat.salesTax), 6);
+  // Compras: 1 confirmada (100 kg x 0,60 = 60 € con IVA 4 % = 2,40 €). La borrada NO cuenta.
+  assert.equal(forecast.quality.purchaseCount, 1);
+  assert.equal(round(forecast.vat.purchaseBase), 60);
+  assert.equal(round(forecast.vat.deductibleTax), 2.4, "el IVA de cada compra registrada se deduce");
+  assert.equal(round(forecast.vat.balance), 3.6);
+  // 130: ingresos y gastos de las facturas registradas del año
+  assert.equal(forecast.irpf.accumulatedIncome, 150);
+  assert.equal(round(forecast.irpf.accumulatedExpenses), 60);
+  assert.equal(round(forecast.irpf.net), 90);
+  assert.equal(round(forecast.irpf.result), 18);
+  assert.deepEqual(forecast.quality.warnings, []);
+  assert.equal(forecast.incomplete, false);
+  assert.equal(round(forecast.reserve), 21.6);
 });
 
 test("otro trimestre sin ventas no mezcla datos", async () => {
