@@ -1,3 +1,4 @@
+import { PARTNER_HISTORY_FROM, useIsPartner } from "../auth/roles";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Printer, Repeat, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -54,6 +55,7 @@ function createDraftLine(): DraftSalesLine {
 }
 
 export function SalesFormPage() {
+  const partner = useIsPartner();
   const { user } = useAuth(),
     { kind } = useParams(),
     invoice = kind === "factura",
@@ -405,7 +407,7 @@ export function SalesFormPage() {
               <small>Numeración correlativa automática; se asigna al emitir.</small>
             </div>
           )}
-          <Field label="Fecha de emisión" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
+          <Field label="Fecha de emisión" type="date" value={issueDate} min={partner ? PARTNER_HISTORY_FROM : undefined} onChange={(e) => setIssueDate(e.target.value)} required />
         </section>
 
         {invoice && (

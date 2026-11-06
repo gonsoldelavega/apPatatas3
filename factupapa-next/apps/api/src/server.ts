@@ -1,5 +1,7 @@
 import { createDocumentLookup } from "./authz/guard.js";
 import { TeamService } from "./team/service.js";
+import { TaxService } from "./tax/service.js";
+import { createTaxRoutes } from "./tax/routes.js";
 import { createTeamRoutes } from "./team/routes.js";
 import { createApp } from "./app.js";
 import { AuthRepository } from "./auth/repository.js";
@@ -161,6 +163,8 @@ const server = createApp({
     createPricingRoutes(auth, pricing),
     createContactRoutes(auth, contacts),
     createProductRoutes(auth, products),
+    // Gestoría (solo maestro). Va al final: solo atiende /tax/*.
+    createTaxRoutes(auth, new TaxService(database.pool)),
   ],
 });
 

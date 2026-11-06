@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
+import { OwnerOnly } from "./auth/OwnerOnly";
 import { AppShell } from "./layout/AppShell";
 import { LoadingScreen } from "./ui/LoadingScreen";
 
@@ -98,6 +99,14 @@ const StockPage = lazy(() =>
     default: module.StockPage,
   })),
 );
+const GestoriaPage = lazy(() =>
+  import("./pages/GestoriaPage").then((module) => ({
+    default: module.GestoriaPage,
+  })),
+);
+const TeamPage = lazy(() =>
+  import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })),
+);
 const AccountSecurityPage = lazy(() =>
   import("./pages/AccountSecurityPage").then((module) => ({
     default: module.AccountSecurityPage,
@@ -115,25 +124,30 @@ export function App() {
             <Route path="ventas" element={<SalesPage />} />
             <Route path="ventas/nuevo/:kind" element={<SalesFormRoute />} />
             <Route path="ventas/:type/:id" element={<SalesDetailPage />} />
-            <Route path="gastos" element={<ExpensesPage />} />
-            <Route path="gastos/nuevo" element={<PurchaseFormPage />} />
-            <Route path="gastos/:id" element={<PurchaseDetailPage />} />
-            <Route path="stock" element={<StockPage />} />
-            <Route path="catalogo" element={<CatalogPage />}>
-              <Route index element={<Navigate to="contactos" replace />} />
-              <Route path="contactos" element={<ContactsListPage />} />
-              <Route path="productos" element={<ProductsListPage />} />
+            {/* Todo lo que sigue es solo del usuario maestro: un socio vuelve al inicio. */}
+            <Route element={<OwnerOnly />}>
+              <Route path="gastos" element={<ExpensesPage />} />
+              <Route path="gastos/nuevo" element={<PurchaseFormPage />} />
+              <Route path="gastos/:id" element={<PurchaseDetailPage />} />
+              <Route path="stock" element={<StockPage />} />
+              <Route path="catalogo" element={<CatalogPage />}>
+                <Route index element={<Navigate to="contactos" replace />} />
+                <Route path="contactos" element={<ContactsListPage />} />
+                <Route path="productos" element={<ProductsListPage />} />
+              </Route>
+              <Route path="contactos/nuevo" element={<ContactFormPage />} />
+              <Route path="contactos/:id" element={<ContactDetailPage />} />
+              <Route path="contactos/:id/editar" element={<ContactFormPage />} />
+              <Route path="productos/nuevo" element={<ProductFormPage />} />
+              <Route path="productos/:id/editar" element={<ProductFormPage />} />
+              <Route path="importar" element={<ImportsPage />} />
+              <Route path="mas" element={<MorePage />} />
+              <Route path="exportar" element={<ExportPage />} />
+              <Route path="socios" element={<TeamPage />} />
+              <Route path="gestoria" element={<GestoriaPage />} />
+              <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
+              <Route path="ajustes/seguridad" element={<AccountSecurityPage />} />
             </Route>
-            <Route path="contactos/nuevo" element={<ContactFormPage />} />
-            <Route path="contactos/:id" element={<ContactDetailPage />} />
-            <Route path="contactos/:id/editar" element={<ContactFormPage />} />
-            <Route path="productos/nuevo" element={<ProductFormPage />} />
-            <Route path="productos/:id/editar" element={<ProductFormPage />} />
-            <Route path="importar" element={<ImportsPage />} />
-            <Route path="mas" element={<MorePage />} />
-            <Route path="exportar" element={<ExportPage />} />
-            <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
-            <Route path="ajustes/seguridad" element={<AccountSecurityPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

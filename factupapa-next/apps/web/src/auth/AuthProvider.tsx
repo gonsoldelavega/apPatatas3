@@ -22,7 +22,7 @@ interface AuthContextValue {
   logout(): Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 const isExplicitDemo = import.meta.env.VITE_DEMO === "1";
 
@@ -31,6 +31,7 @@ const demoUser = {
   email: "demo@factupapa.test",
   displayName: "Usuario Demo",
   role: "owner",
+  membership: { role: import.meta.env.VITE_DEMO_ROLE === "partner" ? "partner" : "owner" },
   company: {
     id: "demo-company",
     name: "Empresa Demo Ficticia",
@@ -142,6 +143,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [status, user, restore, login, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/** Como useAuth, pero devuelve null si no hay proveedor (p. ej. en pruebas de componentes). */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
 }
 
 export function useAuth(): AuthContextValue {

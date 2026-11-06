@@ -1,3 +1,4 @@
+import { useIsPartner } from "../auth/roles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -56,6 +57,7 @@ export function SalesDetailPage() {
   const navigate = useNavigate();
   const api = invoice ? invoicesApi : deliveryNotesApi;
   const queryClient = useQueryClient();
+  const partner = useIsPartner();
   const [newProductId, setNewProductId] = useState(""),
     [newQuantity, setNewQuantity] = useState("1"),
     [newDeliveryDate, setNewDeliveryDate] = useState(todayLocal()),
@@ -98,7 +100,7 @@ export function SalesDetailPage() {
   const payments = useQuery({
     queryKey: ["invoice-payments", id],
     queryFn: () => accountsApi.invoicePayments(id),
-    enabled: invoice && documentQuery.data?.status === "issued",
+    enabled: !partner && Boolean(invoice) && documentQuery.data?.status === "issued",
   });
   const addPayment = useMutation({
     mutationFn: () => accountsApi.addInvoicePayment(id, {
@@ -338,7 +340,8 @@ export function SalesDetailPage() {
     );
   const item = documentQuery.data;
   const invoiceItem = invoice ? (item as Invoice) : null;
-  const editable = item.status === "draft" || item.status === "issued";
+  // Un socio solo puede editar borradores (la API también lo exige).
+  const editable = item.status === "draft" || (item.status === "issued" && !partner);
   const canPrintNote = !invoice && (item.status === "issued" || item.status === "invoiced");
   return (
     <div className="page detail-page sales-detail">
@@ -482,7 +485,7 @@ export function SalesDetailPage() {
           </div>
         </div>
       </section>
-      {invoiceItem?.status === "issued" && (
+      {invoiceItem?.status === "issued" && !partner && (
         <section className="detail-card payment-card">
           <div className="section-heading">
             <div>
@@ -837,6 +840,7 @@ export function SalesDetailPage() {
             >
               WhatsApp
             </Button>
+            {!partner && (
             <Button
               variant="secondary"
               icon={<Mail />}
@@ -852,6 +856,7 @@ export function SalesDetailPage() {
             >
               Correo
             </Button>
+            )}
             <Button
               variant="secondary"
               icon={<Printer />}
@@ -870,6 +875,7 @@ export function SalesDetailPage() {
             >
               Ver PDF
             </Button>
+            {(!partner || item.status === "draft") && (
             <Button
               variant="secondary"
               icon={<Pencil />}
@@ -886,6 +892,7 @@ export function SalesDetailPage() {
             >
               Editar
             </Button>
+            )}
           </div>
           {item.status === "draft" && (
             <p className="form-hint">Termina de editar y emite la factura para enviarla, imprimirla o ver su PDF.</p>
@@ -899,7 +906,7 @@ export function SalesDetailPage() {
           )}
         </section>
       )}
-      {!invoice && item.status !== "invoiced" && (
+      {!partner && !invoice && item.status !== "invoiced" && (
         <>
           <Button
             variant="danger"
@@ -927,6 +934,7 @@ export function SalesDetailPage() {
       )}
       {item.status === "issued" && (
         <>
+          {!partner && (
           <Button
             variant="danger"
             icon={<XCircle />}
@@ -938,6 +946,7 @@ export function SalesDetailPage() {
           >
             Cancelar
           </Button>
+          )}
           {!invoice && (
             <Button
               variant="secondary"

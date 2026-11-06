@@ -14,6 +14,8 @@ import type {
   ImportColumnDetection,
   ImportMapping,
   Invoice,
+  TaxProfile,
+  TaxForecast,
   Page,
   Product,
   ProductInput,
@@ -586,4 +588,34 @@ export const accountsApi = {
   }),
   deletePayment: (id: string) =>
     apiClient.request<void>(`/payments/${id}`, { method: "DELETE" }),
+};
+
+export interface TeamMember {
+  id: string;
+  email: string;
+  role: "partner";
+  createdAt: string;
+  lastLoginAt: string | null;
+  /** true cuando el socio ya ha entrado alguna vez con su cuenta de Google. */
+  registered: boolean;
+}
+
+export const teamApi = {
+  list: () =>
+    apiClient.request<{ items: TeamMember[]; limit: number }>("/team/members"),
+  add: (email: string) =>
+    apiClient.request<TeamMember>("/team/members", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  remove: (id: string) =>
+    apiClient.request<void>(`/team/members/${id}`, { method: "DELETE" }),
+};
+
+export const taxApi = {
+  profile: () => apiClient.request<TaxProfile>("/tax/profile"),
+  updateProfile: (input: TaxProfile) =>
+    apiClient.request<TaxProfile>("/tax/profile", { method: "PUT", body: JSON.stringify(input) }),
+  forecast: (year: number, quarter: number) =>
+    apiClient.request<TaxForecast>(`/tax/forecast?year=${year}&quarter=${quarter}`),
 };

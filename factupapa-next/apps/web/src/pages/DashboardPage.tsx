@@ -1,3 +1,4 @@
+import { PARTNER_HISTORY_FROM, useIsPartner } from "../auth/roles";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -201,20 +202,27 @@ const previewSummary: DashboardSummary = {
 };
 
 export function DashboardPage() {
+  const partner = useIsPartner();
+  const minMonth = partner ? PARTNER_HISTORY_FROM.slice(0, 7) : "";
   const [selectedMonth, setSelectedMonth] = useState(
     () => currentPeriod("month").month,
   );
+  // Un socio no puede ir a meses anteriores al corte (la API también lo impide).
+  const goToMonth = (month: string) =>
+    setSelectedMonth(minMonth && month < minMonth ? minMonth : month);
   const selectedRange = periodRange({
     ...currentPeriod("month"),
     month: selectedMonth,
   });
   const summary = useQuery({
-    queryKey: ["dashboard-summary", selectedMonth],
+    queryKey: ["dashboard-summary", selectedMonth, partner],
     enabled: !isPreview,
     queryFn: async (): Promise<DashboardSummary> => {
       const [customers, imports, notes, invoices, finance, monthly] = await Promise.all([
         contactsApi.list({ isActive: true, pageSize: 1 }),
-        importsApi.list(1, 100),
+        partner
+          ? Promise.resolve({ items: [] } as unknown as Awaited<ReturnType<typeof importsApi.list>>)
+          : importsApi.list(1, 100),
         deliveryNotesApi.list({ pendingInvoice: true, pageSize: 100 }),
         invoicesApi.list({
           pageSize: 100,
@@ -278,7 +286,8 @@ export function DashboardPage() {
             <div className="dashboard-month-nav" aria-label="Cambiar mes del resumen">
               <button
                 type="button"
-                onClick={() => setSelectedMonth((month) => adjacentMonth(month, -1))}
+                onClick={() => goToMonth(adjacentMonth(selectedMonth, -1))}
+                disabled={Boolean(minMonth) && selectedMonth <= minMonth}
                 aria-label="Mes anterior"
               >
                 <ChevronLeft aria-hidden="true" />
@@ -289,15 +298,16 @@ export function DashboardPage() {
                 <input
                   type="month"
                   value={selectedMonth}
+                  min={minMonth || undefined}
                   onChange={(event) => {
-                    if (event.target.value) setSelectedMonth(event.target.value);
+                    if (event.target.value) goToMonth(event.target.value);
                   }}
                   aria-label="Mes del resumen"
                 />
               </label>
               <button
                 type="button"
-                onClick={() => setSelectedMonth((month) => adjacentMonth(month, 1))}
+                onClick={() => goToMonth(adjacentMonth(selectedMonth, 1))}
                 aria-label="Mes siguiente"
               >
                 <ChevronRight aria-hidden="true" />
@@ -324,11 +334,13 @@ export function DashboardPage() {
             <span><strong>Nuevo albarán</strong></span>
             <ArrowRight aria-hidden="true" />
           </Link>
-          <Link className="dashboard-action dashboard-action--purchase" to="/gastos/nuevo">
-            <ReceiptText aria-hidden="true" />
-            <span><strong>Registrar compra</strong></span>
-            <ArrowRight aria-hidden="true" />
-          </Link>
+          {!partner && (
+            <Link className="dashboard-action dashboard-action--purchase" to="/gastos/nuevo">
+              <ReceiptText aria-hidden="true" />
+              <span><strong>Registrar compra</strong></span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
         </div>
       </section>
 
@@ -353,7 +365,7 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {Boolean(data?.pendingImports) && (
+          {!partner && Boolean(data?.pendingImports) && (
             <Link to="/importar" className="attention-row">
               <CircleAlert aria-hidden="true" />
               <span><strong>{data?.pendingImports} importación pendiente</strong></span>
@@ -367,7 +379,7 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
-          {Boolean(data?.finance.criticalStockProducts) && (
+          {!partner && Boolean(data?.finance.criticalStockProducts) && (
             <Link to="/stock" className="attention-row attention-row--danger">
               <Package aria-hidden="true" />
               <span><strong>{data?.finance.criticalStockProducts} producto{data?.finance.criticalStockProducts === 1 ? "" : "s"} sin stock</strong></span>
@@ -457,11 +469,13 @@ export function DashboardPage() {
         ) : null}
       </details>
 
-      <section className="dashboard-tools" aria-label="Herramientas">
-        <Link to="/contactos/nuevo?tipo=customer"><Building2 aria-hidden="true" /><span>Nuevo cliente</span></Link>
-        <Link to="/productos/nuevo"><Package aria-hidden="true" /><span>Nuevo producto</span></Link>
-        <Link to="/stock"><TrendingUp aria-hidden="true" /><span>Stock</span></Link>
-      </section>
+      {!partner && (
+        <section className="dashboard-tools" aria-label="Herramientas">
+          <Link to="/contactos/nuevo?tipo=customer"><Building2 aria-hidden="true" /><span>Nuevo cliente</span></Link>
+          <Link to="/productos/nuevo"><Package aria-hidden="true" /><span>Nuevo producto</span></Link>
+          <Link to="/stock"><TrendingUp aria-hidden="true" /><span>Stock</span></Link>
+        </section>
+      )}
     </div>
   );
 }

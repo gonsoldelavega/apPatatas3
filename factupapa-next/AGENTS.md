@@ -8,7 +8,7 @@ This file applies to everything under `factupapa-next/` and supplements the repo
 - Staging: `https://factupapa-next.46-62-226-95.sslip.io` (private VPS). Deploy = commit on this branch whose message contains `[deploy-staging]`. Proof of deploy: `GET /api/health` -> `version` equals the pushed SHA. `GET /api/ready` reporting `postgresql: incomplete` was observed on 2026-11-02 and is unexplained.
 - Any request that just says "Factupapa" means Next. The root PWA (`index.html`, `src/`, `sw.js`, Vercel `ap-patatas3`) is legacy and frozen by the owner's order.
 - Before the first edit: `git branch --show-current` must be `codex/factupapa-claude-fixes` and changed files must be under `factupapa-next/`. If a session starts on `main` or `claude/*`, start from `origin/codex/factupapa-claude-fixes` instead.
-- Open divergence: branch `codex/factupapa-next-quality-sweep` (to 2026-09-21) contains Next work missing here (tax forecast/Gestoria page, expense summary, voice assistant, registry sync, multi-product invoice fixes) and its own `0034_tax_forecasts.sql` / `0035_*` migrations, while this branch has `0034_delivery_note_editing_and_deletion.sql`. Do not merge or renumber migrations without the owner's decision.
+- Divergence with `codex/factupapa-next-quality-sweep` (to 2026-09-21): **Gestoría (tax forecast) was ported on 2026-11-06** with its two migrations kept byte-identical (`0034_tax_forecasts.sql`, `0035_purchase_tax_deductibility.sql`; this branch's own `0034_delivery_note_editing_and_deletion.sql` coexists because only filenames must be unique). Still NOT ported from that branch: voice assistant, expense-summary helpers, purchase-registry auto-sync on app open + VPS sync timer, multi-product invoice fixes. Never edit an already-applied migration; add a new one.
 
 ## Product identity
 
@@ -78,3 +78,11 @@ Factupapa Next staging is the private VPS/Tailscale environment documented under
 Control-plane branches used only for staging task/progress JSON must not consume unrelated preview builds or be treated as application source branches.
 
 Never claim a Next deployment is live without evidence from the actual Next staging/target environment.
+
+## Access control (roles)
+
+- Roles: `owner` = the single master user (full access, manages partners); `partner` = a partner ("socio") with restricted access. Up to 3 active partners, managed by the master in the app (Otros → Socios, API `/team/members`). Partner e-mails are data in the database, never in the repository.
+- Google sign-in no longer auto-creates a company for any account: only existing accounts or e-mails the master authorised can sign in (`google_account_not_authorized` otherwise). Removing a partner revokes sessions and deactivates the account immediately.
+- A partner can see dashboard/alerts/pending items and create invoices and delivery notes, only with data from `PARTNER_HISTORY_FROM` (default `2026-11-01`) onward. Prices, customers, suppliers, products, purchases, expenses, stock, imports, integrations, settings, Gestoría and team management are master-only.
+- Enforcement is **server-side and deny-by-default**: `apps/api/src/authz/partner-policy.ts` (pure allowlist) + `authz/guard.ts` (runs before every handler). A new endpoint is automatically forbidden to partners; to open one, add it to the allowlist AND a case in `test/partner-policy.test.ts` and `test/integration/team-access.integration.test.ts`. The web hides screens by role (`auth/roles.ts`, `OwnerOnly`) but that is only convenience, not security.
+- Date clamps are validated strictly (ISO `YYYY-MM-DD` only); text comparison of dates must never be trusted for access control.

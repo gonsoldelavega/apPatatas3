@@ -1,3 +1,4 @@
+import { useIsPartner } from "../auth/roles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
@@ -118,6 +119,7 @@ async function runNoteQuickAction(
 }
 
 export function SalesPage() {
+  const partner = useIsPartner();
   const [tab, setTab] = useState<SalesTab>("invoice");
   const [period, setPeriod] = useState(currentPeriod("all"));
   const [contactId, setContactId] = useState("");
@@ -353,7 +355,11 @@ export function SalesPage() {
         <details className="form-options sales-advanced-filters">
           <summary>Más filtros</summary>
           <div className="filter-card">
-            <PeriodPicker value={period} onChange={setPeriod} allowAll />
+            {partner ? (
+              <p className="form-hint">Se muestran los documentos desde el 1 de noviembre de 2026.</p>
+            ) : (
+              <PeriodPicker value={period} onChange={setPeriod} allowAll />
+            )}
             <SelectField
               label="Estado"
               value={status}
@@ -521,7 +527,7 @@ export function SalesPage() {
           const actionBusy =
             quickAction.isPending && quickAction.variables?.invoice.id === invoice.id;
           const collectBusy = quickCollect.isPending && quickCollect.variables?.id === invoice.id;
-          const canCollect = item.status === "issued" && invoice.paymentStatus !== "paid" && Number(invoice.balanceDue ?? invoice.total) > 0;
+          const canCollect = !partner && item.status === "issued" && invoice.paymentStatus !== "paid" && Number(invoice.balanceDue ?? invoice.total) > 0;
           return (
             <article className="invoice-list-card" key={item.id}>
               {card}

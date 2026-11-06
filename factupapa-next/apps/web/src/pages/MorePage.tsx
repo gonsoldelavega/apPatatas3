@@ -1,4 +1,5 @@
 import {
+  BriefcaseBusiness,
   ChevronRight,
   FileDown,
   LogOut,
@@ -95,6 +96,11 @@ export function MorePage() {
             <ChevronRight className="info-card__chevron" aria-hidden="true" />
           </Link>
 
+          <Link className="info-card info-card--action" to="/gestoria">
+            <span className="info-card__icon info-card__icon--billing"><BriefcaseBusiness /></span>
+            <div className="info-card__body"><h2>Gestoría</h2><p>Previsión de impuestos y trimestres.</p></div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
           <Link className="info-card info-card--action" to="/importar">
             <span className="info-card__icon info-card__icon--import">
               <Upload />
@@ -139,6 +145,11 @@ export function MorePage() {
             <ShieldCheck aria-hidden="true" />
             <strong>Seguridad</strong>
             <small>Acceso y sesiones</small>
+          </Link>
+          <Link to="/socios">
+            <UsersRound aria-hidden="true" />
+            <strong>Socios</strong>
+            <small>Quién puede entrar</small>
           </Link>
           <Link to="/exportar">
             <FileDown aria-hidden="true" />

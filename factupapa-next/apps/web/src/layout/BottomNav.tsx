@@ -1,12 +1,15 @@
 import {
   Boxes,
   Home,
+  LogOut,
   MoreHorizontal,
   ReceiptText,
   ShoppingBag,
 } from "lucide-react";
 import type { CSSProperties, MouseEvent } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useOptionalAuth } from "../auth/AuthProvider";
+import { useIsPartner } from "../auth/roles";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home, end: true },
@@ -32,10 +35,16 @@ function activeNavIndex(pathname: string) {
   return 4;
 }
 
+/** Un socio solo ve Inicio y Facturas (más un botón para salir). */
+const partnerItems = items.filter((item) => item.to === "/" || item.to === "/ventas");
+
 export function BottomNav() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const activeIndex = activeNavIndex(pathname);
+  const auth = useOptionalAuth();
+  const partner = useIsPartner();
+  const visibleItems = partner ? partnerItems : items;
+  const activeIndex = partner ? (pathname.startsWith("/ventas") ? 1 : 0) : activeNavIndex(pathname);
 
   const transitionTo = (to: string, event: MouseEvent<HTMLAnchorElement>) => {
     const viewTransitionDocument = document as Document & {
@@ -62,12 +71,12 @@ export function BottomNav() {
 
   return (
     <nav
-      className="bottom-nav"
+      className={partner ? "bottom-nav bottom-nav--partner" : "bottom-nav"}
       aria-label="Navegación principal"
       style={{ "--active-nav-index": activeIndex } as CSSProperties}
     >
       <span className="bottom-nav__indicator" aria-hidden="true" />
-      {items.map(({ to, label, icon: Icon, end }) => (
+      {visibleItems.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -81,6 +90,16 @@ export function BottomNav() {
           <span>{label}</span>
         </NavLink>
       ))}
+      {partner ? (
+        <button
+          type="button"
+          className="nav-item"
+          onClick={() => void auth?.logout()}
+        >
+          <LogOut size={21} aria-hidden="true" />
+          <span>Salir</span>
+        </button>
+      ) : null}
     </nav>
   );
 }
