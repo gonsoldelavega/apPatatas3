@@ -3,6 +3,12 @@ import { AuthError } from "../auth/service.js";
 import { HttpError } from "./errors.js";
 
 export async function readJson(request: IncomingMessage, maximumBytes = 16_384): Promise<Record<string, unknown>> {
+  // El guardia de acceso puede haber leído ya el cuerpo (el stream solo se lee una vez).
+  const cached: unknown = Reflect.get(request, "factupapaParsedBody");
+  if (cached && typeof cached === "object" && !Array.isArray(cached)) {
+    if (Buffer.byteLength(JSON.stringify(cached)) > maximumBytes) throw new HttpError("payload_too_large", 413);
+    return structuredClone(cached) as Record<string, unknown>;
+  }
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {

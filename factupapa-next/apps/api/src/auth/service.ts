@@ -153,11 +153,19 @@ export class AuthService implements AuthApplication {
     const generatedPasswordHash = await hashPassword(
       randomBytes(48).toString("base64url"),
     );
-    const user = await this.repository.findOrRegisterGoogleUser(
-      normalizedEmail,
-      displayName,
-      generatedPasswordHash,
-    );
+    let user: UserContext;
+    try {
+      user = await this.repository.findOrRegisterGoogleUser(
+        normalizedEmail,
+        displayName,
+        generatedPasswordHash,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === "google_account_not_authorized") {
+        throw new AuthError("google_account_not_authorized", 403);
+      }
+      throw error;
+    }
     return this.createSession(user);
   }
 

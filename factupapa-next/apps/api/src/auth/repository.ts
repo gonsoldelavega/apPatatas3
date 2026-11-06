@@ -90,8 +90,10 @@ export class AuthRepository {
     displayName: string,
     generatedPasswordHash: string,
   ): Promise<UserContext> {
-    const result = await this.pool.query<UserContext & QueryResultRow>(
-      `select
+    let result;
+    try {
+      result = await this.pool.query<UserContext & QueryResultRow>(
+        `select
          user_id as "userId",
          company_id as "companyId",
          email,
@@ -100,8 +102,15 @@ export class AuthRepository {
          company_name as "companyName",
          membership_role as role
        from auth_find_or_register_google_user($1, $2, $3)`,
-      [email, displayName, generatedPasswordHash],
-    );
+        [email, displayName, generatedPasswordHash],
+      );
+    } catch (error) {
+      // La base de datos rechaza las cuentas de Google que nadie ha autorizado.
+      if (error instanceof Error && error.message === "google_account_not_authorized") {
+        throw new Error("google_account_not_authorized");
+      }
+      throw error;
+    }
     const user = result.rows[0];
     if (!user) throw new Error("No se pudo crear la cuenta de Google");
     return user;

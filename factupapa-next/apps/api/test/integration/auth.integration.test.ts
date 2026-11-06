@@ -452,17 +452,38 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
   );
 });
 
-test("Google registra una cuenta nueva y reutiliza su empresa de forma idempotente", async () => {
+async function authorizeGooglePartner(email: string): Promise<{ companyId: string }> {
+  const owner = await adminDatabase.pool.query<{ companyId: string; userId: string }>(
+    `select m.company_id "companyId", m.user_id "userId"
+       from memberships m join users u on u.id = m.user_id
+      where u.email = 'owner@example.test' and m.role = 'owner'`,
+  );
+  const { companyId, userId } = owner.rows[0]!;
+  await adminDatabase.pool.query("select * from team_add_partner($1, $2, $3)", [companyId, userId, email]);
+  return { companyId };
+}
+
+test("Google rechaza una cuenta nueva sin autorizar y admite al socio autorizado de forma idempotente", async () => {
   const repository = new AuthRepository(apiDatabase.pool);
   const passwordHash = await hashPassword("google-generated-integration-password");
-  const created = await repository.findOrRegisterGoogleUser(
-    "new-google-owner@example.test",
-    "New Google Owner",
-    passwordHash,
+  const companiesBefore = await adminDatabase.pool.query("select count(*)::int n from companies");
+
+  // Sin autorización previa: se rechaza y no se crea ni usuario ni empresa.
+  await assert.rejects(
+    () => repository.findOrRegisterGoogleUser("new-google-owner@example.test", "New Google Owner", passwordHash),
+    (error: unknown) => error instanceof Error && error.message === "google_account_not_authorized",
   );
+  const companiesAfter = await adminDatabase.pool.query("select count(*)::int n from companies");
+  assert.equal(companiesAfter.rows[0].n, companiesBefore.rows[0].n);
+  const strayUsers = await adminDatabase.pool.query("select count(*)::int n from users where email = 'new-google-owner@example.test'");
+  assert.equal(strayUsers.rows[0].n, 0);
+
+  // Con autorización del maestro: entra como socio en la empresa del maestro (nunca como owner).
+  const { companyId } = await authorizeGooglePartner("new-google-owner@example.test");
+  const created = await repository.findOrRegisterGoogleUser("new-google-owner@example.test", "New Google Owner", passwordHash);
   assert.equal(created.email, "new-google-owner@example.test");
-  assert.equal(created.role, "owner");
-  assert.equal(created.companyName, "New Google Owner · FactuPapa");
+  assert.equal(created.role, "partner");
+  assert.equal(created.companyId, companyId);
 
   const repeated = await repository.findOrRegisterGoogleUser(
     "new-google-owner@example.test",
@@ -471,7 +492,6 @@ test("Google registra una cuenta nueva y reutiliza su empresa de forma idempoten
   );
   assert.equal(repeated.userId, created.userId);
   assert.equal(repeated.companyId, created.companyId);
-  assert.equal(repeated.companyName, created.companyName);
 });
 
 test("callback Google emite cookie, redirige, refresca y autentica /me", async () => {
@@ -488,6 +508,22 @@ test("callback Google emite cookie, redirige, refresca y autentica /me", async (
     ?.match(/factupapa_google_state=([^;]+)/)?.[1];
   assert.equal(stateCookie, "signed-state");
 
+  // Primero sin autorización: la web recibe el motivo "not_authorized" y no se emite sesión.
+  const rejected = await fetch(
+    `${baseUrl}/api/auth/google/callback?code=valid-code&state=valid-state`,
+    {
+      redirect: "manual",
+      headers: { cookie: `factupapa_google_state=${stateCookie}` },
+    },
+  );
+  assert.equal(rejected.status, 302);
+  assert.equal(
+    rejected.headers.get("location"),
+    "https://app.integration.test/login?google=not_authorized",
+  );
+  assert.ok(!rejected.headers.getSetCookie().some((value) => value.startsWith("factupapa_refresh=") && !value.includes("Max-Age=0")));
+
+  await authorizeGooglePartner("new-google-user@example.test");
   const callback = await fetch(
     `${baseUrl}/api/auth/google/callback?code=valid-code&state=valid-state`,
     {
@@ -539,7 +575,7 @@ test("callback Google emite cookie, redirige, refresca y autentica /me", async (
     membership: { role: string };
   };
   assert.equal(current.email, "new-google-user@example.test");
-  assert.equal(current.membership.role, "owner");
+  assert.equal(current.membership.role, "partner");
   assert.ok(current.company.id);
 });
 

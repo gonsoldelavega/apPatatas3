@@ -41,6 +41,8 @@ export function LoginPage() {
         "Google aceptó el permiso, pero la credencial privada no coincide con este cliente.",
       identity:
         "Google no ha devuelto un correo verificado para esta cuenta.",
+      not_authorized:
+        "Este correo de Google no tiene acceso a FactuPapa. Pide al administrador que te dé de alta.",
       registration:
         "Google ha validado la cuenta, pero no se ha podido crear tu espacio privado.",
       failed:
@@ -158,7 +160,7 @@ export function LoginPage() {
         </form>
 
         <p className="security-note">
-          Al continuar con Google se crea tu espacio privado si aún no existe.
+          Solo pueden entrar las cuentas de Google autorizadas por el administrador.
           Tu sesión permanece protegida en este dispositivo.
         </p>
       </section>

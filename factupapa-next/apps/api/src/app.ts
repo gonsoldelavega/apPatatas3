@@ -13,6 +13,7 @@ import { log, normalizePath } from "./observability/logger.js";
 import { metrics } from "./observability/metrics.js";
 import type { Pool } from "pg";
 import { readJson } from "./http/request.js";
+import { enforceRoleAccess, resolveGuardHistoryFrom, type DocumentLookup } from "./authz/guard.js";
 
 interface AppDependencies {
   database: DatabaseProbe;
@@ -25,6 +26,10 @@ interface AppDependencies {
   googleOAuth?: GoogleOAuthApplication;
   readiness?: Readiness;
   metrics?: { token?: string; allowRemote: boolean; pool?: Pool };
+  /** Consulta de documentos para las comprobaciones del rol socio (fail-closed si falta). */
+  documents?: DocumentLookup;
+  /** Primer día visible para los socios (YYYY-MM-DD). Por defecto 2026-11-01. */
+  partnerHistoryFrom?: string;
 }
 
 function requestId(value: string | string[] | undefined): string {
@@ -58,9 +63,14 @@ export function createApp(dependencies: AppDependencies): Server {
     revokeOtherSessions: (...args) =>
       dependencies.auth.revokeOtherSessions(...args),
     authenticate: async (...args) => {
-      const identity = await dependencies.auth.authenticate(...args);
       const context = requestContext.getStore();
-      if (context) context.identity = identity;
+      const cached = context?.authCache?.get(args[0]);
+      if (cached) return cached;
+      const identity = await dependencies.auth.authenticate(...args);
+      if (context) {
+        context.identity = identity;
+        (context.authCache ??= new Map()).set(args[0], identity);
+      }
       return identity;
     },
   };
@@ -187,6 +197,21 @@ export function createApp(dependencies: AppDependencies): Server {
         else if (body.operation === "cleanup" && body.status === "completed") metrics.increment("cleanupRows", amount);
         else throw new HttpError("invalid_request", 400);
         response.writeHead(204); response.end(); return;
+      }
+      // Control de acceso por rol (socios): se aplica a TODAS las rutas autenticadas, antes de los handlers.
+      const bearer = request.headers.authorization;
+      if (!url.pathname.startsWith("/auth/") && bearer?.startsWith("Bearer ") && bearer.length > 7) {
+        const identity = await contextualAuth.authenticate(bearer.slice(7)).catch(() => undefined);
+        if (identity) {
+          await enforceRoleAccess({
+            request,
+            url,
+            identity,
+            documents: dependencies.documents,
+            historyFrom: dependencies.partnerHistoryFrom ?? resolveGuardHistoryFrom(),
+            today: (dependencies.now?.() ?? new Date()).toISOString().slice(0, 10),
+          });
+        }
       }
       for (const handler of handlers) {
         if (await handler({ request, response, url })) return;

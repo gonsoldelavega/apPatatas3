@@ -11,6 +11,8 @@ import {
   validateStockLevel,
   validateProductionRun,
 } from "./validation.js";
+import { PARTNER_ROLE } from "../authz/partner-policy.js";
+import { resolveGuardHistoryFrom } from "../authz/guard.js";
 export function createFinanceRoutes(
   auth: AuthApplication,
   finance: FinanceService,
@@ -93,7 +95,16 @@ export function createFinanceRoutes(
     }
     const id = await auth.authenticate(bearerToken(request));
     if (url.pathname === "/finance/summary" && request.method === "GET") {
-      json(response, 200, await finance.summary(id, financeRange(url)));
+      json(
+        response,
+        200,
+        await finance.summary(
+          id,
+          financeRange(url),
+          // Los socios no ven pendientes de cobro/pago anteriores al corte de fechas.
+          id.role === PARTNER_ROLE ? { notBefore: resolveGuardHistoryFrom() } : {},
+        ),
+      );
       return true;
     }
     if (url.pathname === "/finance/monthly" && request.method === "GET") {

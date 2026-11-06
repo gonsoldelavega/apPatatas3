@@ -1,3 +1,6 @@
+import { createDocumentLookup } from "./authz/guard.js";
+import { TeamService } from "./team/service.js";
+import { createTeamRoutes } from "./team/routes.js";
 import { createApp } from "./app.js";
 import { AuthRepository } from "./auth/repository.js";
 import { AuthService } from "./auth/service.js";
@@ -136,6 +139,7 @@ const server = createApp({
         }
       : {}),
   }),
+  documents: createDocumentLookup(database.pool),
   metrics: {
     allowRemote: config.internalMetricsAllowRemote,
     pool: database.pool,
@@ -144,6 +148,7 @@ const server = createApp({
       : {}),
   },
   routes: [
+    createTeamRoutes(auth, new TeamService(database.pool)),
     createGmailRoutes(auth, gmail, finance, config.authCookieSecure),
     ...(googleExporter ? [createGoogleExportRoutes(auth, googleExporter)] : []),
     createAccountsRoutes(auth, accounts),

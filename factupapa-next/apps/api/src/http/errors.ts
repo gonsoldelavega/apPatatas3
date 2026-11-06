@@ -19,7 +19,10 @@ export class HttpError extends Error {
       | "gmail_recipient_missing"
       | "gmail_reauthorization_required"
       | "gmail_send_failed"
-      | "gmail_purchase_sync_external_organizer",
+      | "gmail_purchase_sync_external_organizer"
+      | "team_limit_reached"
+      | "team_member_exists"
+      | "team_owner_protected",
     readonly status: 400 | 403 | 404 | 409 | 413 | 502 | 503,
   ) {
     super(code);

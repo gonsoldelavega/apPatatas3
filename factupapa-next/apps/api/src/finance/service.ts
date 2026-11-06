@@ -1423,7 +1423,11 @@ export class FinanceService {
       return { adjusted: Boolean(adjustment.rowCount), quantity: x.targetQuantity };
     });
   }
-  async summary(i: SessionIdentity, r: { from: string; to: string }) {
+  async summary(
+    i: SessionIdentity,
+    r: { from: string; to: string },
+    options: { notBefore?: string } = {},
+  ) {
     return withTenantTransaction(
       this.pool,
       i,
@@ -1437,9 +1441,9 @@ export class FinanceService {
              period_recurring as(select coalesce(sum(r.amount),0)total from recurring_expenses r join months m on r.starts_on<=m.month_start+interval'1 month - 1 day' and(r.ends_on is null or r.ends_on>=m.month_start)),
              receivables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total,
                coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end) filter(where i.due_date<current_date),0) overdue
-               from invoices i left join(select invoice_id,sum(amount)paid from payments where invoice_id is not null group by invoice_id)p on p.invoice_id=i.id where i.status='issued'),
+               from invoices i left join(select invoice_id,sum(amount)paid from payments where invoice_id is not null group by invoice_id)p on p.invoice_id=i.id where i.status='issued' and ($3::date is null or i.issue_date>=$3::date)),
              payables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total
-               from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed' and i.deleted_at is null),
+               from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed' and i.deleted_at is null and ($3::date is null or i.issue_date>=$3::date)),
              ${stockCtes},
              stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,
                coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential,
@@ -1452,7 +1456,7 @@ export class FinanceService {
                stock_totals.critical "criticalStockProducts",
                receivables.total::text receivables,receivables.overdue::text "overdueReceivables",payables.total::text payables
              from period_sales,period_purchases,period_recurring,period_notes,stock_totals,receivables,payables`,
-            [r.from, r.to],
+            [r.from, r.to, options.notBefore ?? null],
           )
         ).rows[0],
     );

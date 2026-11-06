@@ -144,7 +144,9 @@ export function createAuthRoutes(
               ? "exchange"
               : error instanceof Error && error.message === "oauth_email_not_verified"
                 ? "identity"
-                : "registration";
+                : error instanceof Error && error.message === "google_account_not_authorized"
+                  ? "not_authorized"
+                  : "registration";
         loginUrl.searchParams.set("google", reason);
         redirect(response, loginUrl.toString(), [clearState]);
       }
