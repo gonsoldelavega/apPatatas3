@@ -31,7 +31,7 @@ Rules:
 5. Next has its own scoped policy: `factupapa-next/AGENTS.md` (on the Next branch).
 6. VPS working copies (owner's notes, paths truncated): canonical copy under `/home/factupapa/workspace/apPatatas3-c...`, staging copy under `/home/factupapa/staging/repo/factupapa-...`. Agents do not SSH into the VPS; all work goes through the repository.
 
-Known open risk (as of 2026-11-02): the branch `codex/factupapa-next-quality-sweep` (to 2026-09-21) has Next work that is **not** in `codex/factupapa-claude-fixes` (tax forecast/Gestoría page, expense summary, voice assistant, purchase-registry sync, multi-product invoice fixes). Both branches define a different migration `0034_*.sql`. Do not merge them blindly; ask the owner first because migrations touch the database.
+Status of the two Next lines (as of 2026-11-06): `codex/factupapa-next-quality-sweep` (to 2026-09-21) was NOT merged. Its Gestoría (tax forecast) and its two migrations were ported into `codex/factupapa-claude-fixes` byte-identical. Still only in that old branch: voice assistant, purchase-registry auto-sync on app open + VPS sync timer, multi-product invoice fixes. Do not merge it blindly (migrations touch the database); port pieces one by one.
 
 ## Autonomy and approvals
 
