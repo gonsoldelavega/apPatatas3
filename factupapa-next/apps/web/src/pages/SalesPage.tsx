@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import {
   accountsApi,
@@ -611,7 +612,7 @@ export function SalesPage() {
         </div>
       )}
 
-      {newOpen && (
+      {newOpen && createPortal(
         <div
           className="sheet-backdrop"
           role="presentation"
@@ -645,7 +646,8 @@ export function SalesPage() {
               <span><strong>Albarán</strong><small>Entrega para imprimir y facturar después</small></span>
             </button>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
