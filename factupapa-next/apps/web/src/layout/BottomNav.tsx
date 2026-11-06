@@ -1,14 +1,14 @@
 import {
   Boxes,
+  ClipboardList,
   Home,
-  LogOut,
   MoreHorizontal,
   ReceiptText,
+  Scale,
   ShoppingBag,
 } from "lucide-react";
 import type { CSSProperties, MouseEvent } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useOptionalAuth } from "../auth/AuthProvider";
 import { useIsPartner } from "../auth/roles";
 
 const items = [
@@ -35,16 +35,29 @@ function activeNavIndex(pathname: string) {
   return 4;
 }
 
-/** Un socio solo ve Inicio y Facturas (más un botón para salir). */
-const partnerItems = items.filter((item) => item.to === "/" || item.to === "/ventas");
+/** Navegación de los socios: lo del día a día. Tareas, notas y salir están dentro de «Más». */
+const partnerItems = [
+  { to: "/", label: "Inicio", icon: Home, end: true },
+  { to: "/pedidos", label: "Pedidos", icon: ClipboardList, end: false },
+  { to: "/ventas", label: "Facturas", icon: ReceiptText, end: false },
+  { to: "/cuentas", label: "Cuentas", icon: Scale, end: false },
+  { to: "/mas", label: "Más", icon: MoreHorizontal, end: false },
+] as const;
+
+function partnerNavIndex(pathname: string) {
+  if (pathname === "/") return 0;
+  if (pathname.startsWith("/pedidos")) return 1;
+  if (pathname.startsWith("/ventas")) return 2;
+  if (pathname.startsWith("/cuentas")) return 3;
+  return 4;
+}
 
 export function BottomNav() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const auth = useOptionalAuth();
   const partner = useIsPartner();
   const visibleItems = partner ? partnerItems : items;
-  const activeIndex = partner ? (pathname.startsWith("/ventas") ? 1 : 0) : activeNavIndex(pathname);
+  const activeIndex = partner ? partnerNavIndex(pathname) : activeNavIndex(pathname);
 
   const transitionTo = (to: string, event: MouseEvent<HTMLAnchorElement>) => {
     const viewTransitionDocument = document as Document & {
@@ -71,7 +84,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className={partner ? "bottom-nav bottom-nav--partner" : "bottom-nav"}
+      className="bottom-nav"
       aria-label="Navegación principal"
       style={{ "--active-nav-index": activeIndex } as CSSProperties}
     >
@@ -90,16 +103,6 @@ export function BottomNav() {
           <span>{label}</span>
         </NavLink>
       ))}
-      {partner ? (
-        <button
-          type="button"
-          className="nav-item"
-          onClick={() => void auth?.logout()}
-        >
-          <LogOut size={21} aria-hidden="true" />
-          <span>Salir</span>
-        </button>
-      ) : null}
     </nav>
   );
 }

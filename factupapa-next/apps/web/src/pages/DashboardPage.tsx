@@ -1,3 +1,4 @@
+import { WorkspaceBlocks } from "../workspace/DashboardWorkspace";
 import { PARTNER_HISTORY_FROM, useIsPartner } from "../auth/roles";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -262,6 +263,9 @@ export function DashboardPage() {
         <h1>Resumen</h1>
       </header>
 
+      {/* Para los socios lo principal son los pedidos y las tareas: van arriba del todo. */}
+      {partner && <WorkspaceBlocks />}
+
       {summary.isLoading && !isPreview ? (
         <DashboardSkeleton />
       ) : summary.isError && !isPreview ? (
@@ -403,6 +407,9 @@ export function DashboardPage() {
             )}
         </div>
       </section>
+
+      {/* Para el maestro lo principal es lo fiscal y las facturas: pedidos y tareas van después. */}
+      {!partner && <WorkspaceBlocks />}
 
       <section className="dashboard-section recent-premium">
         <div className="dashboard-section__heading">

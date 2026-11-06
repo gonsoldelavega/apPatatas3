@@ -1,6 +1,10 @@
 import {
   BriefcaseBusiness,
   ChevronRight,
+  ClipboardList,
+  ListChecks,
+  NotebookPen,
+  Scale,
   FileDown,
   LogOut,
   Mail,
@@ -77,6 +81,34 @@ export function MorePage() {
           <h2>{auth.user?.displayName}</h2>
           <p>{auth.user?.email}</p>
           <span>{auth.user?.company.name}</span>
+        </div>
+      </section>
+
+      <section className="more-section" aria-labelledby="more-team-title">
+        <h2 className="more-section__title" id="more-team-title">
+          Equipo
+        </h2>
+        <div className="more-quick-grid">
+          <Link to="/pedidos">
+            <ClipboardList aria-hidden="true" />
+            <strong>Pedidos</strong>
+            <small>Pendientes y avance</small>
+          </Link>
+          <Link to="/tareas">
+            <ListChecks aria-hidden="true" />
+            <strong>Tareas</strong>
+            <small>Lo que hay que hacer</small>
+          </Link>
+          <Link to="/notas">
+            <NotebookPen aria-hidden="true" />
+            <strong>Notas</strong>
+            <small>Info de cada bar</small>
+          </Link>
+          <Link to="/cuentas">
+            <Scale aria-hidden="true" />
+            <strong>Cuentas</strong>
+            <small>Quién debe a quién</small>
+          </Link>
         </div>
       </section>
 

@@ -141,6 +141,23 @@ const rules: Rule[] = [
   { methods: GET, pattern: /^\/products$/, decide: () => plain },
   { methods: GET, pattern: new RegExp(`^/products/${UUID}$`), decide: () => plain },
   { methods: GET, pattern: /^\/sales-preferences$/, decide: () => plain },
+  // ── Espacio compartido: pedidos, tareas, notas y cuentas entre núcleos ──────
+  // Sin corte de fechas: son datos comunes del equipo. Editar o borrar un apunte de las cuentas
+  // solo puede su creador o el maestro (lo comprueba el servicio). Los nombres de los núcleos
+  // (PUT /ledger/settings) quedan solo para el maestro: no está en esta lista.
+  { methods: ["GET", "POST"], pattern: /^\/notes$/, decide: () => plain },
+  { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/notes/${UUID}$`), decide: () => plain },
+  { methods: ["GET", "POST"], pattern: /^\/tasks$/, decide: () => plain },
+  { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/tasks/${UUID}$`), decide: () => plain },
+  { methods: ["POST"], pattern: new RegExp(`^/tasks/${UUID}/(?:done|reopen)$`), decide: () => plain },
+  { methods: ["GET", "POST"], pattern: /^\/orders$/, decide: () => plain },
+  { methods: ["GET", "PATCH"], pattern: new RegExp(`^/orders/${UUID}$`), decide: () => plain },
+  { methods: ["POST"], pattern: new RegExp(`^/orders/${UUID}/(?:cancel|lines)$`), decide: () => plain },
+  { methods: ["DELETE"], pattern: new RegExp(`^/orders/${UUID}/lines/${UUID}$`), decide: () => plain },
+  { methods: ["POST"], pattern: new RegExp(`^/orders/${UUID}/lines/${UUID}/progress$`), decide: () => plain },
+  { methods: GET, pattern: /^\/ledger\/(?:summary|entries|settings)$/, decide: () => plain },
+  { methods: ["POST"], pattern: /^\/ledger\/(?:entries|settle)$/, decide: () => plain },
+  { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/ledger/entries/${UUID}$`), decide: () => plain },
 ];
 
 export function evaluatePartnerRequest(

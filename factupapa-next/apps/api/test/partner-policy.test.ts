@@ -42,9 +42,48 @@ test("el socio puede usar lo necesario para el día a día", () => {
     ["GET", "/products"],
     ["GET", `/products/${id}`],
     ["GET", "/sales-preferences"],
+    // espacio compartido
+    ["GET", "/notes"],
+    ["POST", "/notes"],
+    ["PATCH", `/notes/${id}`],
+    ["DELETE", `/notes/${id}`],
+    ["GET", "/tasks"],
+    ["POST", "/tasks"],
+    ["PATCH", `/tasks/${id}`],
+    ["POST", `/tasks/${id}/done`],
+    ["POST", `/tasks/${id}/reopen`],
+    ["GET", "/orders"],
+    ["POST", "/orders"],
+    ["GET", `/orders/${id}`],
+    ["PATCH", `/orders/${id}`],
+    ["POST", `/orders/${id}/cancel`],
+    ["POST", `/orders/${id}/lines`],
+    ["DELETE", `/orders/${id}/lines/${id}`],
+    ["POST", `/orders/${id}/lines/${id}/progress`],
+    ["GET", "/ledger/summary"],
+    ["GET", "/ledger/entries"],
+    ["GET", "/ledger/settings"],
+    ["POST", "/ledger/entries"],
+    ["POST", "/ledger/settle"],
+    ["PATCH", `/ledger/entries/${id}`],
+    ["DELETE", `/ledger/entries/${id}`],
   ];
   for (const [method, path] of allowed) {
     assert.equal(evaluate(method, path).allowed, true, `${method} ${path}`);
+  }
+});
+
+test("el espacio compartido no abre nada más de la cuenta ni los nombres de los núcleos", () => {
+  const denied: Array<[string, string]> = [
+    ["PUT", "/ledger/settings"],
+    ["DELETE", "/ledger/summary"],
+    ["PUT", "/notes"],
+    ["DELETE", "/orders"],
+    ["GET", `/ledger/entries/${id}/extra`],
+    ["POST", `/orders/${id}/lines/no-uuid/progress`],
+  ];
+  for (const [method, path] of denied) {
+    assert.equal(evaluate(method, path).allowed, false, `${method} ${path}`);
   }
 });
 

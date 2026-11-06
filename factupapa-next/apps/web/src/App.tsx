@@ -48,8 +48,20 @@ const ImportsPage = lazy(() =>
     default: module.ImportsPage,
   })),
 );
-const MorePage = lazy(() =>
-  import("./pages/MorePage").then((module) => ({ default: module.MorePage })),
+const MoreRoute = lazy(() =>
+  import("./pages/MoreRoute").then((module) => ({ default: module.MoreRoute })),
+);
+const OrdersPage = lazy(() =>
+  import("./pages/OrdersPage").then((module) => ({ default: module.OrdersPage })),
+);
+const TasksPage = lazy(() =>
+  import("./pages/TasksPage").then((module) => ({ default: module.TasksPage })),
+);
+const NotesPage = lazy(() =>
+  import("./pages/NotesPage").then((module) => ({ default: module.NotesPage })),
+);
+const LedgerPage = lazy(() =>
+  import("./pages/LedgerPage").then((module) => ({ default: module.LedgerPage })),
 );
 const ExportPage = lazy(() =>
   import("./pages/ExportPage").then((module) => ({
@@ -124,6 +136,12 @@ export function App() {
             <Route path="ventas" element={<SalesPage />} />
             <Route path="ventas/nuevo/:kind" element={<SalesFormRoute />} />
             <Route path="ventas/:type/:id" element={<SalesDetailPage />} />
+            {/* Espacio compartido: maestro y socios. */}
+            <Route path="pedidos" element={<OrdersPage />} />
+            <Route path="tareas" element={<TasksPage />} />
+            <Route path="notas" element={<NotesPage />} />
+            <Route path="cuentas" element={<LedgerPage />} />
+            <Route path="mas" element={<MoreRoute />} />
             {/* Todo lo que sigue es solo del usuario maestro: un socio vuelve al inicio. */}
             <Route element={<OwnerOnly />}>
               <Route path="gastos" element={<ExpensesPage />} />
@@ -141,7 +159,6 @@ export function App() {
               <Route path="productos/nuevo" element={<ProductFormPage />} />
               <Route path="productos/:id/editar" element={<ProductFormPage />} />
               <Route path="importar" element={<ImportsPage />} />
-              <Route path="mas" element={<MorePage />} />
               <Route path="exportar" element={<ExportPage />} />
               <Route path="socios" element={<TeamPage />} />
               <Route path="gestoria" element={<GestoriaPage />} />

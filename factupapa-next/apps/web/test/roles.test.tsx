@@ -29,6 +29,8 @@ const shellRoutes = (
     <Route element={<AppShell />}>
       <Route index element={<h1>Resumen</h1>} />
       <Route path="ventas" element={<h1>Facturas</h1>} />
+      <Route path="pedidos" element={<h1>Pedidos del equipo</h1>} />
+      <Route path="cuentas" element={<h1>Cuentas del equipo</h1>} />
       <Route element={<OwnerOnly />}>
         <Route path="gastos" element={<h1>Gastos del maestro</h1>} />
         <Route path="socios" element={<h1>Socios del maestro</h1>} />
@@ -38,28 +40,26 @@ const shellRoutes = (
 );
 
 describe("acceso por rol en la interfaz", () => {
-  it("el maestro ve las 5 secciones de la navegación", () => {
+  it("el maestro ve las 5 secciones de su navegación", () => {
     render(withRole("owner", <MemoryRouter initialEntries={["/"]}>{shellRoutes}</MemoryRouter>));
     const nav = screen.getByRole("navigation", { name: "Navegación principal" });
-    expect(nav).not.toHaveClass("bottom-nav--partner");
+    expect(nav).toBeInTheDocument();
     for (const name of ["Inicio", "Facturas", "Gastos", "Productos", "Otros"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: "Salir" })).not.toBeInTheDocument();
   });
 
-  it("el socio solo ve Inicio, Facturas y Salir (nada de Gastos, Productos ni Otros)", async () => {
-    const logout = vi.fn();
-    render(withRole("partner", <MemoryRouter initialEntries={["/"]}>{shellRoutes}</MemoryRouter>, logout));
-    const nav = screen.getByRole("navigation", { name: "Navegación principal" });
-    expect(nav).toHaveClass("bottom-nav--partner");
-    expect(screen.getByRole("link", { name: "Inicio" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Facturas" })).toBeInTheDocument();
+  it("el socio ve Inicio, Pedidos, Facturas, Cuentas y Más (nada de Gastos, Productos ni Otros)", () => {
+    render(withRole("partner", <MemoryRouter initialEntries={["/"]}>{shellRoutes}</MemoryRouter>));
+    expect(screen.getByRole("navigation", { name: "Navegación principal" })).toBeInTheDocument();
+    for (const name of ["Inicio", "Pedidos", "Facturas", "Cuentas", "Más"]) {
+      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    }
     for (const name of ["Gastos", "Productos", "Otros"]) {
       expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
     }
-    screen.getByRole("button", { name: "Salir" }).click();
-    expect(logout).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Salir" })).not.toBeInTheDocument();
   });
 
   it("si un socio abre una ruta del maestro por enlace, vuelve al inicio", () => {
@@ -69,6 +69,14 @@ describe("acceso por rol en la interfaz", () => {
       );
       expect(screen.getByRole("heading", { name: "Resumen" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: /del maestro/ })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("el socio sí entra en pedidos y cuentas", () => {
+    for (const [path, heading] of [["/pedidos", "Pedidos del equipo"], ["/cuentas", "Cuentas del equipo"]] as const) {
+      const { unmount } = render(withRole("partner", <MemoryRouter initialEntries={[path]}>{shellRoutes}</MemoryRouter>));
+      expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
       unmount();
     }
   });

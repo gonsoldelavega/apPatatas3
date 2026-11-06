@@ -27,6 +27,7 @@ import "./visual-system.css";
 import "./mobile-usability-fixes.css";
 import "./partner-nav.css";
 import "./gestoria.css";
+import "./workspace.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
