@@ -5,6 +5,7 @@ import {
   decimal,
   documentNumber,
   drawBrand,
+  issuerContactLine,
   money,
 } from "../invoices/pdf.js";
 import type { DeliveryPdfData } from "./types.js";
@@ -109,6 +110,8 @@ export async function createDeliveryNotePdf(
         .fontSize(8)
         .text(issuer.taxId ?? "NIF pendiente", 48, 156)
         .text(address(issuer.address), 48, 169, { width: 220 });
+      const contactLine = issuerContactLine(issuer);
+      if (contactLine) doc.font("Helvetica").fontSize(8).text(contactLine, 48, doc.y + 1, { width: 230 });
       doc
         .font("Helvetica-Bold")
         .fontSize(8)

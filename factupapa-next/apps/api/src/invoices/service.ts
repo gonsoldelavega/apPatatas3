@@ -18,6 +18,19 @@ export class InvoiceService {
     private repository = new InvoiceRepository(),
   ) {}
 
+  /** Correo y web actuales de la empresa para el PDF (datos de contacto, no fiscales). */
+  async issuerContact(identity: SessionIdentity): Promise<{ email: string | null; website: string | null }> {
+    return withTenantTransaction(this.pool, identity, async (c) => {
+      const row = (
+        await c.query<{ email: string | null; website: string | null } & QueryResultRow>(
+          "select email, website from companies where id = $1",
+          [identity.companyId],
+        )
+      ).rows[0];
+      return { email: row?.email ?? null, website: row?.website ?? null };
+    });
+  }
+
   private async totals(client: PoolClient, id: string) {
     const r = await client.query<
       {
@@ -408,6 +421,13 @@ export class InvoiceService {
         )
       )
         throw new HttpError("invalid_request", 400);
+      // El emisor se "congela" al emitir: un borrador antiguo toma aquí los datos actuales de la empresa
+      // (dirección, NIF, nombre). Las facturas ya emitidas conservan siempre los suyos.
+      await c.query(
+        `update invoices as i set issuer_legal_name = co.name, issuer_tax_id = co.tax_id, issuer_address = co.address
+           from companies as co where i.id = $1 and co.id = i.company_id and i.status = 'draft'`,
+        [id],
+      );
       await c.query(
         "insert into company_sales_preferences(company_id) values($1) on conflict(company_id) do nothing",
         [identity.companyId],

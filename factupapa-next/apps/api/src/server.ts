@@ -2,6 +2,8 @@ import { createDocumentLookup } from "./authz/guard.js";
 import { TeamService } from "./team/service.js";
 import { TaxService } from "./tax/service.js";
 import { createTaxRoutes } from "./tax/routes.js";
+import { CompanyService } from "./company/service.js";
+import { createCompanyRoutes } from "./company/routes.js";
 import { createWorkspaceRoutes } from "./workspace/routes.js";
 import { NotesService } from "./workspace/notes.js";
 import { TasksService } from "./workspace/tasks.js";
@@ -175,6 +177,8 @@ const server = createApp({
       orders: new OrdersService(database.pool),
       ledger: new LedgerService(database.pool),
     }),
+    // Ficha de la empresa (solo maestro): solo atiende /company/profile.
+    createCompanyRoutes(auth, new CompanyService(database.pool)),
     // Gestoría (solo maestro). Va al final: solo atiende /tax/*.
     createTaxRoutes(auth, new TaxService(database.pool)),
   ],

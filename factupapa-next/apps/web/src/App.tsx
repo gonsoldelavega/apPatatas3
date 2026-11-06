@@ -68,6 +68,11 @@ const ExportPage = lazy(() =>
     default: module.ExportPage,
   })),
 );
+const CompanyProfilePage = lazy(() =>
+  import("./pages/CompanyProfilePage").then((module) => ({
+    default: module.CompanyProfilePage,
+  })),
+);
 const SalesSettingsPage = lazy(() =>
   import("./pages/SalesSettingsPage").then((module) => ({
     default: module.SalesSettingsPage,
@@ -162,6 +167,7 @@ export function App() {
               <Route path="exportar" element={<ExportPage />} />
               <Route path="socios" element={<TeamPage />} />
               <Route path="gestoria" element={<GestoriaPage />} />
+              <Route path="ajustes/empresa" element={<CompanyProfilePage />} />
               <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
               <Route path="ajustes/seguridad" element={<AccountSecurityPage />} />
             </Route>

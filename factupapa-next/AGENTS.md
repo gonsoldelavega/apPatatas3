@@ -95,3 +95,9 @@ Never claim a Next deployment is live without evidence from the actual Next stag
 - Accounts: two sides (`side_a`, `side_b`, names editable by the master only), 50/50 split. Expense paid by X → the other side owes half; income collected by X → X owes half to the other; `settlement` = payment between sides. All math in integer cents (`ledger-math.ts`); the odd half-cent is carried, never lost. Balance is cumulative; period filters only change the totals. Only the creator or the master can edit/delete an entry (soft delete + audit event). "Saldar cuentas" records the exact settlement.
 - `users` is only readable by its own row (RLS), so records store a name snapshot (`created_by_name`, `done_by_name`...) instead of joining users.
 - Gestoría (303/130): every confirmed and non-deleted purchase and every issued sales invoice counts (purchase VAT is deductible unless a different `deductible_rate` is set). Delivery notes (sales without invoice) never count.
+
+## Company details (issuer of invoices and delivery notes)
+
+- `companies` holds `name`, `tax_id`, `address` (jsonb: `street`, `postalCode`, `city`), `email`, `website`. The master edits email, website and address in the app (Otros → Empresa, `PUT /company/profile`); name and NIF are not editable there.
+- Each invoice stores a **snapshot** of the issuer (`issuer_legal_name`, `issuer_tax_id`, `issuer_address`). The snapshot is refreshed when a *draft* is issued; issued invoices never change. Email and website are contact data: the PDF reads them live from `companies`.
+- jsonb does not keep key order: always print addresses through `address()` in `invoices/pdf.ts` (street, postal code, city).

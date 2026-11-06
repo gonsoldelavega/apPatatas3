@@ -87,10 +87,13 @@ export function createInvoiceRoutes(
       const i = await auth.authenticate(bearerToken(request)),
         invoice = await service.get(i, requireUuid(pdf[1]));
       if (invoice.status !== "issued") throw new HttpError("conflict", 409);
+      const contact = await service.issuerContact(i);
       const buffer = await createInvoicePdf(invoice, {
         name: invoice.issuerLegalName,
         taxId: invoice.issuerTaxId,
         address: invoice.issuerAddress,
+        email: contact.email,
+        website: contact.website,
       });
       assertPdfSize(buffer);
       response.writeHead(200, {

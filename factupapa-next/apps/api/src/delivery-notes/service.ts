@@ -354,8 +354,10 @@ export class DeliveryNoteService {
           name: string;
           taxId: string | null;
           address: Record<string, string>;
+          email: string | null;
+          website: string | null;
         } & QueryResultRow
-      >(`select name, tax_id "taxId", address from companies where id=$1`, [
+      >(`select name, tax_id "taxId", address, email, website from companies where id=$1`, [
         identity.companyId,
       ]);
       if (!customer.rows[0] || !issuer.rows[0])

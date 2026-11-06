@@ -15,8 +15,25 @@ export const documentNumber = (series: string, number: number | null) => {
   const annual = series.match(/^(.+)_([0-9]{4})$/u);
   return annual ? `${annual[1]}-${number}/${annual[2]}` : `${series}-${number}`;
 };
-export const address = (value: Record<string, string>) =>
-  Object.values(value).filter(Boolean).join(", ");
+/** Orden habitual de una dirección postal; el resto de campos, a continuación. */
+const ADDRESS_ORDER = ["street", "line1", "line2", "postalCode", "zip", "city", "province", "region", "country"];
+
+/**
+ * Dirección en una línea: calle, código postal, población... La base de datos (jsonb) no conserva el orden
+ * en que se escribieron las claves, así que se ordena aquí.
+ */
+export const address = (value: Record<string, string>) => {
+  const known = ADDRESS_ORDER.filter((key) => key in value);
+  const others = Object.keys(value).filter((key) => !ADDRESS_ORDER.includes(key));
+  return [...known, ...others]
+    .map((key) => value[key])
+    .filter(Boolean)
+    .join(", ");
+};
+
+/** Línea de contacto del emisor: «correo · web». Vacía si no hay ninguno. */
+export const issuerContactLine = (company: { email?: string | null; website?: string | null }): string =>
+  [company.email, company.website].filter(Boolean).join(" · ");
 
 export const drawBrand = (doc: PDFKit.PDFDocument) => {
   const navy = "#111A33";
@@ -66,6 +83,8 @@ export async function createInvoicePdf(
     name: string;
     taxId: string | null;
     address: Record<string, string>;
+    email?: string | null;
+    website?: string | null;
   },
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -114,6 +133,8 @@ export async function createInvoicePdf(
       .fontSize(8)
       .text(company.taxId ?? "NIF pendiente", 48, 156)
       .text(address(company.address), 48, 169, { width: 220 });
+    const contactLine = issuerContactLine(company);
+    if (contactLine) doc.font("Helvetica").fontSize(8).text(contactLine, 48, doc.y + 1, { width: 230 });
     doc
       .font("Helvetica-Bold")
       .fontSize(8)

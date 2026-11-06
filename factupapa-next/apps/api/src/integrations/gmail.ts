@@ -387,10 +387,18 @@ export class GmailIntegrationService {
       );
       const connection = integration.rows[0];
       if (!connection) throw new HttpError("gmail_not_connected", 409);
+      const contact = (
+        await client.query<{ email: string | null; website: string | null }>(
+          "select email, website from companies where id = $1",
+          [identity.companyId],
+        )
+      ).rows[0];
       const pdf = await createInvoicePdf(invoice, {
         name: invoice.issuerLegalName,
         taxId: invoice.issuerTaxId,
         address: invoice.issuerAddress,
+        email: contact?.email ?? null,
+        website: contact?.website ?? null,
       });
       if (pdf.length > 5_000_000) throw new HttpError("payload_too_large", 413);
       const documentNumber = `${invoice.series}-${invoice.number}`;

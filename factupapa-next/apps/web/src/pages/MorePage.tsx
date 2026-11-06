@@ -1,5 +1,6 @@
 import {
   BriefcaseBusiness,
+  Building2,
   ChevronRight,
   ClipboardList,
   ListChecks,
@@ -173,6 +174,11 @@ export function MorePage() {
           Herramientas
         </h2>
         <div className="more-quick-grid">
+          <Link to="/ajustes/empresa">
+            <Building2 aria-hidden="true" />
+            <strong>Empresa</strong>
+            <small>Correo, web y dirección</small>
+          </Link>
           <Link to="/ajustes/seguridad">
             <ShieldCheck aria-hidden="true" />
             <strong>Seguridad</strong>

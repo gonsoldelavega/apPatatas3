@@ -57,6 +57,8 @@ export interface DeliveryPdfData {
     name: string;
     taxId: string | null;
     address: Record<string, string>;
+    email?: string | null;
+    website?: string | null;
   };
   customer: {
     name: string;
