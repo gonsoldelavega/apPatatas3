@@ -539,3 +539,24 @@
   .dashboard-tools a { transition: none; }
   .dashboard-skeleton > span::after { animation: none; }
 }
+
+.result-card__kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.result-card__with-notes {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: rgb(255 255 255 / 70%) !important;
+}
+
+.result-card__with-notes b {
+  color: #fff;
+  font-weight: 800;
+}

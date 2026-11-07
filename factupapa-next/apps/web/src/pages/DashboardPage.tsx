@@ -282,11 +282,12 @@ export function DashboardPage() {
           <div className="result-card__heading">
             <div>
               <span>Resultado de {monthLabel(selectedMonth)}</span>
+              <small className="result-card__kicker">Balance real · facturas y albaranes</small>
               <strong className={result >= 0 ? "is-positive" : "is-negative"}>
                 {data ? formatMoney(data.finance.balanceWithDeliveryNotes) : "—"}
               </strong>
               <small className="result-card__with-notes">
-                Con albaranes y facturas · Sin albaranes: {data ? formatMoney(data.finance.balance) : "—"}
+                Legal, sin albaranes: <b>{data ? formatMoney(data.finance.balance) : "—"}</b>
               </small>
             </div>
             <div className="dashboard-month-nav" aria-label="Cambiar mes del resumen">
