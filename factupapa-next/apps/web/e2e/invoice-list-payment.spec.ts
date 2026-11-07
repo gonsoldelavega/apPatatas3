@@ -29,8 +29,8 @@ test("una factura se puede marcar como pagada directamente desde el listado", as
   const invoiceNumber = (await page.locator(".detail-header__title h1").textContent())?.trim();
   expect(invoiceNumber).toBeTruthy();
 
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Emitir factura" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Aceptar" }).click();
   await expect(page.getByText("Emitida", { exact: true })).toBeVisible();
 
   await page.goto("/ventas");
@@ -45,8 +45,8 @@ test("una factura se puede marcar como pagada directamente desde el listado", as
   await expect(markPaid).toBeVisible();
   await expect(markPaid).toContainText("Marcar pagada");
 
-  page.once("dialog", (dialog) => void dialog.accept());
   await markPaid.click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Aceptar" }).click();
 
   await expect(page.getByText("Factura marcada como pagada.", { exact: true })).toBeVisible();
   await expect(invoiceCard.getByText("Pagada", { exact: true })).toBeVisible();
