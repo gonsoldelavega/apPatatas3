@@ -2,12 +2,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardList, ListChecks, Plus, Scale } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { teamApi } from "../api/services";
+import { useAuth } from "../auth/AuthProvider";
 import { ledgerApi, ordersApi, tasksApi } from "../api/workspace";
 import { useSideNames } from "./hooks";
 import { NewOrderForm } from "./NewOrderForm";
 import { describeBalance } from "./helpers";
 import { OrderCard } from "./OrderCard";
 import { TaskRow } from "./TaskRow";
+
+/** Saludo del socio: el mensaje que escribió el maestro o, si no hay, «Hola, Nombre». */
+export function PartnerWelcome() {
+  const auth = useAuth();
+  const welcome = useQuery({ queryKey: ["team-welcome"], queryFn: teamApi.myWelcome, staleTime: 5 * 60_000 });
+  const firstName = auth.user?.displayName.trim().split(/\s+/)[0] ?? "";
+  const text = welcome.data?.message || (firstName ? `Hola, ${firstName}` : "Hola");
+  return <p className="partner-welcome">{text}</p>;
+}
 
 function PendingOrders() {
   const [creating, setCreating] = useState(false);

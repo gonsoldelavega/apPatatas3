@@ -18,13 +18,19 @@ const errorMessages: Record<string, string> = {
 export function TeamPage() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
+  const [welcome, setWelcome] = useState("");
   const members = useQuery({ queryKey: ["team-members"], queryFn: teamApi.list });
   const add = useMutation({
-    mutationFn: () => teamApi.add(email.trim().toLowerCase()),
+    mutationFn: () => teamApi.add(email.trim().toLowerCase(), welcome.trim()),
     onSuccess: async () => {
       setEmail("");
+      setWelcome("");
       await queryClient.invalidateQueries({ queryKey: ["team-members"] });
     },
+  });
+  const changeWelcome = useMutation({
+    mutationFn: (input: { id: string; message: string }) => teamApi.setWelcome(input.id, input.message),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team-members"] }),
   });
   const remove = useMutation({
     mutationFn: (id: string) => teamApi.remove(id),
@@ -34,7 +40,7 @@ export function TeamPage() {
   const items = members.data?.items ?? [];
   const limit = members.data?.limit ?? 3;
   const full = items.length >= limit;
-  const error = add.error ?? remove.error;
+  const error = add.error ?? remove.error ?? changeWelcome.error;
   const errorText =
     error instanceof ApiError
       ? errorMessages[error.code] ?? "No se pudo completar la acción. Inténtalo de nuevo."
@@ -86,6 +92,15 @@ export function TeamPage() {
             onChange={(event) => setEmail(event.target.value)}
             disabled={full}
           />
+          <Field
+            label="Mensaje de bienvenida (opcional)"
+            placeholder="¡Bienvenida, Irene!"
+            maxLength={80}
+            autoComplete="off"
+            value={welcome}
+            onChange={(event) => setWelcome(event.target.value)}
+            disabled={full}
+          />
           <Button
             type="submit"
             icon={<UserPlus />}
@@ -125,7 +140,18 @@ export function TeamPage() {
                         : "Ya ha entrado"
                       : "Pendiente de primer acceso con Google"}
                   </small>
+                  <small>Bienvenida: {member.welcomeMessage ?? "—"}</small>
                 </span>
+                <Button
+                  variant="secondary"
+                  busy={changeWelcome.isPending && changeWelcome.variables?.id === member.id}
+                  onClick={() => {
+                    const next = window.prompt("Mensaje de bienvenida", member.welcomeMessage ?? "");
+                    if (next !== null) changeWelcome.mutate({ id: member.id, message: next.trim() });
+                  }}
+                >
+                  Cambiar saludo
+                </Button>
                 <Button
                   variant="danger"
                   icon={<Trash2 />}

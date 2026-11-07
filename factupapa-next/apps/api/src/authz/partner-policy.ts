@@ -96,6 +96,7 @@ const GET = ["GET"] as const;
 const rules: Rule[] = [
   // ── Sesión propia (la web averigua aquí el rol) ────────────────────────────
   { methods: GET, pattern: /^\/me$/, decide: () => plain },
+  { methods: GET, pattern: /^\/team\/welcome$/, decide: () => plain },
   // ── Resumen / alertas / pendientes ─────────────────────────────────────────
   {
     methods: GET,

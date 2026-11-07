@@ -598,16 +598,23 @@ export interface TeamMember {
   lastLoginAt: string | null;
   /** true cuando el socio ya ha entrado alguna vez con su cuenta de Google. */
   registered: boolean;
+  welcomeMessage: string | null;
 }
 
 export const teamApi = {
   list: () =>
     apiClient.request<{ items: TeamMember[]; limit: number }>("/team/members"),
-  add: (email: string) =>
+  add: (email: string, welcomeMessage?: string) =>
     apiClient.request<TeamMember>("/team/members", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, welcomeMessage: welcomeMessage || undefined }),
     }),
+  setWelcome: (id: string, welcomeMessage: string) =>
+    apiClient.request<void>(`/team/members/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ welcomeMessage }),
+    }),
+  myWelcome: () => apiClient.request<{ message: string | null }>("/team/welcome"),
   remove: (id: string) =>
     apiClient.request<void>(`/team/members/${id}`, { method: "DELETE" }),
 };

@@ -1,4 +1,4 @@
-import { WorkspaceBlocks } from "../workspace/DashboardWorkspace";
+import { PartnerWelcome, WorkspaceBlocks } from "../workspace/DashboardWorkspace";
 import { PARTNER_HISTORY_FROM, useIsPartner } from "../auth/roles";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -261,6 +261,7 @@ export function DashboardPage() {
     <div className="page dashboard-page dashboard-premium">
       <header className="dashboard-topbar dashboard-topbar--minimal">
         <h1>Resumen</h1>
+        {partner && <PartnerWelcome />}
       </header>
 
       {/* Para los socios lo principal son los pedidos y las tareas: van arriba del todo. */}
@@ -348,6 +349,9 @@ export function DashboardPage() {
         </div>
       </section>
 
+      {/* Maestro: balance, pedidos, tareas y, debajo, lo pendiente (facturas, albaranes, stock). */}
+      {!partner && <WorkspaceBlocks />}
+
       <section className="dashboard-section attention-premium">
         <div className="dashboard-section__heading">
           <h2>Pendientes</h2>
@@ -362,6 +366,13 @@ export function DashboardPage() {
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
+          {Number(data?.finance.receivables ?? 0) > Number(data?.finance.overdueReceivables ?? 0) && (
+            <Link to="/ventas" className="attention-row">
+              <WalletCards aria-hidden="true" />
+              <span><strong>{formatMoney(String(Number(data?.finance.receivables ?? 0) - Number(data?.finance.overdueReceivables ?? 0)))} pendiente de cobro</strong></span>
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
           {Boolean(data?.pendingNotes) && (
             <Link to="/ventas" className="attention-row">
               <FileText aria-hidden="true" />
@@ -373,13 +384,6 @@ export function DashboardPage() {
             <Link to="/importar" className="attention-row">
               <CircleAlert aria-hidden="true" />
               <span><strong>{data?.pendingImports} importación pendiente</strong></span>
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          )}
-          {Number(data?.finance.receivables ?? 0) > Number(data?.finance.overdueReceivables ?? 0) && (
-            <Link to="/ventas" className="attention-row">
-              <WalletCards aria-hidden="true" />
-              <span><strong>{formatMoney(String(Number(data?.finance.receivables ?? 0) - Number(data?.finance.overdueReceivables ?? 0)))} pendiente de cobro</strong></span>
               <ArrowRight aria-hidden="true" />
             </Link>
           )}
@@ -408,8 +412,6 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* Para el maestro lo principal es lo fiscal y las facturas: pedidos y tareas van después. */}
-      {!partner && <WorkspaceBlocks />}
 
       <section className="dashboard-section recent-premium">
         <div className="dashboard-section__heading">

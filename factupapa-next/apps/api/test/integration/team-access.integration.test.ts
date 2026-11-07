@@ -191,6 +191,21 @@ test("un socio autorizado entra en la empresa del maestro con rol partner", asyn
   assert.equal(companies.rows[0].n, 1, "el socio no crea una empresa propia");
 });
 
+test("cada socio ve el mensaje de bienvenida que escribió el maestro", async () => {
+  const set = await call("PATCH", `/team/members/${partnerAccessIds[0]}`, masterToken, { welcomeMessage: "¡Bienvenida, Irene!" });
+  assert.equal(set.status, 204);
+  const mine = await json<{ message: string | null }>(await call("GET", "/team/welcome", partnerToken));
+  assert.equal(mine.message, "¡Bienvenida, Irene!");
+  const listed = await json<{ items: Array<{ id: string; welcomeMessage: string | null }> }>(
+    await call("GET", "/team/members", masterToken),
+  );
+  assert.equal(listed.items.find((item) => item.id === partnerAccessIds[0])?.welcomeMessage, "¡Bienvenida, Irene!");
+  assert.equal((await json<{ message: string | null }>(await call("GET", "/team/welcome", masterToken))).message, null);
+  // El socio no puede cambiarlo, y un mensaje demasiado largo se rechaza.
+  assert.equal((await call("PATCH", `/team/members/${partnerAccessIds[0]}`, partnerToken, { welcomeMessage: "x" })).status, 403);
+  assert.equal((await call("PATCH", `/team/members/${partnerAccessIds[0]}`, masterToken, { welcomeMessage: "x".repeat(81) })).status, 400);
+});
+
 test("el socio NO puede gestionar el equipo ni ver compras, gastos, stock, importaciones o integraciones", async () => {
   for (const [method, path] of [
     ["GET", "/team/members"],
