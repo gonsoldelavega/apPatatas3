@@ -42,6 +42,7 @@ import {
   unitLabel,
 } from "../utils/format";
 import { bagLabel } from "../utils/packaging";
+import { askConfirm, showNotice } from "../ui/dialogs";
 
 const statusLabel = (status: string, invoice: boolean) =>
   ({
@@ -457,7 +458,9 @@ export function SalesDetailPage() {
                 <button
                   type="button"
                   aria-label={`Eliminar ${line.description}`}
-                  onClick={() => window.confirm("¿Quitar esta línea?") && editLine.mutate({ action: "delete", lineId: line.id })}
+                  onClick={async () => {
+                    if (await askConfirm("¿Quitar esta línea?", { danger: true })) editLine.mutate({ action: "delete", lineId: line.id });
+                  }}
                 >
                   <Trash2 />
                 </button>
@@ -711,12 +714,11 @@ export function SalesDetailPage() {
             icon={<FileCheck2 />}
             busy={action.isPending}
             disabled={!item.lines?.length || editLine.isPending}
-            onClick={() =>
-              window.confirm(invoice
+            onClick={async () => {
+              if (await askConfirm(invoice
                 ? "¿Emitir la factura? Podrás seguir añadiendo pedidos durante la quincena."
-                : "¿Emitir el albarán?") &&
-              action.mutate("issue")
-            }
+                : "¿Emitir el albarán?")) action.mutate("issue");
+            }}
           >
             Emitir {invoice ? "factura" : "albarán"}
           </Button>}
@@ -846,12 +848,12 @@ export function SalesDetailPage() {
               icon={<Mail />}
               busy={sendEmail.isPending}
               disabled={item.status !== "issued"}
-              onClick={() => {
+              onClick={async () => {
                 const recipient = invoiceItem?.contactEmail;
                 const message = recipient
                   ? `¿Enviar ahora la factura por Gmail a ${recipient}?`
                   : "Este cliente no tiene correo. ¿Comprobarlo igualmente?";
-                if (window.confirm(message)) sendEmail.mutate();
+                if (await askConfirm(message)) sendEmail.mutate();
               }}
             >
               Correo
@@ -887,7 +889,7 @@ export function SalesDetailPage() {
                   });
                   return;
                 }
-                window.alert("Una factura cancelada no se puede modificar.");
+                void showNotice("Una factura cancelada no se puede modificar.");
               }}
             >
               Editar
@@ -912,11 +914,10 @@ export function SalesDetailPage() {
             variant="danger"
             icon={<Trash2 />}
             busy={deleteNote.isPending}
-            onClick={() =>
-              window.confirm(
-                "¿Borrar este albarán? Esta acción no se puede deshacer y su número no se reutiliza.",
-              ) && deleteNote.mutate()
-            }
+            onClick={async () => {
+              if (await askConfirm("¿Borrar este albarán? Esta acción no se puede deshacer y su número no se reutiliza.", { danger: true }))
+                deleteNote.mutate();
+            }}
           >
             Borrar albarán
           </Button>
@@ -939,10 +940,9 @@ export function SalesDetailPage() {
             variant="danger"
             icon={<XCircle />}
             busy={action.isPending}
-            onClick={() =>
-              window.confirm("¿Cancelar este documento emitido?") &&
-              action.mutate("cancel")
-            }
+            onClick={async () => {
+              if (await askConfirm("¿Cancelar este documento emitido?", { danger: true })) action.mutate("cancel");
+            }}
           >
             Cancelar
           </Button>
@@ -952,11 +952,9 @@ export function SalesDetailPage() {
               variant="secondary"
               icon={<ReceiptText />}
               busy={convert.isPending}
-              onClick={() =>
-                window.confirm(
-                  "Se creará una factura en borrador. ¿Continuar?",
-                ) && convert.mutate()
-              }
+              onClick={async () => {
+                if (await askConfirm("Se creará una factura en borrador. ¿Continuar?")) convert.mutate();
+              }}
             >
               Convertir en factura
             </Button>

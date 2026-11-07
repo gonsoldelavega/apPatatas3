@@ -101,3 +101,9 @@ Never claim a Next deployment is live without evidence from the actual Next stag
 - `companies` holds `name`, `tax_id`, `address` (jsonb: `street`, `postalCode`, `city`), `email`, `website`. The master edits email, website and address in the app (Otros → Empresa, `PUT /company/profile`); name and NIF are not editable there.
 - Each invoice stores a **snapshot** of the issuer (`issuer_legal_name`, `issuer_tax_id`, `issuer_address`). The snapshot is refreshed when a *draft* is issued; issued invoices never change. Email and website are contact data: the PDF reads them live from `companies`.
 - jsonb does not keep key order: always print addresses through `address()` in `invoices/pdf.ts` (street, postal code, city).
+
+## Reglas de interfaz (aprendidas en móvil)
+
+- Nunca usar `window.confirm` / `window.prompt` / `window.alert`: el navegador los rotula con la dirección técnica del sitio. Usar `askConfirm` / `askText` / `showNotice` de `apps/web/src/ui/dialogs.tsx`.
+- Las animaciones de entrada no pueden dejar `transform` activo al terminar (`animation-fill-mode: both` con keyframes de `transform`): un ancestro con transform convierte `position: fixed` en relativo a ese ancestro y la barra «Total + Revisar factura» queda a mitad de la página, tapando el formulario. Usar `backwards`.
+- Los formularios largos necesitan `padding-bottom` ≥ 200 px en móvil para que el final suba por encima de la barra fija y la navegación inferior.

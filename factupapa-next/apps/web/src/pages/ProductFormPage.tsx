@@ -15,6 +15,7 @@ import { LoadingScreen } from "../ui/LoadingScreen";
 import { SelectField } from "../ui/SelectField";
 import { useToast } from "../ui/ToastProvider";
 import { formatMoney, formatQuantity } from "../utils/format";
+import { askConfirm } from "../ui/dialogs";
 
 type Values = z.infer<typeof productSchema>;
 const blank: Values = {
@@ -279,12 +280,8 @@ export function ProductFormPage() {
             variant="danger"
             icon={<Trash2 />}
             busy={deactivate.isPending}
-            onClick={() => {
-              if (
-                window.confirm(
-                  "¿Dar de baja este producto? Seguirá en el historial.",
-                )
-              )
+            onClick={async () => {
+              if (await askConfirm("¿Dar de baja este producto? Seguirá en el historial.", { danger: true }))
                 deactivate.mutate();
             }}
           >

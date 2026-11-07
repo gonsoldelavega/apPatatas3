@@ -1,0 +1,55 @@
+.app-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(10 22 40 / 52%);
+}
+.app-dialog {
+  width: min(100%, 380px);
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--surface, #fff);
+  color: var(--ink, #0f1f3d);
+  box-shadow: 0 24px 60px rgb(10 22 40 / 35%);
+}
+.app-dialog__message {
+  margin: 0 0 16px;
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.app-dialog__input {
+  width: 100%;
+  min-height: 46px;
+  margin-bottom: 16px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  font: inherit;
+}
+.app-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.app-dialog__button {
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.app-dialog__button--primary {
+  border-color: transparent;
+  background: #2563c9;
+  color: #fff;
+}
+.app-dialog__button--danger {
+  background: #c0392b;
+}

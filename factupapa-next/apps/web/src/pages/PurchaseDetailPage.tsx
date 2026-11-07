@@ -15,6 +15,7 @@ import { accountsApi, financeApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { useToast } from "../ui/ToastProvider";
 import { formatMoney, formatQuantity, todayLocal } from "../utils/format";
+import { askConfirm } from "../ui/dialogs";
 
 function normalizedAmount(value: string): number {
   return Number(value.trim().replace(",", "."));
@@ -333,8 +334,8 @@ export function PurchaseDetailPage() {
             variant="danger"
             icon={<Trash2 />}
             busy={removePurchase.isPending}
-            onClick={() => {
-              if (window.confirm("¿Eliminar esta compra? Desaparecerá de Compras y dejará de afectar al negocio.")) {
+            onClick={async () => {
+              if (await askConfirm("¿Eliminar esta compra? Desaparecerá de Compras y dejará de afectar al negocio.", { danger: true })) {
                 removePurchase.mutate();
               }
             }}

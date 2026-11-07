@@ -338,3 +338,13 @@
     transform: translateY(-1px);
   }
 }
+
+/* La barra fija (total + botón) y la navegación inferior ocupan ~165 px: el final del formulario
+   tiene que poder subir por encima de ellas para verse y rellenarse. */
+@media (max-width: 959px) {
+  .app-main .purchase-form-page,
+  .app-main .sales-form-page,
+  .app-main .form-page {
+    padding-bottom: calc(200px + env(safe-area-inset-bottom));
+  }
+}

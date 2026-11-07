@@ -23,6 +23,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { gmailApi } from "../api/services";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
+import { askConfirm } from "../ui/dialogs";
 
 type ThemeChoice = "auto" | "light" | "dark";
 
@@ -273,8 +274,8 @@ export function MorePage() {
                     <Button
                       variant="secondary"
                       busy={disconnectGoogle.isPending}
-                      onClick={() => {
-                        if (window.confirm("¿Desconectar esta cuenta de Google?"))
+                      onClick={async () => {
+                        if (await askConfirm("¿Desconectar esta cuenta de Google?", { danger: true }))
                           disconnectGoogle.mutate();
                       }}
                     >

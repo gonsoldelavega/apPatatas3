@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { OwnerOnly } from "./auth/OwnerOnly";
 import { AppShell } from "./layout/AppShell";
 import { LoadingScreen } from "./ui/LoadingScreen";
+import { DialogHost } from "./ui/dialogs";
 
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })),
@@ -133,6 +134,7 @@ const AccountSecurityPage = lazy(() =>
 export function App() {
   return (
     <Suspense fallback={<LoadingScreen />}>
+      <DialogHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>

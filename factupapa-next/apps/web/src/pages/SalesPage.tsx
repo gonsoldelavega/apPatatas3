@@ -35,6 +35,7 @@ import {
 } from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
 import { useToast } from "../ui/ToastProvider";
+import { askConfirm } from "../ui/dialogs";
 
 const statuses: Record<string, string> = {
   draft: "Borrador",
@@ -563,9 +564,9 @@ export function SalesPage() {
                         aria-label="Marcar factura como pagada"
                         title="Marcar pagada"
                         disabled={actionBusy || collectBusy}
-                        onClick={() => {
+                        onClick={async () => {
                           const amount = invoice.balanceDue ?? invoice.total;
-                          if (window.confirm(`¿Marcar ${formatDocumentNumber(invoice.series, invoice.number)} como pagada por ${formatMoney(amount)}? Se registrará el cobro de hoy.`)) {
+                          if (await askConfirm(`¿Marcar ${formatDocumentNumber(invoice.series, invoice.number)} como pagada por ${formatMoney(amount)}? Se registrará el cobro de hoy.`)) {
                             quickCollect.mutate(invoice);
                           }
                         }}

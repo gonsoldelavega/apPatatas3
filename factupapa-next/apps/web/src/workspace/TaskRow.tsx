@@ -3,6 +3,7 @@ import { CalendarClock, Check, Store, Trash2, Users } from "lucide-react";
 import { tasksApi, type Side, type Task } from "../api/workspace";
 import { todayLocal } from "../utils/format";
 import { formatShortDate, isOverdue, sideLabel } from "./helpers";
+import { askConfirm } from "../ui/dialogs";
 
 export function TaskRow({
   task,
@@ -60,8 +61,8 @@ export function TaskRow({
           className="task-delete"
           aria-label={`Borrar tarea: ${task.title}`}
           disabled={remove.isPending}
-          onClick={() => {
-            if (window.confirm(`¿Borrar la tarea «${task.title}»?`)) remove.mutate();
+          onClick={async () => {
+            if (await askConfirm(`¿Borrar la tarea «${task.title}»?`, { danger: true })) remove.mutate();
           }}
         >
           <Trash2 aria-hidden="true" />

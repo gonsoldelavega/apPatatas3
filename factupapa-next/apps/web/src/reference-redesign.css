@@ -484,19 +484,19 @@
 @media (prefers-reduced-motion: no-preference) {
   .page-heading,
   .dashboard-topbar,
-  .catalog-section > .section-heading { animation: reference-enter 180ms ease-out both; }
+  .catalog-section > .section-heading { animation: reference-enter 180ms ease-out backwards; }
 
   .page > :nth-child(2),
-  .catalog-section > :nth-child(2) { animation: reference-enter 180ms 25ms ease-out both; }
+  .catalog-section > :nth-child(2) { animation: reference-enter 180ms 25ms ease-out backwards; }
   .page > :nth-child(3),
-  .catalog-section > :nth-child(3) { animation: reference-enter 180ms 50ms ease-out both; }
+  .catalog-section > :nth-child(3) { animation: reference-enter 180ms 50ms ease-out backwards; }
   .page > :nth-child(n + 4),
-  .catalog-section > :nth-child(n + 4) { animation: reference-enter 180ms 80ms ease-out both; }
+  .catalog-section > :nth-child(n + 4) { animation: reference-enter 180ms 80ms ease-out backwards; }
 }
 
 @keyframes reference-enter {
   from { opacity: 0; transform: translate3d(0, 10px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 1; transform: none; }
 }
 
 @media (min-width: 760px) {
@@ -591,7 +591,7 @@
   padding: 16px;
   border-radius: 18px;
   background: var(--surface-soft);
-  animation: invoice-fields-in 220ms cubic-bezier(.2,.8,.2,1) both;
+  animation: invoice-fields-in 220ms cubic-bezier(.2,.8,.2,1) backwards;
 }
 .sales-form-page .form-card {
   border-radius: 22px;
@@ -769,7 +769,7 @@
   background: #fff;
 }
 .app-main > * {
-  animation: page-enter 260ms cubic-bezier(.2,.8,.2,1) both;
+  animation: page-enter 260ms cubic-bezier(.2,.8,.2,1) backwards;
 }
 .button, .compact-action, .nav-item, .entity-card, .dashboard-action {
   transition: transform 160ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
@@ -796,11 +796,11 @@
 }
 @keyframes invoice-fields-in {
   from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes page-enter {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .app-main > *, .invoice-payment-fields { animation: none; }

@@ -22,6 +22,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { LoadingScreen } from "../ui/LoadingScreen";
 import { useToast } from "../ui/ToastProvider";
 import { formatMoney, unitLabel } from "../utils/format";
+import { askConfirm } from "../ui/dialogs";
 
 export function ContactDetailPage() {
   const { id = "" } = useParams();
@@ -285,12 +286,8 @@ export function ContactDetailPage() {
           variant="danger"
           icon={<Trash2 />}
           busy={deactivate.isPending}
-          onClick={() => {
-            if (
-              window.confirm(
-                "¿Dar de baja este contacto? Sus datos se conservarán.",
-              )
-            )
+          onClick={async () => {
+            if (await askConfirm("¿Dar de baja este contacto? Sus datos se conservarán.", { danger: true }))
               deactivate.mutate();
           }}
         >

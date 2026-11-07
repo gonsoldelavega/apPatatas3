@@ -8,6 +8,7 @@ import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import { useCustomers } from "../workspace/hooks";
 import { formatShortDate } from "../workspace/helpers";
+import { askConfirm } from "../ui/dialogs";
 
 function NoteCard({ note }: { note: Note }) {
   const queryClient = useQueryClient();
@@ -47,8 +48,8 @@ function NoteCard({ note }: { note: Note }) {
             type="button"
             aria-label={`Archivar nota: ${note.title}`}
             disabled={archive.isPending}
-            onClick={() => {
-              if (window.confirm(`¿Archivar la nota «${note.title}»?`)) archive.mutate();
+            onClick={async () => {
+              if (await askConfirm(`¿Archivar la nota «${note.title}»?`)) archive.mutate();
             }}
           >
             <Trash2 aria-hidden="true" />

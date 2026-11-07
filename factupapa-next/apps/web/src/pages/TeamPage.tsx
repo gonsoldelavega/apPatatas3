@@ -6,6 +6,7 @@ import { ApiError } from "../api/client";
 import { teamApi } from "../api/services";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
+import { askConfirm, askText } from "../ui/dialogs";
 
 const errorMessages: Record<string, string> = {
   team_limit_reached: "Ya hay 3 socios activos. Da de baja a uno para añadir otro.",
@@ -145,8 +146,8 @@ export function TeamPage() {
                 <Button
                   variant="secondary"
                   busy={changeWelcome.isPending && changeWelcome.variables?.id === member.id}
-                  onClick={() => {
-                    const next = window.prompt("Mensaje de bienvenida", member.welcomeMessage ?? "");
+                  onClick={async () => {
+                    const next = await askText("Mensaje de bienvenida", member.welcomeMessage ?? "");
                     if (next !== null) changeWelcome.mutate({ id: member.id, message: next.trim() });
                   }}
                 >
@@ -156,10 +157,11 @@ export function TeamPage() {
                   variant="danger"
                   icon={<Trash2 />}
                   busy={remove.isPending && remove.variables === member.id}
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      window.confirm(
+                      await askConfirm(
                         `¿Dar de baja a ${member.email}? Perderá el acceso de inmediato.`,
+                        { danger: true },
                       )
                     ) {
                       remove.mutate(member.id);

@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { ordersApi, type Order, type OrderLine } from "../api/workspace";
 import { todayLocal } from "../utils/format";
 import { doneOfText, formatShortDate, isOverdue, progressPercent, remainingText, unitName } from "./helpers";
+import { askConfirm } from "../ui/dialogs";
 
 const errorText = (error: unknown): string =>
   error instanceof ApiError && error.code === "invalid_request"
@@ -148,8 +149,8 @@ export function OrderCard({ order, compact = false }: { order: Order; compact?: 
             type="button"
             className="order-btn order-btn--quiet"
             disabled={cancel.isPending}
-            onClick={() => {
-              if (window.confirm(`¿Cancelar el pedido de ${order.contactName}?`)) cancel.mutate();
+            onClick={async () => {
+              if (await askConfirm(`¿Cancelar el pedido de ${order.contactName}?`, { danger: true })) cancel.mutate();
             }}
           >
             <X aria-hidden="true" /> Cancelar pedido

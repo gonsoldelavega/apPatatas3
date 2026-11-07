@@ -9,6 +9,7 @@ import { Field } from "../ui/Field";
 import { SelectField } from "../ui/SelectField";
 import { formatMoney, todayLocal } from "../utils/format";
 import { describeBalance, formatShortDate, KIND_LABELS, monthRange } from "../workspace/helpers";
+import { askConfirm } from "../ui/dialogs";
 
 export function LedgerPage() {
   const queryClient = useQueryClient();
@@ -94,8 +95,8 @@ export function LedgerPage() {
             variant="secondary"
             icon={<HandCoins />}
             busy={settle.isPending}
-            onClick={() => {
-              if (window.confirm(`¿Registrar que ${data.balance.debtorName} ha pagado ${formatMoney(data.balance.amount)} a ${data.balance.creditorName} y dejar las cuentas a cero?`)) settle.mutate();
+            onClick={async () => {
+              if (await askConfirm(`¿Registrar que ${data.balance.debtorName} ha pagado ${formatMoney(data.balance.amount)} a ${data.balance.creditorName} y dejar las cuentas a cero?`)) settle.mutate();
             }}
           >
             Saldar cuentas
@@ -199,8 +200,8 @@ export function LedgerPage() {
                     className="task-delete"
                     aria-label={`Borrar apunte: ${entry.concept}`}
                     disabled={remove.isPending}
-                    onClick={() => {
-                      if (window.confirm(`¿Borrar el apunte «${entry.concept}» de ${formatMoney(entry.amount)}?`)) remove.mutate(entry.id);
+                    onClick={async () => {
+                      if (await askConfirm(`¿Borrar el apunte «${entry.concept}» de ${formatMoney(entry.amount)}?`, { danger: true })) remove.mutate(entry.id);
                     }}
                   >
                     <Trash2 aria-hidden="true" />

@@ -10,6 +10,7 @@ import { PeriodPicker } from "../ui/PeriodPicker";
 import { SelectField } from "../ui/SelectField";
 import { formatMoney, formatQuantity } from "../utils/format";
 import { currentPeriod, periodLabel, periodRange, shiftYearMonth } from "../utils/period";
+import { askConfirm } from "../ui/dialogs";
 
 const cats: Record<string, string> = {
   mercancia: "Mercancía",
@@ -509,9 +510,9 @@ export function ExpensesPage() {
                 <button
                   type="button"
                   aria-label={`Desactivar ${item.name}`}
-                  onClick={() =>
-                    window.confirm("¿Desactivar este gasto mensual?") && remove.mutate(item.id)
-                  }
+                  onClick={async () => {
+                    if (await askConfirm("¿Desactivar este gasto mensual?", { danger: true })) remove.mutate(item.id);
+                  }}
                 >
                   <Trash2 />
                 </button>
