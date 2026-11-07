@@ -33,7 +33,7 @@
 @media (max-width: 759px) {
   .dashboard-page .result-card {
     gap: 14px;
-    padding: 16px 16px 14px;
+    padding: 12px 14px 10px;
   }
 
   .dashboard-page .result-card__heading {
@@ -65,7 +65,7 @@
 
   .dashboard-page .result-card__heading strong {
     margin: 0 !important;
-    font-size: clamp(2.45rem, 12vw, 3.1rem);
+    font-size: clamp(2rem, 9.5vw, 2.5rem);
     line-height: 0.95;
   }
 

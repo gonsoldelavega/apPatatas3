@@ -255,7 +255,8 @@ export function DashboardPage() {
   });
 
   const data = isPreview ? previewSummary : summary.data;
-  const result = Number(data?.finance.balance ?? 0);
+  // El balance grande es el real (facturas + albaranes); el legal, sin albaranes, va debajo.
+  const result = Number(data?.finance.balanceWithDeliveryNotes ?? 0);
 
   return (
     <div className="page dashboard-page dashboard-premium">
@@ -282,10 +283,10 @@ export function DashboardPage() {
             <div>
               <span>Resultado de {monthLabel(selectedMonth)}</span>
               <strong className={result >= 0 ? "is-positive" : "is-negative"}>
-                {data ? formatMoney(data.finance.balance) : "—"}
+                {data ? formatMoney(data.finance.balanceWithDeliveryNotes) : "—"}
               </strong>
               <small className="result-card__with-notes">
-                Con albaranes: {data ? formatMoney(data.finance.balanceWithDeliveryNotes) : "—"}
+                Con albaranes y facturas · Sin albaranes: {data ? formatMoney(data.finance.balance) : "—"}
               </small>
             </div>
             <div className="dashboard-month-nav" aria-label="Cambiar mes del resumen">

@@ -65,7 +65,7 @@
 .result-card {
   position: relative;
   overflow: hidden;
-  padding: 24px;
+  padding: 18px;
   border: 1px solid rgb(255 255 255 / 9%);
   border-radius: 26px;
   color: #fff;
@@ -111,7 +111,7 @@
 .result-card__heading strong {
   display: block;
   font-family: var(--font-display);
-  font-size: clamp(2.4rem, 12vw, 4.6rem);
+  font-size: clamp(2rem, 9vw, 3.4rem);
   line-height: 0.95;
   letter-spacing: -0.065em;
 }
@@ -148,7 +148,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  margin-top: 28px;
+  margin-top: 16px;
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 8%);
   border-radius: 16px;
@@ -157,7 +157,7 @@
 
 .result-card__metrics > div {
   min-width: 0;
-  padding: 14px;
+  padding: 10px 12px;
   background: rgb(255 255 255 / 4%);
 }
 
