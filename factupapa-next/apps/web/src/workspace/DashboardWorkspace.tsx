@@ -4,11 +4,13 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ledgerApi, ordersApi, tasksApi } from "../api/workspace";
 import { useSideNames } from "./hooks";
+import { NewOrderForm } from "./NewOrderForm";
 import { describeBalance } from "./helpers";
 import { OrderCard } from "./OrderCard";
 import { TaskRow } from "./TaskRow";
 
 function PendingOrders() {
+  const [creating, setCreating] = useState(false);
   const orders = useQuery({ queryKey: ["orders", "open"], queryFn: () => ordersApi.list("open") });
   const items = orders.data?.items ?? [];
   return (
@@ -18,16 +20,22 @@ function PendingOrders() {
           <ClipboardList aria-hidden="true" /> Pedidos pendientes
           {items.length > 0 && <span className="workspace-count">{items.length}</span>}
         </h2>
-        <Link to="/pedidos">Ver todos</Link>
+        <div className="workspace-block__actions">
+          {!creating && (
+            <button type="button" className="compact-action" onClick={() => setCreating(true)}>
+              <Plus aria-hidden="true" /> Nuevo pedido
+            </button>
+          )}
+          <Link to="/pedidos">Ver todos</Link>
+        </div>
       </div>
+      {creating && <NewOrderForm onDone={() => setCreating(false)} />}
       {orders.isLoading ? (
         <p className="form-hint">Cargando…</p>
       ) : orders.isError ? (
         <p className="form-hint">No se pudieron cargar los pedidos.</p>
       ) : items.length === 0 ? (
-        <p className="workspace-empty">
-          No hay pedidos pendientes. <Link to="/pedidos">Apuntar un pedido</Link>
-        </p>
+        <p className="workspace-empty">No hay pedidos pendientes.</p>
       ) : (
         <div className="order-list">
           {items.slice(0, 5).map((order) => (

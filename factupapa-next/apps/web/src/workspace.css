@@ -140,3 +140,5 @@
   .workspace-form__row { grid-template-columns: 1fr; }
   .draft-line__row { grid-template-columns: 1fr 1fr auto; }
 }
+
+.workspace-block__actions { display: flex; align-items: center; gap: 14px; }
