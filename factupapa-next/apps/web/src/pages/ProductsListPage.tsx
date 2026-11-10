@@ -1,13 +1,25 @@
 import { ChevronRight, Package, Plus, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { financeApi, productsApi } from "../api/services";
+import { useIsPartner } from "../auth/roles";
 import { EmptyState } from "../ui/EmptyState";
 import { Button } from "../ui/Button";
 import { formatMoney, formatQuantity, unitLabel } from "../utils/format";
 
+function CardShell({ className, to, children }: { className: string; to: string | null; children: ReactNode }) {
+  return to ? (
+    <Link className={className} to={to}>
+      {children}
+    </Link>
+  ) : (
+    <div className={className}>{children}</div>
+  );
+}
+
 export function ProductsListPage() {
+  const partner = useIsPartner();
   const [search, setSearch] = useState("");
   const [active, setActive] = useState(true);
   const [page, setPage] = useState(1);
@@ -24,6 +36,7 @@ export function ProductsListPage() {
   const stock = useQuery({
     queryKey: ["stock"],
     queryFn: financeApi.stock,
+    enabled: !partner,
   });
   const stockByProduct = new Map(
     stock.data?.map((item) => [item.productId, item.quantity]) ?? [],
@@ -103,9 +116,9 @@ export function ProductsListPage() {
       )}
       <div className="card-list">
         {products.data?.items.map((product) => (
-          <Link
+          <CardShell
             className="entity-card product-card"
-            to={`/productos/${product.id}/editar`}
+            to={partner ? null : `/productos/${product.id}/editar`}
             key={product.id}
           >
             <span className="entity-card__icon">
@@ -126,8 +139,8 @@ export function ProductsListPage() {
                 </span>
               ) : null}
             </span>
-            <ChevronRight />
-          </Link>
+            {!partner && <ChevronRight />}
+          </CardShell>
         ))}
       </div>
       {products.data && products.data.total > products.data.pageSize && (

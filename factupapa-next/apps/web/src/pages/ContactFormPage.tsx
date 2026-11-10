@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Save } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { useIsPartner } from "../auth/roles";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { contactsApi } from "../api/services";
@@ -71,6 +72,7 @@ function payload(values: Values): ContactInput {
 
 export function ContactFormPage() {
   const { id } = useParams();
+  const partner = useIsPartner();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -132,7 +134,7 @@ export function ContactFormPage() {
         queryClient.invalidateQueries({ queryKey: ["purchase-suppliers"] }),
       ]);
       toast.show(id ? "Contacto actualizado" : "Contacto creado");
-      navigate(`/contactos/${saved.id}`, { replace: true });
+      navigate(partner ? "/catalogo/contactos" : `/contactos/${saved.id}`, { replace: true });
     },
   });
   if (id && contact.isLoading)

@@ -149,21 +149,22 @@ export function App() {
             <Route path="notas" element={<NotesPage />} />
             <Route path="cuentas" element={<LedgerPage />} />
             <Route path="mas" element={<MoreRoute />} />
+            {/* Los socios pueden consultar y dar de alta clientes, proveedores y productos (no editarlos). */}
+            <Route path="catalogo" element={<CatalogPage />}>
+              <Route index element={<Navigate to="contactos" replace />} />
+              <Route path="contactos" element={<ContactsListPage />} />
+              <Route path="productos" element={<ProductsListPage />} />
+            </Route>
+            <Route path="contactos/nuevo" element={<ContactFormPage />} />
+            <Route path="productos/nuevo" element={<ProductFormPage />} />
             {/* Todo lo que sigue es solo del usuario maestro: un socio vuelve al inicio. */}
             <Route element={<OwnerOnly />}>
               <Route path="gastos" element={<ExpensesPage />} />
               <Route path="gastos/nuevo" element={<PurchaseFormPage />} />
               <Route path="gastos/:id" element={<PurchaseDetailPage />} />
               <Route path="stock" element={<StockPage />} />
-              <Route path="catalogo" element={<CatalogPage />}>
-                <Route index element={<Navigate to="contactos" replace />} />
-                <Route path="contactos" element={<ContactsListPage />} />
-                <Route path="productos" element={<ProductsListPage />} />
-              </Route>
-              <Route path="contactos/nuevo" element={<ContactFormPage />} />
               <Route path="contactos/:id" element={<ContactDetailPage />} />
               <Route path="contactos/:id/editar" element={<ContactFormPage />} />
-              <Route path="productos/nuevo" element={<ProductFormPage />} />
               <Route path="productos/:id/editar" element={<ProductFormPage />} />
               <Route path="importar" element={<ImportsPage />} />
               <Route path="exportar" element={<ExportPage />} />

@@ -107,3 +107,7 @@ Never claim a Next deployment is live without evidence from the actual Next stag
 - Nunca usar `window.confirm` / `window.prompt` / `window.alert`: el navegador los rotula con la dirección técnica del sitio. Usar `askConfirm` / `askText` / `showNotice` de `apps/web/src/ui/dialogs.tsx`.
 - Las animaciones de entrada no pueden dejar `transform` activo al terminar (`animation-fill-mode: both` con keyframes de `transform`): un ancestro con transform convierte `position: fixed` en relativo a ese ancestro y la barra «Total + Revisar factura» queda a mitad de la página, tapando el formulario. Usar `backwards`.
 - Los formularios largos necesitan `padding-bottom` ≥ 200 px en móvil para que el final suba por encima de la barra fija y la navegación inferior.
+
+## Permisos de los socios sobre el catálogo
+
+Los socios (`partner`) pueden **dar de alta** clientes, proveedores y productos (`POST /contacts`, `POST /products`) y consultarlos; no pueden editarlos, darlos de baja ni fijar precios especiales por cliente. En la web, sus listas (`/catalogo/*`) no enlazan a las ffichas de edición.

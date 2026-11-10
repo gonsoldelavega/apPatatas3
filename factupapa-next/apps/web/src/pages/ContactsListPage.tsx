@@ -1,11 +1,23 @@
 import { Building2, ChevronRight, Plus, Search, Store } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { contactsApi } from "../api/services";
 import type { ContactType } from "../api/types";
+import { useIsPartner } from "../auth/roles";
 import { EmptyState } from "../ui/EmptyState";
 import { Button } from "../ui/Button";
+
+/** Tarjeta de la lista: enlace para el maestro; los socios solo consultan (sin ficha de edición). */
+function CardShell({ className, to, children }: { className: string; to: string | null; children: ReactNode }) {
+  return to ? (
+    <Link className={className} to={to}>
+      {children}
+    </Link>
+  ) : (
+    <div className={className}>{children}</div>
+  );
+}
 
 type Filter = "all" | ContactType | "inactive";
 const filterLabels: Record<Filter, string> = {
@@ -17,6 +29,7 @@ const filterLabels: Record<Filter, string> = {
 };
 
 export function ContactsListPage() {
+  const partner = useIsPartner();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
@@ -100,9 +113,9 @@ export function ContactsListPage() {
       )}
       <div className="card-list">
         {contacts.data?.items.map((contact) => (
-          <Link
+          <CardShell
             className="entity-card"
-            to={`/contactos/${contact.id}`}
+            to={partner ? null : `/contactos/${contact.id}`}
             key={contact.id}
           >
             <span className="entity-card__icon">
@@ -122,8 +135,8 @@ export function ContactsListPage() {
                 {contact.isActive ? filterLabels[contact.type] : "Inactivo"}
               </span>
             </span>
-            <ChevronRight aria-hidden="true" />
-          </Link>
+            {!partner && <ChevronRight aria-hidden="true" />}
+          </CardShell>
         ))}
       </div>
       {contacts.data && contacts.data.total > contacts.data.pageSize && (

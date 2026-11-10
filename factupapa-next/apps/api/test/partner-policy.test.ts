@@ -41,6 +41,8 @@ test("el socio puede usar lo necesario para el día a día", () => {
     ["GET", `/contacts/${id}`],
     ["GET", `/contacts/${id}/products`],
     ["GET", "/products"],
+    ["POST", "/contacts"],
+    ["POST", "/products"],
     ["GET", `/products/${id}`],
     ["GET", "/sales-preferences"],
     // espacio compartido
@@ -90,13 +92,11 @@ test("el espacio compartido no abre nada más de la cuenta ni los nombres de los
 
 test("el socio NO puede tocar precios, clientes, proveedores, compras, gastos ni ajustes", () => {
   const denied: Array<[string, string]> = [
-    ["POST", "/contacts"],
     ["PATCH", `/contacts/${id}`],
     ["DELETE", `/contacts/${id}`],
     ["GET", `/contacts/${id}/account`],
     ["PUT", `/contacts/${id}/products/${id}/price`],
     ["DELETE", `/contacts/${id}/products/${id}/price`],
-    ["POST", "/products"],
     ["PATCH", `/products/${id}`],
     ["DELETE", `/products/${id}`],
     ["PATCH", "/sales-preferences"],

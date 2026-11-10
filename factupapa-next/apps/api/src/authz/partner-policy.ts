@@ -137,6 +137,9 @@ const rules: Rule[] = [
   { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/delivery-notes/(${UUID})/lines/[^/]+$`), decide: doc("delivery_note", "edit") },
   // ── Catálogo en SOLO LECTURA (para poder elegir cliente y producto) ─────────
   { methods: GET, pattern: /^\/contacts$/, decide: () => plain },
+  // Los socios pueden DAR DE ALTA clientes, proveedores y productos; no editarlos ni darlos de baja.
+  { methods: ["POST"], pattern: /^\/contacts$/, decide: () => plain },
+  { methods: ["POST"], pattern: /^\/products$/, decide: () => plain },
   { methods: GET, pattern: new RegExp(`^/contacts/${UUID}$`), decide: () => plain },
   { methods: GET, pattern: new RegExp(`^/contacts/${UUID}/products$`), decide: () => plain },
   { methods: GET, pattern: /^\/products$/, decide: () => plain },

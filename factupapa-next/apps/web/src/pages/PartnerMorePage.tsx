@@ -1,9 +1,9 @@
-import { ListChecks, LogOut, NotebookPen } from "lucide-react";
+import { Package, UsersRound, ListChecks, LogOut, NotebookPen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
 
-/** «Más» de los socios: tareas, notas y salir. */
+/** «Más» de los socios: tareas, notas, altas de clientes/productos y salir. */
 export function PartnerMorePage() {
   const auth = useAuth();
   return (
@@ -22,6 +22,16 @@ export function PartnerMorePage() {
             <ListChecks aria-hidden="true" />
             <strong>Tareas</strong>
             <small>Lo que hay que hacer</small>
+          </Link>
+          <Link to="/catalogo/contactos">
+            <UsersRound aria-hidden="true" />
+            <strong>Clientes</strong>
+            <small>Clientes y proveedores</small>
+          </Link>
+          <Link to="/catalogo/productos">
+            <Package aria-hidden="true" />
+            <strong>Productos</strong>
+            <small>Ver y dar de alta</small>
           </Link>
           <Link to="/notas">
             <NotebookPen aria-hidden="true" />

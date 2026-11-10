@@ -220,13 +220,22 @@ test("el socio NO puede gestionar el equipo ni ver compras, gastos, stock, impor
   assert.equal((await call("POST", "/team/members", partnerToken, { email: "otro@example.test" })).status, 403);
 });
 
-test("el socio NO puede editar clientes ni productos (solo leerlos)", async () => {
+test("el socio puede dar de alta clientes, proveedores y productos, pero no editarlos ni darlos de baja", async () => {
   assert.equal((await call("GET", "/contacts", partnerToken)).status, 200);
   assert.equal((await call("GET", "/products", partnerToken)).status, 200);
-  assert.equal((await call("POST", "/contacts", partnerToken, { type: "customer", legalName: "Nuevo", taxId: "X" })).status, 403);
+  const customer = await call("POST", "/contacts", partnerToken, { type: "customer", legalName: "Bar Nuevo Socio", taxId: "TEST-SOCIO-C" });
+  assert.equal(customer.status, 201);
+  const supplier = await call("POST", "/contacts", partnerToken, { type: "supplier", legalName: "Proveedor Nuevo Socio", taxId: "TEST-SOCIO-S" });
+  assert.equal(supplier.status, 201);
+  const product = await call("POST", "/products", partnerToken, { name: "Patata nueva socio", unit: "kg", salePrice: "1.50", taxRate: "4" });
+  assert.equal(product.status, 201);
+  const createdId = (await json<{ id: string }>(customer)).id;
+  assert.equal((await call("PATCH", `/contacts/${createdId}`, partnerToken, { legalName: "Cambiado" })).status, 403);
+  assert.equal((await call("DELETE", `/contacts/${createdId}`, partnerToken)).status, 403);
   assert.equal((await call("PATCH", `/contacts/${customerId}`, partnerToken, { legalName: "Cambiado" })).status, 403);
   assert.equal((await call("PATCH", `/products/${productId}`, partnerToken, { salePrice: "99" })).status, 403);
   assert.equal((await call("DELETE", `/products/${productId}`, partnerToken)).status, 403);
+  assert.equal((await call("PUT", `/contacts/${customerId}/products/${productId}/price`, partnerToken, { price: "1" })).status, 403);
 });
 
 test("el socio solo ve facturas y albaranes desde el 1 de noviembre", async () => {
