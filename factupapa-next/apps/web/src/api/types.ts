@@ -229,6 +229,11 @@ export interface StockItem {
   unit: ProductUnit;
   /** true cuando comparte existencias con el resto de productos de patata/agria. */
   sharedStock?: boolean;
+  /** Bolsas o kg ya preparados en la nevera (recuento menos ventas posteriores); null si no se ha contado. */
+  fridgeQuantity?: string | null;
+  fridgeCountedAt?: string | null;
+  packageLabel?: string | null;
+  unitsPerPackage?: string | null;
   quantity: string;
   salePrice: string;
   estimatedCost: string | null;

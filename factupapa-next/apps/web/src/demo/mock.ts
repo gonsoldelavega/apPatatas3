@@ -79,8 +79,8 @@ const recurring = [{
 }];
 
 const stock = [
-  { productId: "demo-product-raw", name: "Patata agria", unit: "kg", quantity: "1260", salePrice: "1.60", estimatedCost: "0.80", averagePurchaseCost: "0.79", potentialRevenue: "2016.00", stockValue: "995.40", potentialGrossMargin: "1020.60" },
-  { productId: "demo-product-peeled", name: "Patata pelada y cortada", unit: "kg", quantity: "210", salePrice: "1.60", estimatedCost: "1.00", averagePurchaseCost: "1.00", potentialRevenue: "336.00", stockValue: "210.00", potentialGrossMargin: "126.00" },
+  { productId: "demo-product-raw", name: "Patata agria", unit: "kg", sharedStock: true, quantity: "1260", salePrice: "1.60", estimatedCost: "0.80", averagePurchaseCost: "0.79", potentialRevenue: "2016.00", stockValue: "995.40", potentialGrossMargin: "1020.60" },
+  { productId: "demo-product-peeled", name: "Patata pelada y cortada", unit: "kg", sharedStock: true, fridgeQuantity: "75", unitsPerPackage: "2.5", packageLabel: "Bolsa 2,5 kg", quantity: "1260", salePrice: "1.60", estimatedCost: "1.00", averagePurchaseCost: "1.00", potentialRevenue: "336.00", stockValue: "210.00", potentialGrossMargin: "126.00" },
 ];
 
 const monthly = [5, 4, 3, 2, 1, 0].map((offset) => {

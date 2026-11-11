@@ -160,8 +160,16 @@ const stockCtes = `purchase_entries as(
     select input_product_id product_id,-input_quantity qty from production_runs
     union all select output_product_id,output_quantity from production_runs
   )q group by product_id
+),fridge_sales as(
+  select l.product_id,sum(case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end)qty
+  from(
+    select il.product_id,il.quantity,il.unit,i.issued_at from invoice_lines il join invoices i on i.id=il.invoice_id and i.status='issued' and i.source_type='manual'
+    union all select dl.product_id,dl.quantity,dl.unit,d.issued_at from delivery_note_lines dl join delivery_notes d on d.id=dl.delivery_note_id and d.status in('issued','invoiced')
+  )l join products p on p.id=l.product_id join fridge_stock f on f.product_id=l.product_id and l.issued_at>f.counted_at group by l.product_id
+),fridge_now as(
+  select f.product_id,greatest(0,f.quantity-coalesce(fs.qty,0))quantity,f.counted_at from fridge_stock f left join fridge_sales fs on fs.product_id=f.product_id
 ),stock_base as(
-  select p.id,p.name,p.unit,p.is_active,p.sale_price,p.estimated_cost,b.average_cost,b.qty purchased_qty,b.total_cost,
+  select p.id,p.name,p.unit,p.is_active,p.package_label,p.units_per_package,p.sale_price,p.estimated_cost,b.average_cost,b.qty purchased_qty,b.total_cost,
     (p.unit='kg' and lower(p.name)~'(patata|agria)') shared,
     (coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0)+coalesce(pr.qty,0))own_quantity
   from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id
@@ -171,11 +179,12 @@ const stockCtes = `purchase_entries as(
   -- se abastece de la misma existencia de kilos. Incluye productos ya dados de baja para no perder sus movimientos.
   select coalesce(sum(own_quantity),0)quantity,sum(total_cost)/nullif(sum(purchased_qty),0) average_cost from stock_base where shared
 ),stock_rows as(
-  select b.id,b.name,b.unit,b.sale_price,b.estimated_cost,b.shared,
+  select b.id,b.name,b.unit,b.package_label,b.units_per_package,b.sale_price,b.estimated_cost,b.shared,
     case when b.shared then coalesce(sp.average_cost,b.average_cost) else b.average_cost end average_cost,
     case when b.shared then coalesce(sp.average_cost,b.estimated_cost) else coalesce(b.average_cost,b.estimated_cost) end current_cost,
-    case when b.shared then sp.quantity else b.own_quantity end current_quantity
-  from stock_base b cross join shared_pool sp where b.is_active
+    case when b.shared then sp.quantity else b.own_quantity end current_quantity,
+    fn.quantity fridge_quantity,fn.counted_at fridge_counted_at
+  from stock_base b cross join shared_pool sp left join fridge_now fn on fn.product_id=b.id where b.is_active
 )`;
 export class FinanceService {
   private readonly s3?: S3Client;
@@ -1327,10 +1336,31 @@ export class FinanceService {
       async (c) =>
         (
           await c.query(
-            `with ${stockCtes} select id "productId",name,unit,shared "sharedStock",current_quantity::text quantity,sale_price::text "salePrice",estimated_cost::text "estimatedCost",average_cost::text "averagePurchaseCost",(current_quantity*sale_price)::text "potentialRevenue",case when current_cost is null then null else(current_quantity*current_cost)::text end "stockValue",case when current_cost is null then null else(current_quantity*(sale_price-current_cost))::text end "potentialGrossMargin" from stock_rows order by name`,
+            `with ${stockCtes} select id "productId",name,unit,shared "sharedStock",current_quantity::text quantity,fridge_quantity::text "fridgeQuantity",fridge_counted_at "fridgeCountedAt",package_label "packageLabel",units_per_package::text "unitsPerPackage",sale_price::text "salePrice",estimated_cost::text "estimatedCost",average_cost::text "averagePurchaseCost",(current_quantity*sale_price)::text "potentialRevenue",case when current_cost is null then null else(current_quantity*current_cost)::text end "stockValue",case when current_cost is null then null else(current_quantity*(sale_price-current_cost))::text end "potentialGrossMargin" from stock_rows order by name`,
           )
         ).rows,
     );
+  }
+  async setFridgeStock(i: SessionIdentity, x: { productId: string; quantity: string; note: string | null }) {
+    return withTenantTransaction(this.pool, i, async (c) => {
+      const product = await c.query(`select id from products where id=$1 and is_active`, [x.productId]);
+      if (!product.rowCount) throw new HttpError("not_found", 404);
+      await c.query(
+        `insert into fridge_stock(company_id,product_id,quantity,counted_at,note,updated_by_user_id)
+         values($1,$2,$3,now(),$4,$5)
+         on conflict(company_id,product_id) do update set quantity=excluded.quantity,counted_at=now(),note=excluded.note,updated_by_user_id=excluded.updated_by_user_id`,
+        [i.companyId, x.productId, x.quantity, x.note, i.userId],
+      );
+      await recordAudit(c, {
+        companyId: i.companyId,
+        actorUserId: i.userId,
+        entityType: "fridge_stock",
+        entityId: x.productId,
+        action: "fridge_stock.set",
+        after: x,
+      });
+      return { productId: x.productId, quantity: x.quantity };
+    });
   }
   async stockMovements(i: SessionIdentity, productId?: string) {
     return withTenantTransaction(this.pool, i, async (c) =>

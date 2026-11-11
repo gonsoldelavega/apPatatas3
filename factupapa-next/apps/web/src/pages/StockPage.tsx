@@ -1,4 +1,5 @@
 import { stockTotals } from "../utils/stock-totals";
+import { FridgeRow } from "../stock/FridgeRow";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight, Factory, PackageCheck, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
@@ -49,6 +50,11 @@ export function StockPage() {
       ? String(Number(sacks || 0) * 15 + Number((looseKg || "0").replace(",", ".")))
       : targetQuantity;
   const totals = stockTotals(q.data ?? []);
+  const sharedItems = (q.data ?? []).filter((item) => item.sharedStock);
+  const otherItems = (q.data ?? []).filter((item) => !item.sharedStock);
+  // Patata en general: los mismos kilos para todas las variantes, contados una sola vez.
+  const potatoKg = sharedItems.length ? Number(sharedItems[0]!.quantity) : 0;
+  const fridgeKg = sharedItems.reduce((sum, item) => sum + Number(item.fridgeQuantity ?? 0), 0);
   const adjust = useMutation({
     mutationFn: () =>
       financeApi.setStockLevel({
@@ -79,12 +85,22 @@ export function StockPage() {
       </header>
       <section className="metric-grid">
         <article>
-          <span>Patata disponible</span>
-          <strong>{formatQuantity(String(totals.kg))} kg</strong>
+          <span>Patata en general</span>
+          <strong>{formatQuantity(String(potatoKg))} kg</strong>
           <small>
-            {Math.floor(totals.kg / 15)} sacos completos +{" "}
-            {formatQuantity(String(Math.round((totals.kg % 15) * 10_000) / 10_000))} kg
+            {Math.floor(potatoKg / 15)} sacos completos +{" "}
+            {formatQuantity(String(Math.round((potatoKg % 15) * 10_000) / 10_000))} kg · todas las variedades juntas
           </small>
+        </article>
+        <article>
+          <span>Stock en nevera</span>
+          <strong>{formatQuantity(String(fridgeKg))} kg</strong>
+          <small>Ya hecho para entregar (incluido en la patata en general).</small>
+        </article>
+        <article>
+          <span>Por preparar</span>
+          <strong>{formatQuantity(String(Math.max(0, potatoKg - fridgeKg)))} kg</strong>
+          <small>Patata en general menos lo que hay en la nevera.</small>
         </article>
         <article>
           <span>Valor comprado</span>
@@ -184,14 +200,32 @@ export function StockPage() {
         </section>
       )}
       <div className="stock-grid">
-        {q.data?.map((x) => (
+        {sharedItems.length > 0 && (
+          <article className="stock-card stock-card--potato">
+            <PackageCheck />
+            <h2>Patata (stock general)</h2>
+            <strong>{formatQuantity(String(potatoKg))} kg</strong>
+            <p>Todas las variedades salen de estos mismos kilos. En la nevera, por producto:</p>
+            {sharedItems.map((item) => (
+              <FridgeRow key={item.productId} item={item} />
+            ))}
+            <button
+              type="button"
+              className="stock-card__adjust"
+              onClick={() => selectStockProduct(sharedItems[0]!.productId, true)}
+            >
+              <RefreshCw aria-hidden="true" />
+              Ajustar stock de patata
+            </button>
+          </article>
+        )}
+        {otherItems.map((x) => (
           <article className="stock-card" key={x.productId}>
             <PackageCheck />
             <h2>{x.name}</h2>
             <strong>
               {formatQuantity(x.quantity)} {x.unit}
             </strong>
-            {x.sharedStock && <p className="stock-card__shared">Stock compartido de patata: sale de los mismos kilos que el resto de variantes.</p>}
             {x.unit === "kg" && (
               <p>
                 {Math.floor(Number(x.quantity) / 15)} sacos completos +{" "}

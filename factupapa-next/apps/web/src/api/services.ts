@@ -560,6 +560,8 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  setFridgeStock: (input: { productId: string; quantity: string; note?: string | null }) =>
+    apiClient.request("/stock/fridge", { method: "POST", body: JSON.stringify(input) }),
   productionRuns: () => apiClient.request<ProductionRun[]>("/production-runs"),
   createProductionRun: (input: {
     inputProductId:string; outputProductId:string; occurredOn:string;

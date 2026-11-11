@@ -9,6 +9,7 @@ import {
   validateRecurringExpense,
   validateStockAdjustment,
   validateStockLevel,
+  validateFridgeStock,
   validateProductionRun,
 } from "./validation.js";
 import { PARTNER_ROLE } from "../authz/partner-policy.js";
@@ -143,6 +144,10 @@ export function createFinanceRoutes(
           validateStockAdjustment(await readJson(request)),
         ),
       );
+      return true;
+    }
+    if (url.pathname === "/stock/fridge" && request.method === "POST") {
+      json(response, 200, await finance.setFridgeStock(id, validateFridgeStock(await readJson(request))));
       return true;
     }
     if (url.pathname === "/stock/level" && request.method === "POST") {

@@ -746,6 +746,20 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
       const expected=[...stock.values()].filter((item)=>item.sharedStock===false).reduce((sum,item)=>sum+Math.max(0,Number(item.quantity)),0)
         +Math.max(0,...[...stock.values()].filter((item)=>item.sharedStock===true).map((item)=>Number(item.quantity)));
       assert.ok(Math.abs(kg-expected)<0.01,`stockKg ${kg} != ${expected}`);
+      // Stock en nevera: recuento de lo ya preparado; las ventas posteriores lo van descontando.
+      assert.equal((await request("POST","/stock/fridge",{productId:peeled.id,quantity:"10",note:"Bolsas hechas"},tokenA)).status,200);
+      assert.equal((await request("POST","/stock/fridge",{productId:peeled.id,quantity:"-1"},tokenA)).status,400);
+      stock=await stockOf();
+      assert.equal(Number(stock.get(peeled.id as string)?.fridgeQuantity),10);
+      assert.equal(stock.get(raw.id as string)?.fridgeQuantity,null);
+      assert.equal(Number(stock.get(peeled.id as string)?.quantity),base+70,"la nevera no cambia el total de patata");
+      const later=await request("POST","/invoices",{contactId:contactA.id,series:"POOL_2026",issueDate:"2026-07-23",dueDate:"2026-07-23",applyContactDefaults:false},tokenA);
+      const laterInvoice=(await later.json()) as Entity;
+      assert.equal((await request("POST",`/invoices/${laterInvoice.id}/lines`,{productId:peeled.id,quantity:"4",unitPrice:"1.45"},tokenA)).status,201);
+      assert.equal((await request("POST",`/invoices/${laterInvoice.id}/issue`,{},tokenA)).status,200);
+      stock=await stockOf();
+      assert.equal(Number(stock.get(peeled.id as string)?.fridgeQuantity),6,"vender después del recuento descuenta de la nevera");
+      assert.equal(Number(stock.get(peeled.id as string)?.quantity),base+66);
     },
   );
 

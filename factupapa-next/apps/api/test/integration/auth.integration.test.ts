@@ -248,6 +248,7 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
         "purchase_invoice_lines",
         "recurring_expenses",
         "stock_adjustments",
+        "fridge_stock",
         "production_runs",
         "ocr_usage_events",
       ];

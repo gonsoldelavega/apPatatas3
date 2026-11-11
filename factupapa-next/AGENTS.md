@@ -115,3 +115,7 @@ Los socios (`partner`) pueden **dar de alta** clientes, proveedores y productos 
 ## Stock compartido de patata
 
 Todo producto activo **en kg** cuyo nombre contenga «patata», «patatas» o «agria» (sin distinguir mayúsculas) comparte UNA sola existencia de kilos: compras confirmadas − ventas (facturas y albaranes) ± ajustes ± merma de producción, sumadas sobre todo el grupo (incluidos los productos dados de baja, para no perder movimientos). Cada variante muestra esos mismos kilos. Está en `stockCtes` (`apps/api/src/finance/service.ts`); `/stock` devuelve `sharedStock` y los totales (`stockKg`, venta posible, web `utils/stock-totals.ts`) cuentan el grupo una sola vez. No se aplica merma a las ventas: 1 kg vendido descuenta 1 kg.
+
+## Stock en nevera
+
+Tabla `fridge_stock` (migración 0042): recuento por producto de lo ya preparado para entregar (bolsas o kg), con `counted_at`. El valor vigente es el recuento menos las ventas emitidas después (facturas manuales y albaranes). La nevera es un subconjunto de la patata general: no cambia el total, solo reparte entre «en nevera» y «por preparar». API: `POST /stock/fridge` (solo maestro); `/stock` devuelve `fridgeQuantity`, `fridgeCountedAt`, `packageLabel`, `unitsPerPackage`. Pantalla Stock: una sola tarjeta «Patata (stock general)» con la nevera por producto.

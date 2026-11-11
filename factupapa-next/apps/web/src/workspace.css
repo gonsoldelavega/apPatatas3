@@ -149,3 +149,68 @@
   font-weight: 600;
   color: var(--color-accent, #1f6f50);
 }
+
+/* Stock en nevera */
+.fridge-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--line, #e1e7f0);
+}
+.fridge-row__line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fridge-row__line > svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.fridge-row__line > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.fridge-row__line small {
+  color: var(--muted, #64748b);
+}
+.fridge-row__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.fridge-row__form input {
+  flex: 1 1 90px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  font: inherit;
+}
+.fridge-row__mode {
+  display: flex;
+  gap: 4px;
+}
+.fridge-row__mode button,
+.fridge-row__cancel {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.fridge-row__mode button[aria-pressed="true"] {
+  border-color: transparent;
+  background: #2563c9;
+  color: #fff;
+}
+.stock-card--potato {
+  grid-column: 1 / -1;
+}
+.stock-card--potato h2 + strong {
+  display: block;
+}

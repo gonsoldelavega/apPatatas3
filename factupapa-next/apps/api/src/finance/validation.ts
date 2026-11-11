@@ -192,6 +192,14 @@ export function validateStockAdjustment(i: Json) {
     note: text(i.note, 1000),
   };
 }
+export function validateFridgeStock(i: Json) {
+  allowed(i, ["productId", "quantity", "note"]);
+  const quantity =
+    typeof i.quantity === "string" || typeof i.quantity === "number" ? String(i.quantity).replace(",", ".") : "";
+  if (!/^\d{1,12}(?:\.\d{1,4})?$/.test(quantity)) throw new HttpError("invalid_request", 400);
+  return { productId: uuid(i.productId, true)!, quantity, note: text(i.note, 500) };
+}
+
 export function validateStockLevel(i: Json) {
   allowed(i, ["productId", "occurredOn", "targetQuantity", "note"]);
   const targetQuantity =
