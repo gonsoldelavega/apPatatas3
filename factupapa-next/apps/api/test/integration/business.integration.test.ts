@@ -677,8 +677,8 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
   await context.test(
     "producción descuenta materia prima, suma terminado y registra merma",
     async () => {
-      const raw=await createProduct(tokenA,{name:"Patata bruta ficticia",sku:"RAW-PROD-1",salePrice:"1",estimatedCost:"0.5"});
-      const finished=await createProduct(tokenA,{name:"Patata terminada ficticia",sku:"FIN-PROD-1",salePrice:"1.6",estimatedCost:"0.7",
+      const raw=await createProduct(tokenA,{name:"Materia bruta ficticia",sku:"RAW-PROD-1",salePrice:"1",estimatedCost:"0.5"});
+      const finished=await createProduct(tokenA,{name:"Producto terminado ficticio",sku:"FIN-PROD-1",salePrice:"1.6",estimatedCost:"0.7",
         packageKind:"bag",packageLabel:"Bolsa 2,5 kg",unitsPerPackage:"2.5",packageCost:"0.1",expectedLossRate:"10"});
       const supplier=await createContact(tokenA,{type:"supplier",legalName:"Proveedor producción",taxId:"TEST-PROD-SUP"});
       const purchase=await request("POST","/purchases",{
@@ -700,6 +700,52 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
       assert.equal(items.find((item)=>item.productId===finished.id)?.quantity,"9.0000");
       const runs=await request("GET","/production-runs",undefined,tokenA);
       assert.equal(((await runs.json()) as Entity[])[0]?.lossQuantity,"1.0000");
+    },
+  );
+
+  await context.test(
+    "stock compartido: los productos con patata/agria en el nombre salen de la misma existencia de kilos",
+    async () => {
+      const stockOf=async()=>new Map(((await (await request("GET","/stock",undefined,tokenA)).json()) as Entity[]).map((item)=>[item.productId as string,item]));
+      const raw=await createProduct(tokenA,{name:"Agria saco pool ficticia",sku:"POOL-RAW",salePrice:"1",estimatedCost:"0.5"});
+      const peeled=await createProduct(tokenA,{name:"Patata pelada pool ficticia",sku:"POOL-PEELED",salePrice:"1.45",estimatedCost:"0.9"});
+      const carrot=await createProduct(tokenA,{name:"Zanahoria pool ficticia",sku:"POOL-CARROT",salePrice:"1",estimatedCost:"0.4"});
+      const before=await stockOf();
+      const base=Number(before.get(raw.id as string)?.quantity);
+      const supplier=await createContact(tokenA,{type:"supplier",legalName:"Proveedor pool",taxId:"TEST-POOL-SUP"});
+      const buy=async(productId:unknown,quantity:string,number:string)=>{
+        const purchase=await request("POST","/purchases",{supplierId:supplier.id,documentId:null,supplierInvoiceNumber:number,
+          issueDate:"2026-07-21",dueDate:null,category:"mercancia",notes:null,
+          lines:[{productId,description:"Mercancía",quantity,unit:"kg",unitCost:"0.5",taxRate:"4"}]},tokenA);
+        assert.equal(purchase.status,201);
+        const id=((await purchase.json()) as Entity).id;
+        assert.equal((await request("POST",`/purchases/${id}/confirm`,{},tokenA)).status,200);
+      };
+      await buy(raw.id,"100","POOL-IN-1");
+      await buy(carrot.id,"20","POOL-IN-2");
+      let stock=await stockOf();
+      assert.equal(Number(stock.get(raw.id as string)?.quantity),base+100);
+      assert.equal(Number(stock.get(peeled.id as string)?.quantity),base+100,"la pelada ve los kilos comprados como agria");
+      assert.equal(Number(stock.get(carrot.id as string)?.quantity),20,"la zanahoria no entra en el grupo");
+      assert.equal(stock.get(raw.id as string)?.sharedStock,true);
+      assert.equal(stock.get(carrot.id as string)?.sharedStock,false);
+      // Se venden 30 kg de la pelada: bajan para todas las variantes de patata.
+      const created=await request("POST","/invoices",{contactId:contactA.id,series:"POOL_2026",issueDate:"2026-07-22",dueDate:"2026-07-22",applyContactDefaults:false},tokenA);
+      assert.equal(created.status,201);
+      const invoice=(await created.json()) as Entity;
+      assert.equal((await request("POST",`/invoices/${invoice.id}/lines`,{productId:peeled.id,quantity:"30",unitPrice:"1.45"},tokenA)).status,201);
+      assert.equal((await request("POST",`/invoices/${invoice.id}/issue`,{},tokenA)).status,200);
+      stock=await stockOf();
+      assert.equal(Number(stock.get(raw.id as string)?.quantity),base+70);
+      assert.equal(Number(stock.get(peeled.id as string)?.quantity),base+70);
+      assert.equal(Number(stock.get(carrot.id as string)?.quantity),20);
+      // El resumen cuenta el grupo una sola vez (no una por variante).
+      const summary=await request("GET","/finance/summary?from=2026-07-01&to=2026-07-31",undefined,tokenA);
+      assert.equal(summary.status,200);
+      const kg=Number(((await summary.json()) as Entity).stockKg);
+      const expected=[...stock.values()].filter((item)=>item.sharedStock===false).reduce((sum,item)=>sum+Math.max(0,Number(item.quantity)),0)
+        +Math.max(0,...[...stock.values()].filter((item)=>item.sharedStock===true).map((item)=>Number(item.quantity)));
+      assert.ok(Math.abs(kg-expected)<0.01,`stockKg ${kg} != ${expected}`);
     },
   );
 

@@ -1,3 +1,4 @@
+import { stockTotals } from "../utils/stock-totals";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight, Factory, PackageCheck, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
@@ -47,16 +48,7 @@ export function StockPage() {
     target = selected?.unit === "kg"
       ? String(Number(sacks || 0) * 15 + Number((looseKg || "0").replace(",", ".")))
       : targetQuantity;
-  const totals = (q.data ?? []).reduce(
-    (acc, item) => {
-      if (item.unit === "kg") acc.kg += Number(item.quantity);
-      acc.potentialRevenue += Number(item.potentialRevenue);
-      if (item.stockValue) acc.stockValue += Number(item.stockValue);
-      if (item.potentialGrossMargin) acc.margin += Number(item.potentialGrossMargin);
-      return acc;
-    },
-    { kg: 0, stockValue: 0, potentialRevenue: 0, margin: 0 },
-  );
+  const totals = stockTotals(q.data ?? []);
   const adjust = useMutation({
     mutationFn: () =>
       financeApi.setStockLevel({
@@ -83,7 +75,7 @@ export function StockPage() {
       <header className="page-heading">
         <p className="eyebrow">Inventario real</p>
         <h1>Stock</h1>
-        <p>Compras confirmadas menos ventas y ajustes.</p>
+        <p>Compras confirmadas menos ventas y ajustes. Todas las variantes de patata o agria comparten los mismos kilos.</p>
       </header>
       <section className="metric-grid">
         <article>
@@ -199,6 +191,7 @@ export function StockPage() {
             <strong>
               {formatQuantity(x.quantity)} {x.unit}
             </strong>
+            {x.sharedStock && <p className="stock-card__shared">Stock compartido de patata: sale de los mismos kilos que el resto de variantes.</p>}
             {x.unit === "kg" && (
               <p>
                 {Math.floor(Number(x.quantity) / 15)} sacos completos +{" "}

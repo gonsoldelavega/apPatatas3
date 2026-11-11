@@ -147,7 +147,7 @@ const stockCtes = `purchase_entries as(
     case when l.unit=p.unit then l.quantity when l.unit='g' and p.unit='kg' then l.quantity/1000 when l.unit='kg' and p.unit='g' then l.quantity*1000 else 0 end qty
   from purchase_invoice_lines l join purchase_invoices i on i.id=l.purchase_invoice_id and i.status='confirmed' and i.deleted_at is null join products p on p.id=l.product_id
 ),purchase_quantities as(
-  select product_id,sum(qty)qty,sum(line_subtotal)/nullif(sum(qty),0) average_cost from purchase_entries where qty>0 group by product_id
+  select product_id,sum(qty)qty,sum(line_subtotal)total_cost,sum(line_subtotal)/nullif(sum(qty),0) average_cost from purchase_entries where qty>0 group by product_id
 ),sold_entries as(
   select l.product_id,l.quantity,l.unit from invoice_lines l join invoices i on i.id=l.invoice_id and i.status='issued' and i.source_type='manual'
   union all select l.product_id,l.quantity,l.unit from delivery_note_lines l join delivery_notes d on d.id=l.delivery_note_id and d.status in('issued','invoiced')
@@ -160,11 +160,22 @@ const stockCtes = `purchase_entries as(
     select input_product_id product_id,-input_quantity qty from production_runs
     union all select output_product_id,output_quantity from production_runs
   )q group by product_id
-),stock_rows as(
-  select p.id,p.name,p.unit,p.sale_price,p.estimated_cost,b.average_cost,coalesce(b.average_cost,p.estimated_cost)current_cost,
-    (coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0)+coalesce(pr.qty,0))current_quantity
+),stock_base as(
+  select p.id,p.name,p.unit,p.is_active,p.sale_price,p.estimated_cost,b.average_cost,b.qty purchased_qty,b.total_cost,
+    (p.unit='kg' and lower(p.name)~'(patata|agria)') shared,
+    (coalesce(b.qty,0)-coalesce(s.qty,0)+coalesce(a.qty,0)+coalesce(pr.qty,0))own_quantity
   from products p left join purchase_quantities b on b.product_id=p.id left join sold_quantities s on s.product_id=p.id
-    left join adjustment_quantities a on a.product_id=p.id left join production_quantities pr on pr.product_id=p.id where p.is_active
+    left join adjustment_quantities a on a.product_id=p.id left join production_quantities pr on pr.product_id=p.id
+),shared_pool as(
+  -- Stock compartido de patata: todo producto en kg cuyo nombre lleva «patata», «patatas» o «agria»
+  -- se abastece de la misma existencia de kilos. Incluye productos ya dados de baja para no perder sus movimientos.
+  select coalesce(sum(own_quantity),0)quantity,sum(total_cost)/nullif(sum(purchased_qty),0) average_cost from stock_base where shared
+),stock_rows as(
+  select b.id,b.name,b.unit,b.sale_price,b.estimated_cost,b.shared,
+    case when b.shared then coalesce(sp.average_cost,b.average_cost) else b.average_cost end average_cost,
+    case when b.shared then coalesce(sp.average_cost,b.estimated_cost) else coalesce(b.average_cost,b.estimated_cost) end current_cost,
+    case when b.shared then sp.quantity else b.own_quantity end current_quantity
+  from stock_base b cross join shared_pool sp where b.is_active
 )`;
 export class FinanceService {
   private readonly s3?: S3Client;
@@ -1316,7 +1327,7 @@ export class FinanceService {
       async (c) =>
         (
           await c.query(
-            `with ${stockCtes} select id "productId",name,unit,current_quantity::text quantity,sale_price::text "salePrice",estimated_cost::text "estimatedCost",average_cost::text "averagePurchaseCost",(current_quantity*sale_price)::text "potentialRevenue",case when current_cost is null then null else(current_quantity*current_cost)::text end "stockValue",case when current_cost is null then null else(current_quantity*(sale_price-current_cost))::text end "potentialGrossMargin" from stock_rows order by name`,
+            `with ${stockCtes} select id "productId",name,unit,shared "sharedStock",current_quantity::text quantity,sale_price::text "salePrice",estimated_cost::text "estimatedCost",average_cost::text "averagePurchaseCost",(current_quantity*sale_price)::text "potentialRevenue",case when current_cost is null then null else(current_quantity*current_cost)::text end "stockValue",case when current_cost is null then null else(current_quantity*(sale_price-current_cost))::text end "potentialGrossMargin" from stock_rows order by name`,
           )
         ).rows,
     );
@@ -1445,8 +1456,9 @@ export class FinanceService {
              payables as(select coalesce(sum(case when abs(i.total-coalesce(p.paid,0))<=0.01 then 0 else greatest(i.total-coalesce(p.paid,0),0) end),0) total
                from purchase_invoices i left join(select purchase_invoice_id,sum(amount)paid from payments where purchase_invoice_id is not null group by purchase_invoice_id)p on p.purchase_invoice_id=i.id where i.status='confirmed' and i.deleted_at is null and ($3::date is null or i.issue_date>=$3::date)),
              ${stockCtes},
-             stock_totals as(select coalesce(sum(case when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)kg,
-               coalesce(sum(greatest(0,current_quantity)*sale_price),0)potential,
+             stock_totals as(select
+               coalesce(sum(case when shared then 0 when unit='kg'then greatest(0,current_quantity)when unit='g'then greatest(0,current_quantity)/1000 else 0 end),0)+coalesce(max(case when shared then greatest(0,current_quantity) end),0)kg,
+               coalesce(sum(case when shared then 0 else greatest(0,current_quantity)*sale_price end),0)+coalesce(max(case when shared then greatest(0,current_quantity) end)*avg(sale_price)filter(where shared),0)potential,
                count(*) filter(where current_quantity<=0)::int critical from stock_rows)
              select period_sales.total::text sales,period_purchases.total::text purchases,period_recurring.total::text recurring,
                (period_sales.total-period_purchases.total-period_recurring.total)::text balance,

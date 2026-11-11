@@ -111,3 +111,7 @@ Never claim a Next deployment is live without evidence from the actual Next stag
 ## Permisos de los socios sobre el catálogo
 
 Los socios (`partner`) pueden **dar de alta** clientes, proveedores y productos (`POST /contacts`, `POST /products`) y consultarlos; no pueden editarlos, darlos de baja ni fijar precios especiales por cliente. En la web, sus listas (`/catalogo/*`) no enlazan a las ffichas de edición.
+
+## Stock compartido de patata
+
+Todo producto activo **en kg** cuyo nombre contenga «patata», «patatas» o «agria» (sin distinguir mayúsculas) comparte UNA sola existencia de kilos: compras confirmadas − ventas (facturas y albaranes) ± ajustes ± merma de producción, sumadas sobre todo el grupo (incluidos los productos dados de baja, para no perder movimientos). Cada variante muestra esos mismos kilos. Está en `stockCtes` (`apps/api/src/finance/service.ts`); `/stock` devuelve `sharedStock` y los totales (`stockKg`, venta posible, web `utils/stock-totals.ts`) cuentan el grupo una sola vez. No se aplica merma a las ventas: 1 kg vendido descuenta 1 kg.

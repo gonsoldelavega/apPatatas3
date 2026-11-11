@@ -227,6 +227,8 @@ export interface StockItem {
   productId: string;
   name: string;
   unit: ProductUnit;
+  /** true cuando comparte existencias con el resto de productos de patata/agria. */
+  sharedStock?: boolean;
   quantity: string;
   salePrice: string;
   estimatedCost: string | null;
