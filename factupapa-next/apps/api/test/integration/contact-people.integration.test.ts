@@ -93,18 +93,6 @@ after(async () => {
   await admin.pool.end();
 });
 
-async function draftInvoice(date: string): Promise<{ id: string }> {
-  const delivery = new DeliveryNoteService(api.pool);
-  const note = await delivery.create(owner, { contactId: customerId, series: "A", issueDate: date });
-  await delivery.addLine(owner, note!.id, { productId, quantity: "10" });
-  await delivery.issue(owner, note!.id);
-  const created = await call("POST", "/invoices/from-delivery-notes", ownerToken, { deliveryNoteIds: [note!.id], series: "F", issueDate: date });
-  assert.equal(created.status, 201);
-  const invoice = await read(created);
-  return { id: invoice.id };
-}
-
-
 test("el maestro apunta personas de contacto con cargo y teléfono, las edita y las borra", async () => {
   const created = await call("POST", `/contacts/${customerId}/people`, ownerToken, { name: "Manolo", role: "Dueño", phone: "+34 600 11 22 33" });
   assert.equal(created.status, 201);
