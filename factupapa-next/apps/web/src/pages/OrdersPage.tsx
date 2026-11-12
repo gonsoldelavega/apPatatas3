@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Truck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { ordersApi } from "../api/workspace";
 import { EmptyState } from "../ui/EmptyState";
@@ -20,9 +21,14 @@ export function OrdersPage() {
           <p className="form-hint">Apunta lo que se ha hecho cada día: el pedido va quedando por partes.</p>
         </div>
         {!creating && (
-          <button type="button" className="compact-action" onClick={() => setCreating(true)}>
-            <Plus aria-hidden="true" /> Nuevo
-          </button>
+          <div className="workspace-block__actions">
+            <Link className="compact-action" to="/reparto">
+              <Truck aria-hidden="true" /> Reparto de hoy
+            </Link>
+            <button type="button" className="compact-action" onClick={() => setCreating(true)}>
+              <Plus aria-hidden="true" /> Nuevo
+            </button>
+          </div>
         )}
       </header>
 

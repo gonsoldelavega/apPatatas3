@@ -37,6 +37,12 @@ export interface OrderProgressEvent {
   createdAt: string;
 }
 
+export interface DeliveryStop extends Order {
+  contactPhone: string | null;
+  contactAddress: Record<string, string>;
+  people: Array<{ name: string; role: string | null; phone: string | null }>;
+}
+
 export interface Order {
   id: string;
   contactId: string;
@@ -190,6 +196,53 @@ export class OrdersService {
         )
       ).rows.map(normalizeOrder),
     }));
+  }
+
+  /**
+   * Reparto del día: pedidos abiertos que tocan entregar hasta `date` (los de hoy y los atrasados),
+   * con teléfono, dirección y personas de contacto de cada cliente.
+   */
+  async deliveryDay(identity: SessionIdentity, date: string): Promise<{ date: string; items: DeliveryStop[] }> {
+    if (!/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(date)) throw new HttpError("invalid_request", 400);
+    return withTenantTransaction(this.pool, identity, async (client) => {
+      const orders = (
+        await client.query<Order>(
+          `${orderSelect} where o.status = 'open' and o.due_date is not null and o.due_date <= $1::date
+           order by o.due_date, coalesce(c.trade_name, c.legal_name), o.created_at limit 100`,
+          [date],
+        )
+      ).rows.map(normalizeOrder);
+      const ids = [...new Set(orders.map((order) => order.contactId))];
+      const contacts = ids.length
+        ? (
+            await client.query<{ id: string; phone: string | null; address: Record<string, string> | null }>(
+              "select id, phone, address from contacts where id = any($1::uuid[])",
+              [ids],
+            )
+          ).rows
+        : [];
+      const people = ids.length
+        ? (
+            await client.query<{ contactId: string; name: string; role: string | null; phone: string | null }>(
+              `select contact_id "contactId", name, role, phone from contact_people
+               where contact_id = any($1::uuid[]) order by position, created_at`,
+              [ids],
+            )
+          ).rows
+        : [];
+      return {
+        date,
+        items: orders.map((order) => {
+          const contact = contacts.find((candidate) => candidate.id === order.contactId);
+          return {
+            ...order,
+            contactPhone: contact?.phone ?? null,
+            contactAddress: contact?.address ?? {},
+            people: people.filter((person) => person.contactId === order.contactId).map(({ name, role, phone }) => ({ name, role, phone })),
+          };
+        }),
+      };
+    });
   }
 
   async get(identity: SessionIdentity, id: string): Promise<Order> {

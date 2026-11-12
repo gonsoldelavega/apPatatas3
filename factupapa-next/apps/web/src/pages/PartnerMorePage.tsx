@@ -1,4 +1,4 @@
-import { Package, UsersRound, ListChecks, LogOut, NotebookPen } from "lucide-react";
+import { Package, Truck, UsersRound, ListChecks, LogOut, NotebookPen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../ui/Button";
@@ -22,6 +22,11 @@ export function PartnerMorePage() {
             <ListChecks aria-hidden="true" />
             <strong>Tareas</strong>
             <small>Lo que hay que hacer</small>
+          </Link>
+          <Link to="/reparto">
+            <Truck aria-hidden="true" />
+            <strong>Reparto</strong>
+            <small>Entregas de hoy</small>
           </Link>
           <Link to="/catalogo/contactos">
             <UsersRound aria-hidden="true" />

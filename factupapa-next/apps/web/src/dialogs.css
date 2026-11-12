@@ -53,3 +53,12 @@
 .app-dialog__button--danger {
   background: #c0392b;
 }
+
+.app-dialog__choices {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.app-dialog__choices .app-dialog__button {
+  text-align: left;
+}

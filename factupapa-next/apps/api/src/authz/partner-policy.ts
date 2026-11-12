@@ -163,6 +163,7 @@ const rules: Rule[] = [
   { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/tasks/${UUID}$`), decide: () => plain },
   { methods: ["POST"], pattern: new RegExp(`^/tasks/${UUID}/(?:done|reopen)$`), decide: () => plain },
   { methods: ["GET", "POST"], pattern: /^\/orders$/, decide: () => plain },
+  { methods: ["GET"], pattern: /^\/orders\/delivery-day$/, decide: () => plain },
   { methods: ["GET", "PATCH"], pattern: new RegExp(`^/orders/${UUID}$`), decide: () => plain },
   { methods: ["POST"], pattern: new RegExp(`^/orders/${UUID}/(?:cancel|lines)$`), decide: () => plain },
   { methods: ["DELETE"], pattern: new RegExp(`^/orders/${UUID}/lines/${UUID}$`), decide: () => plain },

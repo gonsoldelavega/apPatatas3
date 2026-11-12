@@ -123,7 +123,15 @@ const query = (params: Record<string, string | undefined>) => {
   return text ? `?${text}` : "";
 };
 
+export interface DeliveryStop extends Order {
+  contactPhone: string | null;
+  contactAddress: Record<string, string>;
+  people: Array<{ name: string; role: string | null; phone: string | null }>;
+}
+
 export const ordersApi = {
+  deliveryDay: (date: string) =>
+    apiClient.request<{ date: string; items: DeliveryStop[] }>(`/orders/delivery-day${query({ date })}`),
   list: (status: "open" | "completed" | "cancelled" | "all" = "open") =>
     apiClient.request<{ items: Order[] }>(`/orders${query({ status })}`),
   create: (input: OrderInput) => apiClient.request<Order>("/orders", { method: "POST", body: json(input) }),

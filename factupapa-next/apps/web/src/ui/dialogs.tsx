@@ -10,7 +10,8 @@ import { createPortal } from "react-dom";
 type Request =
   | { kind: "confirm"; message: string; confirmLabel: string; danger: boolean; resolve(value: boolean): void }
   | { kind: "text"; message: string; initial: string; resolve(value: string | null): void }
-  | { kind: "notice"; message: string; resolve(): void };
+  | { kind: "notice"; message: string; resolve(): void }
+  | { kind: "choice"; message: string; options: Array<{ value: string; label: string }>; resolve(value: string | null): void };
 
 let current: Request | null = null;
 const queue: Request[] = [];
@@ -42,6 +43,11 @@ export function askConfirm(message: string, options: { confirmLabel?: string; da
 
 export function askText(message: string, initial = ""): Promise<string | null> {
   return new Promise((resolve) => enqueue({ kind: "text", message, initial, resolve }));
+}
+
+/** Elegir una opción de una lista (p. ej. a qué teléfono escribir). null si se cancela. */
+export function askChoice(message: string, options: Array<{ value: string; label: string }>): Promise<string | null> {
+  return new Promise((resolve) => enqueue({ kind: "choice", message, options, resolve }));
 }
 
 export function showNotice(message: string): Promise<void> {
@@ -78,14 +84,19 @@ export function DialogHost() {
 
   const cancel = () => {
     if (request.kind === "confirm") request.resolve(false);
-    else if (request.kind === "text") request.resolve(null);
+    else if (request.kind === "text" || request.kind === "choice") request.resolve(null);
     else request.resolve();
     finish();
   };
   const accept = () => {
     if (request.kind === "confirm") request.resolve(true);
     else if (request.kind === "text") request.resolve(text);
+    else if (request.kind === "choice") request.resolve(null);
     else request.resolve();
+    finish();
+  };
+  const choose = (value: string) => {
+    if (request.kind === "choice") request.resolve(value);
     finish();
   };
 
@@ -110,12 +121,22 @@ export function DialogHost() {
             }}
           />
         )}
+        {request.kind === "choice" && (
+          <div className="app-dialog__choices">
+            {request.options.map((option) => (
+              <button key={option.value} type="button" className="app-dialog__button" onClick={() => choose(option.value)}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="app-dialog__actions">
           {request.kind !== "notice" && (
             <button type="button" className="app-dialog__button" onClick={cancel}>
               Cancelar
             </button>
           )}
+          {request.kind !== "choice" && (
           <button
             ref={confirmRef}
             type="button"
@@ -126,6 +147,7 @@ export function DialogHost() {
           >
             {request.kind === "confirm" ? request.confirmLabel : request.kind === "notice" ? "Entendido" : "Guardar"}
           </button>
+          )}
         </div>
       </div>
     </div>,

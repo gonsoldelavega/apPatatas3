@@ -18,6 +18,7 @@ test("el socio puede usar lo necesario para el día a día", () => {
     ["GET", "/me"],
     ["GET", "/team/welcome"],
     ["GET", "/stock/potato"],
+    ["GET", "/orders/delivery-day"],
     ["GET", `/contacts/${id}/people`],
     ["POST", `/contacts/${id}/people`],
     ["PATCH", `/contacts/${id}/people/${id}`],

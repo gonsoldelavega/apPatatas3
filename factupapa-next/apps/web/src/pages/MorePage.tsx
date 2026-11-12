@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Smartphone,
   Upload,
+  Truck,
   UsersRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -91,6 +92,11 @@ export function MorePage() {
           Equipo
         </h2>
         <div className="more-quick-grid">
+          <Link to="/reparto">
+            <Truck aria-hidden="true" />
+            <strong>Reparto</strong>
+            <small>Entregas de hoy</small>
+          </Link>
           <Link to="/pedidos">
             <ClipboardList aria-hidden="true" />
             <strong>Pedidos</strong>

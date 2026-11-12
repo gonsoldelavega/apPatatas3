@@ -127,3 +127,8 @@ El inicio del socio tiene, justo debajo de «Pedidos pendientes», la tarjeta «
 ## Personas de contacto
 
 Tabla `contact_people` (migración 0043): por cliente o proveedor, varias personas con nombre, cargo (dueño, encargado…) y móvil (máx. 20). API `GET/POST /contacts/:id/people` y `PATCH/DELETE /contacts/:id/people/:personId`, maestro y socios (los socios ven la ficha de consulta `/contacto/:id`, sin precios ni cuentas, y editan las personas de contacto). La web (`contacts/PeopleSection.tsx`) muestra botones de WhatsApp (`utils/phone.ts`, asume +34 si no hay prefijo) y Llamar.
+
+## Reparto del día y recordatorio de cobro
+
+- `GET /orders/delivery-day?date=` (maestro y socios): pedidos abiertos con fecha de entrega hasta hoy, con teléfono, dirección y personas de contacto. Página `/reparto`: por parada, mapa, llamar/WhatsApp, nevera disponible por línea y botón «Hacer albarán» (`/ventas/nuevo/albaran?contactId=`). La nevera baja al EMITIR el albarán (no al marcar el avance del pedido) para no descontar dos veces.
+- «Recordar cobro» (`invoices/PaymentReminderButton.tsx`, solo maestro): abre WhatsApp con el mensaje ya escrito (`utils/payment-reminder.ts`) al móvil del dueño/encargado o del cliente; botón en la ficha de la factura y en las facturas vencidas de la lista.

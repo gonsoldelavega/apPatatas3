@@ -65,6 +65,10 @@ export function createWorkspaceRoutes(auth: AuthApplication, services: Workspace
 
     // ── Pedidos ──────────────────────────────────────────────────────────────
     if (path === "/orders" && method === "GET") return json(response, 200, await orders.list(identity, url)), true;
+    if (path === "/orders/delivery-day" && method === "GET") {
+      const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+      return json(response, 200, await orders.deliveryDay(identity, date)), true;
+    }
     if (path === "/orders" && method === "POST") {
       return json(response, 201, await orders.create(identity, validateOrderCreate(await readJson(request)))), true;
     }

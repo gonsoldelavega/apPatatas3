@@ -201,6 +201,26 @@ test("la lista de pendientes solo trae pedidos abiertos y se puede filtrar", asy
   assert.equal((await call("GET", "/orders?status=cualquiera", partnerToken)).status, 400);
 });
 
+test("reparto del día: pedidos de hoy y atrasados con teléfono y dirección del cliente", async () => {
+  await admin.pool.query(`update contacts set phone = '600 11 22 33', address = '{"street":"Calle Mayor 1","city":"Roquetas"}'::jsonb where id = $1`, [customerId]);
+  await admin.pool.query(`insert into contact_people(company_id, contact_id, name, role, phone) select company_id, id, 'Manolo', 'Dueño', '611223344' from contacts where id = $1`, [customerId]);
+  const future = await call("POST", "/orders", partnerToken, { contactId: customerId, dueDate: "2026-12-31", lines: [{ description: "Patata para después", unit: "kg", quantity: "10" }] });
+  assert.equal(future.status, 201);
+  const todayOrder = await read(await call("POST", "/orders", partnerToken, { contactId: customerId, dueDate: "2026-11-10", lines: [{ description: "Patata de hoy", unit: "bolsa", quantity: "20" }] }));
+  const lateOrder = await read(await call("POST", "/orders", partnerToken, { contactId: customerId, dueDate: "2026-11-08", lines: [{ description: "Patata atrasada", unit: "kg", quantity: "5" }] }));
+  const day = await read(await call("GET", "/orders/delivery-day?date=2026-11-10", partnerToken));
+  assert.deepEqual(day.items.map((item: any) => item.id).filter((id: string) => id === todayOrder.id || id === lateOrder.id), [lateOrder.id, todayOrder.id], "atrasados primero");
+  assert.equal(day.date, "2026-11-10");
+  assert.ok(day.items.length >= 1);
+  assert.ok(day.items.every((item: any) => item.status === "open" && item.dueDate <= "2026-11-10"), "solo hoy y atrasados");
+  assert.ok(!day.items.some((item: any) => item.dueDate === "2026-12-31"));
+  const stop = day.items.find((item: any) => item.id === todayOrder.id);
+  assert.equal(stop.contactPhone, "600 11 22 33");
+  assert.equal(stop.contactAddress.street, "Calle Mayor 1");
+  assert.equal(stop.people[0].name, "Manolo");
+  assert.equal((await call("GET", "/orders/delivery-day?date=mañana", partnerToken)).status, 400);
+});
+
 // ── Tareas ──────────────────────────────────────────────────────────────────────
 test("tareas: crear, asignar a un núcleo, marcar hecha, reabrir y borrar", async () => {
   const created = await call("POST", "/tasks", partnerToken, {

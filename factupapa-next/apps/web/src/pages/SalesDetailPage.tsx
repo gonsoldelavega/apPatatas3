@@ -42,6 +42,7 @@ import {
   unitLabel,
 } from "../utils/format";
 import { bagLabel } from "../utils/packaging";
+import { PaymentReminderButton } from "../invoices/PaymentReminderButton";
 import { askConfirm, showNotice } from "../ui/dialogs";
 
 const statusLabel = (status: string, invoice: boolean) =>
@@ -498,6 +499,9 @@ export function SalesDetailPage() {
                 {({ unpaid: "Pendiente", partial: "Parcial", overdue: "Vencida", paid: "Pagada" } as const)[invoiceItem.paymentStatus ?? "unpaid"]}
               </span>
             </div>
+            {invoiceItem.paymentStatus !== "paid" && (
+              <PaymentReminderButton invoice={invoiceItem} />
+            )}
             {invoiceItem.paymentStatus !== "paid" && (
               <button className="compact-action" onClick={() => {
                 setPaymentAmount(formatQuantity(invoiceItem.balanceDue ?? invoiceItem.total));

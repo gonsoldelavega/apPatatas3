@@ -122,6 +122,11 @@ const ContactSheetPage = lazy(() =>
     default: module.ContactSheetPage,
   })),
 );
+const DeliveryDayPage = lazy(() =>
+  import("./pages/DeliveryDayPage").then((module) => ({
+    default: module.DeliveryDayPage,
+  })),
+);
 const GestoriaPage = lazy(() =>
   import("./pages/GestoriaPage").then((module) => ({
     default: module.GestoriaPage,
@@ -150,6 +155,7 @@ export function App() {
             <Route path="ventas/:type/:id" element={<SalesDetailPage />} />
             {/* Espacio compartido: maestro y socios. */}
             <Route path="pedidos" element={<OrdersPage />} />
+            <Route path="reparto" element={<DeliveryDayPage />} />
             <Route path="tareas" element={<TasksPage />} />
             <Route path="notas" element={<NotesPage />} />
             <Route path="cuentas" element={<LedgerPage />} />

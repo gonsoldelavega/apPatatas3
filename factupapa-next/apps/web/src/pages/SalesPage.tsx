@@ -35,6 +35,7 @@ import {
 } from "../utils/format";
 import { currentPeriod, periodRange } from "../utils/period";
 import { useToast } from "../ui/ToastProvider";
+import { PaymentReminderButton } from "../invoices/PaymentReminderButton";
 import { askConfirm } from "../ui/dialogs";
 
 const statuses: Record<string, string> = {
@@ -557,6 +558,7 @@ export function SalesPage() {
                     >
                       <Printer aria-hidden="true" />
                     </button>
+                    {canCollect && invoice.paymentStatus === "overdue" && <PaymentReminderButton invoice={invoice} compact />}
                     {canCollect && (
                       <button
                         type="button"
