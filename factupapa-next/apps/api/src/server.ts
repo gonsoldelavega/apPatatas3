@@ -8,6 +8,7 @@ import { createContactPeopleRoutes } from "./contact-people/routes.js";
 import { ContactPeopleService } from "./contact-people/service.js";
 import { createWorkspaceRoutes } from "./workspace/routes.js";
 import { NotesService } from "./workspace/notes.js";
+import { NoteAttachmentsService, S3AttachmentStore } from "./workspace/attachments.js";
 import { TasksService } from "./workspace/tasks.js";
 import { OrdersService } from "./workspace/orders.js";
 import { LedgerService } from "./workspace/ledger.js";
@@ -175,6 +176,12 @@ const server = createApp({
     // Pedidos, tareas, notas y cuentas entre núcleos (maestro y socios). Solo atiende sus rutas.
     createWorkspaceRoutes(auth, {
       notes: new NotesService(database.pool),
+      attachments: new NoteAttachmentsService(
+        database.pool,
+        config.s3Endpoint && config.s3AccessKey && config.s3SecretKey
+          ? new S3AttachmentStore({ endpoint: config.s3Endpoint, bucket: config.s3Bucket, accessKey: config.s3AccessKey, secretKey: config.s3SecretKey })
+          : undefined,
+      ),
       tasks: new TasksService(database.pool),
       orders: new OrdersService(database.pool),
       ledger: new LedgerService(database.pool),

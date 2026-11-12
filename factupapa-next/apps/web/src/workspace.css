@@ -472,3 +472,80 @@
 .stop-card__note {
   justify-self: start;
 }
+
+/* Fotos y notas de voz en las notas */
+.note-media {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.note-media__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.note-media__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.note-media__item img {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.note-media__audio {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.note-media__audio audio {
+  width: 100%;
+}
+.note-media__item--image .note-media__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+}
+.note-media__delete {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+}
+.note-media__delete svg {
+  width: 18px;
+  height: 18px;
+}
+.note-media__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.note-media__tools .order-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.note-media__rec {
+  background: #c0392b;
+  color: #fff;
+}
+.note-media__loading {
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}

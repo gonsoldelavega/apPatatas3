@@ -78,6 +78,17 @@ export interface Note {
   updatedByName: string;
   createdAt: string;
   updatedAt: string;
+  attachments: NoteAttachment[];
+}
+
+export interface NoteAttachment {
+  id: string;
+  kind: "image" | "audio";
+  mimeType: string;
+  byteSize: number;
+  durationSeconds: number | null;
+  createdByName: string;
+  createdAt: string;
 }
 
 export interface NoteInput {
@@ -155,6 +166,18 @@ export const notesApi = {
   update: (id: string, input: Partial<NoteInput>) =>
     apiClient.request<Note>(`/notes/${id}`, { method: "PATCH", body: json(input) }),
   archive: (id: string) => apiClient.request<void>(`/notes/${id}`, { method: "DELETE" }),
+  addAttachment: (
+    noteId: string,
+    input: { kind: "image" | "audio"; mimeType: string; data: string; durationSeconds?: number },
+  ) =>
+    apiClient.request<NoteAttachment>(`/notes/${noteId}/attachments`, {
+      method: "POST",
+      body: json(input),
+      timeoutMs: 60_000,
+    }),
+  attachmentBlob: (noteId: string, attachmentId: string) => apiClient.download(`/notes/${noteId}/attachments/${attachmentId}`),
+  removeAttachment: (noteId: string, attachmentId: string) =>
+    apiClient.request<void>(`/notes/${noteId}/attachments/${attachmentId}`, { method: "DELETE" }),
 };
 
 export const ledgerApi = {

@@ -9,6 +9,7 @@ import { SelectField } from "../ui/SelectField";
 import { useCustomers } from "../workspace/hooks";
 import { formatShortDate } from "../workspace/helpers";
 import { askConfirm } from "../ui/dialogs";
+import { NoteAttachments } from "../notes/NoteAttachments";
 
 function NoteCard({ note }: { note: Note }) {
   const queryClient = useQueryClient();
@@ -81,6 +82,7 @@ function NoteCard({ note }: { note: Note }) {
       ) : (
         <>
           {note.body && <p className="note-card__body">{note.body}</p>}
+          <NoteAttachments note={note} />
           <button type="button" className="order-btn order-btn--quiet" onClick={() => setEditing(true)}>
             Editar
           </button>

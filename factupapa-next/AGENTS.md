@@ -132,3 +132,7 @@ Tabla `contact_people` (migración 0043): por cliente o proveedor, varias person
 
 - `GET /orders/delivery-day?date=` (maestro y socios): pedidos abiertos con fecha de entrega hasta hoy, con teléfono, dirección y personas de contacto. Página `/reparto`: por parada, mapa, llamar/WhatsApp, nevera disponible por línea y botón «Hacer albarán» (`/ventas/nuevo/albaran?contactId=`). La nevera baja al EMITIR el albarán (no al marcar el avance del pedido) para no descontar dos veces.
 - «Recordar cobro» (`invoices/PaymentReminderButton.tsx`, solo maestro): abre WhatsApp con el mensaje ya escrito (`utils/payment-reminder.ts`) al móvil del dueño/encargado o del cliente; botón en la ficha de la factura y en las facturas vencidas de la lista.
+
+## Fotos y notas de voz en las notas
+
+Tabla `note_attachments` (migración 0044) + archivos en MinIO (`<empresa>/notes/<nota>/<id>`). API: `POST /notes/:id/attachments` (JSON base64, imagen ≤ 4 MB o audio ≤ 6 MB, hasta 12 por nota; se comprueba la firma del archivo, no solo el tipo declarado), `GET`/`DELETE /notes/:id/attachments/:aid` (maestro y socios). `GET /notes` ya devuelve `attachments`. La web (`notes/NoteAttachments.tsx`) reduce las fotos a JPEG de 1600 px y graba voz con `MediaRecorder` (máx. 3 min; webm o mp4 según navegador). Los archivos se piden con la sesión y se muestran como URL temporal.

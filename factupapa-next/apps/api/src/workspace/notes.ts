@@ -16,11 +16,17 @@ export interface Note {
   updatedByName: string;
   createdAt: string;
   updatedAt: string;
+  attachments: Array<{ id: string; kind: "image" | "audio"; mimeType: string; byteSize: number; durationSeconds: number | null; createdByName: string; createdAt: string }>;
 }
 
 const projection = `n.id, n.contact_id "contactId", coalesce(c.trade_name, c.legal_name) "contactName", n.title, n.body,
   n.pinned, n.created_by_name "createdByName", n.updated_by_name "updatedByName",
-  n.created_at::text "createdAt", n.updated_at::text "updatedAt"`;
+  n.created_at::text "createdAt", n.updated_at::text "updatedAt",
+  coalesce((
+    select json_agg(json_build_object('id', a.id, 'kind', a.kind, 'mimeType', a.mime_type, 'byteSize', a.byte_size,
+      'durationSeconds', a.duration_seconds, 'createdByName', a.created_by_name, 'createdAt', a.created_at::text) order by a.created_at)
+    from note_attachments a where a.note_id = n.id
+  ), '[]'::json) attachments`;
 const source = `shared_notes n left join contacts c on c.company_id = n.company_id and c.id = n.contact_id`;
 
 export interface NoteInput {

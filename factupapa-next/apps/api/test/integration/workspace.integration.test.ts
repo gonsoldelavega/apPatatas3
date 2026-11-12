@@ -11,12 +11,19 @@ import { createDocumentLookup } from "../../src/authz/guard.js";
 import { createDatabaseProbe, withTenantTransaction, type Database } from "../../src/database/client.js";
 import { LedgerService } from "../../src/workspace/ledger.js";
 import { NotesService } from "../../src/workspace/notes.js";
+import { NoteAttachmentsService, type AttachmentStore } from "../../src/workspace/attachments.js";
 import { OrdersService } from "../../src/workspace/orders.js";
 import { createWorkspaceRoutes } from "../../src/workspace/routes.js";
 import { TasksService } from "../../src/workspace/tasks.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 const adminUrl = process.env.DATABASE_ADMIN_URL;
+const memoryFiles = new Map<string, { body: Buffer; mimeType: string }>();
+const memoryStore: AttachmentStore = {
+  async put(key, body, mimeType) { memoryFiles.set(key, { body, mimeType }); },
+  async get(key) { const file = memoryFiles.get(key); if (!file) throw new Error("missing"); return file.body; },
+  async delete(key) { memoryFiles.delete(key); },
+};
 let api: Database;
 let admin: Database;
 let server: Server;
@@ -98,6 +105,7 @@ before(async () => {
     routes: [
       createWorkspaceRoutes(auth, {
         notes: new NotesService(api.pool),
+        attachments: new NoteAttachmentsService(api.pool, memoryStore),
         tasks: new TasksService(api.pool),
         orders: new OrdersService(api.pool),
         ledger: new LedgerService(api.pool),
@@ -271,6 +279,41 @@ test("notas comunes por cliente: crear, buscar, fijar, editar y archivar", async
   assert.equal(list.items[0].id, note.id, "las fijadas salen primero");
   assert.equal((await call("DELETE", `/notes/${note.id}`, partnerToken)).status, 204);
   assert.equal((await call("GET", `/notes?contactId=${customerId}`, ownerToken).then(read)).items.length, 0);
+});
+
+// ── Notas con fotos y voz ───────────────────────────────────────────────────────
+test("notas con foto y nota de voz: se suben, se leen y se borran; se rechaza lo que no es lo que dice ser", async () => {
+  const note = await read(await call("POST", "/notes", partnerToken, { contactId: customerId, title: "Carta de Bar Royal" }));
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 1)]);
+  const photo = await call("POST", `/notes/${note.id}/attachments`, partnerToken, { kind: "image", mimeType: "image/jpeg", data: jpeg.toString("base64") });
+  assert.equal(photo.status, 201);
+  const saved = await read(photo);
+  assert.equal(saved.kind, "image");
+  assert.equal(saved.byteSize, jpeg.length);
+  const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(64, 2)]);
+  const voice = await call("POST", `/notes/${note.id}/attachments`, ownerToken, { kind: "audio", mimeType: "audio/webm;codecs=opus", data: webm.toString("base64"), durationSeconds: 42 });
+  assert.equal(voice.status, 201);
+  assert.equal((await read(voice)).mimeType, "audio/webm");
+  // La lista de notas ya trae los adjuntos.
+  const listed = await read(await call("GET", `/notes?contactId=${customerId}`, partnerToken));
+  const withFiles = listed.items.find((item: any) => item.id === note.id);
+  assert.deepEqual(withFiles.attachments.map((item: any) => item.kind), ["image", "audio"]);
+  assert.equal(withFiles.attachments[1].durationSeconds, 42);
+  // Contenido: el mismo que se subió, con su tipo.
+  const download = await call("GET", `/notes/${note.id}/attachments/${saved.id}`, ownerToken);
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get("content-type"), "image/jpeg");
+  assert.deepEqual(Buffer.from(await download.arrayBuffer()), jpeg);
+  // Rechazos: contenido que no coincide, tipo no permitido, base64 inválido, clave desconocida.
+  assert.equal((await call("POST", `/notes/${note.id}/attachments`, partnerToken, { kind: "image", mimeType: "image/jpeg", data: Buffer.from("<script>alert(1)</script>").toString("base64") })).status, 400);
+  assert.equal((await call("POST", `/notes/${note.id}/attachments`, partnerToken, { kind: "image", mimeType: "image/svg+xml", data: jpeg.toString("base64") })).status, 400);
+  assert.equal((await call("POST", `/notes/${note.id}/attachments`, partnerToken, { kind: "audio", mimeType: "audio/webm", data: "no es base64!" })).status, 400);
+  assert.equal((await call("POST", `/notes/${note.id}/attachments`, partnerToken, { kind: "image", mimeType: "image/jpeg", data: jpeg.toString("base64"), extra: 1 })).status, 400);
+  assert.equal((await call("POST", "/notes/3f2b8c1e-5d4a-4b7e-9c11-0a1b2c3d4e5f/attachments", partnerToken, { kind: "image", mimeType: "image/jpeg", data: jpeg.toString("base64") })).status, 404);
+  // Borrar.
+  assert.equal((await call("DELETE", `/notes/${note.id}/attachments/${saved.id}`, partnerToken)).status, 204);
+  assert.equal((await call("GET", `/notes/${note.id}/attachments/${saved.id}`, partnerToken)).status, 404);
+  assert.equal(memoryFiles.size, 1, "el archivo borrado también sale del almacén");
 });
 
 // ── Cuentas entre núcleos ───────────────────────────────────────────────────────

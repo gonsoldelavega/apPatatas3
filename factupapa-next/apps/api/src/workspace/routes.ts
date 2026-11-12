@@ -6,6 +6,7 @@ import type { RouteHandler } from "../http/router.js";
 import { json, noContent } from "../http/response.js";
 import { textValue, optionalTextValue } from "./common.js";
 import { validateEntry, type LedgerService } from "./ledger.js";
+import { validateAttachment, type NoteAttachmentsService } from "./attachments.js";
 import { validateNote, type NotesService } from "./notes.js";
 import {
   validateOrderCreate,
@@ -21,13 +22,14 @@ export interface WorkspaceServices {
   tasks: TasksService;
   orders: OrdersService;
   ledger: LedgerService;
+  attachments?: NoteAttachmentsService;
 }
 
 const PREFIXES = ["/notes", "/tasks", "/orders", "/ledger"];
 
 /** Pedidos, tareas, notas y cuentas entre núcleos. Accesibles para el maestro y los socios. */
 export function createWorkspaceRoutes(auth: AuthApplication, services: WorkspaceServices): RouteHandler {
-  const { notes, tasks, orders, ledger } = services;
+  const { notes, tasks, orders, ledger, attachments } = services;
   return async ({ request, response, url }) => {
     const path = url.pathname;
     if (!PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) return false;
@@ -40,6 +42,25 @@ export function createWorkspaceRoutes(auth: AuthApplication, services: Workspace
     if (path === "/notes" && method === "GET") return json(response, 200, await notes.list(identity, url)), true;
     if (path === "/notes" && method === "POST") {
       return json(response, 201, await notes.create(identity, validateNote(await readJson(request), false))), true;
+    }
+    if (attachments && (match = path.match(/^\/notes\/([^/]+)\/attachments$/)) && method === "POST") {
+      const body = await readJson(request, 9_000_000);
+      return json(response, 201, await attachments.add(identity, idOf(match[1]), validateAttachment(body))), true;
+    }
+    if (attachments && (match = path.match(/^\/notes\/([^/]+)\/attachments\/([^/]+)$/))) {
+      if (method === "GET") {
+        const file = await attachments.content(identity, idOf(match[1]), idOf(match[2]));
+        response.writeHead(200, {
+          "content-type": file.mimeType,
+          "content-length": String(file.body.length),
+          "cache-control": "private, max-age=3600",
+          "x-content-type-options": "nosniff",
+          "content-security-policy": "default-src 'none'; sandbox",
+        });
+        response.end(file.body);
+        return true;
+      }
+      if (method === "DELETE") return await attachments.remove(identity, idOf(match[1]), idOf(match[2])), noContent(response), true;
     }
     if ((match = path.match(/^\/notes\/([^/]+)$/))) {
       if (method === "PATCH") {

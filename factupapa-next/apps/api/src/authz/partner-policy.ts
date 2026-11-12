@@ -159,6 +159,8 @@ const rules: Rule[] = [
   // (PUT /ledger/settings) quedan solo para el maestro: no está en esta lista.
   { methods: ["GET", "POST"], pattern: /^\/notes$/, decide: () => plain },
   { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/notes/${UUID}$`), decide: () => plain },
+  { methods: ["POST"], pattern: new RegExp(`^/notes/${UUID}/attachments$`), decide: () => plain },
+  { methods: ["GET", "DELETE"], pattern: new RegExp(`^/notes/${UUID}/attachments/${UUID}$`), decide: () => plain },
   { methods: ["GET", "POST"], pattern: /^\/tasks$/, decide: () => plain },
   { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/tasks/${UUID}$`), decide: () => plain },
   { methods: ["POST"], pattern: new RegExp(`^/tasks/${UUID}/(?:done|reopen)$`), decide: () => plain },
