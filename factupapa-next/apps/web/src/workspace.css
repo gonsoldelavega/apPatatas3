@@ -287,3 +287,92 @@
   background: #2563c9;
   color: #fff;
 }
+
+/* Personas de contacto */
+.people-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.people-list__item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line, #e1e7f0);
+  border-radius: 14px;
+}
+.people-list__who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.people-list__who > svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.people-list__who > span {
+  display: grid;
+  min-width: 0;
+}
+.people-list__who small {
+  color: var(--muted, #64748b);
+  overflow-wrap: anywhere;
+}
+.people-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.people-list__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+}
+.people-list__link svg {
+  width: 18px;
+  height: 18px;
+}
+.people-list__link--wa {
+  border-color: transparent;
+  background: #1f9d55;
+  color: #fff;
+}
+.people-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.people-form label {
+  display: grid;
+  gap: 4px;
+}
+.people-form label > span {
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}
+.people-form input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  font: inherit;
+}
+.people-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

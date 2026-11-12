@@ -23,6 +23,7 @@ import { LoadingScreen } from "../ui/LoadingScreen";
 import { useToast } from "../ui/ToastProvider";
 import { formatMoney, unitLabel } from "../utils/format";
 import { askConfirm } from "../ui/dialogs";
+import { PeopleSection } from "../contacts/PeopleSection";
 
 export function ContactDetailPage() {
   const { id = "" } = useParams();
@@ -155,6 +156,7 @@ export function ContactDetailPage() {
           </div>
         )}
       </section>
+      <PeopleSection contactId={id} />
       {item.type !== "supplier" && (
         <section className="detail-card" aria-labelledby="payment-terms-title">
           <h2 id="payment-terms-title">Condiciones de pago</h2>

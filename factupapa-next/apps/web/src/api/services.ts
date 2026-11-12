@@ -650,3 +650,23 @@ export const potatoApi = {
   fridge: (input: { productId: string; quantity: string; mode: "set" | "add" }) =>
     apiClient.request("/stock/potato/fridge", { method: "POST", body: JSON.stringify(input) }),
 };
+
+export interface ContactPerson {
+  id: string;
+  contactId: string;
+  name: string;
+  role: string | null;
+  phone: string | null;
+}
+
+/** Personas de contacto de un cliente o proveedor (nombre, cargo, teléfono). */
+export const contactPeopleApi = {
+  list: (contactId: string) =>
+    apiClient.request<{ items: ContactPerson[] }>(`/contacts/${contactId}/people`),
+  create: (contactId: string, input: { name: string; role: string | null; phone: string | null }) =>
+    apiClient.request<ContactPerson>(`/contacts/${contactId}/people`, { method: "POST", body: JSON.stringify(input) }),
+  update: (contactId: string, personId: string, input: { name: string; role: string | null; phone: string | null }) =>
+    apiClient.request<ContactPerson>(`/contacts/${contactId}/people/${personId}`, { method: "PATCH", body: JSON.stringify(input) }),
+  remove: (contactId: string, personId: string) =>
+    apiClient.request<void>(`/contacts/${contactId}/people/${personId}`, { method: "DELETE" }),
+};

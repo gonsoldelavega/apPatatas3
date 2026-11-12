@@ -4,6 +4,8 @@ import { TaxService } from "./tax/service.js";
 import { createTaxRoutes } from "./tax/routes.js";
 import { CompanyService } from "./company/service.js";
 import { createCompanyRoutes } from "./company/routes.js";
+import { createContactPeopleRoutes } from "./contact-people/routes.js";
+import { ContactPeopleService } from "./contact-people/service.js";
 import { createWorkspaceRoutes } from "./workspace/routes.js";
 import { NotesService } from "./workspace/notes.js";
 import { TasksService } from "./workspace/tasks.js";
@@ -179,6 +181,7 @@ const server = createApp({
     }),
     // Ficha de la empresa (solo maestro): solo atiende /company/profile.
     createCompanyRoutes(auth, new CompanyService(database.pool)),
+    createContactPeopleRoutes(auth, new ContactPeopleService(database.pool)),
     // Gestoría (solo maestro). Va al final: solo atiende /tax/*.
     createTaxRoutes(auth, new TaxService(database.pool)),
   ],
