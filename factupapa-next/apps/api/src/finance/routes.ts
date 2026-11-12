@@ -10,6 +10,8 @@ import {
   validateStockAdjustment,
   validateStockLevel,
   validateFridgeStock,
+  validatePotatoFridge,
+  validatePotatoLevel,
   validateProductionRun,
 } from "./validation.js";
 import { PARTNER_ROLE } from "../authz/partner-policy.js";
@@ -120,6 +122,21 @@ export function createFinanceRoutes(
     }
     if (url.pathname === "/purchases/registry-status" && request.method === "GET") {
       json(response, 200, finance.purchaseRegistryStatus());
+      return true;
+    }
+    if (url.pathname === "/stock/potato" && request.method === "GET") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.potatoOverview(id));
+      return true;
+    }
+    if (url.pathname === "/stock/potato/level" && request.method === "POST") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.setPotatoLevel(id, validatePotatoLevel(await readJson(request))));
+      return true;
+    }
+    if (url.pathname === "/stock/potato/fridge" && request.method === "POST") {
+      const id = await auth.authenticate(bearerToken(request));
+      json(response, 200, await finance.adjustPotatoFridge(id, validatePotatoFridge(await readJson(request))));
       return true;
     }
     if (url.pathname === "/stock" && request.method === "GET") {

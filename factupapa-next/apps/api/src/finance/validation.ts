@@ -200,6 +200,24 @@ export function validateFridgeStock(i: Json) {
   return { productId: uuid(i.productId, true)!, quantity, note: text(i.note, 500) };
 }
 
+function nonNegative(value: unknown): string {
+  const text = typeof value === "string" || typeof value === "number" ? String(value).replace(",", ".") : "";
+  if (!/^\d{1,12}(?:\.\d{1,4})?$/.test(text)) throw new HttpError("invalid_request", 400);
+  return text;
+}
+
+export function validatePotatoLevel(i: Json) {
+  allowed(i, ["kg"]);
+  return { kg: nonNegative(i.kg), note: null as string | null };
+}
+
+export function validatePotatoFridge(i: Json) {
+  allowed(i, ["productId", "quantity", "mode"]);
+  const mode: "set" | "add" = i.mode === "add" ? "add" : "set";
+  if (i.mode !== "set" && i.mode !== "add") throw new HttpError("invalid_request", 400);
+  return { productId: uuid(i.productId, true)!, quantity: nonNegative(i.quantity), mode };
+}
+
 export function validateStockLevel(i: Json) {
   allowed(i, ["productId", "occurredOn", "targetQuantity", "note"]);
   const targetQuantity =

@@ -1,4 +1,5 @@
 import { PartnerWelcome, WorkspaceBlocks } from "../workspace/DashboardWorkspace";
+import { StockQuick } from "../workspace/StockQuick";
 import { PARTNER_HISTORY_FROM, useIsPartner } from "../auth/roles";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -266,7 +267,7 @@ export function DashboardPage() {
       </header>
 
       {/* Para los socios lo principal son los pedidos y las tareas: van arriba del todo. */}
-      {partner && <WorkspaceBlocks />}
+      {partner && <WorkspaceBlocks afterOrders={<StockQuick />} />}
 
       {summary.isLoading && !isPreview ? (
         <DashboardSkeleton />

@@ -17,6 +17,9 @@ test("el socio puede usar lo necesario para el día a día", () => {
   const allowed: Array<[string, string]> = [
     ["GET", "/me"],
     ["GET", "/team/welcome"],
+    ["GET", "/stock/potato"],
+    ["POST", "/stock/potato/level"],
+    ["POST", "/stock/potato/fridge"],
     ["GET", "/finance/summary"],
     ["GET", "/finance/monthly"],
     ["GET", "/invoices"],

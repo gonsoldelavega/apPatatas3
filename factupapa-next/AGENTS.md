@@ -119,3 +119,7 @@ Todo producto activo **en kg** cuyo nombre contenga «patata», «patatas» o «
 ## Stock en nevera
 
 Tabla `fridge_stock` (migración 0042): recuento por producto de lo ya preparado para entregar (bolsas o kg), con `counted_at`. El valor vigente es el recuento menos las ventas emitidas después (facturas manuales y albaranes). La nevera es un subconjunto de la patata general: no cambia el total, solo reparte entre «en nevera» y «por preparar». API: `POST /stock/fridge` (solo maestro); `/stock` devuelve `fridgeQuantity`, `fridgeCountedAt`, `packageLabel`, `unitsPerPackage`. Pantalla Stock: una sola tarjeta «Patata (stock general)» con la nevera por producto.
+
+## Stock de patata en el inicio de los socios
+
+El inicio del socio tiene, justo debajo de «Pedidos pendientes», la tarjeta «Stock de patata» (`workspace/StockQuick.tsx`): contar el stock de hoy en kg (al comprar o recontar) y, en la nevera, sumar una tirada (bolsas o kg) o poner el total de una variedad. API para socios, sin costes ni márgenes: `GET /stock/potato`, `POST /stock/potato/level`, `POST /stock/potato/fridge` (modo `add` o `set`). El resto de `/stock` sigue siendo solo del maestro. Ojo: si el stock se cuenta a mano y después se registra la factura de esa compra, los kilos se suman otra vez hasta el siguiente recuento.

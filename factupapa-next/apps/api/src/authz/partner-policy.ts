@@ -97,6 +97,10 @@ const rules: Rule[] = [
   // ── Sesión propia (la web averigua aquí el rol) ────────────────────────────
   { methods: GET, pattern: /^\/me$/, decide: () => plain },
   { methods: GET, pattern: /^\/team\/welcome$/, decide: () => plain },
+  // Stock de patata y nevera: los socios lo rellenan en cada tirada o compra (sin costes ni márgenes).
+  { methods: GET, pattern: /^\/stock\/potato$/, decide: () => plain },
+  { methods: ["POST"], pattern: /^\/stock\/potato\/level$/, decide: () => plain },
+  { methods: ["POST"], pattern: /^\/stock\/potato\/fridge$/, decide: () => plain },
   // ── Resumen / alertas / pendientes ─────────────────────────────────────────
   {
     methods: GET,

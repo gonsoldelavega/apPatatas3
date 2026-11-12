@@ -628,3 +628,25 @@ export const taxApi = {
   forecast: (year: number, quarter: number) =>
     apiClient.request<TaxForecast>(`/tax/forecast?year=${year}&quarter=${quarter}`),
 };
+
+export interface PotatoOverview {
+  potatoKg: string;
+  fridgeKg: string;
+  items: Array<{
+    productId: string;
+    name: string;
+    unit: string;
+    fridgeQuantity: string | null;
+    packageLabel: string | null;
+    unitsPerPackage: string | null;
+  }>;
+}
+
+/** Stock de patata y nevera para el inicio de los socios (sin costes). */
+export const potatoApi = {
+  overview: () => apiClient.request<PotatoOverview>("/stock/potato"),
+  setLevel: (kg: string) =>
+    apiClient.request("/stock/potato/level", { method: "POST", body: JSON.stringify({ kg }) }),
+  fridge: (input: { productId: string; quantity: string; mode: "set" | "add" }) =>
+    apiClient.request("/stock/potato/fridge", { method: "POST", body: JSON.stringify(input) }),
+};

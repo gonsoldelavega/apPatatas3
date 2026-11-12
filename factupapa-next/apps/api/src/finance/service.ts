@@ -1362,6 +1362,64 @@ export class FinanceService {
       return { productId: x.productId, quantity: x.quantity };
     });
   }
+  /**
+   * Vista de patata para el inicio de los socios: kilos en general, nevera por variedad. Sin costes
+   * ni márgenes (eso es solo del maestro).
+   */
+  async potatoOverview(i: SessionIdentity) {
+    return withTenantTransaction(this.pool, i, async (c) => {
+      const rows = (
+        await c.query(
+          `with ${stockCtes} select id "productId",name,unit,current_quantity::text quantity,fridge_quantity::text "fridgeQuantity",
+             fridge_counted_at "fridgeCountedAt",package_label "packageLabel",units_per_package::text "unitsPerPackage"
+           from stock_rows where shared order by name`,
+        )
+      ).rows as Array<{ productId: string; name: string; unit: string; quantity: string; fridgeQuantity: string | null; fridgeCountedAt: Date | null; packageLabel: string | null; unitsPerPackage: string | null }>;
+      return {
+        potatoKg: rows[0]?.quantity ?? "0",
+        fridgeKg: String(rows.reduce((sum, row) => sum + Number(row.fridgeQuantity ?? 0), 0)),
+        items: rows.map((row) => ({
+          productId: row.productId,
+          name: row.name,
+          unit: row.unit,
+          fridgeQuantity: row.fridgeQuantity,
+          fridgeCountedAt: row.fridgeCountedAt,
+          packageLabel: row.packageLabel,
+          unitsPerPackage: row.unitsPerPackage,
+        })),
+      };
+    });
+  }
+  /** Recuento de la patata en general (se aplica como ajuste sobre cualquier producto del grupo). */
+  async setPotatoLevel(i: SessionIdentity, x: { kg: string; note: string | null }) {
+    const anchor = await withTenantTransaction(this.pool, i, async (c) =>
+      (await c.query(`with ${stockCtes} select id from stock_rows where shared order by name limit 1`)).rows[0] as { id: string } | undefined,
+    );
+    if (!anchor) throw new HttpError("not_found", 404);
+    return this.setStockLevel(i, {
+      productId: anchor.id,
+      occurredOn: new Date().toISOString().slice(0, 10),
+      targetQuantity: x.kg,
+      note: x.note ?? "Recuento de patata desde el inicio",
+    });
+  }
+  /** Nevera de una variedad de patata: fijar el total o sumar una tirada. */
+  async adjustPotatoFridge(i: SessionIdentity, x: { productId: string; quantity: string; mode: "set" | "add" }) {
+    let quantity = x.quantity;
+    if (x.mode === "add") {
+      const current = await withTenantTransaction(this.pool, i, async (c) =>
+        (await c.query(`with ${stockCtes} select shared,coalesce(fridge_quantity,0)::text fridge from stock_rows where id=$1`, [x.productId])).rows[0] as { shared: boolean; fridge: string } | undefined,
+      );
+      if (!current?.shared) throw new HttpError("not_found", 404);
+      quantity = String(Math.round((Number(current.fridge) + Number(x.quantity)) * 10_000) / 10_000);
+    } else {
+      const check = await withTenantTransaction(this.pool, i, async (c) =>
+        (await c.query(`with ${stockCtes} select shared from stock_rows where id=$1`, [x.productId])).rows[0] as { shared: boolean } | undefined,
+      );
+      if (!check?.shared) throw new HttpError("not_found", 404);
+    }
+    return this.setFridgeStock(i, { productId: x.productId, quantity, note: x.mode === "add" ? "Tirada" : null });
+  }
   async stockMovements(i: SessionIdentity, productId?: string) {
     return withTenantTransaction(this.pool, i, async (c) =>
       (

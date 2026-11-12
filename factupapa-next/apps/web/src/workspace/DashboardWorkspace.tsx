@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardList, ListChecks, Plus, Scale } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { teamApi } from "../api/services";
 import { useAuth } from "../auth/AuthProvider";
@@ -133,10 +133,11 @@ function LedgerCard() {
 }
 
 /** Pedidos pendientes, tareas y cuentas. Los socios los ven arriba del todo; el maestro, tras lo fiscal. */
-export function WorkspaceBlocks() {
+export function WorkspaceBlocks({ afterOrders }: { afterOrders?: ReactNode } = {}) {
   return (
     <div className="workspace-blocks">
       <PendingOrders />
+      {afterOrders}
       <OpenTasks />
       <LedgerCard />
     </div>

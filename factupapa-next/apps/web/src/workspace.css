@@ -214,3 +214,76 @@
 .stock-card--potato h2 + strong {
   display: block;
 }
+
+/* Stock de patata en el inicio de los socios */
+.stock-quick__figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.stock-quick__figures > div {
+  padding: 12px;
+  border: 1px solid var(--line, #e1e7f0);
+  border-radius: 14px;
+}
+.stock-quick__figures small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted, #64748b);
+}
+.stock-quick__figures small svg {
+  width: 14px;
+  height: 14px;
+}
+.stock-quick__figures strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.35rem;
+}
+.stock-quick__form {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line, #e1e7f0);
+}
+.stock-quick__form label {
+  display: grid;
+  gap: 4px;
+}
+.stock-quick__form label > span {
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}
+.stock-quick__form input,
+.stock-quick__form select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+}
+.stock-quick__segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stock-quick__segments button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+}
+.stock-quick__segments button[aria-pressed="true"] {
+  border-color: transparent;
+  background: #2563c9;
+  color: #fff;
+}

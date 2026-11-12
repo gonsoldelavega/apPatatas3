@@ -206,6 +206,27 @@ test("cada socio ve el mensaje de bienvenida que escribió el maestro", async ()
   assert.equal((await call("PATCH", `/team/members/${partnerAccessIds[0]}`, masterToken, { welcomeMessage: "x".repeat(81) })).status, 400);
 });
 
+test("el socio rellena el stock de patata y la nevera sin ver costes ni el resto del stock", async () => {
+  const overview=async()=>json<{ potatoKg: string; fridgeKg: string; items: Array<Record<string, unknown>> }>(await call("GET", "/stock/potato", partnerToken));
+  const first=await overview();
+  assert.ok(first.items.some((item)=>item.productId===productId), "la patata del catálogo entra en el grupo");
+  assert.ok(first.items.every((item)=>!("stockValue" in item) && !("averagePurchaseCost" in item) && !("salePrice" in item)), "sin costes ni precios");
+  assert.equal((await call("POST", "/stock/potato/level", partnerToken, { kg: "150" })).status, 200);
+  assert.equal(Number((await overview()).potatoKg), 150);
+  assert.equal((await call("POST", "/stock/potato/fridge", partnerToken, { productId, quantity: "30", mode: "add" })).status, 200);
+  assert.equal((await call("POST", "/stock/potato/fridge", partnerToken, { productId, quantity: "12.5", mode: "add" })).status, 200);
+  assert.equal(Number((await overview()).fridgeKg), 42.5);
+  assert.equal((await call("POST", "/stock/potato/fridge", partnerToken, { productId, quantity: "10", mode: "set" })).status, 200);
+  const after=await overview();
+  assert.equal(Number(after.fridgeKg), 10);
+  assert.equal(Number(after.potatoKg), 150, "la nevera no cambia el total");
+  assert.equal((await call("POST", "/stock/potato/fridge", partnerToken, { productId, quantity: "1", mode: "otro" })).status, 400);
+  assert.equal((await call("POST", "/stock/potato/level", partnerToken, { kg: "-5" })).status, 400);
+  // El resto del stock y los costes siguen siendo del maestro.
+  assert.equal((await call("GET", "/stock", partnerToken)).status, 403);
+  assert.equal((await call("POST", "/stock/fridge", partnerToken, { productId, quantity: "1" })).status, 403);
+});
+
 test("el socio NO puede gestionar el equipo ni ver compras, gastos, stock, importaciones o integraciones", async () => {
   for (const [method, path] of [
     ["GET", "/team/members"],
