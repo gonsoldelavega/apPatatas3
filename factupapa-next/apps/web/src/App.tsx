@@ -117,6 +117,11 @@ const StockPage = lazy(() =>
     default: module.StockPage,
   })),
 );
+const ContactSheetPage = lazy(() =>
+  import("./pages/ContactSheetPage").then((module) => ({
+    default: module.ContactSheetPage,
+  })),
+);
 const GestoriaPage = lazy(() =>
   import("./pages/GestoriaPage").then((module) => ({
     default: module.GestoriaPage,
@@ -156,6 +161,7 @@ export function App() {
               <Route path="productos" element={<ProductsListPage />} />
             </Route>
             <Route path="contactos/nuevo" element={<ContactFormPage />} />
+            <Route path="contacto/:id" element={<ContactSheetPage />} />
             <Route path="productos/nuevo" element={<ProductFormPage />} />
             {/* Todo lo que sigue es solo del usuario maestro: un socio vuelve al inicio. */}
             <Route element={<OwnerOnly />}>

@@ -115,7 +115,7 @@ export function ContactsListPage() {
         {contacts.data?.items.map((contact) => (
           <CardShell
             className="entity-card"
-            to={partner ? null : `/contactos/${contact.id}`}
+            to={partner ? `/contacto/${contact.id}` : `/contactos/${contact.id}`}
             key={contact.id}
           >
             <span className="entity-card__icon">
@@ -135,7 +135,7 @@ export function ContactsListPage() {
                 {contact.isActive ? filterLabels[contact.type] : "Inactivo"}
               </span>
             </span>
-            {!partner && <ChevronRight aria-hidden="true" />}
+            <ChevronRight aria-hidden="true" />
           </CardShell>
         ))}
       </div>

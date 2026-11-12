@@ -127,7 +127,12 @@ test("datos inválidos dan 400 y un contacto inexistente 404", async () => {
   assert.equal((await call("POST", "/contacts/3f2b8c1e-5d4a-4b7e-9c11-0a1b2c3d4e5f/people", ownerToken, { name: "X" })).status, 404);
 });
 
-test("el socio no puede ver ni tocar las personas de contacto", async () => {
-  assert.equal((await call("GET", `/contacts/${customerId}/people`, partnerToken)).status, 403);
-  assert.equal((await call("POST", `/contacts/${customerId}/people`, partnerToken, { name: "X" })).status, 403);
+test("el socio puede ver, apuntar, editar y borrar personas de contacto", async () => {
+  const created = await call("POST", `/contacts/${customerId}/people`, partnerToken, { name: "Encargado nuevo", role: "Encargado", phone: "633 44 55 66" });
+  assert.equal(created.status, 201);
+  const person = await read<{ id: string }>(created);
+  const list = await read<{ items: Array<{ id: string }> }>(await call("GET", `/contacts/${customerId}/people`, partnerToken));
+  assert.ok(list.items.some((item) => item.id === person.id));
+  assert.equal((await call("PATCH", `/contacts/${customerId}/people/${person.id}`, partnerToken, { phone: "644 55 66 77" })).status, 200);
+  assert.equal((await call("DELETE", `/contacts/${customerId}/people/${person.id}`, partnerToken)).status, 204);
 });

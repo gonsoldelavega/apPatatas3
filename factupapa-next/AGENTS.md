@@ -126,4 +126,4 @@ El inicio del socio tiene, justo debajo de «Pedidos pendientes», la tarjeta «
 
 ## Personas de contacto
 
-Tabla `contact_people` (migración 0043): por cliente o proveedor, varias personas con nombre, cargo (dueño, encargado…) y móvil (máx. 20). API `GET/POST /contacts/:id/people` y `PATCH/DELETE /contacts/:id/people/:personId`, solo maestro (los socios no tienen ficha de contacto). La web (`contacts/PeopleSection.tsx`) muestra botones de WhatsApp (`utils/phone.ts`, asume +34 si no hay prefijo) y Llamar.
+Tabla `contact_people` (migración 0043): por cliente o proveedor, varias personas con nombre, cargo (dueño, encargado…) y móvil (máx. 20). API `GET/POST /contacts/:id/people` y `PATCH/DELETE /contacts/:id/people/:personId`, maestro y socios (los socios ven la ficha de consulta `/contacto/:id`, sin precios ni cuentas, y editan las personas de contacto). La web (`contacts/PeopleSection.tsx`) muestra botones de WhatsApp (`utils/phone.ts`, asume +34 si no hay prefijo) y Llamar.

@@ -146,6 +146,10 @@ const rules: Rule[] = [
   { methods: ["POST"], pattern: /^\/products$/, decide: () => plain },
   { methods: GET, pattern: new RegExp(`^/contacts/${UUID}$`), decide: () => plain },
   { methods: GET, pattern: new RegExp(`^/contacts/${UUID}/products$`), decide: () => plain },
+  // Personas de contacto (nombre, cargo y móvil): los socios las ven y las editan.
+  { methods: GET, pattern: new RegExp(`^/contacts/${UUID}/people$`), decide: () => plain },
+  { methods: ["POST"], pattern: new RegExp(`^/contacts/${UUID}/people$`), decide: () => plain },
+  { methods: ["PATCH", "DELETE"], pattern: new RegExp(`^/contacts/${UUID}/people/${UUID}$`), decide: () => plain },
   { methods: GET, pattern: /^\/products$/, decide: () => plain },
   { methods: GET, pattern: new RegExp(`^/products/${UUID}$`), decide: () => plain },
   { methods: GET, pattern: /^\/sales-preferences$/, decide: () => plain },

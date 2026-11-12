@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import type { SessionIdentity } from "../auth/repository.js";
-import { OWNER_ROLE } from "../authz/partner-policy.js";
+import { OWNER_ROLE, PARTNER_ROLE } from "../authz/partner-policy.js";
 import { recordAudit } from "../database/audit.js";
 import { withTenantTransaction } from "../database/client.js";
 import { assertAllowedKeys } from "../domain/validation.js";
@@ -48,16 +48,17 @@ export function validateContactPerson(body: Record<string, unknown>, partial = f
 
 const columns = `id, contact_id "contactId", name, role, phone`;
 
-function requireOwner(identity: SessionIdentity): void {
-  if (identity.role !== OWNER_ROLE) throw new HttpError("forbidden", 403);
+/** Pueden ver y editar las personas de contacto el maestro y los socios. */
+function requireTeam(identity: SessionIdentity): void {
+  if (identity.role !== OWNER_ROLE && identity.role !== PARTNER_ROLE) throw new HttpError("forbidden", 403);
 }
 
-/** Personas de contacto de un cliente o proveedor. Solo el usuario maestro. */
+/** Personas de contacto de un cliente o proveedor. Maestro y socios. */
 export class ContactPeopleService {
   constructor(private readonly pool: Pool) {}
 
   async list(identity: SessionIdentity, contactId: string): Promise<{ items: ContactPerson[] }> {
-    requireOwner(identity);
+    requireTeam(identity);
     return withTenantTransaction(this.pool, identity, async (client) => {
       const exists = await client.query("select 1 from contacts where id = $1", [contactId]);
       if (!exists.rowCount) throw new HttpError("not_found", 404);
@@ -70,7 +71,7 @@ export class ContactPeopleService {
   }
 
   async create(identity: SessionIdentity, contactId: string, input: ContactPersonInput): Promise<ContactPerson> {
-    requireOwner(identity);
+    requireTeam(identity);
     return withTenantTransaction(this.pool, identity, async (client) => {
       const exists = await client.query("select 1 from contacts where id = $1", [contactId]);
       if (!exists.rowCount) throw new HttpError("not_found", 404);
@@ -95,7 +96,7 @@ export class ContactPeopleService {
   }
 
   async update(identity: SessionIdentity, contactId: string, personId: string, input: ContactPersonInput): Promise<ContactPerson> {
-    requireOwner(identity);
+    requireTeam(identity);
     return withTenantTransaction(this.pool, identity, async (client) => {
       const sets: string[] = [];
       const values: unknown[] = [];
@@ -126,7 +127,7 @@ export class ContactPeopleService {
   }
 
   async remove(identity: SessionIdentity, contactId: string, personId: string): Promise<void> {
-    requireOwner(identity);
+    requireTeam(identity);
     await withTenantTransaction(this.pool, identity, async (client) => {
       const result = await client.query("delete from contact_people where id = $1 and contact_id = $2", [personId, contactId]);
       if (!result.rowCount) throw new HttpError("not_found", 404);
