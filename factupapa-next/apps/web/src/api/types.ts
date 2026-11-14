@@ -199,6 +199,14 @@ export interface PurchaseRegistrySyncResult {
   skipped: number;
   drafts: number;
   paid: number;
+  /** Filas del Registro a las que les falta fecha, base, IVA o total. */
+  incomplete?: Array<{ invoice: string | null; supplier: string }>;
+}
+export interface PurchaseRegistryStatus {
+  configured: boolean;
+  label: string;
+  /** Resultado de la última importación automática (cada 30 min); null si aún no se ha hecho ninguna. */
+  lastAutoSync?: { at: string; ok: boolean; imported: number; drafts: number; incomplete: number; error?: string } | null;
 }
 export interface OcrBudgetStatus {
   dailyAttempts: number;

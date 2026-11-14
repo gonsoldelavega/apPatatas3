@@ -99,6 +99,8 @@ function parseRegistryCsv(value: string): string[][] {
 
 const registryText = (value: unknown) => String(value ?? "").trim();
 const registryMoney = (value: unknown) => {
+  // Una celda vacía NO es un 0: faltan datos (antes se importaba como 0,00 €).
+  if (!registryText(value)) return null;
   const normalized = registryText(value)
     .replace(/\s|€|%/g, "")
     .replace(/\.(?=\d{3}(?:\D|$))/g, "")
@@ -113,6 +115,29 @@ const registryDate = (value: unknown) => {
     return `${spanish[3]}-${spanish[2]!.padStart(2, "0")}-${spanish[1]!.padStart(2, "0")}`;
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
 };
+/** Filas que la propia app exportó al Registro: no se vuelven a importar. */
+export const isGeneratedByNext = (row: string[]): boolean =>
+  /^Generado autom[aá]ticamente desde FactuPapa/i.test(registryText(row[20]));
+
+/**
+ * Datos que el lector automático de facturas suele confundir (p. ej. «EMITIDA» como número o «Original» como
+ * proveedor): esas filas entran como borrador para revisarlas, nunca confirmadas.
+ */
+export const isSuspiciousRegistryRow = (invoiceNumber: string | null, supplierName: string): boolean => {
+  const junk = /^(EMITIDA|ORIGINAL|DUPLICADO|COPIA|FACTURA|CLIENTE)$/i;
+  return junk.test((invoiceNumber ?? "").trim()) || junk.test(supplierName.trim());
+};
+
+export interface RegistrySyncResult {
+  fetched: number;
+  imported: number;
+  skipped: number;
+  drafts: number;
+  paid: number;
+  /** Filas del Registro a las que les falta fecha, base, IVA o total: no se pueden importar hasta corregirlas. */
+  incomplete: Array<{ invoice: string | null; supplier: string }>;
+}
+
 const normalizedTaxId = (value: unknown) =>
   registryText(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
 const registryUrl = (value: unknown) => {
@@ -219,7 +244,7 @@ export class FinanceService {
       this.ocrBudget = new OcrBudget(pool, extraction.budget);
   }
 
-  async syncPurchaseRegistry(i: SessionIdentity) {
+  async syncPurchaseRegistry(i: SessionIdentity): Promise<RegistrySyncResult> {
     if (!this.registry) throw new HttpError("purchase_registry_not_configured", 503);
     const endpoint = new URL(this.registry.url);
     if (this.registry.token) endpoint.searchParams.set("key", this.registry.token);
@@ -254,7 +279,12 @@ export class FinanceService {
     );
     return withTenantTransaction(this.pool, i, async (client) => {
       let imported = 0, skipped = 0, drafts = 0, paid = 0;
+      const incomplete: RegistrySyncResult["incomplete"] = [];
       for (const row of purchases) {
+        if (isGeneratedByNext(row)) {
+          skipped += 1;
+          continue;
+        }
         const key = registryKey(row);
         const exists = await client.query(
           "select 1 from purchase_invoices where source_registry_key=$1",
@@ -269,11 +299,15 @@ export class FinanceService {
           taxId = normalizedTaxId(row[6]) || null,
           invoiceNumber = registryText(row[4]) || null,
           subtotal = registryMoney(row[9]),
-          taxTotal = registryMoney(row[11]),
           total = registryMoney(row[12]),
+          // IVA en blanco solo vale como 0 cuando base y total coinciden (factura exenta).
+          taxTotal =
+            registryMoney(row[11]) ??
+            (subtotal && total && Math.abs(Number(subtotal) - Number(total)) < 0.005 ? "0.0000" : null),
           taxRate = registryMoney(row[10]) ?? "0.0000";
         if (!issueDate || !subtotal || !taxTotal || !total) {
           skipped += 1;
+          if (incomplete.length < 10) incomplete.push({ invoice: invoiceNumber, supplier: supplierName });
           continue;
         }
         let supplier = (
@@ -312,7 +346,8 @@ export class FinanceService {
           }
         }
         const reviewed = /^S[IÍ]$/i.test(registryText(row[20]));
-        const canConfirm = reviewed && Boolean(invoiceNumber);
+        const suspicious = isSuspiciousRegistryRow(invoiceNumber, supplierName);
+        const canConfirm = reviewed && Boolean(invoiceNumber) && !suspicious;
         const purchaseId = (
           await client.query(
             `insert into purchase_invoices(
@@ -325,7 +360,7 @@ export class FinanceService {
               i.companyId, supplier.id, supplier.legal_name, supplier.tax_id,
               canonicalSupplierTaxId(supplier.tax_id) ?? supplier.id, supplier.address,
               invoiceNumber, canonicalInvoiceNumber(invoiceNumber), issueDate, registryCategory(row[8]),
-              [registryText(row[21]), "Importada del registro maestro"].filter(Boolean).join(" · "),
+              [registryText(row[21]), suspicious ? "Revisar: el registro trae datos dudosos (número o proveedor)" : "", "Importada del registro maestro"].filter(Boolean).join(" · "),
               subtotal, taxTotal, total, i.userId, key, registryUrl(row[18]),
               registryText(row[19]) || null,
             ],
@@ -371,14 +406,26 @@ export class FinanceService {
         });
         imported += 1;
       }
-      return { fetched: purchases.length, imported, skipped, drafts, paid };
+      return { fetched: purchases.length, imported, skipped, drafts, paid, incomplete };
     });
+  }
+
+  private lastAutoSync: { at: string; ok: boolean; imported: number; drafts: number; incomplete: number; error?: string } | null = null;
+
+  /** Anota el resultado de la última importación automática (se muestra en Gastos). */
+  recordAutoSync(result: RegistrySyncResult | { error: string }): void {
+    const at = new Date().toISOString();
+    this.lastAutoSync =
+      "error" in result
+        ? { at, ok: false, imported: 0, drafts: 0, incomplete: 0, error: result.error }
+        : { at, ok: true, imported: result.imported, drafts: result.drafts, incomplete: result.incomplete.length };
   }
 
   purchaseRegistryStatus() {
     return {
       configured: Boolean(this.registry),
       label: "Registro maestro de compras",
+      lastAutoSync: this.lastAutoSync,
     };
   }
 

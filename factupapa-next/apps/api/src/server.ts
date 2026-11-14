@@ -35,6 +35,7 @@ import { ImportMappingService } from "./imports/mappings.js";
 import { createImportMappingRoutes } from "./imports/mapping-routes.js";
 import { createReadiness } from "./health/readiness.js";
 import { log } from "./observability/logger.js";
+import { createRegistryAutoSync, loadRegistrySyncTargets } from "./finance/registry-auto-sync.js";
 import { SalesPreferencesService } from "./sales-preferences/service.js";
 import { createSalesPreferencesRoutes } from "./sales-preferences/routes.js";
 import { FinanceService } from "./finance/service.js";
@@ -212,7 +213,24 @@ const googleExportTimer = googleExporter
 googleExportTimer?.unref();
 if (googleExporter) setTimeout(() => void googleExporter.processDue(100), 45_000).unref();
 
+// Registro Maestro de compras -> Factupapa Next: importación automática cada 30 minutos (y al arrancar).
+// Misma regla que el botón «Importar Registro Maestro» de Gastos: idempotente, sin duplicados y solo filas del registro.
+const REGISTRY_SYNC_EVERY_MS = 30 * 60_000;
+let registryTimer: NodeJS.Timeout | undefined;
+if (finance.purchaseRegistryStatus().configured) {
+  const runRegistrySync = createRegistryAutoSync({
+    targets: () => loadRegistrySyncTargets(database.pool),
+    sync: (identity) => finance.syncPurchaseRegistry(identity),
+    record: (result) => finance.recordAutoSync(result),
+    log,
+  });
+  registryTimer = setInterval(() => void runRegistrySync(), REGISTRY_SYNC_EVERY_MS);
+  registryTimer.unref();
+  setTimeout(() => void runRegistrySync(), 60_000).unref();
+}
+
 async function shutdown(signal: string) {
+  if (registryTimer) clearInterval(registryTimer);
   if (googleExportTimer) clearInterval(googleExportTimer);
   log("info", {
     event: "service.stopping",

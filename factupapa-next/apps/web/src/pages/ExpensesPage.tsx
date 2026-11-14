@@ -308,8 +308,16 @@ export function ExpensesPage() {
           {registryStatus.isLoading
             ? "Comprobando conexión…"
             : registryStatus.data?.configured
-              ? "Registro Maestro conectado."
+              ? "Registro Maestro conectado. Se importa solo cada 30 minutos."
               : "Registro Maestro no configurado en este entorno; la compra manual sigue disponible."}
+          {registryStatus.data?.lastAutoSync && (
+            <>
+              {" "}
+              {registryStatus.data.lastAutoSync.ok
+                ? `Última importación automática: ${new Date(registryStatus.data.lastAutoSync.at).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} (${registryStatus.data.lastAutoSync.imported} nuevas${registryStatus.data.lastAutoSync.incomplete ? `, ${registryStatus.data.lastAutoSync.incomplete} filas incompletas` : ""}).`
+                : "La última importación automática falló; se reintentará sola."}
+            </>
+          )}
         </p>
         {registrySync.data && (
           <p className="action-feedback" role="status">
@@ -317,6 +325,9 @@ export function ExpensesPage() {
             {registrySync.data.drafts
               ? ` y ${registrySync.data.drafts} pendientes de revisar`
               : ""}.
+            {registrySync.data.incomplete?.length
+              ? ` Filas del Registro sin importar por datos incompletos: ${registrySync.data.incomplete.map((row) => `${row.supplier}${row.invoice ? ` (${row.invoice})` : ""}`).join(", ")}. Corrígelas en la hoja.`
+              : ""}
           </p>
         )}
         {registrySync.isError && (

@@ -23,6 +23,7 @@ import type {
   SalesPreferences,
   PurchaseInvoice,
   PurchaseRegistrySyncResult,
+  PurchaseRegistryStatus,
   PurchaseLineInput,
   RecurringExpense,
   StockItem,
@@ -429,7 +430,7 @@ export const financeApi = {
       timeoutMs: 25_000,
     }),
   purchaseRegistryStatus: () =>
-    apiClient.request<{ configured: boolean; label: string }>(
+    apiClient.request<PurchaseRegistryStatus>(
       "/purchases/registry-status",
     ),
   confirmedPurchasesForExport: (from?: string, to?: string) =>

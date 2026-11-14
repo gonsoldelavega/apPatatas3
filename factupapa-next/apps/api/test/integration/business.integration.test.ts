@@ -569,6 +569,7 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
         skipped: 0,
         drafts: 0,
         paid: 1,
+        incomplete: [],
       });
       const second = await request(
         "POST",
@@ -583,6 +584,7 @@ test("CRUD tenant de contactos, productos y precios específicos", async (contex
         skipped: 1,
         drafts: 0,
         paid: 0,
+        incomplete: [],
       });
       const list = await request(
         "GET",
