@@ -19,6 +19,9 @@ export function run(command: string, args: string[], options: { cwd?: string; st
     if (options.stdinFile && child.stdin) {
       const input = createReadStream(options.stdinFile);
       input.once("error", (error) => { child.kill(); reject(error); });
+      // Si el proceso termina antes de leer todo (p. ej. pg_restore --list con un volcado grande),
+      // la escritura falla con EPIPE: no es un error, el código de salida decide el resultado.
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => { if (error.code !== "EPIPE") { child.kill(); reject(error); } });
       input.pipe(child.stdin);
     }
     child.once("error", reject);
