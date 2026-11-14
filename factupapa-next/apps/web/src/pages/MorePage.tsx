@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Smartphone,
   Upload,
+  FolderOpen,
   Truck,
   UsersRound,
 } from "lucide-react";
@@ -136,6 +137,11 @@ export function MorePage() {
             <ChevronRight className="info-card__chevron" aria-hidden="true" />
           </Link>
 
+          <Link className="info-card info-card--action" to="/documentos">
+            <span className="info-card__icon info-card__icon--import"><FolderOpen /></span>
+            <div className="info-card__body"><h2>Documentos</h2><p>Todo lo que hay en Drive y qué falta registrar.</p></div>
+            <ChevronRight className="info-card__chevron" aria-hidden="true" />
+          </Link>
           <Link className="info-card info-card--action" to="/gestoria">
             <span className="info-card__icon info-card__icon--billing"><BriefcaseBusiness /></span>
             <div className="info-card__body"><h2>Gestoría</h2><p>Previsión de impuestos y trimestres.</p></div>

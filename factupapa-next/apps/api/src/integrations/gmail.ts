@@ -127,6 +127,8 @@ function safeFilename(value: string): string {
 const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 export const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+/** Lectura de todo el Drive (solo lectura): para la biblioteca de documentos. */
+export const GOOGLE_DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const GMAIL_OVERLAP_MS = 2 * 60 * 60 * 1000;
 const GMAIL_INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const GMAIL_MAX_MESSAGES_PER_RUN = 500;
@@ -290,7 +292,7 @@ export class GmailIntegrationService {
     url.searchParams.set("response_type", "code");
     url.searchParams.set(
       "scope",
-      `openid email https://www.googleapis.com/auth/gmail.send ${GMAIL_READ_SCOPE} ${GOOGLE_DRIVE_SCOPE} ${GOOGLE_SHEETS_SCOPE}`,
+      `openid email https://www.googleapis.com/auth/gmail.send ${GMAIL_READ_SCOPE} ${GOOGLE_DRIVE_SCOPE} ${GOOGLE_DRIVE_READ_SCOPE} ${GOOGLE_SHEETS_SCOPE}`,
     );
     url.searchParams.set("state", state.nonce);
     url.searchParams.set("code_challenge", challenge);

@@ -549,3 +549,113 @@
   color: var(--muted, #64748b);
   font-size: 0.85rem;
 }
+
+/* Documentos (biblioteca de Drive) */
+.documents-page h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.documents-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.documents-toolbar p {
+  margin: 0;
+  flex: 1 1 180px;
+}
+.documents-filters__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.doc-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  padding: 12px;
+  border: 1px solid var(--line, #e1e7f0);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+.doc-row--sin_registrar {
+  border-color: #e0a100;
+}
+.doc-row__icon svg {
+  width: 22px;
+  height: 22px;
+}
+.doc-row__main {
+  display: grid;
+  min-width: 0;
+}
+.doc-row__main small {
+  color: var(--muted, #64748b);
+  overflow-wrap: anywhere;
+}
+.doc-row__name {
+  font-size: 0.75rem;
+}
+.doc-row__side {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.doc-row__actions {
+  display: flex;
+  gap: 8px;
+}
+.doc-row__actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.doc-row__actions a svg {
+  width: 16px;
+  height: 16px;
+}
+.doc-row__actions .doc-row__create {
+  border-color: transparent;
+  background: #2563c9;
+  color: #fff;
+}
+.doc-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #e8eef9;
+}
+.doc-badge--registrada {
+  background: #dcf3e4;
+  color: #19633a;
+}
+.doc-badge--sin_registrar {
+  background: #fff0cc;
+  color: #8a5a00;
+}
+.doc-badge--duplicado,
+.doc-badge--revisar {
+  background: #fde2e0;
+  color: #9b2c22;
+}

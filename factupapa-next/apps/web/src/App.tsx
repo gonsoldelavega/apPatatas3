@@ -127,6 +127,11 @@ const DeliveryDayPage = lazy(() =>
     default: module.DeliveryDayPage,
   })),
 );
+const DocumentsPage = lazy(() =>
+  import("./pages/DocumentsPage").then((module) => ({
+    default: module.DocumentsPage,
+  })),
+);
 const GestoriaPage = lazy(() =>
   import("./pages/GestoriaPage").then((module) => ({
     default: module.GestoriaPage,
@@ -182,6 +187,7 @@ export function App() {
               <Route path="exportar" element={<ExportPage />} />
               <Route path="socios" element={<TeamPage />} />
               <Route path="gestoria" element={<GestoriaPage />} />
+              <Route path="documentos" element={<DocumentsPage />} />
               <Route path="ajustes/empresa" element={<CompanyProfilePage />} />
               <Route path="ajustes/ventas" element={<SalesSettingsPage />} />
               <Route path="ajustes/seguridad" element={<AccountSecurityPage />} />

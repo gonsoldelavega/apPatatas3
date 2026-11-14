@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Building2, FileCheck2, FileUp, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Link, useNavigate } from "react-router-dom";
 import type { ProductUnit, PurchaseLineInput } from "../api/types";
 import { contactsApi, financeApi, productsApi } from "../api/services";
@@ -77,16 +78,21 @@ export function PurchaseFormPage() {
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierTaxId, setNewSupplierTaxId] = useState("");
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
-  const [issueDate, setIssueDate] = useState(todayLocal());
+  // Desde «Documentos» → «Crear compra» llegan la fecha, el concepto y una nota con el enlace a Drive.
+  const [prefill] = useSearchParams();
+  const [issueDate, setIssueDate] = useState(() => {
+    const date = prefill.get("fecha");
+    return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayLocal();
+  });
   const [dueDate, setDueDate] = useState("");
   const [category, setCategory] = useState("mercancia");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(() => (prefill.get("nota") ?? "").slice(0, 1000));
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [lines, setLines] = useState<DraftPurchaseLine[]>([emptyLine()]);
+  const [lines, setLines] = useState<DraftPurchaseLine[]>(() => [{ ...emptyLine(), description: (prefill.get("concepto") ?? "").slice(0, 200) }]);
 
   const suppliers = useQuery({
     queryKey: ["purchase-suppliers"],

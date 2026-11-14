@@ -35,6 +35,8 @@ import { ImportMappingService } from "./imports/mappings.js";
 import { createImportMappingRoutes } from "./imports/mapping-routes.js";
 import { createReadiness } from "./health/readiness.js";
 import { log } from "./observability/logger.js";
+import { createDriveRoutes } from "./drive/routes.js";
+import { DEFAULT_DRIVE_ROOT_ID, DriveLibraryService } from "./drive/library.js";
 import { createRegistryAutoSync, loadRegistrySyncTargets } from "./finance/registry-auto-sync.js";
 import { SalesPreferencesService } from "./sales-preferences/service.js";
 import { createSalesPreferencesRoutes } from "./sales-preferences/routes.js";
@@ -114,6 +116,16 @@ const finance = new FinanceService(
     : undefined,
 );
 const accounts = new AccountsService(database.pool);
+// Biblioteca de Drive: lista de archivos de la carpeta de gestión (necesita la conexión de Google con permiso de lectura).
+const driveLibrary = gmail
+  ? new DriveLibraryService(database.pool, {
+      access: async (identity) => {
+        const google = await gmail.googleAccess(identity);
+        return { token: google.token, scopes: google.scopes };
+      },
+      rootFolderId: process.env.DRIVE_LIBRARY_FOLDER_ID?.trim() || DEFAULT_DRIVE_ROOT_ID,
+    })
+  : undefined;
 const googleExporter = gmail
   ? new GoogleInvoiceExporter(database.pool, gmail, {
       spreadsheetId: config.googleMasterSpreadsheetId,
@@ -189,6 +201,7 @@ const server = createApp({
     }),
     // Ficha de la empresa (solo maestro): solo atiende /company/profile.
     createCompanyRoutes(auth, new CompanyService(database.pool)),
+    ...(driveLibrary ? [createDriveRoutes(auth, driveLibrary)] : []),
     createContactPeopleRoutes(auth, new ContactPeopleService(database.pool)),
     // Gestoría (solo maestro). Va al final: solo atiende /tax/*.
     createTaxRoutes(auth, new TaxService(database.pool)),
@@ -226,6 +239,18 @@ if (finance.purchaseRegistryStatus().configured) {
   });
   registryTimer = setInterval(() => void runRegistrySync(), REGISTRY_SYNC_EVERY_MS);
   registryTimer.unref();
+  // Cada hora se refresca también la lista de archivos de Drive (si ya se dio permiso de lectura).
+  if (driveLibrary) {
+    const refreshDrive = async () => {
+      for (const target of await loadRegistrySyncTargets(database.pool)) {
+        const identity = { userId: target.userId, companyId: target.companyId, email: target.email, displayName: target.displayName, companyName: target.companyName, role: "owner", familyId: "00000000-0000-4000-8000-000000000000" };
+        if (!(await driveLibrary.status(identity).then((state) => state.needsPermission).catch(() => true))) driveLibrary.start(identity);
+      }
+    };
+    const driveTimer = setInterval(() => void refreshDrive().catch(() => undefined), 60 * 60_000);
+    driveTimer.unref();
+    setTimeout(() => void refreshDrive().catch(() => undefined), 90_000).unref();
+  }
   setTimeout(() => void runRegistrySync(), 60_000).unref();
 }
 
