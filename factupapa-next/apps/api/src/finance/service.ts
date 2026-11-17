@@ -1451,21 +1451,22 @@ export class FinanceService {
     });
   }
   /** Nevera de una variedad de patata: fijar el total o sumar una tirada. */
-  async adjustPotatoFridge(i: SessionIdentity, x: { productId: string; quantity: string; mode: "set" | "add" }) {
+  async adjustPotatoFridge(i: SessionIdentity, x: { productId: string; quantity: string; mode: "set" | "add" | "subtract" }) {
     let quantity = x.quantity;
-    if (x.mode === "add") {
+    if (x.mode === "add" || x.mode === "subtract") {
       const current = await withTenantTransaction(this.pool, i, async (c) =>
         (await c.query(`with ${stockCtes} select shared,coalesce(fridge_quantity,0)::text fridge from stock_rows where id=$1`, [x.productId])).rows[0] as { shared: boolean; fridge: string } | undefined,
       );
       if (!current?.shared) throw new HttpError("not_found", 404);
-      quantity = String(Math.round((Number(current.fridge) + Number(x.quantity)) * 10_000) / 10_000);
+      const delta = x.mode === "add" ? Number(x.quantity) : -Number(x.quantity);
+      quantity = String(Math.max(0, Math.round((Number(current.fridge) + delta) * 10_000) / 10_000));
     } else {
       const check = await withTenantTransaction(this.pool, i, async (c) =>
         (await c.query(`with ${stockCtes} select shared from stock_rows where id=$1`, [x.productId])).rows[0] as { shared: boolean } | undefined,
       );
       if (!check?.shared) throw new HttpError("not_found", 404);
     }
-    return this.setFridgeStock(i, { productId: x.productId, quantity, note: x.mode === "add" ? "Tirada" : null });
+    return this.setFridgeStock(i, { productId: x.productId, quantity, note: x.mode === "add" ? "Tirada" : x.mode === "subtract" ? "Tirada deshecha" : null });
   }
   async stockMovements(i: SessionIdentity, productId?: string) {
     return withTenantTransaction(this.pool, i, async (c) =>

@@ -671,3 +671,26 @@ export const contactPeopleApi = {
   remove: (contactId: string, personId: string) =>
     apiClient.request<void>(`/contacts/${contactId}/people/${personId}`, { method: "DELETE" }),
 };
+
+export interface FridgeLine {
+  id: string;
+  variety: string;
+  productId: string;
+  productName: string;
+  contactId: string | null;
+  contactName: string | null;
+  quantity: string;
+  bags: string | null;
+  note: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+}
+
+/** Bolsas hechas (tipo y cliente opcional) que están en la nevera. */
+export const fridgeLinesApi = {
+  list: () => apiClient.request<{ items: FridgeLine[] }>("/stock/fridge-lines"),
+  create: (input: { variety: string; productId: string; quantity: string; bags: string | null; contactId: string | null; note: string | null }) =>
+    apiClient.request<FridgeLine>("/stock/fridge-lines", { method: "POST", body: JSON.stringify(input) }),
+  deliver: (id: string) => apiClient.request<FridgeLine>(`/stock/fridge-lines/${id}/deliver`, { method: "POST" }),
+  remove: (id: string) => apiClient.request<void>(`/stock/fridge-lines/${id}`, { method: "DELETE" }),
+};

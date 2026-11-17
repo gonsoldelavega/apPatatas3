@@ -101,6 +101,10 @@ const rules: Rule[] = [
   { methods: GET, pattern: /^\/stock\/potato$/, decide: () => plain },
   { methods: ["POST"], pattern: /^\/stock\/potato\/level$/, decide: () => plain },
   { methods: ["POST"], pattern: /^\/stock\/potato\/fridge$/, decide: () => plain },
+  { methods: GET, pattern: /^\/stock\/fridge-lines$/, decide: () => plain },
+  { methods: ["POST"], pattern: /^\/stock\/fridge-lines$/, decide: () => plain },
+  { methods: ["POST"], pattern: new RegExp(`^/stock/fridge-lines/${UUID}/deliver$`), decide: () => plain },
+  { methods: ["DELETE"], pattern: new RegExp(`^/stock/fridge-lines/${UUID}$`), decide: () => plain },
   // ── Resumen / alertas / pendientes ─────────────────────────────────────────
   {
     methods: GET,

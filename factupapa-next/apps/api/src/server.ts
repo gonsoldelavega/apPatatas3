@@ -5,6 +5,8 @@ import { createTaxRoutes } from "./tax/routes.js";
 import { CompanyService } from "./company/service.js";
 import { createCompanyRoutes } from "./company/routes.js";
 import { createContactPeopleRoutes } from "./contact-people/routes.js";
+import { createFridgeLinesRoutes } from "./stock/fridge-lines-routes.js";
+import { FridgeLinesService } from "./stock/fridge-lines.js";
 import { ContactPeopleService } from "./contact-people/service.js";
 import { createWorkspaceRoutes } from "./workspace/routes.js";
 import { NotesService } from "./workspace/notes.js";
@@ -203,6 +205,7 @@ const server = createApp({
     createCompanyRoutes(auth, new CompanyService(database.pool)),
     ...(driveLibrary ? [createDriveRoutes(auth, driveLibrary)] : []),
     createContactPeopleRoutes(auth, new ContactPeopleService(database.pool)),
+    createFridgeLinesRoutes(auth, new FridgeLinesService(database.pool, finance)),
     // Gestoría (solo maestro). Va al final: solo atiende /tax/*.
     createTaxRoutes(auth, new TaxService(database.pool)),
   ],

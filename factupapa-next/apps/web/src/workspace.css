@@ -659,3 +659,110 @@
   background: #fde2e0;
   color: #9b2c22;
 }
+
+/* Bolsas hechas: tipo, cantidad y cliente */
+.made-bags {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #e1e7f0);
+}
+.made-bags h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1rem;
+}
+.made-bags h3 svg {
+  width: 20px;
+  height: 20px;
+}
+.made-bags__form {
+  display: grid;
+  gap: 10px;
+}
+.made-bags__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.made-bags__types button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.made-bags__types button[aria-pressed="true"] {
+  border-color: transparent;
+  background: #2563c9;
+  color: #fff;
+}
+.made-bags__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.made-bags label {
+  display: grid;
+  gap: 4px;
+}
+.made-bags label > span {
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}
+.made-bags input,
+.made-bags select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.made-bags__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.made-bags__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line, #e1e7f0);
+}
+.made-bags__list li > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.made-bags__list small {
+  color: var(--muted, #64748b);
+}
+.made-bags__undo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+}
+.made-bags__done summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--muted, #64748b);
+}

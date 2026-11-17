@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package, Refrigerator } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { potatoApi } from "../api/services";
+import { MadeBags } from "../stock/MadeBags";
 import { Button } from "../ui/Button";
 import { formatQuantity } from "../utils/format";
 
@@ -152,6 +153,7 @@ export function StockQuick() {
               </Button>
             </form>
           )}
+          {items.length > 0 && <MadeBags items={items} />}
           {saved && !saveLevel.isError && !saveFridge.isError && (
             <p className="action-feedback" role="status">
               {saved}

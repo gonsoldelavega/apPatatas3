@@ -13,6 +13,8 @@ import { createDatabaseProbe, withTenantTransaction, type Database } from "../..
 import { DeliveryNoteService } from "../../src/delivery-notes/service.js";
 import { createDeliveryNoteRoutes } from "../../src/delivery-notes/routes.js";
 import { createFinanceRoutes } from "../../src/finance/routes.js";
+import { createFridgeLinesRoutes } from "../../src/stock/fridge-lines-routes.js";
+import { FridgeLinesService } from "../../src/stock/fridge-lines.js";
 import { FinanceService } from "../../src/finance/service.js";
 import { InvoiceService } from "../../src/invoices/service.js";
 import { createInvoiceRoutes } from "../../src/invoices/routes.js";
@@ -114,6 +116,7 @@ before(async () => {
   const newInvoice = await invoices.fromDeliveryNotes(master, { deliveryNoteIds: [await note("2026-11-12")], series: "F", issueDate: "2026-11-15" });
   newInvoiceId = (await invoices.issue(master, newInvoice!.id))!.id;
 
+  const financeService = new FinanceService(api.pool);
   server = createApp({
     database: api,
     auth,
@@ -126,7 +129,8 @@ before(async () => {
       createTeamRoutes(auth, new TeamService(api.pool)),
       createInvoiceRoutes(auth, invoices),
       createDeliveryNoteRoutes(auth, delivery),
-      createFinanceRoutes(auth, new FinanceService(api.pool)),
+      createFinanceRoutes(auth, financeService),
+      createFridgeLinesRoutes(auth, new FridgeLinesService(api.pool, financeService)),
       createContactRoutes(auth, new ContactService(api.pool)),
       createProductRoutes(auth, new ProductService(api.pool)),
     ],
@@ -225,6 +229,39 @@ test("el socio rellena el stock de patata y la nevera sin ver costes ni el resto
   // El resto del stock y los costes siguen siendo del maestro.
   assert.equal((await call("GET", "/stock", partnerToken)).status, 403);
   assert.equal((await call("POST", "/stock/fridge", partnerToken, { productId, quantity: "1" })).status, 403);
+});
+
+test("el socio apunta bolsas hechas por tipo y para un cliente; la nevera sube y baja con ellas", async () => {
+  const fridge = async () => Number((await json<{ fridgeKg: string }>(await call("GET", "/stock/potato", partnerToken))).fridgeKg);
+  const lines = async () => (await json<{ items: Array<{ id: string; variety: string; contactName: string | null; deliveredAt: string | null; bags: string | null }> }>(await call("GET", "/stock/fridge-lines", partnerToken))).items;
+  const before = await fridge();
+  const created = await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Bastón 12 mm con piel", productId, quantity: "25", bags: "10", contactId: customerId, note: "Para el viernes" });
+  assert.equal(created.status, 201);
+  const line = await json<{ id: string; variety: string; contactName: string | null }>(created);
+  assert.equal(line.variety, "Bastón 12 mm con piel");
+  assert.equal(line.contactName, "Cliente Ficticio");
+  assert.equal(await fridge(), before + 25, "la tirada suma a la nevera");
+  // Sin cliente también vale: bolsas sin dueño.
+  const loose = await json<{ id: string }>(await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Brava", productId, quantity: "5" }));
+  assert.equal(await fridge(), before + 30);
+  assert.equal((await lines()).filter((item) => item.deliveredAt === null).length, 2);
+  // Entregada: sale de pendientes y no toca la nevera.
+  assert.equal((await call("POST", `/stock/fridge-lines/${line.id}/deliver`, partnerToken)).status, 200);
+  assert.equal(await fridge(), before + 30);
+  assert.ok((await lines()).find((item) => item.id === line.id)?.deliveredAt);
+  assert.equal((await call("POST", `/stock/fridge-lines/${line.id}/deliver`, partnerToken)).status, 404);
+  // Deshacer una pendiente resta sus kilos; una entregada solo se borra.
+  assert.equal((await call("DELETE", `/stock/fridge-lines/${loose.id}`, partnerToken)).status, 204);
+  assert.equal(await fridge(), before + 25);
+  assert.equal((await call("DELETE", `/stock/fridge-lines/${line.id}`, partnerToken)).status, 204);
+  assert.equal(await fridge(), before + 25);
+  // Validaciones: cantidad, tipo vacío, campo extra, cliente o producto inexistentes.
+  assert.equal((await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Gajo", productId, quantity: "0" })).status, 400);
+  assert.equal((await call("POST", "/stock/fridge-lines", partnerToken, { variety: "", productId, quantity: "1" })).status, 400);
+  assert.equal((await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Gajo", productId, quantity: "1", extra: 1 })).status, 400);
+  assert.equal((await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Gajo", productId, quantity: "1", contactId: "3f2b8c1e-5d4a-4b7e-9c11-0a1b2c3d4e5f" })).status, 404);
+  assert.equal((await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Gajo", productId: "3f2b8c1e-5d4a-4b7e-9c11-0a1b2c3d4e5f", quantity: "1" })).status, 404);
+  assert.equal(await fridge(), before + 25, "los intentos fallidos no tocan la nevera");
 });
 
 test("el socio NO puede gestionar el equipo ni ver compras, gastos, stock, importaciones o integraciones", async () => {

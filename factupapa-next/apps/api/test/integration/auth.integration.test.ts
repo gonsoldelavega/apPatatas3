@@ -253,6 +253,7 @@ test("RLS aísla estrictamente dos empresas y el contexto transaccional", async 
         "contact_people",
         "drive_files",
         "drive_library_state",
+        "fridge_lines",
         "production_runs",
         "ocr_usage_events",
       ];

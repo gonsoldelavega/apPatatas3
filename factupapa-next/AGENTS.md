@@ -144,3 +144,9 @@ El servidor importa el Registro Maestro cada 30 minutos (y 60 s después de arra
 ## Documentos (biblioteca de Drive)
 
 Pantalla `/documentos` (solo maestro): lista todo lo que hay en la carpeta de gestión de Drive (`DEFAULT_DRIVE_ROOT_ID` en `apps/api/src/drive/library.ts`, o `DRIVE_LIBRARY_FOLDER_ID`) y dice qué compras faltan por registrar. Necesita el permiso `drive.readonly` en la conexión de Google (se pide con «Dar permiso de lectura de Drive»; el flujo OAuth ya pide ese scope). La lectura recorre el árbol con la API de Drive y guarda solo metadatos en `drive_files` (migración 0046); se refresca cada hora y con «Actualizar» (en segundo plano, `POST /drive/sync` → 202). Estado de una compra: **registrada** si hay una compra con el mismo enlace de Drive o con la misma fecha e importe (los nombres `AAAA-MM-DD_FACTURA_COMPRA_..._IMPORTE.ext` los pone el organizador), **sin registrar** si no, **duplicado** / **revisar** según la carpeta. «Crear compra» abre `/gastos/nuevo` con fecha, concepto y una nota con el enlace; no hay OCR. Si Google devuelve 401/403 (token caducado o permiso retirado) el estado queda en `error` y la pantalla pide volver a dar permiso.
+
+## Bolsas hechas (tipo y cliente)
+
+- `fridge_lines` (migración 0047) desglosa lo que hay en la nevera: tipo (bastón 12 mm con/sin piel, brava, panadera, gajo u «Otro»), bolsas, kg por bolsa y, opcionalmente, el cliente.
+- Crear una línea suma sus kg a la nevera de la variedad (`adjustPotatoFridge` modo `add`); deshacer una pendiente los resta. «Entregada» solo la saca de la lista: el descuento de la nevera lo hacen las ventas, como siempre.
+- API `/stock/fridge-lines` (GET, POST, POST `/:id/deliver`, DELETE `/:id`) para maestro y socios; sin costes. Web: `stock/MadeBags.tsx` en la pantalla Stock y en el inicio de los socios.
