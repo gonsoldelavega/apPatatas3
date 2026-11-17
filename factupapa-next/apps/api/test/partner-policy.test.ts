@@ -31,6 +31,7 @@ test("el socio puede usar lo necesario para el día a día", () => {
     ["GET", "/stock/fridge-lines"],
     ["POST", "/stock/fridge-lines"],
     ["POST", `/stock/fridge-lines/${id}/deliver`],
+    ["POST", `/stock/fridge-lines/${id}/made`],
     ["DELETE", `/stock/fridge-lines/${id}`],
     ["GET", "/finance/summary"],
     ["GET", "/finance/monthly"],

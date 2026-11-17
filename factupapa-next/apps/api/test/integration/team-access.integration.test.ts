@@ -264,6 +264,33 @@ test("el socio apunta bolsas hechas por tipo y para un cliente; la nevera sube y
   assert.equal(await fridge(), before + 25, "los intentos fallidos no tocan la nevera");
 });
 
+test("la pizarra por preparar no toca la nevera hasta que se marca como hecha", async () => {
+  const fridge = async () => Number((await json<{ fridgeKg: string }>(await call("GET", "/stock/potato", partnerToken))).fridgeKg);
+  const lines = async () => (await json<{ items: Array<{ id: string; madeAt: string | null; deliveredAt: string | null }> }>(await call("GET", "/stock/fridge-lines", partnerToken))).items;
+  const before = await fridge();
+  const planned = await json<{ id: string; madeAt: string | null }>(
+    await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Panadera", productId, quantity: "15", bags: "6", contactId: customerId, toPrepare: true }),
+  );
+  assert.equal(planned.madeAt, null);
+  assert.equal(await fridge(), before, "apuntar no suma a la nevera");
+  // Una línea por preparar no se puede entregar todavía.
+  assert.equal((await call("POST", `/stock/fridge-lines/${planned.id}/deliver`, partnerToken)).status, 404);
+  const made = await call("POST", `/stock/fridge-lines/${planned.id}/made`, partnerToken);
+  assert.equal(made.status, 200);
+  assert.ok((await json<{ madeAt: string | null }>(made)).madeAt);
+  assert.equal(await fridge(), before + 15, "hecha suma a la nevera");
+  assert.equal((await call("POST", `/stock/fridge-lines/${planned.id}/made`, partnerToken)).status, 404, "no se suma dos veces");
+  assert.equal(await fridge(), before + 15);
+  // Una por preparar se borra sin tocar la nevera; una hecha la resta.
+  const other = await json<{ id: string }>(await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Gajo", productId, quantity: "5", toPrepare: true }));
+  assert.equal((await call("DELETE", `/stock/fridge-lines/${other.id}`, partnerToken)).status, 204);
+  assert.equal(await fridge(), before + 15);
+  assert.equal((await call("DELETE", `/stock/fridge-lines/${planned.id}`, partnerToken)).status, 204);
+  assert.equal(await fridge(), before);
+  assert.ok(!(await lines()).some((item) => item.id === planned.id || item.id === other.id));
+  assert.equal((await call("POST", "/stock/fridge-lines", partnerToken, { variety: "Gajo", productId, quantity: "1", toPrepare: "si" })).status, 400);
+});
+
 test("el socio NO puede gestionar el equipo ni ver compras, gastos, stock, importaciones o integraciones", async () => {
   for (const [method, path] of [
     ["GET", "/team/members"],

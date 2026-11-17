@@ -353,7 +353,7 @@ export function DashboardPage() {
       </section>
 
       {/* Maestro: balance, pedidos, tareas y, debajo, lo pendiente (facturas, albaranes, stock). */}
-      {!partner && <WorkspaceBlocks />}
+      {!partner && <WorkspaceBlocks afterOrders={<StockQuick />} />}
 
       <section className="dashboard-section attention-premium">
         <div className="dashboard-section__heading">

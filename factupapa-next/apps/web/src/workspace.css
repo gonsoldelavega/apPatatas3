@@ -766,3 +766,16 @@
   align-items: center;
   color: var(--muted, #64748b);
 }
+
+.made-bags__secondary {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line, #d6deea);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.made-bags__secondary:disabled {
+  opacity: 0.5;
+}

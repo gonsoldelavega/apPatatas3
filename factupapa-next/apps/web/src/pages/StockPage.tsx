@@ -1,6 +1,6 @@
 import { stockTotals } from "../utils/stock-totals";
 import { FridgeRow } from "../stock/FridgeRow";
-import { MadeBags } from "../stock/MadeBags";
+import { FridgeLinesList, Pizarra } from "../stock/MadeBags";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight, Factory, PackageCheck, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
@@ -210,7 +210,8 @@ export function StockPage() {
             {sharedItems.map((item) => (
               <FridgeRow key={item.productId} item={item} />
             ))}
-            <MadeBags items={sharedItems} />
+            <Pizarra items={sharedItems} />
+            <FridgeLinesList />
             <button
               type="button"
               className="stock-card__adjust"

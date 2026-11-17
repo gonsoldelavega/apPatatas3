@@ -150,3 +150,8 @@ Pantalla `/documentos` (solo maestro): lista todo lo que hay en la carpeta de ge
 - `fridge_lines` (migración 0047) desglosa lo que hay en la nevera: tipo (bastón 12 mm con/sin piel, brava, panadera, gajo u «Otro»), bolsas, kg por bolsa y, opcionalmente, el cliente.
 - Crear una línea suma sus kg a la nevera de la variedad (`adjustPotatoFridge` modo `add`); deshacer una pendiente los resta. «Entregada» solo la saca de la lista: el descuento de la nevera lo hacen las ventas, como siempre.
 - API `/stock/fridge-lines` (GET, POST, POST `/:id/deliver`, DELETE `/:id`) para maestro y socios; sin costes. Web: `stock/MadeBags.tsx` en la pantalla Stock y en el inicio de los socios.
+
+### Pizarra por preparar (0048)
+
+- `fridge_lines.made_at` nulo = apuntada en la pizarra «por preparar» (no suma a la nevera). `POST /stock/fridge-lines/:id/made` la marca hecha y suma sus kg a la nevera; solo entonces se puede entregar. Borrar una línea solo resta de la nevera si estaba hecha y sin entregar.
+- Web: el inicio (maestro y socios) tiene tres bloques separados: Pizarra (`Pizarra`), Stock nevera (+ `FridgeLinesList`) y Stock de patata total, todos en `workspace/StockQuick.tsx`. La pantalla Stock reutiliza `Pizarra` y `FridgeLinesList`.

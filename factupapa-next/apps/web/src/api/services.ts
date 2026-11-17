@@ -682,6 +682,7 @@ export interface FridgeLine {
   quantity: string;
   bags: string | null;
   note: string | null;
+  madeAt: string | null;
   deliveredAt: string | null;
   createdAt: string;
 }
@@ -689,8 +690,9 @@ export interface FridgeLine {
 /** Bolsas hechas (tipo y cliente opcional) que están en la nevera. */
 export const fridgeLinesApi = {
   list: () => apiClient.request<{ items: FridgeLine[] }>("/stock/fridge-lines"),
-  create: (input: { variety: string; productId: string; quantity: string; bags: string | null; contactId: string | null; note: string | null }) =>
+  create: (input: { variety: string; productId: string; quantity: string; bags: string | null; contactId: string | null; note: string | null; toPrepare?: boolean }) =>
     apiClient.request<FridgeLine>("/stock/fridge-lines", { method: "POST", body: JSON.stringify(input) }),
+  made: (id: string) => apiClient.request<FridgeLine>(`/stock/fridge-lines/${id}/made`, { method: "POST" }),
   deliver: (id: string) => apiClient.request<FridgeLine>(`/stock/fridge-lines/${id}/deliver`, { method: "POST" }),
   remove: (id: string) => apiClient.request<void>(`/stock/fridge-lines/${id}`, { method: "DELETE" }),
 };

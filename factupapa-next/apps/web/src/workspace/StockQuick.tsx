@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package, Refrigerator } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { potatoApi } from "../api/services";
-import { MadeBags } from "../stock/MadeBags";
+import { FridgeLinesList, Pizarra } from "../stock/MadeBags";
 import { Button } from "../ui/Button";
 import { formatQuantity } from "../utils/format";
 
@@ -75,97 +75,121 @@ export function StockQuick() {
     if (valid) action();
   };
 
+  const feedback = (
+    <>
+      {saved && !saveLevel.isError && !saveFridge.isError && (
+        <p className="action-feedback" role="status">
+          {saved}
+        </p>
+      )}
+      {(saveLevel.isError || saveFridge.isError) && (
+        <p className="action-feedback action-feedback--error" role="alert">
+          No se pudo guardar. Revisa el número.
+        </p>
+      )}
+    </>
+  );
+
   return (
-    <section className="dashboard-section workspace-block stock-quick" aria-labelledby="dash-stock-title">
-      <div className="dashboard-section__heading">
-        <h2 id="dash-stock-title">
-          <Package aria-hidden="true" /> Stock de patata
-        </h2>
-      </div>
-      {overview.isLoading ? (
-        <p className="form-hint">Cargando…</p>
-      ) : overview.isError ? (
-        <p className="form-hint">No se pudo cargar el stock.</p>
-      ) : (
-        <>
-          <div className="stock-quick__figures">
-            <div>
-              <small>Stock</small>
-              <strong>{formatQuantity(overview.data!.potatoKg)} kg</strong>
-            </div>
-            <div>
-              <small>
-                <Refrigerator aria-hidden="true" /> Stock nevera
-              </small>
-              <strong>{formatQuantity(overview.data!.fridgeKg)} kg</strong>
-            </div>
-          </div>
+    <>
+      {items.length > 0 && <Pizarra items={items} />}
 
-          <form className="stock-quick__form" onSubmit={submit(() => saveLevel.mutate(), levelValid)}>
-            <label>
-              <span>Stock de hoy (kg) · al comprar o recontar</span>
-              <input inputMode="decimal" placeholder="kg que hay ahora" value={levelKg} onChange={(event) => setLevelKg(event.target.value)} />
-            </label>
-            <Button type="submit" busy={saveLevel.isPending} disabled={!levelValid}>
-              Guardar stock
-            </Button>
-          </form>
-
-          {items.length > 0 && (
-            <form className="stock-quick__form" onSubmit={submit(() => saveFridge.mutate(), fridgeValid)}>
-              <label>
-                <span>Nevera · producto</span>
-                <select value={selected?.productId ?? ""} onChange={(event) => setProductId(event.target.value)}>
-                  {items.map((item) => (
-                    <option key={item.productId} value={item.productId}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="stock-quick__segments" role="group" aria-label="Qué se hace">
-                <button type="button" aria-pressed={mode === "add"} onClick={() => setMode("add")}>
-                  + Tirada
-                </button>
-                <button type="button" aria-pressed={mode === "set"} onClick={() => setMode("set")}>
-                  Poner total
-                </button>
-                {hasBags && (
-                  <>
-                    <button type="button" aria-pressed={unit === "bags"} onClick={() => setUnit("bags")}>
-                      Bolsas
-                    </button>
-                    <button type="button" aria-pressed={unit === "kg"} onClick={() => setUnit("kg")}>
-                      Kg
-                    </button>
-                  </>
-                )}
+      <section className="dashboard-section workspace-block stock-quick" aria-labelledby="dash-fridge-title">
+        <div className="dashboard-section__heading">
+          <h2 id="dash-fridge-title">
+            <Refrigerator aria-hidden="true" /> Stock nevera
+          </h2>
+        </div>
+        {overview.isLoading ? (
+          <p className="form-hint">Cargando…</p>
+        ) : overview.isError ? (
+          <p className="form-hint">No se pudo cargar el stock.</p>
+        ) : (
+          <>
+            <div className="stock-quick__figures">
+              <div>
+                <small>Hecho, listo para entregar</small>
+                <strong>{formatQuantity(overview.data!.fridgeKg)} kg</strong>
               </div>
+            </div>
+            {items.length > 0 && (
+              <form className="stock-quick__form" onSubmit={submit(() => saveFridge.mutate(), fridgeValid)}>
+                <label>
+                  <span>Producto</span>
+                  <select value={selected?.productId ?? ""} onChange={(event) => setProductId(event.target.value)}>
+                    {items.map((item) => (
+                      <option key={item.productId} value={item.productId}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="stock-quick__segments" role="group" aria-label="Qué se hace">
+                  <button type="button" aria-pressed={mode === "add"} onClick={() => setMode("add")}>
+                    + Tirada
+                  </button>
+                  <button type="button" aria-pressed={mode === "set"} onClick={() => setMode("set")}>
+                    Poner total
+                  </button>
+                  {hasBags && (
+                    <>
+                      <button type="button" aria-pressed={unit === "bags"} onClick={() => setUnit("bags")}>
+                        Bolsas
+                      </button>
+                      <button type="button" aria-pressed={unit === "kg"} onClick={() => setUnit("kg")}>
+                        Kg
+                      </button>
+                    </>
+                  )}
+                </div>
+                <label>
+                  <span>
+                    {mode === "add" ? "Cantidad de la tirada" : "Total en la nevera"} ({unit === "bags" ? "bolsas" : "kg"})
+                    {selected?.fridgeQuantity != null && <> · ahora {formatQuantity(selected.fridgeQuantity)} kg</>}
+                  </span>
+                  <input inputMode="decimal" placeholder={unit === "bags" ? "Bolsas" : "Kg"} value={amount} onChange={(event) => setAmount(event.target.value)} />
+                </label>
+                <Button type="submit" busy={saveFridge.isPending} disabled={!fridgeValid}>
+                  {mode === "add" ? "Sumar a la nevera" : "Guardar nevera"}
+                </Button>
+              </form>
+            )}
+            <FridgeLinesList />
+          </>
+        )}
+      </section>
+
+      <section className="dashboard-section workspace-block stock-quick" aria-labelledby="dash-stock-title">
+        <div className="dashboard-section__heading">
+          <h2 id="dash-stock-title">
+            <Package aria-hidden="true" /> Stock de patata (total)
+          </h2>
+        </div>
+        {overview.isLoading ? (
+          <p className="form-hint">Cargando…</p>
+        ) : overview.isError ? (
+          <p className="form-hint">No se pudo cargar el stock.</p>
+        ) : (
+          <>
+            <div className="stock-quick__figures">
+              <div>
+                <small>Todas las variedades juntas</small>
+                <strong>{formatQuantity(overview.data!.potatoKg)} kg</strong>
+              </div>
+            </div>
+            <form className="stock-quick__form" onSubmit={submit(() => saveLevel.mutate(), levelValid)}>
               <label>
-                <span>
-                  {mode === "add" ? "Cantidad de la tirada" : "Total en la nevera"} ({unit === "bags" ? "bolsas" : "kg"})
-                  {selected?.fridgeQuantity != null && <> · ahora {formatQuantity(selected.fridgeQuantity)} kg</>}
-                </span>
-                <input inputMode="decimal" placeholder={unit === "bags" ? "Bolsas" : "Kg"} value={amount} onChange={(event) => setAmount(event.target.value)} />
+                <span>Stock de hoy (kg) · al comprar o recontar</span>
+                <input inputMode="decimal" placeholder="kg que hay ahora" value={levelKg} onChange={(event) => setLevelKg(event.target.value)} />
               </label>
-              <Button type="submit" busy={saveFridge.isPending} disabled={!fridgeValid}>
-                {mode === "add" ? "Sumar a la nevera" : "Guardar nevera"}
+              <Button type="submit" busy={saveLevel.isPending} disabled={!levelValid}>
+                Guardar stock
               </Button>
             </form>
-          )}
-          {items.length > 0 && <MadeBags items={items} />}
-          {saved && !saveLevel.isError && !saveFridge.isError && (
-            <p className="action-feedback" role="status">
-              {saved}
-            </p>
-          )}
-          {(saveLevel.isError || saveFridge.isError) && (
-            <p className="action-feedback action-feedback--error" role="alert">
-              No se pudo guardar. Revisa el número.
-            </p>
-          )}
-        </>
-      )}
-    </section>
+            {feedback}
+          </>
+        )}
+      </section>
+    </>
   );
 }
