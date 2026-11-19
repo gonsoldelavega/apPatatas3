@@ -282,6 +282,17 @@ export function SalesDetailPage() {
       navigate("/ventas");
     },
   });
+  const deleteMistaken = useMutation({
+    mutationFn: () => invoicesApi.deleteMistaken(id),
+    onSuccess: async (result) => {
+      await refreshLists();
+      await showNotice(
+        `Factura ${result.number} borrada: el número ${result.number} vuelve a estar libre.` +
+          (result.driveFileId ? " Si ya se había copiado su PDF a Drive, bórralo a mano." : ""),
+      );
+      navigate("/ventas");
+    },
+  });
   const issueAndPrint = useMutation({
     mutationFn: async (target: Window | null) => {
       try {
@@ -950,6 +961,33 @@ export function SalesDetailPage() {
           >
             Cancelar
           </Button>
+          )}
+          {!partner && invoice && (
+            <>
+              <Button
+                variant="danger"
+                icon={<Trash2 />}
+                busy={deleteMistaken.isPending}
+                onClick={async () => {
+                  if (
+                    await askConfirm(
+                      "¿Borrar esta factura por error? Desaparece del todo, su número queda libre y los albaranes que incluía vuelven a estar disponibles. Solo funciona con la última factura de la serie.",
+                      { confirmLabel: "Borrar factura", danger: true },
+                    )
+                  )
+                    deleteMistaken.mutate();
+                }}
+              >
+                Borrar por error
+              </Button>
+              {deleteMistaken.isError && (
+                <p className="action-feedback action-feedback--error" role="alert">
+                  {deleteMistaken.error instanceof ApiError && deleteMistaken.error.status === 409
+                    ? "Solo se puede borrar la última factura de la serie y sin cobros ni documentos asociados."
+                    : "No se pudo borrar la factura."}
+                </p>
+              )}
+            </>
           )}
           {!invoice && (
             <Button

@@ -148,6 +148,7 @@ test("el socio NO puede tocar precios, clientes, proveedores, compras, gastos ni
 test("el socio NO puede anular, borrar ni cobrar documentos", () => {
   const denied: Array<[string, string]> = [
     ["POST", `/invoices/${id}/cancel`],
+    ["POST", `/invoices/${id}/delete-mistaken`],
     ["POST", `/invoices/${id}/payments`],
     ["DELETE", `/payments/${id}`],
     ["POST", `/delivery-notes/${id}/cancel`],

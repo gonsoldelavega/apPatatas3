@@ -512,6 +512,31 @@ export class InvoiceService {
     });
   }
 
+  /**
+   * Borra una factura emitida por error y libera su número. Solo el maestro, solo la última de su serie
+   * y sin cobros ni documentos (lo comprueba la función de base de datos).
+   */
+  async deleteMistaken(identity: SessionIdentity, id: string) {
+    if (identity.role !== "owner") throw new HttpError("forbidden", 403);
+    return withTenantTransaction(this.pool, identity, async (c) => {
+      const before = await this.repository.get(c, id, true);
+      if (!before) throw new HttpError("not_found", 404);
+      try {
+        const result = await c.query<{ series: string; number: number; driveFileId: string | null } & QueryResultRow>(
+          `select series, number, drive_file_id "driveFileId" from public.delete_mistaken_sales_invoice($1::uuid)`,
+          [id],
+        );
+        return { deleted: true as const, series: result.rows[0]!.series, number: result.rows[0]!.number, driveFileId: result.rows[0]!.driveFileId };
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code === "55000") throw new HttpError("conflict", 409);
+        if (code === "42501") throw new HttpError("forbidden", 403);
+        if (code === "P0002") throw new HttpError("not_found", 404);
+        throw error;
+      }
+    });
+  }
+
   async fromDeliveryNotes(
     identity: SessionIdentity,
     input: {

@@ -366,6 +366,12 @@ export const invoicesApi = {
       method: "POST",
       body: "{}",
     }),
+  /** Borra una factura emitida por error (solo la última de su serie) y libera su número. */
+  deleteMistaken: (id: string) =>
+    apiClient.request<{ deleted: true; series: string; number: number; driveFileId: string | null }>(`/invoices/${id}/delete-mistaken`, {
+      method: "POST",
+      body: "{}",
+    }),
   downloadPdf: (id: string) => apiClient.download(`/invoices/${id}/pdf`),
   update: (
     id: string,

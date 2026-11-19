@@ -1370,3 +1370,44 @@ test("PDF de albarán solo para emitidos y facturados", async () => {
     (error: unknown) => error instanceof HttpError && error.status === 409,
   );
 });
+
+test("borrar una factura emitida por error: solo la última de la serie, libera el número y reabre el albarán", async () => {
+  const series = "MISTAKE_2026";
+  const note = await createIssuedNote("ALB_MISTAKE");
+  const first = await createIssuedInvoice([note.id], series);
+  assert.equal(first.number, 100);
+  const draft = await invoices.create(identity, { contactId: customerId, series, issueDate: "2026-07-15" });
+  await invoices.line(identity, draft!.id, undefined, { productId, quantity: "1" });
+  const second = (await invoices.issue(identity, draft!.id))!;
+  assert.equal(second.number, 101);
+
+  // La 100 no es la última: no se puede borrar.
+  await assert.rejects(() => invoices.deleteMistaken(identity, first.id), (error: unknown) => error instanceof HttpError && error.status === 409);
+
+  // La 101 sí: desaparece, su número queda libre y la siguiente factura vuelve a ser la 101.
+  const result = await invoices.deleteMistaken(identity, second.id);
+  assert.equal(result.number, 101);
+  assert.equal(result.series, series);
+  await assert.rejects(() => invoices.get(identity, second.id), (error: unknown) => error instanceof HttpError && error.status === 404);
+  assert.equal((await invoices.numberPreview(identity, { series, issueDate: "2026-07-15" })).number, 101);
+  const again = await invoices.create(identity, { contactId: customerId, series, issueDate: "2026-07-15" });
+  await invoices.line(identity, again!.id, undefined, { productId, quantity: "1" });
+  assert.equal((await invoices.issue(identity, again!.id))!.number, 101);
+
+  // Ahora la 101 vuelve a ser la última; la 100 sigue protegida hasta que se borre la 101.
+  await invoices.deleteMistaken(identity, again!.id);
+  const deleted = await invoices.deleteMistaken(identity, first.id);
+  assert.equal(deleted.number, 100);
+  assert.equal((await invoices.numberPreview(identity, { series, issueDate: "2026-07-15" })).number, 100);
+  // El albarán vuelve a estar disponible para facturar.
+  const reopened = await invoices.fromDeliveryNotes(identity, { deliveryNoteIds: [note.id], series, issueDate: "2026-07-15" });
+  assert.ok(reopened);
+  // Queda constancia en auditoría con la copia de lo borrado.
+  const audit = await admin.pool.query(
+    `select before_data from audit_events where action='invoice.deleted_by_mistake' and entity_id=$1`,
+    [first.id],
+  );
+  assert.equal(audit.rowCount, 1);
+  assert.equal(audit.rows[0].before_data.invoice.number, 100);
+  assert.equal(audit.rows[0].before_data.lines.length, 1);
+});

@@ -82,6 +82,12 @@ export function createInvoiceRoutes(
       );
       return true;
     }
+    const mistaken = url.pathname.match(/^\/invoices\/([^/]+)\/delete-mistaken$/);
+    if (mistaken && request.method === "POST") {
+      const i = await auth.authenticate(bearerToken(request));
+      json(response, 200, await service.deleteMistaken(i, requireUuid(mistaken[1])));
+      return true;
+    }
     const pdf = url.pathname.match(/^\/invoices\/([^/]+)\/pdf$/);
     if (pdf && request.method === "GET") {
       const i = await auth.authenticate(bearerToken(request)),

@@ -155,3 +155,9 @@ Pantalla `/documentos` (solo maestro): lista todo lo que hay en la carpeta de ge
 
 - `fridge_lines.made_at` nulo = apuntada en la pizarra «por preparar» (no suma a la nevera). `POST /stock/fridge-lines/:id/made` la marca hecha y suma sus kg a la nevera; solo entonces se puede entregar. Borrar una línea solo resta de la nevera si estaba hecha y sin entregar.
 - Web: el inicio (maestro y socios) tiene tres bloques separados: Pizarra (`Pizarra`), Stock nevera (+ `FridgeLinesList`) y Stock de patata total, todos en `workspace/StockQuick.tsx`. La pantalla Stock reutiliza `Pizarra` y `FridgeLinesList`.
+
+## Borrar una factura emitida por error (0049)
+
+- Las facturas emitidas son inmutables; la única puerta para borrarlas es `delete_mistaken_sales_invoice` (`POST /invoices/:id/delete-mistaken`, solo maestro). Solo vale para la factura con el número más alto de su serie y sin cobros ni documentos asociados.
+- Reabre los albaranes que incluía, devuelve la secuencia a ese número y deja en `audit_events` (`invoice.deleted_by_mistake`) una copia completa de lo borrado. Si su PDF ya se había exportado a Drive, el PDF no se borra solo.
+- Web: botón «Borrar por error» en la factura emitida (junto a «Cancelar», que conserva la factura como cancelada). No ampliar esta puerta sin una petición explícita.
