@@ -102,7 +102,9 @@ export function createGmailRoutes(
     if (request.method === "POST" && sendInvoice) {
       if (!service) throw new HttpError("gmail_not_connected", 409);
       const identity = await auth.authenticate(bearerToken(request));
-      json(response, 200, await service.sendInvoice(identity, requireUuid(sendInvoice[1])));
+      const body = (await readJson(request)) as { bags?: unknown };
+      if (body.bags !== undefined && typeof body.bags !== "boolean") throw new HttpError("invalid_request", 400);
+      json(response, 200, await service.sendInvoice(identity, requireUuid(sendInvoice[1]), { bags: body.bags === true }));
       return true;
     }
     if (request.method === "GET" && service && callbackPaths(service.callbackPath).has(url.pathname)) {

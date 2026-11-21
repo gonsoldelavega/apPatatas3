@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { bagDetailEnabled } from "../utils/pdf-preferences";
 import type {
   Contact,
   ContactInput,
@@ -95,7 +96,7 @@ export const gmailApi = {
   sendInvoice: (invoiceId: string) =>
     apiClient.request<{ sent: true; email: string; messageId: string }>(
       `/invoices/${invoiceId}/send-gmail`,
-      { method: "POST", body: "{}", timeoutMs: 30_000 },
+      { method: "POST", body: JSON.stringify({ bags: bagDetailEnabled() }), timeoutMs: 30_000 },
     ),
 };
 
@@ -296,11 +297,12 @@ export const deliveryNotesApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  downloadPdf: (id: string, options: { prices?: boolean; copies?: number } = {}) =>
+  downloadPdf: (id: string, options: { prices?: boolean; copies?: number; bags?: boolean } = {}) =>
     apiClient.download(
       `/delivery-notes/${id}/pdf${queryString({
         prices: options.prices === false ? "0" : "1",
         copies: options.copies ?? 1,
+        bags: (options.bags ?? bagDetailEnabled()) ? "1" : undefined,
       })}`,
     ),
 };
@@ -368,11 +370,12 @@ export const invoicesApi = {
     }),
   /** Borra una factura emitida por error (solo la última de su serie) y libera su número. */
   deleteMistaken: (id: string) =>
-    apiClient.request<{ deleted: true; series: string; number: number; driveFileId: string | null }>(`/invoices/${id}/delete-mistaken`, {
+    apiClient.request<{ deleted: true; series: string; number: number | null; driveFileId: string | null }>(`/invoices/${id}/delete-mistaken`, {
       method: "POST",
       body: "{}",
     }),
-  downloadPdf: (id: string) => apiClient.download(`/invoices/${id}/pdf`),
+  downloadPdf: (id: string, options: { bags?: boolean } = {}) =>
+    apiClient.download(`/invoices/${id}/pdf${queryString({ bags: (options.bags ?? bagDetailEnabled()) ? "1" : undefined })}`),
   update: (
     id: string,
     input: Partial<

@@ -522,7 +522,7 @@ export class InvoiceService {
       const before = await this.repository.get(c, id, true);
       if (!before) throw new HttpError("not_found", 404);
       try {
-        const result = await c.query<{ series: string; number: number; driveFileId: string | null } & QueryResultRow>(
+        const result = await c.query<{ series: string; number: number | null; driveFileId: string | null } & QueryResultRow>(
           `select series, number, drive_file_id "driveFileId" from public.delete_mistaken_sales_invoice($1::uuid)`,
           [id],
         );

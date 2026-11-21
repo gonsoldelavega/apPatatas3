@@ -9,12 +9,15 @@ import {
   money,
 } from "../invoices/pdf.js";
 import type { DeliveryPdfData } from "./types.js";
+import { bagDetail } from "../sales/bags.js";
 
 export interface DeliveryPdfOptions {
   /** Muestra precio, IVA e importes. Sin precios sale solo la mercancía. */
   prices: boolean;
   /** Número de copias (una página por copia). */
   copies: number;
+  /** Debajo de cada línea, el desglose en bolsas (p. ej. «13 bolsas de 2,5 kg + 1 de 2 kg»). */
+  bags?: boolean;
 }
 
 const unitText = (unit: string) =>
@@ -144,9 +147,9 @@ export async function createDeliveryNotePdf(
       y = tableHeader(y);
       doc.fillColor("#111111").font("Helvetica");
       for (const line of note.lines) {
-        const descriptionHeight = doc
-          .fontSize(10)
-          .heightOfString(line.description, { width: cols.descW });
+        const detail = options.bags ? bagDetail(line) : null;
+        const descriptionHeight =
+          doc.fontSize(10).heightOfString(line.description, { width: cols.descW }) + (detail ? 12 : 0);
         if (y + Math.max(26, descriptionHeight + 4) > 700) {
           doc.addPage();
           header(copyLabel(copy));
@@ -164,6 +167,12 @@ export async function createDeliveryNotePdf(
           )
           .font("Helvetica")
           .text(line.description, cols.desc, y, { width: cols.descW });
+        if (detail)
+          doc
+            .fontSize(8.5)
+            .fillColor("#555555")
+            .text(detail, cols.desc, y + descriptionHeight - 12, { width: cols.descW })
+            .fillColor("#111111");
         if (options.prices)
           doc
             .fontSize(9)

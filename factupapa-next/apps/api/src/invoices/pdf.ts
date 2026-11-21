@@ -1,3 +1,4 @@
+import { bagDetail } from "../sales/bags.js";
 import PDFDocument from "pdfkit";
 import type { Invoice } from "./types.js";
 export const decimal = (value: string, minimum = 0, maximum = 2) => {
@@ -86,6 +87,7 @@ export async function createInvoicePdf(
     email?: string | null;
     website?: string | null;
   },
+  options: { bags?: boolean } = {},
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -191,7 +193,8 @@ export async function createInvoicePdf(
         doc.addPage();
         y = 60;
       }
-      const descriptionHeight = doc.heightOfString(line.description, { width: 158 });
+      const detail = options.bags ? bagDetail(line) : null;
+      const descriptionHeight = doc.heightOfString(line.description, { width: 158 }) + (detail ? 11 : 0);
       doc
         .fontSize(9)
         .text(line.description, 56, y, { width: 158 })
@@ -205,6 +208,12 @@ export async function createInvoicePdf(
           align: "right",
         })
         .text(money(line.lineTotal), 458, y, { width: 89, align: "right" });
+      if (detail)
+        doc
+          .fontSize(7.5)
+          .fillColor("#555555")
+          .text(detail, 56, y + descriptionHeight - 11, { width: 158 })
+          .fillColor("#111111");
       y += Math.max(26, descriptionHeight + 4);
       doc
         .moveTo(48, y - 7)

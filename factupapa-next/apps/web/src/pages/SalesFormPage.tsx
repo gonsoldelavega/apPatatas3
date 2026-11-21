@@ -1,3 +1,4 @@
+import { BagDetailToggle } from "../sales/BagDetailToggle";
 import { PARTNER_HISTORY_FROM, useIsPartner } from "../auth/roles";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Printer, Repeat, Save, X } from "lucide-react";
@@ -546,6 +547,7 @@ export function SalesFormPage() {
               <span>Total sin IVA</span>
               <strong>{formatMoney(String(estimatedTotal))}</strong>
             </div>
+            <BagDetailToggle />
             <Button
               type="button"
               icon={<Printer />}

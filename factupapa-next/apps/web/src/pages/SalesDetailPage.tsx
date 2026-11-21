@@ -44,6 +44,7 @@ import {
 import { bagLabel } from "../utils/packaging";
 import { PaymentReminderButton } from "../invoices/PaymentReminderButton";
 import { askConfirm, showNotice } from "../ui/dialogs";
+import { BagDetailToggle } from "../sales/BagDetailToggle";
 
 const statusLabel = (status: string, invoice: boolean) =>
   ({
@@ -287,7 +288,7 @@ export function SalesDetailPage() {
     onSuccess: async (result) => {
       await refreshLists();
       await showNotice(
-        `Factura ${result.number} borrada: el número ${result.number} vuelve a estar libre.` +
+        (result.number != null ? `Factura ${result.number} borrada: el número ${result.number} vuelve a estar libre.` : "Borrador borrado.") +
           (result.driveFileId ? " Si ya se había copiado su PDF a Drive, bórralo a mano." : ""),
       );
       navigate("/ventas");
@@ -757,6 +758,7 @@ export function SalesDetailPage() {
               <h2 id="note-actions-title">Albarán para entregar</h2>
             </div>
           </div>
+          <BagDetailToggle />
           <div className="print-options">
             <div role="group" aria-label="Contenido del albarán" className="segmented">
               <button
@@ -796,6 +798,7 @@ export function SalesDetailPage() {
               </button>
             </div>
           </div>
+          <BagDetailToggle />
           <div className="document-actions document-actions--invoice">
             <Button
               icon={<Printer />}
@@ -948,6 +951,35 @@ export function SalesDetailPage() {
       {!invoice && item.status === "invoiced" && (
         <p className="form-hint">Albarán facturado: ya no se puede editar ni borrar.</p>
       )}
+      {!partner && invoice && (item.status === "draft" || item.status === "issued" || item.status === "cancelled") && (
+        <>
+          <Button
+            variant="danger"
+            icon={<Trash2 />}
+            busy={deleteMistaken.isPending}
+            onClick={async () => {
+              if (
+                await askConfirm(
+                  item.status === "draft"
+                    ? "¿Borrar este borrador? Desaparece del todo y, si tenía número reservado, queda libre."
+                    : "¿Borrar esta factura por error? Desaparece del todo, su número queda libre y los albaranes que incluía vuelven a estar disponibles. Solo funciona con la última factura de la serie.",
+                  { confirmLabel: item.status === "draft" ? "Borrar borrador" : "Borrar factura", danger: true },
+                )
+              )
+                deleteMistaken.mutate();
+            }}
+          >
+            {item.status === "draft" ? "Borrar borrador" : "Borrar por error"}
+          </Button>
+          {deleteMistaken.isError && (
+            <p className="action-feedback action-feedback--error" role="alert">
+              {deleteMistaken.error instanceof ApiError && deleteMistaken.error.status === 409
+                ? "Solo se puede borrar la última factura de la serie y sin cobros ni documentos asociados."
+                : "No se pudo borrar la factura."}
+            </p>
+          )}
+        </>
+      )}
       {item.status === "issued" && (
         <>
           {!partner && (
@@ -961,33 +993,6 @@ export function SalesDetailPage() {
           >
             Cancelar
           </Button>
-          )}
-          {!partner && invoice && (
-            <>
-              <Button
-                variant="danger"
-                icon={<Trash2 />}
-                busy={deleteMistaken.isPending}
-                onClick={async () => {
-                  if (
-                    await askConfirm(
-                      "¿Borrar esta factura por error? Desaparece del todo, su número queda libre y los albaranes que incluía vuelven a estar disponibles. Solo funciona con la última factura de la serie.",
-                      { confirmLabel: "Borrar factura", danger: true },
-                    )
-                  )
-                    deleteMistaken.mutate();
-                }}
-              >
-                Borrar por error
-              </Button>
-              {deleteMistaken.isError && (
-                <p className="action-feedback action-feedback--error" role="alert">
-                  {deleteMistaken.error instanceof ApiError && deleteMistaken.error.status === 409
-                    ? "Solo se puede borrar la última factura de la serie y sin cobros ni documentos asociados."
-                    : "No se pudo borrar la factura."}
-                </p>
-              )}
-            </>
           )}
           {!invoice && (
             <Button

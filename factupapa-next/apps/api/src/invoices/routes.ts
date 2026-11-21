@@ -94,13 +94,19 @@ export function createInvoiceRoutes(
         invoice = await service.get(i, requireUuid(pdf[1]));
       if (invoice.status !== "issued") throw new HttpError("conflict", 409);
       const contact = await service.issuerContact(i);
-      const buffer = await createInvoicePdf(invoice, {
-        name: invoice.issuerLegalName,
-        taxId: invoice.issuerTaxId,
-        address: invoice.issuerAddress,
-        email: contact.email,
-        website: contact.website,
-      });
+      const bags = url.searchParams.get("bags");
+      if (bags !== null && !["1", "0", "true", "false"].includes(bags)) throw new HttpError("invalid_request", 400);
+      const buffer = await createInvoicePdf(
+        invoice,
+        {
+          name: invoice.issuerLegalName,
+          taxId: invoice.issuerTaxId,
+          address: invoice.issuerAddress,
+          email: contact.email,
+          website: contact.website,
+        },
+        { bags: bags === "1" || bags === "true" },
+      );
       assertPdfSize(buffer);
       response.writeHead(200, {
         "content-type": "application/pdf",

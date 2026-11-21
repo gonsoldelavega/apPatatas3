@@ -160,4 +160,9 @@ Pantalla `/documentos` (solo maestro): lista todo lo que hay en la carpeta de ge
 
 - Las facturas emitidas son inmutables; la única puerta para borrarlas es `delete_mistaken_sales_invoice` (`POST /invoices/:id/delete-mistaken`, solo maestro). Solo vale para la factura con el número más alto de su serie y sin cobros ni documentos asociados.
 - Reabre los albaranes que incluía, devuelve la secuencia a ese número y deja en `audit_events` (`invoice.deleted_by_mistake`) una copia completa de lo borrado. Si su PDF ya se había exportado a Drive, el PDF no se borra solo.
-- Web: botón «Borrar por error» en la factura emitida (junto a «Cancelar», que conserva la factura como cancelada). No ampliar esta puerta sin una petición explícita.
+- 0050 amplía la función a borradores (reabre los albaranes que ya marcó como facturados) y a facturas canceladas. Web: botón «Borrar por error» / «Borrar borrador» en la ficha de la factura (solo maestro), junto a «Cancelar», que conserva la factura como cancelada. No ampliar esta puerta sin una petición explícita.
+
+## Desglose de bolsas en los PDF (opcional)
+
+- `sales/bags.ts` (`bagDetail`): para líneas en kg de patata (o con envase propio) devuelve «13 bolsas de 2,5 kg + 1 de 2 kg». Los PDF de albarán y factura lo imprimen bajo la línea solo con `?bags=1`; el correo de la factura con `{ "bags": true }`. Por defecto NO se imprime.
+- Web: casilla `BagDetailToggle` (ficha de albarán/factura y formulario de albarán), recordada en el dispositivo (`utils/pdf-preferences.ts`) y aplicada a todas las descargas, impresiones y envíos. La exportación automática a Drive al emitir no lleva el desglose.

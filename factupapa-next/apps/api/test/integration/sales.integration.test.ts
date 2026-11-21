@@ -1411,3 +1411,33 @@ test("borrar una factura emitida por error: solo la última de la serie, libera 
   assert.equal(audit.rows[0].before_data.invoice.number, 100);
   assert.equal(audit.rows[0].before_data.lines.length, 1);
 });
+
+test("también se borra un borrador (liberando su número reservado) y una factura ya cancelada", async () => {
+  const series = "DRAFTDEL_2026";
+  const input = { contactId: customerId, series, issueDate: "2026-07-15" };
+  // Borrador con número reservado: al borrarlo el número vuelve a estar libre.
+  const reserved = await invoices.create(identity, { ...input, number: 169 });
+  assert.equal(reserved.status, "draft");
+  assert.equal((await invoices.numberPreview(identity, input)).number, 170);
+  const draftResult = await invoices.deleteMistaken(identity, reserved.id);
+  assert.equal(draftResult.number, 169);
+  assert.equal((await invoices.numberPreview(identity, input)).number, 169);
+  await assert.rejects(() => invoices.get(identity, reserved.id), (error: unknown) => error instanceof HttpError && error.status === 404);
+
+  // Borrador creado desde un albarán: el albarán sigue disponible.
+  const note = await createIssuedNote("ALB_DRAFTDEL");
+  const fromNote = await invoices.fromDeliveryNotes(identity, { deliveryNoteIds: [note.id], series, issueDate: "2026-07-15" });
+  await invoices.deleteMistaken(identity, fromNote!.id);
+  const retry = await invoices.fromDeliveryNotes(identity, { deliveryNoteIds: [note.id], series, issueDate: "2026-07-15" });
+  assert.ok(retry);
+  await invoices.deleteMistaken(identity, retry!.id);
+
+  // Factura emitida y luego cancelada: también se puede borrar si es la última.
+  const draft = await invoices.create(identity, input);
+  await invoices.line(identity, draft.id, undefined, { productId, quantity: "1" });
+  const issued = (await invoices.issue(identity, draft.id))!;
+  await invoices.cancel(identity, issued.id);
+  const cancelledResult = await invoices.deleteMistaken(identity, issued.id);
+  assert.equal(cancelledResult.number, issued.number);
+  assert.equal((await invoices.numberPreview(identity, input)).number, issued.number);
+});

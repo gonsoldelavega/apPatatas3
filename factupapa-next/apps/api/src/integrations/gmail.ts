@@ -371,7 +371,7 @@ export class GmailIntegrationService {
     return payload.access_token;
   }
 
-  async sendInvoice(identity: SessionIdentity, invoiceId: string): Promise<GmailSendResult> {
+  async sendInvoice(identity: SessionIdentity, invoiceId: string, options: { bags?: boolean } = {}): Promise<GmailSendResult> {
     const prepared = await withTenantTransaction(this.pool, identity, async (client) => {
       const invoice = await this.invoices.get(client, invoiceId);
       if (!invoice) throw new HttpError("not_found", 404);
@@ -401,7 +401,7 @@ export class GmailIntegrationService {
         address: invoice.issuerAddress,
         email: contact?.email ?? null,
         website: contact?.website ?? null,
-      });
+      }, { bags: options.bags === true });
       if (pdf.length > 5_000_000) throw new HttpError("payload_too_large", 413);
       const documentNumber = `${invoice.series}-${invoice.number}`;
       return {

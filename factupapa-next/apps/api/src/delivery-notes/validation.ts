@@ -64,6 +64,7 @@ export function validateDeliveryNumberPreview(value: string | null): string {
 export interface DeliveryPdfOptions {
   prices: boolean;
   copies: number;
+  bags?: boolean;
 }
 export function validateDeliveryPdfOptions(
   params: URLSearchParams,
@@ -75,7 +76,10 @@ export function validateDeliveryPdfOptions(
   const copies = rawCopies === null ? 1 : Number(rawCopies);
   if (!Number.isInteger(copies) || copies < 1 || copies > 3)
     throw new HttpError("invalid_request", 400);
-  return { prices: prices !== "0" && prices !== "false", copies };
+  const bags = params.get("bags");
+  if (bags !== null && !["1", "0", "true", "false"].includes(bags))
+    throw new HttpError("invalid_request", 400);
+  return { prices: prices !== "0" && prices !== "false", copies, bags: bags === "1" || bags === "true" };
 }
 export function validateDeliveryFromLast(
   body: Record<string, unknown>,

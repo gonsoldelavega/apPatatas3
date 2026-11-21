@@ -779,3 +779,24 @@
 .made-bags__secondary:disabled {
   opacity: 0.5;
 }
+
+.bag-detail-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 0;
+}
+.bag-detail-toggle input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+}
+.bag-detail-toggle span {
+  display: grid;
+  gap: 2px;
+}
+.bag-detail-toggle small {
+  color: var(--muted, #64748b);
+}
