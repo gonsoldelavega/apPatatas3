@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { bootstrapInitialAccount } from "../../src/auth/bootstrap.js";
 import type { SessionIdentity } from "../../src/auth/repository.js";
-import { createDatabaseProbe, type Database } from "../../src/database/client.js";
+import { createDatabaseProbe, withTenantTransaction, type Database } from "../../src/database/client.js";
 import { loadRegistrySyncTargets } from "../../src/finance/registry-auto-sync.js";
 import { FinanceService } from "../../src/finance/service.js";
 
@@ -100,4 +100,58 @@ test("el estado recuerda el resultado de la última importación automática", a
   assert.equal(status.lastAutoSync?.incomplete, 1);
   finance.recordAutoSync({ error: "hoja no disponible" });
   assert.equal(finance.purchaseRegistryStatus().lastAutoSync?.ok, false);
+});
+
+test("una compra apuntada a mano sin número se completa con la factura real en vez de duplicarse", async () => {
+  const ids = await withTenantTransaction(api.pool, owner, async (client) => {
+    const supplier = (await client.query<{ id: string }>(
+      `insert into contacts(company_id,kind,legal_name,tax_id,address) values($1,'supplier','Patatas salcedo','B04368288','{}') returning id`,
+      [owner.companyId],
+    )).rows[0]!.id;
+    const make = async (date: string, total: string, lines: number) => {
+      const purchase = (await client.query<{ id: string }>(
+        `insert into purchase_invoices(company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_tax_identity_key,issue_date,category,subtotal,tax_total,total,created_by_user_id)
+         values($1,$2,'Patatas salcedo','B04368288','B04368288',$3,'mercancia',$4,0,$4,$5) returning id`,
+        [owner.companyId, supplier, date, total, owner.userId],
+      )).rows[0]!.id;
+      for (let n = 1; n <= lines; n += 1) {
+        await client.query(
+          `insert into purchase_invoice_lines(company_id,purchase_invoice_id,description,quantity,unit,unit_cost,tax_rate,line_subtotal,line_tax,line_total,position)
+           values($1,$2,'10 sacos',150,'kg',$3::numeric/150/$4,0,$3::numeric/$4,0,$3::numeric/$4,$5)`,
+          [owner.companyId, purchase, total, lines, n],
+        );
+      }
+      return purchase;
+    };
+    return { single: await make("2026-11-04", "105", 1), multi: await make("2026-11-09", "251.25", 2) };
+  });
+  const adoptRegistry = [
+    header,
+    line({ 0: "2026-11-04", 2: "compra", 4: "02/060891", 5: "PATATAS SALCEDO, S.L.", 6: "B04368288", 7: "PATATAS AGRIA", 8: "Materia prima", 9: "100,96", 10: "4%", 11: "4,04", 12: "105", 13: "pagado", 18: "https://drive.google.com/file/d/SAL001/view", 19: "salcedo-060891.pdf", 20: "sí" }),
+    line({ 0: "2026-11-09", 2: "compra", 4: "02/061500", 5: "PATATAS SALCEDO, S.L.", 6: "B04368288", 7: "PATATAS AGRIA", 9: "241,59", 10: "4%", 11: "9,66", 12: "251,25", 13: "pagado", 18: "https://drive.google.com/file/d/SAL002/view", 20: "sí" }),
+  ].join("\n");
+  globalThis.fetch = (async () => new Response(adoptRegistry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  try {
+    await finance.syncPurchaseRegistry(owner);
+    const rows = await withTenantTransaction(api.pool, owner, async (client) => ({
+      all: (await client.query("select count(*)::int n from purchase_invoices where supplier_tax_id='B04368288'")).rows[0].n as number,
+      single: (await client.query("select status,supplier_invoice_number number,subtotal::float8 subtotal,tax_total::float8 tax,total::float8 total,source_registry_filename file from purchase_invoices where id=$1", [ids.single])).rows[0],
+      line: (await client.query("select quantity::float8 quantity,tax_rate::float8 rate,line_subtotal::float8 subtotal,line_tax::float8 tax from purchase_invoice_lines where purchase_invoice_id=$1", [ids.single])).rows[0],
+      multi: (await client.query("select status,supplier_invoice_number number from purchase_invoices where id=$1", [ids.multi])).rows[0],
+    }));
+    assert.equal(rows.single.status, "confirmed");
+    assert.equal(rows.single.number, "02/060891");
+    assert.deepEqual([rows.single.subtotal, rows.single.tax, rows.single.total], [100.96, 4.04, 105]);
+    assert.deepEqual([rows.line.quantity, rows.line.rate, rows.line.subtotal, rows.line.tax], [150, 4, 100.96, 4.04], "los kilos no cambian: el stock sigue igual");
+    assert.equal(rows.single.file, "salcedo-060891.pdf");
+    // La compra con dos líneas no se toca (y la factura tampoco se duplica).
+    assert.equal(rows.multi.status, "draft");
+    assert.equal(rows.multi.number, null);
+    assert.equal(rows.all, 2, "no se crean compras duplicadas");
+    // Una segunda importación no cambia nada.
+    const again = await finance.syncPurchaseRegistry(owner);
+    assert.equal(again.imported, 0);
+  } finally {
+    globalThis.fetch = (async () => new Response(registry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  }
 });

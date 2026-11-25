@@ -233,6 +233,26 @@ const GONSOL_SUPPLIERS = [
     }
   },
   {
+    key: 'SALCEDO',
+    name: 'PATATAS SALCEDO, S.L.',
+    nif: 'B04368288',
+    defaultConcept: 'PATATAS AGRIA',
+    defaultCategory: 'Materia prima',
+    defaultIva: 4,
+    detect: function(upper, upperFileName) {
+      return /PATATAS\s+SALCEDO|SALCEDO,?\s*S\.?\s*L|CAMINO\s+DE\s+LA\s+GOLETA/.test(upper)
+        || /B04368288/.test(upper.replace(/[^A-Z0-9]/g, ''))
+        || /SALCEDO/.test(upperFileName);
+    },
+    invoiceNumber: function(text, upper) {
+      // Ej: 02/060891. El numero de factura va tras la palabra FACTURA.
+      var near = upper.match(/FACTURA[^\d]{0,12}(\d{2}\/\d{6})/);
+      if (near) return near[1];
+      var loose = upper.match(/\b(0\d\/\d{6})\b/);
+      return loose ? loose[1] : '';
+    }
+  },
+  {
     key: 'SOLRED',
     name: 'SOLRED, S.A. (Repsol)',
     nif: '',
@@ -257,6 +277,16 @@ function processPurchaseInvoicesDaily() {
     importInvoicesFromGmail_();
   } catch (error) {
     console.error('Gmail import fallo (se continua con la bandeja): ' + error);
+  }
+  try {
+    importAnyInvoiceFromGmail_();
+  } catch (error) {
+    console.error('Gmail (cualquier proveedor) fallo: ' + error);
+  }
+  try {
+    applyClaudeResolutions_();
+  } catch (error) {
+    console.error('Aplicar resoluciones de Claude fallo: ' + error);
   }
   const inputFolder = DriveApp.getFolderById(GONSOL_CONFIG.inputFolderId);
   const reviewFolder = getOrCreateChildFolder_(inputFolder, GONSOL_CONFIG.reviewFolderName);
@@ -294,6 +324,11 @@ function processPurchaseInvoicesDaily() {
     }
   }
 
+  try {
+    archiveReviewedRegistryFiles_();
+  } catch (error) {
+    console.error('Archivar documentos revisados fallo: ' + error);
+  }
   rebuildMonthlyPurchasesSummary_(sheet);
   reorganizePurchasesByMonth_();
 
@@ -341,10 +376,17 @@ function processOnePurchaseInvoice_(file, sheet, duplicateIndex, reviewFolder, d
   const extracted = extractPurchaseInvoiceData_(text, file.getName());
   const now = new Date();
 
-  if (extracted.confidence < GONSOL_CONFIG.minConfidence || extracted.requiresReview) {
-    appendRegistryRow_(sheet, buildRegistryRow_(extracted, file, now, 'no', 'Revision manual: datos insuficientes'));
+  // Lo que el lector no entiende NO se registra: se deja a Claude para que lo explique
+  // (hoja REVISION_CLAUDE) y se archiva en la carpeta de revision.
+  let reason = '';
+  if (extracted.isCredit) reason = 'Devolucion, abono o rectificativa: hay que decidir como registrarla';
+  else if (!extracted.supplierKnown) reason = 'Proveedor desconocido (' + (extracted.provider || 'sin nombre') + ')';
+  else if (!extracted.amountsCoherent) reason = 'Importes no coherentes (base + IVA distinto del total)';
+  else if (extracted.confidence < GONSOL_CONFIG.minConfidence || extracted.requiresReview) reason = 'Datos insuficientes: ' + (extracted.observations || 'faltan campos');
+  if (reason) {
+    queueForClaude_(file, reason, text, file.getDescription() ? 'Gmail' : 'Drive');
     moveFileToFolder_(file, reviewFolder);
-    return { fileName: file.getName(), status: 'review', confidence: extracted.confidence };
+    return { fileName: file.getName(), status: 'queued', reason: reason };
   }
 
   const duplicateKey = makeDuplicateKey_(extracted.provider, extracted.invoiceNumber, extracted.total);
@@ -521,8 +563,12 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
   const profile = detectSupplier_(upper, originalFileName);
 
   const date = extractDate_(clean, originalFileName);
-  const total = extractTotal_(clean);
-  const tax = extractTax_(clean, total, profile ? profile.defaultIva : '');
+  // Terna base + IVA = total coherente (con el IVA impreso): mas fiable que las etiquetas del OCR.
+  const solved = solveAmounts_(clean, profile ? profile.defaultIva : '');
+  const total = solved ? solved.total : extractTotal_(clean);
+  const tax = solved
+    ? { base: solved.base, ivaPercent: solved.ivaPercent, ivaAmount: solved.ivaAmount }
+    : extractTax_(clean, total, profile ? profile.defaultIva : '');
   const provider = profile ? profile.name : extractProvider_(clean, upper, originalFileName);
   const nif = extractSupplierNif_(upper, profile);
   const invoiceNumber = extractInvoiceNumber_(clean, upper, profile);
@@ -582,7 +628,11 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
     year: year,
     confidence: confidence,
     requiresReview: requiresReview,
-    observations: observations
+    observations: observations,
+    supplierKnown: supplierKnown,
+    isCredit: /DEVOLUCI[ÓO]N|ABONO|RECTIFICATIVA|NOTA\s+DE\s+CR[ÉE]DITO/.test(upper),
+    amountsCoherent: !!solved,
+    validNif: !!(nif && validNif_(nif))
   };
 }
 
@@ -591,8 +641,9 @@ function detectSupplier_(upper, fileName) {
   // Version compacta del texto (solo letras/numeros): el OCR a menudo devuelve el
   // NIF con puntos, guiones o espacios ("B-42.743.211") y el test literal fallaba.
   const compact = upper.replace(/[^A-Z0-9]/g, '');
-  for (let i = 0; i < GONSOL_SUPPLIERS.length; i++) {
-    const supplier = GONSOL_SUPPLIERS[i];
+  const suppliers = allSuppliers_();
+  for (let i = 0; i < suppliers.length; i++) {
+    const supplier = suppliers[i];
     if (supplier.detect(upper, upperFileName)) return supplier;
     if (supplier.nif && compact.indexOf(supplier.nif) !== -1) return supplier;
   }
@@ -618,9 +669,9 @@ function extractSupplierNif_(upper, profile) {
   }
   // Descarta los NIF propios (cliente) para no confundirlos con el proveedor.
   const filtered = found.filter(function(nif) {
-    return GONSOL_CLIENT_NIFS.indexOf(nif) === -1;
+    return GONSOL_CLIENT_NIFS.indexOf(nif) === -1 && !isOwnNif_(nif) && validNif_(nif);
   });
-  return filtered[0] || found[0] || '';
+  return filtered[0] || '';
 }
 
 function extractDate_(text, fileName) {

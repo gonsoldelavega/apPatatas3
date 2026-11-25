@@ -155,7 +155,8 @@ const registryCategory = (value: unknown) => {
   if (/AUT[ÓO]NOM/.test(category)) return "autonomo";
   if (/GESTOR/.test(category)) return "gestoria";
   if (/TRANSPORTE/.test(category)) return "transporte";
-  if (/SUMINISTRO/.test(category)) return "suministros";
+  if (/SUMINISTRO|SERVICIOS?\s+DIGITAL|SOFTWARE|HOSTING/.test(category)) return "suministros";
+  if (/MANTENIMIENTO|REPARACI/.test(category)) return "otros";
   if (/ALQUILER/.test(category)) return "alquiler";
   if (/IMPUEST/.test(category)) return "impuestos";
   return "mercancia";
@@ -348,6 +349,56 @@ export class FinanceService {
         const reviewed = /^S[IÍ]$/i.test(registryText(row[20]));
         const suspicious = isSuspiciousRegistryRow(invoiceNumber, supplierName);
         const canConfirm = reviewed && Boolean(invoiceNumber) && !suspicious;
+        // Compra apuntada a mano (borrador sin número) que es esta misma factura: se completa con los datos
+        // reales de la factura (número, IVA, importes) en vez de duplicarla. Solo si tiene una línea, para no
+        // tocar kilos ni productos (el stock sale de las líneas).
+        const manual = (
+          await client.query(
+            `select p.id,
+                    (select count(*)::int from purchase_invoice_lines l where l.purchase_invoice_id=p.id) lines
+             from purchase_invoices p
+             where p.company_id=$1 and p.supplier_id=$2 and p.status='draft' and p.deleted_at is null
+               and p.source_registry_key is null and coalesce(btrim(p.supplier_invoice_number),'')=''
+               and p.issue_date=$3::date and abs(p.total-$4::numeric)<=0.05
+             order by p.created_at limit 1`,
+            [i.companyId, supplier.id, issueDate, total],
+          )
+        ).rows[0] as { id: string; lines: number } | undefined;
+        if (manual) {
+          if (manual.lines !== 1 || !invoiceNumber || suspicious) {
+            skipped += 1;
+            continue;
+          }
+          await client.query(
+            `update purchase_invoice_lines set tax_rate=$2,line_subtotal=$3,line_tax=$4,line_total=$5,
+               unit_cost=round($3::numeric/quantity,4)
+             where purchase_invoice_id=$1`,
+            [manual.id, taxRate, subtotal, taxTotal, total],
+          );
+          await client.query(
+            `update purchase_invoices set supplier_invoice_number=$2,supplier_invoice_number_key=$3,subtotal=$4,tax_total=$5,total=$6,
+               source_registry_key=$7,source_registry_url=$8,source_registry_filename=$9,
+               notes=concat_ws(' · ',nullif(notes,''),'Completada con la factura del registro maestro')
+             where id=$1`,
+            [
+              manual.id, invoiceNumber, canonicalInvoiceNumber(invoiceNumber), subtotal, taxTotal, total, key,
+              registryUrl(row[18]), registryText(row[19]) || null,
+            ],
+          );
+          if (canConfirm)
+            await client.query("update purchase_invoices set status='confirmed',confirmed_at=now() where id=$1", [manual.id]);
+          else drafts += 1;
+          await recordAudit(client, {
+            companyId: i.companyId,
+            actorUserId: i.userId,
+            entityType: "purchase_invoice",
+            entityId: manual.id,
+            action: "purchase_invoice.registry_adopted",
+            after: { sourceRegistryKey: key, confirmed: canConfirm },
+          });
+          imported += 1;
+          continue;
+        }
         const purchaseId = (
           await client.query(
             `insert into purchase_invoices(
