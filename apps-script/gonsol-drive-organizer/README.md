@@ -93,3 +93,26 @@ rebuildPurchaseMonthlySummary()
 
 La extraccion por OCR + regex es barata, pero no infalible. Si una factura tiene formato raro, ira a revision manual en vez de inventar datos.
 
+
+## Bucle con Claude (REVISION_CLAUDE)
+
+El organizador ya no se inventa los datos de lo que no entiende:
+
+1. **Lee y registra solo** lo que reconoce: proveedor conocido (codigo o hoja `PROVEEDORES`), fecha, e importes
+   coherentes (`base + IVA = total` con el IVA impreso). Valida el NIF/CIF (letra o digito de control).
+2. **Lo que no entiende** (proveedor desconocido, devolucion/abono, importes que no cuadran, datos que faltan) NO entra en
+   `REGISTRO`: se archiva en `REVISAR_MANUALMENTE` y se anota en la hoja `REVISION_CLAUDE` con el texto leido.
+3. **Claude lo explica**: escribe en la columna *Resolucion (JSON)* los datos reales y pone *Estado = resuelto*:
+   `{"fecha":"2026-11-04","proveedor":"PATATAS SALCEDO, S.L.","nif":"B04368288","numero":"02/060891","concepto":"PATATAS AGRIA","categoria":"Materia prima","base":"100,96","ivaPct":4,"iva":"4,04","total":"105","pago":"pagado","aprender":true,"palabrasClave":"SALCEDO;CAMINO DE LA GOLETA"}`
+   (o `{"descartar":true,"notas":"..."}`).
+4. En la siguiente pasada el organizador **aplica la resolucion**: registra, renombra, archiva en
+   `02_COMPRAS/<anio>/<trimestre>/<mes>` y, con `aprender`, anade el proveedor a `PROVEEDORES` para que la proxima vez
+   lo lea solo.
+
+`PROVEEDORES` admite las columnas `Palabras clave`, `Concepto por defecto`, `IVA por defecto`, `Remitentes` y
+`Patron nº factura` (regex): se amplia sin tocar codigo ni redesplegar.
+
+Gmail: ademas de los remitentes conocidos, se revisan los correos recientes que parecen facturas (cualquier proveedor):
+los PDF van a la bandeja y los correos sin adjunto (enlace de descarga) se anotan en `REVISION_CLAUDE`.
+
+Prueba sin Apps Script: `node --test apps-script/gonsol-drive-organizer/test/organizer.test.cjs`.
