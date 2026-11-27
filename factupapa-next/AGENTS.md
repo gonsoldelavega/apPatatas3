@@ -171,3 +171,8 @@ Pantalla `/documentos` (solo maestro): lista todo lo que hay en la carpeta de ge
 
 - El organizador de Drive (`apps-script/gonsol-drive-organizer`, desplegado desde la rama `codex/factupapa-next-quality-sweep`) lee y registra solo lo que entiende; lo demás va a la hoja `REVISION_CLAUDE` (Estado = pendiente) y se archiva en `REVISAR_MANUALMENTE`. Claude lo resuelve escribiendo el JSON de la columna *Resolución* y Estado = resuelto; la siguiente pasada del organizador lo registra, lo renombra y lo archiva. Ver el README del organizador.
 - La importación del Registro (`syncPurchaseRegistry`) completa una compra apuntada a mano (borrador sin número, una sola línea, mismo proveedor, misma fecha y total ±0,05 €) con el número, el IVA y los importes de la factura real en vez de duplicarla; no toca los kilos.
+
+### Variables de entorno de la API en staging
+
+- `docker compose` solo pasa al contenedor `api` las variables listadas en `environment:` de `infrastructure/docker-compose.yml`. Una variable que está en el `.env` privado pero no en esa lista llega VACÍA a la app. Así dejó de importarse el Registro Maestro (faltaba `PURCHASE_REGISTRY_WEBAPP_URL`) entre el 3 de octubre y el 27 de noviembre de 2026. Toda variable nueva que lea la API se añade ahí y en `apps/api/test/compose-env.test.ts`.
+- Para ver el estado real de producción sin acceso al servidor: commit con `[diagnose-registry-sync]` (script de solo lectura `scripts/diagnose-registry-sync.sh`, salida en el log del job de GitHub Actions).

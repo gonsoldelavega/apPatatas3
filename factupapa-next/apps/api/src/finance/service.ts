@@ -349,23 +349,25 @@ export class FinanceService {
         const reviewed = /^S[IÍ]$/i.test(registryText(row[20]));
         const suspicious = isSuspiciousRegistryRow(invoiceNumber, supplierName);
         const canConfirm = reviewed && Boolean(invoiceNumber) && !suspicious;
-        // Compra apuntada a mano (borrador sin número) que es esta misma factura: se completa con los datos
-        // reales de la factura (número, IVA, importes) en vez de duplicarla. Solo si tiene una línea, para no
-        // tocar kilos ni productos (el stock sale de las líneas).
+        // Compra apuntada a mano (sin número) que es esta misma factura: si es un borrador de una línea se completa
+        // con los datos reales (número, IVA, importes) sin tocar kilos ni productos (el stock sale de las líneas); si
+        // ya está confirmada se deja como está. En ambos casos la factura no se duplica.
         const manual = (
           await client.query(
-            `select p.id,
+            `select p.id,p.status::text status,
                     (select count(*)::int from purchase_invoice_lines l where l.purchase_invoice_id=p.id) lines
              from purchase_invoices p
-             where p.company_id=$1 and p.supplier_id=$2 and p.status='draft' and p.deleted_at is null
+             where p.company_id=$1 and p.supplier_id=$2 and p.status in('draft','confirmed') and p.deleted_at is null
                and p.source_registry_key is null and coalesce(btrim(p.supplier_invoice_number),'')=''
                and p.issue_date=$3::date and abs(p.total-$4::numeric)<=0.05
              order by p.created_at limit 1`,
             [i.companyId, supplier.id, issueDate, total],
           )
-        ).rows[0] as { id: string; lines: number } | undefined;
+        ).rows[0] as { id: string; status: string; lines: number } | undefined;
         if (manual) {
-          if (manual.lines !== 1 || !invoiceNumber || suspicious) {
+          // Ya confirmada a mano: es inmutable y es la que lleva los kilos del stock. La factura real no se
+          // duplica; la compra manual se queda como está.
+          if (manual.status !== "draft" || manual.lines !== 1 || !invoiceNumber || suspicious) {
             skipped += 1;
             continue;
           }

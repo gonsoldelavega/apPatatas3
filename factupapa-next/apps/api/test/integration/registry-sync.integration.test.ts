@@ -155,3 +155,35 @@ test("una compra apuntada a mano sin número se completa con la factura real en 
     globalThis.fetch = (async () => new Response(registry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
   }
 });
+
+test("una compra manual ya confirmada (sin número) no se duplica con la factura real", async () => {
+  const id = await withTenantTransaction(api.pool, owner, async (client) => {
+    const supplier = (await client.query<{ id: string }>(
+      `insert into contacts(company_id,kind,legal_name,tax_id,address) values($1,'supplier','Proveedor manual','B84406289','{}') returning id`,
+      [owner.companyId],
+    )).rows[0]!.id;
+    const purchase = (await client.query<{ id: string }>(
+      `insert into purchase_invoices(company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_tax_identity_key,issue_date,category,subtotal,tax_total,total,created_by_user_id,status,confirmed_at)
+       values($1,$2,'Proveedor manual','B84406289','B84406289','2026-11-20','mercancia',100,0,100,$3,'confirmed',now()) returning id`,
+      [owner.companyId, supplier, owner.userId],
+    )).rows[0]!.id;
+    return purchase;
+  });
+  const confirmedRegistry = [
+    header,
+    line({ 0: "2026-11-20", 2: "compra", 4: "F-77", 5: "PROVEEDOR MANUAL, S.L.", 6: "B84406289", 7: "MATERIAL", 9: "96,15", 10: "4%", 11: "3,85", 12: "100", 13: "pagado", 18: "https://drive.google.com/file/d/MAN001/view", 20: "sí" }),
+  ].join("\n");
+  globalThis.fetch = (async () => new Response(confirmedRegistry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  try {
+    const result = await finance.syncPurchaseRegistry(owner);
+    assert.equal(result.imported, 0, "no se crea una segunda compra");
+    const rows = await withTenantTransaction(api.pool, owner, async (client) =>
+      (await client.query("select count(*)::int n from purchase_invoices where supplier_tax_id='B84406289' and deleted_at is null")).rows[0].n as number);
+    assert.equal(rows, 1);
+    const manual = await withTenantTransaction(api.pool, owner, async (client) =>
+      (await client.query("select status,total::float8 total from purchase_invoices where id=$1", [id])).rows[0]);
+    assert.deepEqual([manual.status, manual.total], ["confirmed", 100]);
+  } finally {
+    globalThis.fetch = (async () => new Response(registry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  }
+});
