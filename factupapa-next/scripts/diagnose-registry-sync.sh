@@ -57,3 +57,4 @@ echo "== 4. Registros recientes del servidor sobre el registro =="
 docker compose logs --no-color --tail 4000 api 2>/dev/null | grep -Ei 'registry|registro' | tail -n 25 | cut -c1-300 || true
 echo "== fin =="
 # Verificado tras el arreglo de compose (27/11/2026).
+# Verificado tras el arreglo de comillas (27/11/2026).
