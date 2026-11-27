@@ -36,16 +36,20 @@ upsert_private_environment_value() {
     *$'\n'*|*$'\r'*) echo "Valor privado no válido para ${key}" >&2; exit 1 ;;
   esac
 
+  # El valor se guarda entre comillas simples: el fichero se lee con `source`, y un valor con `&`, `?` o
+  # espacios (p. ej. la URL del Registro Maestro) se rompia o se perdia en silencio.
+  local quoted="'${value//\'/\'\\\'\'}'"
+
   temporary_file="$(mktemp "$(dirname "${environment_file}")/.env.deploy.XXXXXX")"
   chmod 600 "${temporary_file}"
-  awk -v key="${key}" -v value="${value}" '
-    index($0, key "=") == 1 {
-      if (!updated) print key "=" value
+  UPSERT_KEY="${key}" UPSERT_VALUE="${quoted}" awk '
+    index($0, ENVIRON["UPSERT_KEY"] "=") == 1 {
+      if (!updated) print ENVIRON["UPSERT_KEY"] "=" ENVIRON["UPSERT_VALUE"]
       updated = 1
       next
     }
     { print }
-    END { if (!updated) print key "=" value }
+    END { if (!updated) print ENVIRON["UPSERT_KEY"] "=" ENVIRON["UPSERT_VALUE"] }
   ' "${environment_file}" >"${temporary_file}"
   mv "${temporary_file}" "${environment_file}"
   chmod 600 "${environment_file}"
