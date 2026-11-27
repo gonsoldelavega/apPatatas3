@@ -187,3 +187,60 @@ test("una compra manual ya confirmada (sin número) no se duplica con la factura
     globalThis.fetch = (async () => new Response(registry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
   }
 });
+
+test("dos importaciones a la vez no duplican compras y la base de datos lo impide", async () => {
+  const concurrentRegistry = [
+    header,
+    line({ 0: "2026-11-21", 2: "compra", 4: "C-1", 5: "CONCURRENTE UNO, S.L.", 6: "B12345674", 7: "A", 9: "10", 10: "21%", 11: "2,1", 12: "12,1", 13: "pagado", 18: "https://drive.google.com/file/d/CON001/view", 20: "sí" }),
+    line({ 0: "2026-11-22", 2: "compra", 4: "C-2", 5: "CONCURRENTE DOS, S.L.", 6: "B12345674", 7: "B", 9: "20", 10: "21%", 11: "4,2", 12: "24,2", 13: "pagado", 18: "https://drive.google.com/file/d/CON002/view", 20: "sí" }),
+  ].join("\n");
+  globalThis.fetch = (async () => new Response(concurrentRegistry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  try {
+    await Promise.all([finance.syncPurchaseRegistry(owner), finance.syncPurchaseRegistry(owner), finance.syncPurchaseRegistry(owner)]);
+    const count = async () =>
+      withTenantTransaction(api.pool, owner, async (client) =>
+        (await client.query("select count(*)::int n from purchase_invoices where source_registry_key in ('CON001','CON002') and deleted_at is null")).rows[0].n as number);
+    assert.equal(await count(), 2, "una compra por factura aunque se importe a la vez");
+    // Aunque algo fallara, la base de datos no admite dos compras activas con la misma clave de origen.
+    await assert.rejects(
+      withTenantTransaction(api.pool, owner, async (client) => {
+        await client.query(
+          `insert into purchase_invoices(company_id,supplier_legal_name,issue_date,category,subtotal,tax_total,total,created_by_user_id,source_registry_key)
+           values($1,'X','2026-11-21','mercancia',1,0,1,$2,'CON001')`,
+          [owner.companyId, owner.userId],
+        );
+      }),
+      /purchase_invoices_registry_unique_idx/,
+    );
+  } finally {
+    globalThis.fetch = (async () => new Response(registry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  }
+});
+
+test("la compra manual confirmada se reconoce por el NIF aunque el proveedor sea otro contacto", async () => {
+  await withTenantTransaction(api.pool, owner, async (client) => {
+    const supplier = (await client.query<{ id: string }>(
+      `insert into contacts(company_id,kind,legal_name,tax_id,address) values($1,'supplier','Taller manual','B98765432','{}') returning id`,
+      [owner.companyId],
+    )).rows[0]!.id;
+    await client.query(
+      `insert into purchase_invoices(company_id,supplier_id,supplier_legal_name,supplier_tax_id,supplier_tax_identity_key,issue_date,category,subtotal,tax_total,total,created_by_user_id,status,confirmed_at)
+       values($1,$2,'Taller manual','B98765432','B98765432','2026-11-23','mercancia',50,0,50,$3,'confirmed',now())`,
+      [owner.companyId, supplier, owner.userId],
+    );
+  });
+  const twinRegistry = [
+    header,
+    line({ 0: "2026-11-23", 2: "compra", 4: "T-9", 5: "TALLER MANUAL, S.L. (OTRO NOMBRE)", 6: "B98765432", 7: "TALLER", 9: "48,08", 10: "4%", 11: "1,92", 12: "50", 13: "pagado", 18: "https://drive.google.com/file/d/TWN001/view", 20: "sí" }),
+  ].join("\n");
+  globalThis.fetch = (async () => new Response(twinRegistry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  try {
+    const result = await finance.syncPurchaseRegistry(owner);
+    assert.equal(result.imported, 0);
+    const n = await withTenantTransaction(api.pool, owner, async (client) =>
+      (await client.query("select count(*)::int n from purchase_invoices where supplier_tax_id='B98765432' and deleted_at is null")).rows[0].n as number);
+    assert.equal(n, 1);
+  } finally {
+    globalThis.fetch = (async () => new Response(registry, { status: 200, headers: { "content-type": "text/csv" } })) as typeof fetch;
+  }
+});

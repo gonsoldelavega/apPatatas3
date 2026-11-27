@@ -279,6 +279,9 @@ export class FinanceService {
       (row) => registryText(row[2]).toUpperCase() === "COMPRA",
     );
     return withTenantTransaction(this.pool, i, async (client) => {
+      // Una sola importación a la vez por empresa: dos a la vez (arranque + otra, o el botón de Gastos) no se
+      // veían entre sí y duplicaban las compras. La segunda espera a que termine la primera y las ve ya guardadas.
+      await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`registry-sync:${i.companyId}`]);
       let imported = 0, skipped = 0, drafts = 0, paid = 0;
       const incomplete: RegistrySyncResult["incomplete"] = [];
       for (const row of purchases) {
@@ -357,11 +360,11 @@ export class FinanceService {
             `select p.id,p.status::text status,
                     (select count(*)::int from purchase_invoice_lines l where l.purchase_invoice_id=p.id) lines
              from purchase_invoices p
-             where p.company_id=$1 and p.supplier_id=$2 and p.status in('draft','confirmed') and p.deleted_at is null
+             where p.company_id=$1 and p.supplier_tax_identity_key=$2 and p.status in('draft','confirmed') and p.deleted_at is null
                and p.source_registry_key is null and coalesce(btrim(p.supplier_invoice_number),'')=''
                and p.issue_date=$3::date and abs(p.total-$4::numeric)<=0.05
              order by p.created_at limit 1`,
-            [i.companyId, supplier.id, issueDate, total],
+            [i.companyId, canonicalSupplierTaxId(supplier.tax_id) ?? supplier.id, issueDate, total],
           )
         ).rows[0] as { id: string; status: string; lines: number } | undefined;
         if (manual) {
