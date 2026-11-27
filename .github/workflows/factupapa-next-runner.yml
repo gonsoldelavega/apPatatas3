@@ -98,6 +98,13 @@ jobs:
           IMPORT_USER_EMAIL: ${{ secrets.FACTUPAPA_STAGING_EMAIL }}
         run: bash factupapa-next/scripts/diagnose-private-visibility.sh "${GITHUB_WORKSPACE}"
 
+      - name: Diagnose registry sync
+        if: >-
+          github.event_name == 'push' &&
+          contains(github.event.head_commit.message, '[diagnose-registry-sync]')
+        shell: bash
+        run: bash factupapa-next/scripts/diagnose-registry-sync.sh "${GITHUB_WORKSPACE}"
+
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
