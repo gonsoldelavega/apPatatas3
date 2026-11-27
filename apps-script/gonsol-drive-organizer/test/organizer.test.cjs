@@ -58,3 +58,11 @@ test("solveAmounts: base + IVA = total con el IVA impreso", () => {
   assert.deepEqual({ ...api.solveAmounts_("Base 52,25 IVA 10,97 Total 63,22", "") }, { base: 52.25, ivaPercent: 21, ivaAmount: 10.97, total: 63.22 });
   assert.equal(api.solveAmounts_("Total 105,00 y 2,50", ""), null);
 });
+
+test("un proveedor conocido manda sobre las palabras sueltas del texto", () => {
+  const solred = read("SOLRED, S.A.\nFactura 260528837\nFecha 01/10/2026\nGasoleo bolsa de hielo\nBase 25,71 IVA 21% 5,40 Total 31,11", "x.pdf");
+  assert.equal(solred.category, "Combustible");
+  assert.equal(solred.concept, "Combustible");
+  const salcedo = read(SALCEDO_2, "x.pdf");
+  assert.equal(salcedo.category, "Materia prima");
+});

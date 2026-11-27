@@ -438,6 +438,11 @@ function processPurchaseInvoicesDaily() {
   }
 
   try {
+    mergePurchaseFolders_();
+  } catch (error) {
+    console.error('Unir carpetas duplicadas fallo: ' + error);
+  }
+  try {
     archiveReviewedRegistryFiles_();
   } catch (error) {
     console.error('Archivar documentos revisados fallo: ' + error);
@@ -745,12 +750,14 @@ function extractPurchaseInvoiceData_(text, originalFileName) {
   const nif = extractSupplierNif_(upper, profile);
   const invoiceNumber = extractInvoiceNumber_(clean, upper, profile);
 
+  // Proveedor conocido: su concepto y su categoria mandan (el texto de una factura de hosting o de
+  // un transportista puede mencionar "patata" y no por eso es materia prima).
   let concept = extractConcept_(upper);
-  if ((!concept || concept === 'Compra') && profile && profile.defaultConcept) {
+  if (profile && profile.defaultConcept) {
     concept = profile.defaultConcept;
   }
   let category = classifyPurchaseCategory_(upper);
-  if (!category && profile && profile.defaultCategory) {
+  if (profile && profile.defaultCategory) {
     category = profile.defaultCategory;
   }
 
@@ -1808,7 +1815,8 @@ function archiveReviewedRegistryFiles_() {
       const parents = file.getParents();
       let pending = false;
       while (parents.hasNext()) { if (awaiting[parents.next().getId()]) pending = true; }
-      if (!pending) continue;
+      const corrected = /(Corregida|Resuelto) con Claude/i.test(String(row[21]));
+      if (!pending && !corrected) continue;
       const date = parseRegistryDate_(row[0]);
       if (!date) continue;
       const total = parseMoney_(row[12]);
@@ -1821,8 +1829,12 @@ function archiveReviewedRegistryFiles_() {
       const extension = (/\.([A-Za-z0-9]+)$/.exec(file.getName()) || [0, 'pdf'])[1].toLowerCase();
       const name = buildPurchaseFileName_(data).replace(/\.pdf$/i, '') + '.' + extension;
       const destination = getDestinationFolder_(String(date.getFullYear()), 'T' + (Math.floor(date.getMonth() / 3) + 1), GONSOL_MONTHS[date.getMonth()]);
+      let inPlace = false;
+      const current = file.getParents();
+      while (current.hasNext()) { if (current.next().getId() === destination.getId()) inPlace = true; }
+      if (inPlace && file.getName() === name) continue;
       file.setName(name);
-      moveFileToFolder_(file, destination);
+      if (!inPlace) moveFileToFolder_(file, destination);
       sheet.getRange(i + 1, 20).setValue(name);
       moved.push(name);
     } catch (error) {
@@ -1880,4 +1892,49 @@ function importAnyInvoiceFromGmail_() {
   });
   if (imported.length) console.log('Gmail (cualquier proveedor): ' + JSON.stringify(imported));
   return imported;
+}
+
+
+/**
+ * Une las carpetas duplicadas con el mismo nombre dentro de 02_COMPRAS (p. ej. dos carpetas "2026":
+ * cada pasada elegia una y los documentos quedaban repartidos). Se queda con la mas antigua, mueve a ella
+ * todo el contenido (fusionando subcarpetas del mismo nombre) y manda a la papelera las duplicadas vacias.
+ */
+function mergeDuplicateFolders_(parent, depth) {
+  if (depth > 4) return 0;
+  let merged = 0;
+  const groups = {};
+  const children = parent.getFolders();
+  while (children.hasNext()) {
+    const folder = children.next();
+    const key = folder.getName().trim();
+    (groups[key] = groups[key] || []).push(folder);
+  }
+  Object.keys(groups).forEach(function(name) {
+    const list = groups[name].sort(function(a, b) { return a.getDateCreated() - b.getDateCreated(); });
+    const canonical = list[0];
+    for (let i = 1; i < list.length; i++) {
+      moveFolderContents_(list[i], canonical, depth + 1);
+      merged++;
+    }
+    mergeDuplicateFolders_(canonical, depth + 1);
+  });
+  return merged;
+}
+
+function moveFolderContents_(source, target, depth) {
+  const files = source.getFiles();
+  while (files.hasNext()) files.next().moveTo(target);
+  const folders = source.getFolders();
+  while (folders.hasNext()) {
+    const sub = folders.next();
+    const same = target.getFoldersByName(sub.getName());
+    if (same.hasNext()) moveFolderContents_(sub, same.next(), depth + 1);
+    else sub.moveTo(target);
+  }
+  if (!source.getFiles().hasNext() && !source.getFolders().hasNext()) source.setTrashed(true);
+}
+
+function mergePurchaseFolders_() {
+  return mergeDuplicateFolders_(DriveApp.getFolderById(GONSOL_CONFIG.purchasesRootFolderId), 0);
 }
