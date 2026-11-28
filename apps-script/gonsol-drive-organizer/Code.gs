@@ -1781,11 +1781,20 @@ function registerResolvedDocument_(link, r, registry, duplicateIndex) {
   const duplicateKey = makeDuplicateKey_(data.provider, data.invoiceNumber, data.total);
   if (duplicateIndex[duplicateKey]) return 'duplicate';
   const fileId = fileIdFromUrl_(link);
-  if (!fileId) throw new Error('enlace sin archivo de Drive');
-  const file = DriveApp.getFileById(fileId);
-  const destination = getDestinationFolder_(data.year, data.quarter, data.month);
-  file.setName(buildPurchaseFileName_(data).replace(/\.pdf$/i, '') + '.' + (/\.([A-Za-z0-9]+)$/.exec(file.getName()) || [0, 'pdf'])[1].toLowerCase());
-  moveFileToFolder_(file, destination);
+  let file;
+  if (fileId) {
+    file = DriveApp.getFileById(fileId);
+    const destination = getDestinationFolder_(data.year, data.quarter, data.month);
+    file.setName(buildPurchaseFileName_(data).replace(/\.pdf$/i, '') + '.' + (/\.([A-Za-z0-9]+)$/.exec(file.getName()) || [0, 'pdf'])[1].toLowerCase());
+    moveFileToFolder_(file, destination);
+  } else {
+    // Factura que solo llegó como correo con enlace de descarga (p. ej. SEUR): se registra con el enlace del
+    // correo y sin archivo que mover. Si luego se sube el PDF a la bandeja se archivará aparte.
+    file = {
+      getUrl: function() { return String(link || ''); },
+      getName: function() { return '(correo sin PDF adjunto)'; }
+    };
+  }
   appendRegistryRow_(registry, buildRegistryRow_(data, file, new Date(), 'sí', 'Resuelto con Claude' + (r.notas ? ' · ' + r.notas : '')));
   duplicateIndex[duplicateKey] = true;
   return 'registered';
